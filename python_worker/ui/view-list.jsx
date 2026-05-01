@@ -9,7 +9,8 @@ function ListGrid({
   filterDev, onFilterDev,
   filterStatus, onFilterStatus,
   activeSources, onSetActiveSources,
-  activeCities, onSetActiveCities
+  activeCities, onSetActiveCities,
+  dark, onToggleTheme
 }) {
   const [mode, setMode] = React.useState('grid');
   
@@ -85,7 +86,7 @@ function ListGrid({
   const paddingBottom = Math.max(0, (totalRows - endRow) * rowHeight);
 
   return (
-    <div className="usi-app" style={{ background: 'var(--usi-bg)', height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div data-component="ListGrid" className="usi-app" style={{ background: 'var(--usi-bg)', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <ListToolbar
         mode={mode} onModeChange={setMode}
         count={filteredInvestments.length} total={investments.length}
@@ -95,6 +96,7 @@ function ListGrid({
         onNav={onNav}
         activeSources={activeSources} onToggleSource={toggleSource}
         activeCities={activeCities} onToggleCity={toggleCity}
+        dark={dark} onToggleTheme={onToggleTheme}
       />
       <div 
         ref={containerRef}
@@ -130,7 +132,7 @@ function ListGrid({
   );
 }
 
-function ListToolbar({ mode, onModeChange, count, total, search, onSearch, developers, filterDev, onFilterDev, filterStatus, onFilterStatus, onNav, activeSources, onToggleSource, activeCities, onToggleCity }) {
+function ListToolbar({ mode, onModeChange, count, total, search, onSearch, developers, filterDev, onFilterDev, filterStatus, onFilterStatus, onNav, activeSources, onToggleSource, activeCities, onToggleCity, dark, onToggleTheme }) {
   const [navOpen, setNavOpen] = React.useState(false);
 
   const Chip = ({ label, active, onClick, color, source }) => (
@@ -160,7 +162,7 @@ function ListToolbar({ mode, onModeChange, count, total, search, onSearch, devel
   );
 
   return (
-    <div style={{
+    <div data-component="ListToolbar" style={{
       display: 'flex', flexDirection: 'column',
       borderBottom: '.5px solid var(--usi-border)',
       background: 'var(--usi-surface)', flexShrink: 0,
@@ -168,7 +170,8 @@ function ListToolbar({ mode, onModeChange, count, total, search, onSearch, devel
     }}>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12,
-        padding: '14px 24px', flexWrap: 'wrap', rowGap: 12
+        padding: '14px 24px', flexWrap: 'wrap', rowGap: 12,
+        position: 'relative'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
           <NavMenuButton onClick={() => setNavOpen(true)} />
@@ -212,6 +215,7 @@ function ListToolbar({ mode, onModeChange, count, total, search, onSearch, devel
               }}><Icon name="list" /></button>
           </div>
         </div>
+        {navOpen && <NavDrawer current="list" onClose={() => setNavOpen(false)} onNav={v => { setNavOpen(false); onNav(v); }} dark={dark} onToggleTheme={onToggleTheme} />}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '0 24px 14px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -231,7 +235,6 @@ function ListToolbar({ mode, onModeChange, count, total, search, onSearch, devel
           )}
         </div>
       </div>
-      {navOpen && <NavDrawer current="list" onClose={() => setNavOpen(false)} onNav={v => { setNavOpen(false); onNav(v); }} />}
     </div>
   );
 }
@@ -241,7 +244,7 @@ function ListCard({ inv, onSelect }) {
   const avg = avgRating(inv);
   const thumb = inv.photos && inv.photos.length > 0 ? inv.photos[0] : null;
   return (
-    <article className="usi-card" onClick={onSelect} style={{ display: 'flex', flexDirection: 'column', cursor: 'pointer', height: 320, background: 'var(--usi-surface)' }}>
+    <article data-component="ListCard" className="usi-card" onClick={onSelect} style={{ display: 'flex', flexDirection: 'column', cursor: 'pointer', height: 320, background: 'var(--usi-surface)' }}>
       <div style={{ position: 'relative', height: 160, background: 'var(--usi-surface-3)', overflow: 'hidden' }}>
         {thumb ? <img src={thumb} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--usi-ink-4)', fontSize: 32 }}>📷</div>}
         <div style={{ position: 'absolute', top: 10, left: 10, display: 'flex', gap: 6 }}>
@@ -273,7 +276,7 @@ function ListCard({ inv, onSelect }) {
 
 function ListTableContent({ investments = [], onSelectInv = () => {} }) {
   return (
-    <div className="usi-card flat" style={{ background: 'var(--usi-surface)', borderRadius: 12, overflow: 'hidden' }}>
+    <div data-component="ListTableContent" className="usi-card flat" style={{ background: 'var(--usi-surface)', borderRadius: 12, overflow: 'hidden' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
           <tr style={{ background: 'var(--usi-surface-2)' }}>

@@ -13,7 +13,7 @@ function tileBtn(active) {
 
 function DeletionBadge({ zIndex }) {
   return (
-    <div style={{
+    <div data-component="DeletionBadge" style={{
       position: 'absolute', top: 10, left: 10,
       background: '#C0392B', color: '#fff',
       padding: '4px 8px', borderRadius: 4,
@@ -30,7 +30,7 @@ function DeletionBadge({ zIndex }) {
 
 function PhotoOverlay({ onOpen, onToggleMark, marked, visible, zIndex }) {
   return (
-    <div style={{
+    <div data-component="PhotoOverlay" style={{
       position: 'absolute', top: 8, right: 8,
       display: 'flex', gap: 6,
       opacity: visible ? 1 : 0.55, transition: 'opacity .15s',
@@ -51,7 +51,7 @@ function PhotoOverlay({ onOpen, onToggleMark, marked, visible, zIndex }) {
 function PhotoTile({ src, marked, onMark, onOpen, ratio = '4/3', hero = false }) {
   const [hover, setHover] = React.useState(false);
   return (
-    <div
+    <div data-component="PhotoTile"
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
@@ -94,7 +94,7 @@ function SlideShow({ photos = [], marked, onToggleMark, onLightbox, style: extra
 
   if (total === 0) {
     return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8, color: 'var(--usi-ink-4)' }}>
+      <div data-component="SlideShow" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8, color: 'var(--usi-ink-4)' }}>
         <span style={{ fontSize: 40 }}>📷</span>
         <span className="usi-small">Brak zdjęć</span>
       </div>
@@ -116,7 +116,7 @@ function SlideShow({ photos = [], marked, onToggleMark, onLightbox, style: extra
   });
 
   return (
-    <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: 'var(--usi-bg)', ...extraStyle }}>
+    <div data-component="SlideShow" style={{ flex: 1, position: 'relative', overflow: 'hidden', background: 'var(--usi-bg)', ...extraStyle }}>
       <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
 
       <button style={navBtn('left')} onClick={() => setIdx(i => Math.max(0, i - 1))} title="Poprzednie">‹</button>
@@ -143,7 +143,7 @@ function SlideShow({ photos = [], marked, onToggleMark, onLightbox, style: extra
 function Gallery({ inv, columns = 4, marked, onToggleMark, onLightbox }) {
   if (!inv.photos || inv.photos.length === 0) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: 'var(--usi-ink-4)', flexDirection: 'column', gap: 8 }}>
+      <div data-component="Gallery" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: 'var(--usi-ink-4)', flexDirection: 'column', gap: 8 }}>
         <span style={{ fontSize: 32 }}>📷</span>
         <span className="usi-small">Brak zdjęć</span>
       </div>
@@ -151,7 +151,7 @@ function Gallery({ inv, columns = 4, marked, onToggleMark, onLightbox }) {
   }
   const [hero, ...rest] = inv.photos;
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div data-component="Gallery" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <PhotoTile src={hero} marked={marked.has(0)}
         onMark={() => onToggleMark(0)} onOpen={() => onLightbox(0)}
         ratio="16/9" hero />
@@ -180,7 +180,7 @@ function Lightbox({ inv, index, onClose }) {
     return () => document.removeEventListener('keydown', k, true);
   }, [inv.photos.length, onClose]);
   return ReactDOM.createPortal(
-    <div onClick={onClose} style={{
+    <div data-component="Lightbox" onClick={onClose} style={{
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
       zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
       backdropFilter: 'blur(8px)',
@@ -202,3 +202,5 @@ function Lightbox({ inv, index, onClose }) {
     document.body
   );
 }
+
+Object.assign(window, { PhotoTile, SlideShow, Gallery, Lightbox });

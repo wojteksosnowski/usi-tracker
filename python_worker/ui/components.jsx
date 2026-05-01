@@ -3,10 +3,10 @@
 // ─── Spinner ───────────────────────────────────────────────────
 function Spinner({ size = 40, stroke = 3 }) {
   return (
-    <>
+    <div data-component="Spinner">
       <style>{`@keyframes usi-spin{to{transform:rotate(360deg)}}`}</style>
       <div style={{ width: size, height: size, border: `${stroke}px solid var(--usi-border)`, borderTopColor: 'var(--usi-accent)', borderRadius: '50%', animation: 'usi-spin 0.8s linear infinite' }} />
-    </>
+    </div>
   );
 }
 
@@ -15,7 +15,7 @@ function Spinner({ size = 40, stroke = 3 }) {
 function USIStarLogo({ size = 24, color }) {
   // 6-ramienna gwiazdka — geometria z gwizdkaWhite.svg
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" fill="none">
+    <svg data-component="USIStarLogo" width={size} height={size} viewBox="0 0 48 48" fill="none">
       <path d="M22.85 15.05c0-.32 .21-.6 .51-.69 .75-.21 2.53-.5 6.57-.5 4.05 0 5.83 .3 6.58 .51 .3 .09 .51 .37 .51 .68v15.78L51.06 26c.3-.1 .63 .02 .81 .28 .43 .65 1.27 2.25 2.51 6.1 1.25 3.85 1.51 5.64 1.55 6.42 .01 .31-.19 .6-.49 .69-3.04 .99-20.55 6.68-30 9.75l18.55 25.56c.17 .25 .16 .59 .03 .83-.49 .61-1.75 1.9-5.02 4.27-3.27 2.38-4.89 3.18-5.62 3.45-.26 .09-.54 .03-.74-.16L24 88c-19.36-26-19.55-26.21-19.71-26.34-.29-.21-.49-.49-.46-.81 .03-.78 .29-2.57 1.55-6.43 1.26-3.89 2.1-5.48 2.53-6.11 .17-.25 .49-.36 .77-.27z" fill={color || 'currentColor'} />
     </svg>
   );
@@ -28,7 +28,7 @@ function StarRating({ value = 0, max = 4, size = 22, color, onChange, readonly =
   const display = hover || value;
   const c = color || 'var(--usi-accent, #1F1C16)';
   return (
-    <div role="radiogroup" aria-label={label}
+    <div data-component="StarRating" role="radiogroup" aria-label={label}
       style={{ display: 'inline-flex', gap: 2, color: c, cursor: readonly ? 'default' : 'pointer' }}
       onMouseLeave={() => setHover(0)}>
       {Array.from({ length: max }).map((_, i) => {
@@ -71,7 +71,7 @@ function CategoryRating({ category, value, onChange, variant = 'stars', size = '
   const sz = size === 'sm' ? 18 : size === 'lg' ? 28 : 22;
   if (variant === 'circles') {
     return (
-      <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+      <div data-component="CategoryRating" style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
         {[0,1,2,3,4].map(n => {
           const filled = value !== null && n <= value;
           return (
@@ -103,7 +103,7 @@ function CategoryRating({ category, value, onChange, variant = 'stars', size = '
   }
   if (variant === 'chips') {
     return (
-      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+      <div data-component="CategoryRating" style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
         {[0,1,2,3,4].map(n => (
           <button key={n} type="button" onClick={() => onChange(value === n ? null : n)}
             style={{
@@ -122,7 +122,7 @@ function CategoryRating({ category, value, onChange, variant = 'stars', size = '
   }
   if (variant === 'segmented') {
     return (
-      <div style={{ display: 'inline-flex', background: 'var(--usi-surface-3)', borderRadius: 8, padding: 2, position: 'relative' }}>
+      <div data-component="CategoryRating" style={{ display: 'inline-flex', background: 'var(--usi-surface-3)', borderRadius: 8, padding: 2, position: 'relative' }}>
         {[0,1,2,3,4].map(n => (
           <button key={n} type="button" onClick={() => onChange(value === n ? null : n)}
             style={{
@@ -138,7 +138,7 @@ function CategoryRating({ category, value, onChange, variant = 'stars', size = '
   }
   if (variant === 'dots') {
     return (
-      <div style={{ display: 'inline-flex', gap: 4 }}>
+      <div data-component="CategoryRating" style={{ display: 'inline-flex', gap: 4 }}>
         {[1,2,3,4].map(n => (
           <button key={n} type="button" onClick={() => onChange(value === n ? null : n)}
             style={{
@@ -157,13 +157,13 @@ function CategoryRating({ category, value, onChange, variant = 'stars', size = '
 // ─── Source badge ─────────────────────────────────────────────
 function SourceBadge({ source }) {
   const cls = source === 'OTO' ? 'oto' : source === 'RP' ? 'rp' : 'to';
-  return <span className={`usi-source ${cls}`}>{source}</span>;
+  return <span data-component="SourceBadge" className={`usi-source ${cls}`}>{source}</span>;
 }
 
 // ─── CategoryStripe — paseczek 6 kategorii w karcie listy ────
 function CategoryStripe({ ratings, height = 4 }) {
   return (
-    <div style={{ display: 'flex', gap: 1.5, height, borderRadius: 2, overflow: 'hidden' }}>
+    <div data-component="CategoryStripe" style={{ display: 'flex', gap: 1.5, height, borderRadius: 2, overflow: 'hidden' }}>
       {USI_CATEGORIES.map(cat => {
         const v = ratings[cat.key] || 0;
         return (
@@ -185,7 +185,7 @@ function CategoryStripe({ ratings, height = 4 }) {
 // ─── CategoryDots — 6 kropek dla kompaktowych kart ───────────
 function CategoryDots({ ratings, size = 8 }) {
   return (
-    <div style={{ display: 'flex', gap: 4 }}>
+    <div data-component="CategoryDots" style={{ display: 'flex', gap: 4 }}>
       {USI_CATEGORIES.map(cat => {
         const v = ratings[cat.key] || 0;
         return (
@@ -225,7 +225,7 @@ function MiniMap({ coords, label, height = 140, points = [], hereUrl = '', hereU
   const isDark = useDarkMode();
   const imgSrc = (isDark && hereUrlDark) ? hereUrlDark : hereUrl;
   return (
-    <a href={url} target="_blank" rel="noopener" title="Otwórz w Google Maps"
+    <a data-component="MiniMap" href={url} target="_blank" rel="noopener" title="Otwórz w Google Maps"
       style={{
         display: 'block', position: 'relative', height, width: '100%',
         borderRadius: 10, overflow: 'hidden', textDecoration: 'none',
@@ -261,7 +261,7 @@ function ProgressRing({ value, max, size = 32, stroke = 3, color }) {
   const c = 2 * Math.PI * r;
   const offset = c - (value / max) * c;
   return (
-    <svg width={size} height={size}>
+    <svg data-component="ProgressRing" width={size} height={size}>
       <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--usi-star-empty)" strokeWidth={stroke} />
       <circle cx={size/2} cy={size/2} r={r} fill="none"
         stroke={color || 'var(--usi-accent)'} strokeWidth={stroke}
@@ -269,53 +269,6 @@ function ProgressRing({ value, max, size = 32, stroke = 3, color }) {
         transform={`rotate(-90 ${size/2} ${size/2})`}
         style={{ transition: 'stroke-dashoffset .3s' }} />
     </svg>
-  );
-}
-
-// ─── Header — pasek aplikacji ────────────────────────────────
-function AppHeader({ activeView, onView, onToggleTheme, dark }) {
-  return (
-    <header style={{
-      display: 'flex', alignItems: 'center', gap: 24,
-      padding: '0 24px', height: 56,
-      borderBottom: '.5px solid var(--usi-border)',
-      background: 'var(--usi-surface)',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <USIStarLogo size={26} color="var(--usi-ink)" />
-        <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em' }}>USI</span>
-        <span className="usi-tiny" style={{ marginLeft: 4 }}>tracker</span>
-      </div>
-      <nav style={{ display: 'flex', gap: 4 }}>
-        {[
-          { key: 'list', label: 'Inwestycje' },
-          { key: 'detail', label: 'Widok inwestycji' },
-          { key: 'dashboard', label: 'Dashboard' },
-        ].map(t => (
-          <button key={t.key}
-            onClick={() => onView && onView(t.key)}
-            style={{
-              border: 'none', background: activeView === t.key ? 'var(--usi-surface-3)' : 'transparent',
-              color: activeView === t.key ? 'var(--usi-ink)' : 'var(--usi-ink-3)',
-              padding: '6px 12px', borderRadius: 8,
-              fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
-            }}>{t.label}</button>
-        ))}
-      </nav>
-      <div style={{ flex: 1 }} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span className="usi-small">8 inwestycji · 6,769 zdjęć</span>
-        <button
-          onClick={onToggleTheme}
-          title={dark ? 'Tryb jasny' : 'Tryb ciemny'}
-          style={{
-            border: 'none', background: 'transparent', cursor: 'pointer',
-            color: 'var(--usi-ink-3)', padding: '6px 8px', borderRadius: 8,
-            fontSize: 16, display: 'flex', alignItems: 'center', lineHeight: 1,
-          }}
-        >{dark ? '☀' : '◑'}</button>
-      </div>
-    </header>
   );
 }
 
@@ -345,7 +298,7 @@ function Icon({ name, size = 16, stroke = 1.6 }) {
     menu: <><path d="M2 4h12M2 8h12M2 12h12"/></>,
   };
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none"
+    <svg data-component="Icon" width={size} height={size} viewBox="0 0 16 16" fill="none"
       stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
       {paths[name]}
     </svg>
@@ -373,7 +326,7 @@ function UsiStarScore({ score }) {
     </svg>
   );
   return (
-    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 1, color: 'var(--usi-accent)' }}>
+    <div data-component="UsiStarScore" style={{ display: 'inline-flex', alignItems: 'center', gap: 1, color: 'var(--usi-accent)' }}>
       {Array.from({ length: nFull }).map((_, i) => <Star key={i} />)}
       {fracChar && (
         <>
@@ -385,56 +338,59 @@ function UsiStarScore({ score }) {
   );
 }
 
-Object.assign(window, {
-  USIStarLogo, StarRating, CategoryRating, SourceBadge,
-  CategoryStripe, CategoryDots, MiniMap, ProgressRing, AppHeader, Icon,
-  NavDrawer, NavMenuButton, UsiStarScore,
-});
-
 // ─── Hamburger / NavDrawer — wspólne dla wszystkich widoków ──
 function NavMenuButton({ onClick, label = 'Menu' }) {
   return (
-    <button className="usi-btn ghost icon" onClick={onClick} title={label} aria-label={label}>
+    <button data-component="NavMenuButton" className="usi-btn ghost icon" onClick={onClick} title={label} aria-label={label}>
       <Icon name="menu" size={18} />
     </button>
   );
 }
 
-function NavDrawer({ current = 'list', onClose, onNav }) {
+function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
   const items = [
     { id: 'list', label: 'Inwestycje', icon: 'grid', desc: 'Lista wszystkich inwestycji' },
     { id: 'dashboard', label: 'Dashboard', icon: 'sparkle', desc: 'Podsumowania i wykresy' },
   ];
+  
   React.useEffect(() => {
     const k = (e) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', k);
     return () => document.removeEventListener('keydown', k);
   }, [onClose]);
 
-  return ReactDOM.createPortal(
-    <div onClick={onClose} style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
-      backdropFilter: 'blur(4px)', zIndex: 900, display: 'flex',
-    }}>
-      <aside onClick={e => e.stopPropagation()} style={{
-        width: 320, background: 'var(--usi-surface)',
-        borderRight: '.5px solid var(--usi-border)',
-        display: 'flex', flexDirection: 'column',
-        boxShadow: '4px 0 24px rgba(0,0,0,0.12)',
-      }}>
-        <div style={{
-          padding: '20px 22px 18px', borderBottom: '.5px solid var(--usi-border)',
-          display: 'flex', alignItems: 'center', gap: 10,
-        }}>
-          <USIStarLogo size={32} />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.01em' }}>USI Tracker</div>
-            <div className="usi-small">Universal Standard of Investments</div>
-          </div>
-          <button className="usi-btn ghost icon sm" onClick={onClose} aria-label="Zamknij menu">
-            <Icon name="close" />
-          </button>
-        </div>
+  return (
+    <>
+      {/* Backdrop for closing */}
+      <div 
+        data-component="NavDrawer-Backdrop"
+        onClick={onClose}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 850,
+          background: 'rgba(0,0,0,0.1)',
+        }} 
+      />
+      <aside 
+        data-component="NavDrawer" 
+        style={{
+          position: 'absolute', top: '100%', left: 0, width: 280,
+          background: 'var(--usi-surface)',
+          borderRight: '.5px solid var(--usi-border)',
+          borderBottom: '.5px solid var(--usi-border)',
+          display: 'flex', flexDirection: 'column',
+          boxShadow: '0 12px 24px rgba(0,0,0,0.08)',
+          zIndex: 860,
+          animation: 'usi-slide-down 0.2s ease-out forwards',
+          maxHeight: 'calc(100vh - 60px)',
+        }}
+      >
+        <style>{`
+          @keyframes usi-slide-down {
+            from { transform: translateY(-10px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+          }
+        `}</style>
+        
         <nav style={{ flex: 1, padding: '12px 10px', overflow: 'auto' }} className="usi-scroll">
           {items.map(it => {
             const active = it.id === current;
@@ -442,45 +398,50 @@ function NavDrawer({ current = 'list', onClose, onNav }) {
               <button key={it.id} onClick={() => { if (onNav) onNav(it.id); onClose(); }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 12, width: '100%',
-                  padding: '11px 12px', borderRadius: 8, border: 'none', textAlign: 'left',
+                  padding: '10px 12px', borderRadius: 8, border: 'none', textAlign: 'left',
                   background: active ? 'var(--usi-surface-2)' : 'transparent',
                   color: active ? 'var(--usi-ink)' : 'var(--usi-ink-2)',
                   cursor: 'pointer', marginBottom: 2, fontFamily: 'inherit',
                 }}>
                 <span style={{
-                  width: 32, height: 32, borderRadius: 8,
+                  width: 28, height: 28, borderRadius: 6,
                   background: active ? 'var(--usi-accent)' : 'var(--usi-surface-3)',
                   color: active ? '#fff' : 'var(--usi-ink-3)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
-                  <Icon name={it.icon} size={15} />
+                  <Icon name={it.icon} size={14} />
                 </span>
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: 'block', fontWeight: 600, fontSize: 13.5 }}>{it.label}</span>
-                  <span className="usi-small" style={{ display: 'block' }}>{it.desc}</span>
+                  <span style={{ display: 'block', fontWeight: 600, fontSize: 13 }}>{it.label}</span>
                 </span>
-                {active && <span style={{ width: 4, height: 18, borderRadius: 2, background: 'var(--usi-accent)' }} />}
+                {active && <span style={{ width: 4, height: 16, borderRadius: 2, background: 'var(--usi-accent)' }} />}
               </button>
             );
           })}
         </nav>
-        <div style={{
-          padding: '14px 18px', borderTop: '.5px solid var(--usi-border)',
-          display: 'flex', alignItems: 'center', gap: 10,
-        }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: '50%', background: 'var(--usi-surface-3)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 12, fontWeight: 700, color: 'var(--usi-ink-3)',
-          }}>MK</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 600 }}>Marek Kalinowski</div>
-            <div className="usi-small">marek@usi.app</div>
-          </div>
-          <button className="usi-btn ghost icon sm" title="Wyloguj"><Icon name="arrow" size={13} /></button>
+        
+        <div style={{ padding: '12px', borderTop: '.5px solid var(--usi-border)', background: 'var(--usi-surface-2)' }}>
+          <button
+            data-component="ThemeToggle"
+            onClick={onToggleTheme}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+              padding: '8px 12px', borderRadius: 6, border: '.5px solid var(--usi-border-strong)',
+              background: 'var(--usi-surface)', color: 'var(--usi-ink)',
+              cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: 12
+            }}
+          >
+            <span style={{ fontSize: 16 }}>{dark ? '☀' : '◑'}</span>
+            <span>{dark ? 'Jasny motyw' : 'Ciemny motyw'}</span>
+          </button>
         </div>
       </aside>
-    </div>,
-    document.body
+    </>
   );
 }
+
+Object.assign(window, {
+  Spinner, USIStarLogo, StarRating, CategoryRating, SourceBadge,
+  CategoryStripe, CategoryDots, MiniMap, ProgressRing, Icon,
+  NavDrawer, NavMenuButton, UsiStarScore,
+});

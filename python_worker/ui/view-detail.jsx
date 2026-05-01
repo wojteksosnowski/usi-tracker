@@ -4,7 +4,7 @@
 
 function Row({ k, v, mono }) {
   return (
-    <div>
+    <div data-component="Row">
       <div className="usi-small" style={{ marginBottom: 1 }}>{k}</div>
       <div className={mono ? 'usi-mono' : ''} style={{ fontWeight: 500 }}>{v}</div>
     </div>
@@ -13,7 +13,7 @@ function Row({ k, v, mono }) {
 
 function MetadataBlock({ inv }) {
   return (
-    <div>
+    <div data-component="MetadataBlock">
       <div className="usi-tiny" style={{ marginBottom: 8 }}>Metadane</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px', fontSize: 13 }}>
         {inv.address && <Row k="Adres" v={inv.address} />}
@@ -63,7 +63,7 @@ function MetadataBlock({ inv }) {
 function SourceLinks({ inv }) {
   const links = inv.source_links || [{ source: inv.source, url: inv.source_url }];
   return (
-    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+    <div data-component="SourceLinks" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
       {links.map((link, i) => (
         <a key={i} className="usi-btn sm" href={link.url} target="_blank" rel="noopener">
           <SourceBadge source={link.source} /> Źródło <Icon name="arrow" size={11} />
@@ -85,7 +85,7 @@ function SourceLinks({ inv }) {
 
 function HeroBand({ inv, showMap }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: showMap && inv.coords && inv.coords[0] !== 0 ? '1fr 280px' : '1fr', gap: 16, padding: '16px 24px 0', flexShrink: 0 }}>
+    <div data-component="HeroBand" style={{ display: 'grid', gridTemplateColumns: showMap && inv.coords && inv.coords[0] !== 0 ? '1fr 280px' : '1fr', gap: 16, padding: '16px 24px 0', flexShrink: 0 }}>
       <div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
           <h1 className="usi-h1" style={{ margin: 0 }}>{inv.name}</h1>
@@ -115,7 +115,7 @@ function ModeC({ inv, density = 4, ratingVariant, showMap, marked, onToggleMark,
   const [expanded, setExpanded] = React.useState(false);
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div data-component="ModeC" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <HeroBand inv={inv} showMap={showMap} />
       <SlideShow photos={inv.photos || []} marked={marked} onToggleMark={onToggleMark}
         onLightbox={onLightbox} style={{ marginTop: 16 }} />
@@ -177,7 +177,7 @@ function ModeC({ inv, density = 4, ratingVariant, showMap, marked, onToggleMark,
 }
 
 // ─── Widok inwestycji: 3 kolumny 50/25/25 ────────────────────
-function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onPrev, onNext, density = 5, ratingVariant = 'circles', showMap = true }) {
+function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onPrev, onNext, density = 5, ratingVariant = 'circles', showMap = true, dark, onToggleTheme }) {
   const [marked, setMarked] = React.useState(new Set());
   const [hiddenPhotos, setHiddenPhotos] = React.useState(new Set());
   const [lightbox, setLightbox] = React.useState(null);
@@ -247,6 +247,7 @@ function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onPr
       display: 'flex', alignItems: 'center', gap: 10,
       padding: '10px 24px', borderBottom: '.5px solid var(--usi-border)',
       background: 'var(--usi-surface)', flexShrink: 0, fontSize: 13,
+      position: 'relative'
     }}>
       <NavMenuButton onClick={() => setNavOpen(true)} />
       <button className="usi-btn ghost" onClick={onBack}><Icon name="chevronLeft" /> Powrót</button>
@@ -293,13 +294,13 @@ function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onPr
       </div>
       <button className="usi-btn ghost icon" onClick={onPrev} title="Poprzednia"><Icon name="chevronLeft" /></button>
       <button className="usi-btn ghost icon" onClick={onNext} title="Następna"><Icon name="chevron" /></button>
+      {navOpen && <NavDrawer current="detail" onClose={() => setNavOpen(false)} onNav={v => { setNavOpen(false); onNav && onNav(v); }} dark={dark} onToggleTheme={onToggleTheme} />}
     </div>
   );
 
   return (
-    <div className="usi-app" style={{ background: 'var(--usi-bg)', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div data-component="DetailRightPanel" className="usi-app" style={{ background: 'var(--usi-bg)', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {toolbar}
-      {navOpen && <NavDrawer current="detail" onClose={() => setNavOpen(false)} onNav={v => { setNavOpen(false); onNav && onNav(v); }} />}
 
       {detailMode === 'A' ? (
         <>
@@ -345,4 +346,4 @@ function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onPr
   );
 }
 
-Object.assign(window, { DetailRightPanel, RatingsPanel, MetadataBlock });
+Object.assign(window, { DetailRightPanel, MetadataBlock });

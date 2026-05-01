@@ -1,6 +1,6 @@
 // view-dashboard.jsx — dashboard z mapą, wykresami, podsumowaniem
 
-function DashboardGrid({ investments = [], onNav = () => {}, accent }) {
+function DashboardGrid({ investments = [], onNav = () => {}, accent, dark, onToggleTheme }) {
   const [navOpen, setNavOpen] = React.useState(false);
   const total = investments.length;
   const rated = investments.filter(i => ratingStatus(i) === 'done').length;
@@ -20,14 +20,18 @@ function DashboardGrid({ investments = [], onNav = () => {}, accent }) {
     : 0;
 
   return (
-    <div className="usi-app" style={{ background: 'var(--usi-bg)', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '.5px solid var(--usi-border)', background: 'var(--usi-surface)', flexShrink: 0 }}>
+    <div data-component="DashboardGrid" className="usi-app" style={{ background: 'var(--usi-bg)', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ 
+        padding: '16px 24px', display: 'flex', alignItems: 'center', gap: 12, 
+        borderBottom: '.5px solid var(--usi-border)', background: 'var(--usi-surface)', 
+        flexShrink: 0, position: 'relative' 
+      }}>
         <NavMenuButton onClick={() => setNavOpen(true)} />
         <h1 className="usi-h1" style={{ margin: 0 }}>Dashboard</h1>
         <span className="usi-small" style={{ color: 'var(--usi-ink-4)' }}>Stan bazy danych</span>
         <div style={{ flex: 1 }} />
+        {navOpen && <NavDrawer current="dashboard" onClose={() => setNavOpen(false)} onNav={v => { setNavOpen(false); onNav(v); }} dark={dark} onToggleTheme={onToggleTheme} />}
       </div>
-      {navOpen && <NavDrawer current="dashboard" onClose={() => setNavOpen(false)} onNav={v => { setNavOpen(false); onNav(v); }} />}
       <div style={{ padding: 24, display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 16, overflow: 'auto', flex: 1 }} className="usi-scroll">
         <KPI title="Inwestycji" value={total} sub="w bazie" col={3} />
         <KPI title="Ocenione" value={rated} sub={`${partial} częściowo`} col={3} accent="var(--usi-success)" />
@@ -125,7 +129,7 @@ function DashboardGrid({ investments = [], onNav = () => {}, accent }) {
 
 function KPI({ title, value, sub, col = 3, accent }) {
   return (
-    <div className="usi-card" style={{ gridColumn: `span ${col}`, padding: 18, position: 'relative', overflow: 'hidden' }}>
+    <div data-component="KPI" className="usi-card" style={{ gridColumn: `span ${col}`, padding: 18, position: 'relative', overflow: 'hidden' }}>
       <div className="usi-tiny" style={{ marginBottom: 6 }}>{title}</div>
       <div className="usi-mono" style={{ fontSize: 32, fontWeight: 600, letterSpacing: -0.02, color: accent || 'var(--usi-ink)' }}>{value}</div>
       <div className="usi-small" style={{ marginTop: 2 }}>{sub}</div>
@@ -136,7 +140,7 @@ function KPI({ title, value, sub, col = 3, accent }) {
 
 function Legend({ color, label }) {
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+    <span data-component="Legend" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
       <span style={{ width: 10, height: 10, borderRadius: 2, background: color }} /> {label}
     </span>
   );
@@ -152,7 +156,7 @@ function DashboardMap({ investments = [], accent }) {
   };
   const withCoords = investments.filter(i => i.coords && i.coords[0] !== 0);
   return (
-    <div style={{ flex: 1, position: 'relative', minHeight: 240 }}>
+    <div data-component="DashboardMap" style={{ flex: 1, position: 'relative', minHeight: 240 }}>
       <svg viewBox="0 0 600 300" preserveAspectRatio="xMidYMid meet"
         style={{ width: '100%', height: '100%', display: 'block', background: 'var(--usi-surface-3)', borderRadius: 8 }}>
         <rect x="0" y="0" width="600" height="300" fill="var(--usi-surface-3)" />

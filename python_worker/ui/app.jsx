@@ -1,15 +1,8 @@
 // app.jsx — USI Tracker SPA
 
-const MAIN_CITIES = ['Warszawa', 'Kraków', 'Wrocław', 'Łódź', 'Poznań', 'Gdańsk', 'Szczecin'];
-const SOURCES = [
-  { id: 'RP', label: 'RynekPierwotny', color: '#0052FF' },
-  { id: 'OTO', label: 'Otodom', color: '#00E676' },
-  { id: 'TO', label: 'TabelaOfert', color: '#FF9800' }
-];
-
 function LoadingScreen() {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', flexDirection: 'column', gap: 16 }}>
+    <div data-component="LoadingScreen" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', flexDirection: 'column', gap: 16 }}>
       <Spinner />
       <span className="usi-small">Ładowanie danych…</span>
     </div>
@@ -18,7 +11,7 @@ function LoadingScreen() {
 
 function EmptyScreen({ onFetch, fetching, fetchCount }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', flexDirection: 'column', gap: 20, background: 'var(--usi-bg)' }}>
+    <div data-component="EmptyScreen" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', flexDirection: 'column', gap: 20, background: 'var(--usi-bg)' }}>
       <svg width="64" height="64" viewBox="0 0 48 48" fill="none" style={{ opacity: 0.18 }}>
         <path d="M22.85 15.05c0-.32 .21-.6 .51-.69 .75-.21 2.53-.5 6.57-.5 4.05 0 5.83 .3 6.58 .51 .3 .09 .51 .37 .51 .68v15.78L51.06 26c.3-.1 .63 .02 .81 .28 .43 .65 1.27 2.25 2.51 6.1 1.25 3.85 1.51 5.64 1.55 6.42 .01 .31-.19 .6-.49 .69-3.04 .99-20.55 6.68-30 9.75l18.55 25.56c.17 .25 .16 .59 .03 .83-.49 .61-1.75 1.9-5.02 4.27-3.27 2.38-4.89 3.18-5.62 3.45-.26 .09-.54 .03-.74-.16L24 88c-19.36-26-19.55-26.21-19.71-26.34-.29-.21-.49-.49-.46-.81 .03-.78 .29-2.57 1.55-6.43 1.26-3.89 2.1-5.48 2.53-6.11 .17-.25 .49-.36 .77-.27z" fill="currentColor" />
       </svg>
@@ -118,7 +111,7 @@ function App() {
   };
 
   const handleNav = (v) => {
-    if (v === 'list' || v === 'dashboard') setView(v);
+    if (v === 'list' || v === 'dashboard' || v === 'detail') setView(v);
   };
 
   const handleFetchSample = () => {
@@ -152,7 +145,7 @@ function App() {
 
   if (loading) {
     return (
-      <div ref={rootRef} style={{ minHeight: '100vh' }}>
+      <div data-component="App" ref={rootRef} style={{ minHeight: '100vh' }}>
         <LoadingScreen />
       </div>
     );
@@ -160,15 +153,14 @@ function App() {
 
   if (investments.length === 0) {
     return (
-      <div ref={rootRef} style={{ minHeight: '100vh' }}>
+      <div data-component="App" ref={rootRef} style={{ minHeight: '100vh' }}>
         <EmptyScreen onFetch={handleFetchSample} fetching={fetching} fetchCount={fetchCount} />
       </div>
     );
   }
 
   return (
-    <div ref={rootRef} style={{ height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      <AppHeader activeView={view} onView={handleNav} dark={dark} onToggleTheme={handleToggleTheme} />
+    <div data-component="App" ref={rootRef} style={{ height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <div style={{ flex: 1, overflow: 'hidden' }}>
         {view === 'list' && (
           <ListGrid
@@ -181,6 +173,7 @@ function App() {
             filterStatus={filterStatus} onFilterStatus={setFilterStatus}
             activeSources={activeSources} onSetActiveSources={setActiveSources}
             activeCities={activeCities} onSetActiveCities={setActiveCities}
+            dark={dark} onToggleTheme={handleToggleTheme}
           />
         )}
         {view === 'detail' && selectedInv && (
@@ -198,10 +191,11 @@ function App() {
               const idx = filteredInvestments.findIndex(i => i.slug === prev.slug);
               return filteredInvestments[(idx + 1) % filteredInvestments.length];
             })}
+            dark={dark} onToggleTheme={handleToggleTheme}
           />
         )}
         {view === 'dashboard' && (
-          <DashboardGrid investments={investments} onNav={handleNav} />
+          <DashboardGrid investments={investments} onNav={handleNav} dark={dark} onToggleTheme={handleToggleTheme} />
         )}
       </div>
     </div>

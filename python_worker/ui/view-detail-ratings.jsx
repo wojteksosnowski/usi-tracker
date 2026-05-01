@@ -71,7 +71,7 @@ function RatingsPanel({ inv, variant = 'circles', focusedCat = -1, onFocusedCatC
     ratings = {}, handleRating, comment = '', handleComment, status = 'Brak', handleStatus, saved = false }) {
   const currentInv = { ratings };
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div data-component="RatingsPanel" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div>
         <div className="usi-tiny" style={{ marginBottom: 8 }}>Ocena USI</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -127,3 +127,5 @@ function RatingsPanel({ inv, variant = 'circles', focusedCat = -1, onFocusedCatC
     </div>
   );
 }
+
+Object.assign(window, { useRatings, RatingsPanel });
