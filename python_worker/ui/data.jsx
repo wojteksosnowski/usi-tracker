@@ -17,6 +17,17 @@ function useInvestments() {
   return { investments, loading, refetch: load };
 }
 
+function useConfig() {
+  const [config, setConfig] = React.useState({});
+  React.useEffect(() => {
+    fetch('/api/config')
+      .then(r => r.json())
+      .then(data => setConfig(data))
+      .catch(e => console.error("Failed to load config", e));
+  }, []);
+  return config;
+}
+
 const _CATS = ['Balkony', 'Fasady', 'Wnętrza', 'Teren', 'Mieszkania', 'Udogodnienia'];
 
 const ratedCount = (inv) =>
@@ -41,4 +52,4 @@ const ocenaLog = (inv) => {
   return Math.log(sum) - Math.log(vals.length);
 };
 
-Object.assign(window, { useInvestments, ratedCount, avgRating, ratingStatus, ocenaLog });
+Object.assign(window, { useInvestments, useConfig, ratedCount, avgRating, ratingStatus, ocenaLog });

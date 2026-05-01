@@ -1,6 +1,6 @@
 // view-dashboard.jsx — dashboard z mapą, wykresami, podsumowaniem
 
-function DashboardGrid({ investments = [], onNav = () => {}, accent, dark, onToggleTheme }) {
+function DashboardGrid({ investments = [], onNav = () => {}, accent, dark, onToggleTheme, hereApiKey }) {
   const [navOpen, setNavOpen] = React.useState(false);
   const total = investments.length;
   const rated = investments.filter(i => ratingStatus(i) === 'done').length;
@@ -66,7 +66,7 @@ function DashboardGrid({ investments = [], onNav = () => {}, accent, dark, onTog
             <span className="usi-tiny">Rozkład geograficzny</span>
             <span className="usi-small">{total} inwestycji</span>
           </div>
-          <DashboardMap investments={investments} accent={accent} />
+          <DashboardMap investments={investments} accent={accent} dark={dark} apiKey={hereApiKey} />
         </div>
 
         <div className="usi-card" style={{ gridColumn: 'span 5', padding: 18 }}>
@@ -146,48 +146,41 @@ function Legend({ color, label }) {
   );
 }
 
-function DashboardMap({ investments = [], accent }) {
-  const proj = (lat, lon) => {
-    if (!lat || !lon) return null;
-    // Flexible bounds based on actual data
-    const x = 10 + ((lon - 14.0) / (24.0 - 14.0)) * 580;
-    const y = 300 - ((lat - 49.0) / (55.0 - 49.0)) * 290;
-    return { x: Math.max(10, Math.min(590, x)), y: Math.max(10, Math.min(290, y)) };
-  };
+function DashboardMap({ investments = [], accent, dark, apiKey }) {
   const withCoords = investments.filter(i => i.coords && i.coords[0] !== 0);
+  
+  if (!apiKey || withCoords.length === 0) {
+    return (
+      <div data-component="DashboardMap" style={{ flex: 1, position: 'relative', minHeight: 240, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--usi-surface-3)', borderRadius: 8 }}>
+        <span className="usi-small" style={{ color: 'var(--usi-ink-4)' }}>
+          {!apiKey ? 'Brak klucza API HERE' : 'Brak danych geolokalizacyjnych'}
+        </span>
+      </div>
+    );
+  }
+
+  // Budujemy listę punktów dla HERE Map Image API (v3)
+  // Format: lat,lon|lat,lon|...|size=small;icon=circle
+  // Ograniczamy liczbę punktów do 200, aby nie przekroczyć limitu URL
+  const pts = withCoords.slice(0, 200).map(inv => `${inv.coords[0]},${inv.coords[1]}`).join('|');
+  const style = dark ? 'explore.night' : 'explore.day';
+  
+  // Używamy overlay:padding=32 aby punkty nie były przy samej krawędzi
+  const src = `https://image.maps.hereapi.com/mia/v3/base/mc/overlay:padding=32/600x300/png?apiKey=${apiKey}&overlay=point:${pts}|size=small;icon=circle&style=${style}&features=pois:disabled&lang=pl`;
+
   return (
-    <div data-component="DashboardMap" style={{ flex: 1, position: 'relative', minHeight: 240 }}>
-      <svg viewBox="0 0 600 300" preserveAspectRatio="xMidYMid meet"
-        style={{ width: '100%', height: '100%', display: 'block', background: 'var(--usi-surface-3)', borderRadius: 8 }}>
-        <rect x="0" y="0" width="600" height="300" fill="var(--usi-surface-3)" />
-        <g stroke="var(--usi-border-strong)" strokeWidth="0.8" fill="none" opacity="0.4">
-          {Array.from({length:7}).map((_,i)=><path key={i} d={`M-10 ${30+i*40} L610 ${30+i*40+5}`} />)}
-          {Array.from({length:9}).map((_,i)=><path key={i} d={`M${30+i*70} -10 L${36+i*70} 310`} />)}
-        </g>
-        {withCoords.length === 0 && (
-          <text x="300" y="150" textAnchor="middle" fontSize="12" fill="var(--usi-ink-4)">Brak danych geolokalizacyjnych</text>
-        )}
-        {withCoords.map((inv, idx) => {
-          const p = proj(inv.coords[0], inv.coords[1]);
-          if (!p) return null;
-          const v = avgRating(inv);
-          const r = 6 + (v ? (v / 5) * 8 : 0);
-          const color = ratingStatus(inv) === 'done' ? 'var(--usi-success)'
-            : ratingStatus(inv) === 'partial' ? '#F39200' : 'var(--usi-ink-4)';
-          return (
-            <g key={inv.slug} transform={`translate(${p.x},${p.y})`}>
-              <title>{inv.name}</title>
-              <circle r={r + 4} fill={color} opacity="0.18" />
-              <circle r={r} fill={color} stroke="var(--usi-surface)" strokeWidth="1.5" />
-              <text y="3" textAnchor="middle" fontSize="9" fontWeight="600" fill="#fff">
-                {v > 0 ? v.toFixed(1) : '·'}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-      <div style={{ position: 'absolute', bottom: 8, right: 8, padding: '4px 8px', borderRadius: 6, background: 'var(--usi-overlay-strong)', backdropFilter: 'blur(8px)', fontSize: 10, color: 'var(--usi-ink-3)' }}>
-        rozmiar = średnia ocen
+    <div data-component="DashboardMap" style={{ flex: 1, position: 'relative', minHeight: 240, borderRadius: 8, overflow: 'hidden', background: 'var(--usi-surface-3)' }}>
+      <img 
+        src={src} 
+        alt="Mapa inwestycji" 
+        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        onError={(e) => {
+          e.target.style.display = 'none';
+          e.target.nextSibling.style.display = 'flex';
+        }}
+      />
+      <div style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', background: 'var(--usi-surface-3)' }}>
+        <span className="usi-small" style={{ color: 'var(--usi-ink-4)' }}>Błąd ładowania mapy HERE</span>
       </div>
     </div>
   );

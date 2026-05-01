@@ -38,6 +38,7 @@ function App() {
   const [view, setView] = React.useState('list');
   const [selectedInv, setSelectedInv] = React.useState(null);
   const { investments, loading, refetch } = useInvestments();
+  const config = useConfig();
   const [fetching, setFetching] = React.useState(false);
   const [fetchCount, setFetchCount] = React.useState(0);
   const pollRef = React.useRef(null);
@@ -195,7 +196,7 @@ function App() {
           />
         )}
         {view === 'dashboard' && (
-          <DashboardGrid investments={investments} onNav={handleNav} dark={dark} onToggleTheme={handleToggleTheme} />
+          <DashboardGrid investments={investments} onNav={handleNav} dark={dark} onToggleTheme={handleToggleTheme} hereApiKey={config.hereApiKey} />
         )}
       </div>
     </div>

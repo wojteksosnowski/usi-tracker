@@ -26,9 +26,9 @@
 
 poprawki dashboard
 
-- [ ] mapa DashboardMap - podstaw stylizowana mape HERE
-- [ ] mapa DashboardMap - zaznaczaj inwestycje punktami bez liczb i innych informacji
-- [ ] mapa DashboardMap - dopasuj polozenie punktow do mapy 
+- [x] mapa DashboardMap - podstaw stylizowana mape HERE
+- [x] mapa DashboardMap - zaznaczaj inwestycje punktami bez liczb i innych informacji
+- [x] mapa DashboardMap - dopasuj polozenie punktow do mapy 
 
 ## Następny kamień milowy: Lodziarnia
 

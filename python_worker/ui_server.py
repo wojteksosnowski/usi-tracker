@@ -15,7 +15,7 @@ from pathlib import Path
 import requests as req
 from flask import Flask, abort, jsonify, request, send_file, send_from_directory
 
-from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR
+from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR, HERE_API_KEY
 from python_worker.here_maps import build_here_url
 
 logger = logging.getLogger(__name__)
@@ -28,6 +28,13 @@ app = Flask(__name__, static_folder=None)
 USI_STATUSES = ['Brak', 'AI', 'Wstępna', 'Poszerzona', 'Pełna', 'Aktualizacja', 'Ukończona']
 _WYROZNIKI_CSV = Path(__file__).parent / "data" / "wyrozniki.csv"
 _STANDARD_TIERS = [(16, 4), (8, 3), (4, 2), (1, 1), (0, 0)]
+
+
+@app.route("/api/config")
+def get_config():
+    return jsonify({
+        "hereApiKey": HERE_API_KEY
+    })
 
 
 @lru_cache(maxsize=1)
