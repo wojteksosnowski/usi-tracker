@@ -1,0 +1,34 @@
+# usi-tracker
+Public/
+Public_Prod/
+logs/
+reference-data/
+
+# Python
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv
+*.egg-info/
+.pytest_cache/
+.coverage
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+**/.DS_Store
+
+# Dane/Secrets
+.env
+*.db
+*.sqlite3
+*.db-journal
+config/secrets.json

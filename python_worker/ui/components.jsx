@@ -1,0 +1,486 @@
+// components.jsx — wspólne komponenty UI dla USI
+
+// ─── Spinner ───────────────────────────────────────────────────
+function Spinner({ size = 40, stroke = 3 }) {
+  return (
+    <>
+      <style>{`@keyframes usi-spin{to{transform:rotate(360deg)}}`}</style>
+      <div style={{ width: size, height: size, border: `${stroke}px solid var(--usi-border)`, borderTopColor: 'var(--usi-accent)', borderRadius: '50%', animation: 'usi-spin 0.8s linear infinite' }} />
+    </>
+  );
+}
+
+// ─── Logo ──────────────────────────────────────────────────────
+// Inline SVG gwiazdki — używana w headerze i jako fallback ikon
+function USIStarLogo({ size = 24, color }) {
+  // 6-ramienna gwiazdka — geometria z gwizdkaWhite.svg
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none">
+      <path d="M22.85 15.05c0-.32 .21-.6 .51-.69 .75-.21 2.53-.5 6.57-.5 4.05 0 5.83 .3 6.58 .51 .3 .09 .51 .37 .51 .68v15.78L51.06 26c.3-.1 .63 .02 .81 .28 .43 .65 1.27 2.25 2.51 6.1 1.25 3.85 1.51 5.64 1.55 6.42 .01 .31-.19 .6-.49 .69-3.04 .99-20.55 6.68-30 9.75l18.55 25.56c.17 .25 .16 .59 .03 .83-.49 .61-1.75 1.9-5.02 4.27-3.27 2.38-4.89 3.18-5.62 3.45-.26 .09-.54 .03-.74-.16L24 88c-19.36-26-19.55-26.21-19.71-26.34-.29-.21-.49-.49-.46-.81 .03-.78 .29-2.57 1.55-6.43 1.26-3.89 2.1-5.48 2.53-6.11 .17-.25 .49-.36 .77-.27z" fill={color || 'currentColor'} />
+    </svg>
+  );
+}
+
+// ─── StarRating ────────────────────────────────────────────────
+// Gwiazdki 0–5 z możliwością klikania. Hover preview, half-star jeśli readonly.
+function StarRating({ value = 0, max = 4, size = 22, color, onChange, readonly = false, label }) {
+  const [hover, setHover] = React.useState(0);
+  const display = hover || value;
+  const c = color || 'var(--usi-accent, #1F1C16)';
+  return (
+    <div role="radiogroup" aria-label={label}
+      style={{ display: 'inline-flex', gap: 2, color: c, cursor: readonly ? 'default' : 'pointer' }}
+      onMouseLeave={() => setHover(0)}>
+      {Array.from({ length: max }).map((_, i) => {
+        const idx = i + 1;
+        const filled = idx <= Math.floor(display);
+        const halfFill = !filled && idx - 0.5 <= display;
+        return (
+          <button key={i} type="button" disabled={readonly}
+            aria-checked={value === idx} role="radio"
+            onMouseEnter={() => !readonly && setHover(idx)}
+            onClick={() => !readonly && onChange && onChange(value === idx ? 0 : idx)}
+            style={{
+              border: 'none', background: 'transparent', padding: 0,
+              cursor: readonly ? 'default' : 'pointer',
+              width: size, height: size, lineHeight: 0,
+              transform: hover === idx ? 'scale(1.1)' : 'scale(1)',
+              transition: 'transform .12s',
+            }}>
+            <svg width={size} height={size} viewBox="0 0 48 48" style={{ display: 'block' }}>
+              <defs>
+                <linearGradient id={`half-${i}-${size}`} x1="0" x2="1" y1="0" y2="0">
+                  <stop offset="50%" stopColor={c} />
+                  <stop offset="50%" stopColor="var(--usi-star-empty)" />
+                </linearGradient>
+              </defs>
+              <path d="M22.85 15.05c0-.32 .21-.6 .51-.69 .75-.21 2.53-.5 6.57-.5 4.05 0 5.83 .3 6.58 .51 .3 .09 .51 .37 .51 .68v15.78L51.06 26c.3-.1 .63 .02 .81 .28 .43 .65 1.27 2.25 2.51 6.1 1.25 3.85 1.51 5.64 1.55 6.42 .01 .31-.19 .6-.49 .69-3.04 .99-20.55 6.68-30 9.75l18.55 25.56c.17 .25 .16 .59 .03 .83-.49 .61-1.75 1.9-5.02 4.27-3.27 2.38-4.89 3.18-5.62 3.45-.26 .09-.54 .03-.74-.16L24 88c-19.36-26-19.55-26.21-19.71-26.34-.29-.21-.49-.49-.46-.81 .03-.78 .29-2.57 1.55-6.43 1.26-3.89 2.1-5.48 2.53-6.11 .17-.25 .49-.36 .77-.27z"
+                fill={filled ? c : (halfFill ? `url(#half-${i}-${size})` : 'var(--usi-star-empty)')}
+                style={{ transition: 'fill .12s' }} />
+            </svg>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── CategoryRating — wiersz z nazwą kategorii + StarRating ───
+// Wariant chipów: 'stars' | 'chips' | 'segmented' | 'dots'
+function CategoryRating({ category, value, onChange, variant = 'stars', size = 'md' }) {
+  const sz = size === 'sm' ? 18 : size === 'lg' ? 28 : 22;
+  if (variant === 'circles') {
+    return (
+      <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+        {[0,1,2,3,4].map(n => {
+          const filled = value !== null && n <= value;
+          return (
+            <button key={n} type="button"
+              onClick={() => onChange(value === n ? null : n)}
+              title={String(n)}
+              style={{
+                width: 30, height: 30, borderRadius: '50%', padding: 0,
+                border: 'none',
+                background: filled ? category.color : 'var(--usi-surface-3)',
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'background .12s',
+                flexShrink: 0,
+              }}>
+              {filled && (
+                <img
+                  src={n === 0 ? '/assets/usi-zero-white.svg' : '/assets/usi-star-white.svg'}
+                  width="14" height="16"
+                  alt={String(n)}
+                  style={{ display: 'block', pointerEvents: 'none' }}
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+  if (variant === 'chips') {
+    return (
+      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+        {[0,1,2,3,4].map(n => (
+          <button key={n} type="button" onClick={() => onChange(value === n ? null : n)}
+            style={{
+              border: '.5px solid var(--usi-border-strong)',
+              background: value === n ? category.color : 'var(--usi-surface)',
+              color: value === n ? '#fff' : 'var(--usi-ink-2)',
+              borderColor: value === n ? category.color : 'var(--usi-border-strong)',
+              borderRadius: 6, height: 26, minWidth: 26, padding: '0 6px',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              fontFamily: 'inherit',
+              transition: 'all .12s',
+            }}>{n}</button>
+        ))}
+      </div>
+    );
+  }
+  if (variant === 'segmented') {
+    return (
+      <div style={{ display: 'inline-flex', background: 'var(--usi-surface-3)', borderRadius: 8, padding: 2, position: 'relative' }}>
+        {[0,1,2,3,4].map(n => (
+          <button key={n} type="button" onClick={() => onChange(value === n ? null : n)}
+            style={{
+              border: 'none', background: value === n ? category.color : 'transparent',
+              color: value === n ? '#fff' : 'var(--usi-ink-3)',
+              borderRadius: 6, height: 24, width: 28, padding: 0,
+              fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+              transition: 'all .12s',
+            }}>{n}</button>
+        ))}
+      </div>
+    );
+  }
+  if (variant === 'dots') {
+    return (
+      <div style={{ display: 'inline-flex', gap: 4 }}>
+        {[1,2,3,4].map(n => (
+          <button key={n} type="button" onClick={() => onChange(value === n ? null : n)}
+            style={{
+              border: 'none', cursor: 'pointer', padding: 0,
+              width: 14, height: 14, borderRadius: '50%',
+              background: n <= value ? category.color : 'var(--usi-star-empty)',
+              transition: 'background .12s, transform .1s',
+            }} />
+        ))}
+      </div>
+    );
+  }
+  return <StarRating value={value} onChange={onChange} color={category.color} size={sz} label={category.key} />;
+}
+
+// ─── Source badge ─────────────────────────────────────────────
+function SourceBadge({ source }) {
+  const cls = source === 'OTO' ? 'oto' : source === 'RP' ? 'rp' : 'to';
+  return <span className={`usi-source ${cls}`}>{source}</span>;
+}
+
+// ─── CategoryStripe — paseczek 6 kategorii w karcie listy ────
+function CategoryStripe({ ratings, height = 4 }) {
+  return (
+    <div style={{ display: 'flex', gap: 1.5, height, borderRadius: 2, overflow: 'hidden' }}>
+      {USI_CATEGORIES.map(cat => {
+        const v = ratings[cat.key] || 0;
+        return (
+          <div key={cat.key} style={{ flex: 1, background: 'var(--usi-star-empty)', position: 'relative' }}>
+            {v > 0 && (
+              <div style={{
+                position: 'absolute', inset: 0,
+                background: cat.color,
+                opacity: 0.3 + (v / 4) * 0.7,
+              }} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── CategoryDots — 6 kropek dla kompaktowych kart ───────────
+function CategoryDots({ ratings, size = 8 }) {
+  return (
+    <div style={{ display: 'flex', gap: 4 }}>
+      {USI_CATEGORIES.map(cat => {
+        const v = ratings[cat.key] || 0;
+        return (
+          <div key={cat.key} title={`${cat.key}: ${v || '—'}`}
+            style={{
+              width: size, height: size, borderRadius: '50%',
+              background: v > 0 ? cat.color : 'transparent',
+              border: v > 0 ? 'none' : `1px solid var(--usi-border-strong)`,
+              opacity: v > 0 ? 0.4 + (v / 4) * 0.6 : 1,
+            }} />
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── useDarkMode — reaktywny nasłuch na zmianę data-dark ────
+function useDarkMode() {
+  const [dark, setDark] = React.useState(
+    document.documentElement.dataset.dark === '1'
+  );
+  React.useEffect(() => {
+    const obs = new MutationObserver(() =>
+      setDark(document.documentElement.dataset.dark === '1')
+    );
+    obs.observe(document.documentElement, {
+      attributes: true, attributeFilter: ['data-dark'],
+    });
+    return () => obs.disconnect();
+  }, []);
+  return dark;
+}
+
+// ─── MiniMap — fake map z markerami, klik → google maps ─────
+function MiniMap({ coords, label, height = 140, points = [], hereUrl = '', hereUrlDark = '' }) {
+  const url = `https://www.google.com/maps/@${coords[0]},${coords[1]},780m/`;
+  const isDark = useDarkMode();
+  const imgSrc = (isDark && hereUrlDark) ? hereUrlDark : hereUrl;
+  return (
+    <a href={url} target="_blank" rel="noopener" title="Otwórz w Google Maps"
+      style={{
+        display: 'block', position: 'relative', height, width: '100%',
+        borderRadius: 10, overflow: 'hidden', textDecoration: 'none',
+        background: 'var(--usi-surface-3)',
+        border: '.5px solid var(--usi-border)',
+      }}>
+      {imgSrc ? (
+        <img src={imgSrc} alt="Mapa lokalizacji"
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+      ) : (
+        <svg viewBox="0 0 300 200" preserveAspectRatio="none"
+          style={{ width: '100%', height: '100%', display: 'block' }}>
+          <rect x="0" y="0" width="300" height="200" fill="var(--usi-surface-3)" />
+          <path d="M0 40 L80 50 L120 30 L200 35 L300 60 L300 0 L0 0 Z" fill="color-mix(in oklab, #7DB951 18%, transparent)" />
+          <path d="M0 160 L40 165 L80 158 L120 170 L160 168 L200 175 L240 170 L300 178 L300 200 L0 200 Z" fill="color-mix(in oklab, #3989C6 18%, transparent)" />
+          <g stroke="var(--usi-border-strong)" strokeWidth="1.2" fill="none" opacity="0.6">
+            <path d="M-10 95 L310 105" /><path d="M-10 70 L310 75" /><path d="M-10 130 L310 138" />
+            <path d="M70 -10 L75 210" /><path d="M150 -10 L160 210" /><path d="M225 -10 L230 210" />
+          </g>
+          <g transform="translate(150,100)">
+            <circle r="14" fill="var(--usi-accent, #E5006D)" opacity="0.18" />
+            <circle r="7" fill="var(--usi-accent, #E5006D)" stroke="#fff" strokeWidth="2" />
+          </g>
+        </svg>
+      )}
+    </a>
+  );
+}
+
+// ─── ProgressRing — pierścień postępu ocenienia ──────────────
+function ProgressRing({ value, max, size = 32, stroke = 3, color }) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c - (value / max) * c;
+  return (
+    <svg width={size} height={size}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--usi-star-empty)" strokeWidth={stroke} />
+      <circle cx={size/2} cy={size/2} r={r} fill="none"
+        stroke={color || 'var(--usi-accent)'} strokeWidth={stroke}
+        strokeDasharray={c} strokeDashoffset={offset} strokeLinecap="round"
+        transform={`rotate(-90 ${size/2} ${size/2})`}
+        style={{ transition: 'stroke-dashoffset .3s' }} />
+    </svg>
+  );
+}
+
+// ─── Header — pasek aplikacji ────────────────────────────────
+function AppHeader({ activeView, onView, onToggleTheme, dark }) {
+  return (
+    <header style={{
+      display: 'flex', alignItems: 'center', gap: 24,
+      padding: '0 24px', height: 56,
+      borderBottom: '.5px solid var(--usi-border)',
+      background: 'var(--usi-surface)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <USIStarLogo size={26} color="var(--usi-ink)" />
+        <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em' }}>USI</span>
+        <span className="usi-tiny" style={{ marginLeft: 4 }}>tracker</span>
+      </div>
+      <nav style={{ display: 'flex', gap: 4 }}>
+        {[
+          { key: 'list', label: 'Inwestycje' },
+          { key: 'detail', label: 'Widok inwestycji' },
+          { key: 'dashboard', label: 'Dashboard' },
+        ].map(t => (
+          <button key={t.key}
+            onClick={() => onView && onView(t.key)}
+            style={{
+              border: 'none', background: activeView === t.key ? 'var(--usi-surface-3)' : 'transparent',
+              color: activeView === t.key ? 'var(--usi-ink)' : 'var(--usi-ink-3)',
+              padding: '6px 12px', borderRadius: 8,
+              fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+            }}>{t.label}</button>
+        ))}
+      </nav>
+      <div style={{ flex: 1 }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span className="usi-small">8 inwestycji · 6,769 zdjęć</span>
+        <button
+          onClick={onToggleTheme}
+          title={dark ? 'Tryb jasny' : 'Tryb ciemny'}
+          style={{
+            border: 'none', background: 'transparent', cursor: 'pointer',
+            color: 'var(--usi-ink-3)', padding: '6px 8px', borderRadius: 8,
+            fontSize: 16, display: 'flex', alignItems: 'center', lineHeight: 1,
+          }}
+        >{dark ? '☀' : '◑'}</button>
+      </div>
+    </header>
+  );
+}
+
+// ─── Icon — minimalne ikony liniowe ──────────────────────────
+function Icon({ name, size = 16, stroke = 1.6 }) {
+  const paths = {
+    search: <><circle cx="7" cy="7" r="5"/><path d="M11 11l4 4"/></>,
+    filter: <path d="M2 4h12M4 8h8M6 12h4"/>,
+    grid: <><rect x="2" y="2" width="5" height="5"/><rect x="9" y="2" width="5" height="5"/><rect x="2" y="9" width="5" height="5"/><rect x="9" y="9" width="5" height="5"/></>,
+    list: <><path d="M2 4h12M2 8h12M2 12h12"/></>,
+    chevron: <path d="M5 3l4 4-4 4"/>,
+    chevronDown: <path d="M3 5l4 4 4-4"/>,
+    chevronLeft: <path d="M11 13L5 7l6-6"/>,
+    arrow: <><path d="M3 8h10M9 4l4 4-4 4"/></>,
+    trash: <><path d="M3 4h10M5 4V2h6v2M4 4l1 10h6l1-10"/></>,
+    eye: <><path d="M2 8s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z"/><circle cx="8" cy="8" r="2"/></>,
+    check: <path d="M3 8l3 3 7-7"/>,
+    close: <path d="M3 3l10 10M13 3L3 13"/>,
+    star: <path d="M8 2l1.8 4 4.2.4-3.2 2.8 1 4.4L8 11.4 4.2 13.6l1-4.4L2 6.4l4.2-.4z"/>,
+    map: <><path d="M2 4l4-2 4 2 4-2v10l-4 2-4-2-4 2z"/><path d="M6 2v10M10 4v10"/></>,
+    plus: <path d="M8 3v10M3 8h10"/>,
+    sparkle: <><path d="M8 1v3M8 12v3M1 8h3M12 8h3M3 3l2 2M11 11l2 2M3 13l2-2M11 5l2-2"/></>,
+    grip: <><circle cx="6" cy="4" r="1"/><circle cx="10" cy="4" r="1"/><circle cx="6" cy="8" r="1"/><circle cx="10" cy="8" r="1"/><circle cx="6" cy="12" r="1"/><circle cx="10" cy="12" r="1"/></>,
+    sort: <><path d="M5 3v10M3 11l2 2 2-2"/><path d="M11 13V3M9 5l2-2 2 2"/></>,
+    undo: <><path d="M3 7h7a3 3 0 010 6H6"/><path d="M5 4L2 7l3 3"/></>,
+    info: <><circle cx="8" cy="8" r="6"/><path d="M8 7v4M8 5h.01"/></>,
+    menu: <><path d="M2 4h12M2 8h12M2 12h12"/></>,
+  };
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none"
+      stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
+      {paths[name]}
+    </svg>
+  );
+}
+
+// ─── UsiStarScore — gwiazdkowa reprezentacja oceny złożonej ──
+function UsiStarScore({ score }) {
+  if (score === null || score === undefined) return null;
+  let nFull = Math.floor(score);
+  const frac = score - nFull;
+  let fracChar = null;
+  if (frac >= 0.875) {
+    nFull += 1;
+  } else if (frac >= 0.625) {
+    fracChar = '¾';
+  } else if (frac >= 0.375) {
+    fracChar = '½';
+  } else if (frac >= 0.125) {
+    fracChar = '¼';
+  }
+  const Star = ({ opacity = 1 }) => (
+    <svg width={15} height={15} viewBox="0 0 16 16" fill="currentColor" style={{ display: 'block', opacity }}>
+      <path d="M8 2l1.8 4 4.2.4-3.2 2.8 1 4.4L8 11.4 4.2 13.6l1-4.4L2 6.4l4.2-.4z" />
+    </svg>
+  );
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 1, color: 'var(--usi-accent)' }}>
+      {Array.from({ length: nFull }).map((_, i) => <Star key={i} />)}
+      {fracChar && (
+        <>
+          <Star opacity={0.3} />
+          <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1, marginLeft: 1 }}>{fracChar}</span>
+        </>
+      )}
+    </div>
+  );
+}
+
+Object.assign(window, {
+  USIStarLogo, StarRating, CategoryRating, SourceBadge,
+  CategoryStripe, CategoryDots, MiniMap, ProgressRing, AppHeader, Icon,
+  NavDrawer, NavMenuButton, UsiStarScore,
+});
+
+// ─── Hamburger / NavDrawer — wspólne dla wszystkich widoków ──
+function NavMenuButton({ onClick, label = 'Menu' }) {
+  return (
+    <button className="usi-btn ghost icon" onClick={onClick} title={label} aria-label={label}>
+      <Icon name="menu" size={18} />
+    </button>
+  );
+}
+
+function NavDrawer({ current = 'list', onClose, onNav }) {
+  const items = [
+    { id: 'list', label: 'Inwestycje', icon: 'grid', desc: 'Lista wszystkich inwestycji' },
+    { id: 'dashboard', label: 'Dashboard', icon: 'sparkle', desc: 'Podsumowania i wykresy' },
+  ];
+  React.useEffect(() => {
+    const k = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', k);
+    return () => document.removeEventListener('keydown', k);
+  }, [onClose]);
+
+  return ReactDOM.createPortal(
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+      backdropFilter: 'blur(4px)', zIndex: 900, display: 'flex',
+    }}>
+      <aside onClick={e => e.stopPropagation()} style={{
+        width: 320, background: 'var(--usi-surface)',
+        borderRight: '.5px solid var(--usi-border)',
+        display: 'flex', flexDirection: 'column',
+        boxShadow: '4px 0 24px rgba(0,0,0,0.12)',
+      }}>
+        <div style={{
+          padding: '20px 22px 18px', borderBottom: '.5px solid var(--usi-border)',
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <USIStarLogo size={32} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.01em' }}>USI Tracker</div>
+            <div className="usi-small">Universal Standard of Investments</div>
+          </div>
+          <button className="usi-btn ghost icon sm" onClick={onClose} aria-label="Zamknij menu">
+            <Icon name="close" />
+          </button>
+        </div>
+        <nav style={{ flex: 1, padding: '12px 10px', overflow: 'auto' }} className="usi-scroll">
+          {items.map(it => {
+            const active = it.id === current;
+            return (
+              <button key={it.id} onClick={() => { if (onNav) onNav(it.id); onClose(); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                  padding: '11px 12px', borderRadius: 8, border: 'none', textAlign: 'left',
+                  background: active ? 'var(--usi-surface-2)' : 'transparent',
+                  color: active ? 'var(--usi-ink)' : 'var(--usi-ink-2)',
+                  cursor: 'pointer', marginBottom: 2, fontFamily: 'inherit',
+                }}>
+                <span style={{
+                  width: 32, height: 32, borderRadius: 8,
+                  background: active ? 'var(--usi-accent)' : 'var(--usi-surface-3)',
+                  color: active ? '#fff' : 'var(--usi-ink-3)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  <Icon name={it.icon} size={15} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: 'block', fontWeight: 600, fontSize: 13.5 }}>{it.label}</span>
+                  <span className="usi-small" style={{ display: 'block' }}>{it.desc}</span>
+                </span>
+                {active && <span style={{ width: 4, height: 18, borderRadius: 2, background: 'var(--usi-accent)' }} />}
+              </button>
+            );
+          })}
+        </nav>
+        <div style={{
+          padding: '14px 18px', borderTop: '.5px solid var(--usi-border)',
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: '50%', background: 'var(--usi-surface-3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 12, fontWeight: 700, color: 'var(--usi-ink-3)',
+          }}>MK</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600 }}>Marek Kalinowski</div>
+            <div className="usi-small">marek@usi.app</div>
+          </div>
+          <button className="usi-btn ghost icon sm" title="Wyloguj"><Icon name="arrow" size={13} /></button>
+        </div>
+      </aside>
+    </div>,
+    document.body
+  );
+}

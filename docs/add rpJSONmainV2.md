@@ -1,0 +1,67 @@
+# przycisk główny wyzwalajacy dodanie listy nowych inwestycji do tymczasowej tabeli w coda
+tymczasowe rekordy nastepnie przetwarzaja pliki do DB, dodaja widokowke, kopiuja rekord do USImaster i sie kasują
+
+ForEach(
+  rpJSONmainV2,
+  If(
+    CurrentValue.ParseJSON("$.value.groups.value.stages.value")
+      .IsBlank(),
+    AddRow(
+      rpScrape,
+      rpScrape.Inwestycja,
+      CurrentValue.ParseJSON("$.value.name"),
+      rpScrape.rpAdres,
+      Concatenate(
+        "https://rynekpierwotny.pl/oferty/",
+        CurrentValue.ParseJSON("$.value.vendor..slug").Trim(),
+        "/",
+        CurrentValue.ParseJSON("$.value.slug").Trim(),
+        "-",
+        CurrentValue.ParseJSON("$.value.id").Trim(),
+        "/"
+      ),
+      rpScrape.rpJSON,
+      PineMintRPUtils::FetchRawTextFile(
+        Concatenate(
+          "https://rynekpierwotny.pl/api/v2/offers/offer/",
+          CurrentValue.ParseJSON("$.value.id"),
+          "/?s=offer-detail"
+        )
+      )
+        .ToText()
+    ),
+    ForEach(
+      CurrentValue.ParseJSON("$.value.groups.value.stages.value"),
+      AddRow(
+        rpScrape,
+        rpScrape.Inwestycja,
+        CurrentValue.ParseJSON("$.value.offer.value.name"),
+        rpScrape.rpAdres,
+        Concatenate(
+          "https://rynekpierwotny.pl/oferty/",
+          CurrentValue
+            .ParseJSON(
+              "$.value.offer.value.vendor.value.slug"
+            )
+            .Trim(),
+          "/",
+          CurrentValue.ParseJSON("$.value.offer.value.slug").Trim(),
+          "-",
+          CurrentValue.ParseJSON("$.value.offer.value.id").Trim(),
+          "/?show_sold_stage=true&stage=",
+          CurrentValue.ParseJSON("$.value.id")
+        ),
+        rpScrape.rpJSON,
+        PineMintRPUtils::FetchRawTextFile(
+          Concatenate(
+            "https://rynekpierwotny.pl/api/v2/offers/offer/",
+            CurrentValue.ParseJSON("$.value.offer.value.id").Trim(),
+            "/?s=offer-detail"
+          )
+        )
+          .ToText()
+      )
+    )
+  )
+)
+

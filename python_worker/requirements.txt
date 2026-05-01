@@ -1,0 +1,7 @@
+requests
+curl_cffi
+watchdog
+python-dotenv
+pytest
+requests-mock
+flask>=3.0
