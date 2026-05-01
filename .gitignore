@@ -35,3 +35,4 @@ config/secrets.json
 
 .gemini/
 gha-creds-*.json
+.github/
