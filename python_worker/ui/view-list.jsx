@@ -1,19 +1,17 @@
 // view-list.jsx — widok listy inwestycji
 
-const MAIN_CITIES = ['Warszawa', 'Kraków', 'Wrocław', 'Łódź', 'Poznań', 'Gdańsk', 'Szczecin'];
-const SOURCES = [
-  { id: 'RP', label: 'RynekPierwotny', color: '#0052FF' },
-  { id: 'OTO', label: 'Otodom', color: '#00E676' },
-  { id: 'TO', label: 'TabelaOfert', color: '#FF9800' }
-];
-
-function ListGrid({ investments = [], onSelectInv = () => {}, onNav = () => {} }) {
+function ListGrid({ 
+  investments = [], 
+  filteredInvestments = [],
+  onSelectInv = () => {}, 
+  onNav = () => {},
+  search, onSearch,
+  filterDev, onFilterDev,
+  filterStatus, onFilterStatus,
+  activeSources, onSetActiveSources,
+  activeCities, onSetActiveCities
+}) {
   const [mode, setMode] = React.useState('grid');
-  const [search, setSearch] = React.useState('');
-  const [filterDev, setFilterDev] = React.useState('');
-  const [filterStatus, setFilterStatus] = React.useState('');
-  const [activeSources, setActiveSources] = React.useState(new Set(['RP', 'OTO', 'TO']));
-  const [activeCities, setActiveCities] = React.useState(new Set());
   
   // Virtualization state
   const containerRef = React.useRef(null);
@@ -47,30 +45,8 @@ function ListGrid({ investments = [], onSelectInv = () => {}, onNav = () => {} }
     return Array.from(s).sort();
   }, [investments]);
 
-  const filtered = React.useMemo(() => {
-    return investments.filter(inv => {
-      if (search) {
-        const s = search.toLowerCase();
-        const match = (inv.name?.toLowerCase().includes(s) ||
-                     inv.developer?.toLowerCase().includes(s) ||
-                     inv.district?.toLowerCase().includes(s) ||
-                     inv.address?.toLowerCase().includes(s));
-        if (!match) return false;
-      }
-      if (filterDev && inv.developer !== filterDev) return false;
-      if (filterStatus && inv.status !== filterStatus) return false;
-      if (activeSources.size > 0 && inv.source && !activeSources.has(inv.source.toUpperCase())) return false;
-      if (activeCities.size > 0) {
-        const addr = (inv.address || '').toLowerCase();
-        const foundCity = MAIN_CITIES.find(c => addr.includes(c.toLowerCase()));
-        if (!foundCity || !activeCities.has(foundCity)) return false;
-      }
-      return true;
-    });
-  }, [investments, search, filterDev, filterStatus, activeSources, activeCities]);
-
   const toggleSource = (id, isShift) => {
-    setActiveSources(prev => {
+    onSetActiveSources(prev => {
       const next = new Set(prev);
       if (isShift) return new Set([id]);
       if (next.has(id)) {
@@ -83,7 +59,7 @@ function ListGrid({ investments = [], onSelectInv = () => {}, onNav = () => {} }
   };
 
   const toggleCity = (city, isShift) => {
-    setActiveCities(prev => {
+    onSetActiveCities(prev => {
       if (city === null) return new Set();
       const next = new Set(prev);
       if (isShift) return new Set([city]);
@@ -100,11 +76,11 @@ function ListGrid({ investments = [], onSelectInv = () => {}, onNav = () => {} }
   const itemsPerRow = mode === 'grid' ? Math.max(1, Math.floor(availableWidth / 220)) : 1; 
   const overscanRows = 4;
   
-  const totalRows = Math.ceil(filtered.length / itemsPerRow);
+  const totalRows = Math.ceil(filteredInvestments.length / itemsPerRow);
   const startRow = Math.max(0, Math.floor(scrollTop / rowHeight) - overscanRows);
   const endRow = Math.min(totalRows, Math.ceil((scrollTop + viewHeight) / rowHeight) + overscanRows);
   
-  const visibleItems = filtered.slice(startRow * itemsPerRow, endRow * itemsPerRow);
+  const visibleItems = filteredInvestments.slice(startRow * itemsPerRow, endRow * itemsPerRow);
   const paddingTop = startRow * rowHeight;
   const paddingBottom = Math.max(0, (totalRows - endRow) * rowHeight);
 
@@ -112,10 +88,10 @@ function ListGrid({ investments = [], onSelectInv = () => {}, onNav = () => {} }
     <div className="usi-app" style={{ background: 'var(--usi-bg)', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <ListToolbar
         mode={mode} onModeChange={setMode}
-        count={filtered.length} total={investments.length}
-        search={search} onSearch={setSearch}
-        developers={developers} filterDev={filterDev} onFilterDev={setFilterDev}
-        filterStatus={filterStatus} onFilterStatus={setFilterStatus}
+        count={filteredInvestments.length} total={investments.length}
+        search={search} onSearch={onSearch}
+        developers={developers} filterDev={filterDev} onFilterDev={onFilterDev}
+        filterStatus={filterStatus} onFilterStatus={onFilterStatus}
         onNav={onNav}
         activeSources={activeSources} onToggleSource={toggleSource}
         activeCities={activeCities} onToggleCity={toggleCity}
@@ -143,7 +119,7 @@ function ListGrid({ investments = [], onSelectInv = () => {}, onNav = () => {} }
           )}
         </div>
         
-        {filtered.length === 0 && (
+        {filteredInvestments.length === 0 && (
           <div style={{ textAlign: 'center', color: 'var(--usi-ink-4)', padding: '60px 0' }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>🔍</div>
             <div className="usi-body">Brak wyników dla podanych filtrów</div>

@@ -32,3 +32,6 @@ env/
 *.sqlite3
 *.db-journal
 config/secrets.json
+
+.gemini/
+gha-creds-*.json

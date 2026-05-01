@@ -79,16 +79,23 @@ w widoku C brakuje marginesu 16px w elemencie nastepujacym po gornej belce.
 
 30. [ ] podglad listy 6000+ inwestycji jest powolny. przeanalizowac opcje mitygacji problemu.
 
-31. [ ] Wyszukiwanie z API wikipedii interesujących obiektów w okolicy na podstawie lokalizacji
-
 32. [ ] Opracuj plan przejscia na pelna baze danych 6000+ rekordow. testy ktore nie zniszczą bazy. 
 
-33. [ ] Przegląd .gitignore - zeby odzwieciedlal strukture projektu
+33. [x] Przegląd .gitignore - zeby odzwieciedlal strukture projektu
 
 34. [ ] W widoku inwestycji nalezy dodac szybkie filtry na zasadzie toggle: źródła danych (trzy portale), 7 głównych miast (nazwy miast). Toggle działa na zasadzie włącza wyłącza filtr. klikniecie z shift powoduje wyłączenie wszystkich pozostałych w danej grupie.
 
+35. [ ] Wejscie do widoku inwestycji a potem powrot do listy inwestycji restuje filtr. poprawic aby nie resetowalo filtra.
+
+36. [ ] Wejscie do widoku inwestycji a potem przelaczanie miedzy rekordami (strzalki na klawiaturze) ignoruje filtr. poprawic zeby nie ignorowalo filtra.
+
+37. [ ] Gleboka weryfikacja czy USImaster.csv zostal prawidlowo przyswojony do bazy.
+
+## nastepny kamien milowy
+
+1. [ ] Wyszukiwanie z API wikipedii interesujących obiektów w okolicy na podstawie lokalizacji
 
 ## przyszłe kamienie milowe
 
 1. [ ] uruchomienie na raspberry pi - dopiero po przejsciu rozleglych testow na lokalnym komputerze
-2. [ ] przejście na https://github.com/D4Vinci/Scrapling 
+2. [x] przejście na https://github.com/D4Vinci/Scrapling 

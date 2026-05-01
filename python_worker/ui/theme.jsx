@@ -13,6 +13,14 @@ const USI_CATEGORIES = [
 
 const USI_STATUSES = ['Brak', 'AI', 'Wstępna', 'Poszerzona', 'Pełna', 'Aktualizacja', 'Ukończona'];
 
+const MAIN_CITIES = ['Warszawa', 'Kraków', 'Wrocław', 'Łódź', 'Poznań', 'Gdańsk', 'Szczecin'];
+
+const SOURCES = [
+  { id: 'RP', label: 'RynekPierwotny', color: '#0052FF' },
+  { id: 'OTO', label: 'Otodom', color: '#00E676' },
+  { id: 'TO', label: 'TabelaOfert', color: '#FF9800' }
+];
+
 // Mapy palet light/dark — operujemy przez --usi-* CSS vars.
 const THEME_LIGHT = {
   '--usi-bg':            '#F5F2EC',  // ciepły off-white tła
@@ -190,4 +198,4 @@ function applyTheme(root, dark, accent) {
   document.documentElement.dataset.dark = dark ? '1' : '';
 }
 
-Object.assign(window, { USI_CATEGORIES, USI_STATUSES, THEME_LIGHT, THEME_DARK, injectThemeCSS, applyTheme });
+Object.assign(window, { USI_CATEGORIES, USI_STATUSES, MAIN_CITIES, SOURCES, THEME_LIGHT, THEME_DARK, injectThemeCSS, applyTheme });

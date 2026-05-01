@@ -1,5 +1,12 @@
 // app.jsx — USI Tracker SPA
 
+const MAIN_CITIES = ['Warszawa', 'Kraków', 'Wrocław', 'Łódź', 'Poznań', 'Gdańsk', 'Szczecin'];
+const SOURCES = [
+  { id: 'RP', label: 'RynekPierwotny', color: '#0052FF' },
+  { id: 'OTO', label: 'Otodom', color: '#00E676' },
+  { id: 'TO', label: 'TabelaOfert', color: '#FF9800' }
+];
+
 function LoadingScreen() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', flexDirection: 'column', gap: 16 }}>
@@ -43,6 +50,35 @@ function App() {
   const pollRef = React.useRef(null);
   const [dark, setDark] = React.useState(false);
 
+  // Filter state (lifted from ListGrid)
+  const [search, setSearch] = React.useState('');
+  const [filterDev, setFilterDev] = React.useState('');
+  const [filterStatus, setFilterStatus] = React.useState('');
+  const [activeSources, setActiveSources] = React.useState(new Set(['RP', 'OTO', 'TO']));
+  const [activeCities, setActiveCities] = React.useState(new Set());
+
+  const filteredInvestments = React.useMemo(() => {
+    return investments.filter(inv => {
+      if (search) {
+        const s = search.toLowerCase();
+        const match = (inv.name?.toLowerCase().includes(s) ||
+                     inv.developer?.toLowerCase().includes(s) ||
+                     inv.district?.toLowerCase().includes(s) ||
+                     inv.address?.toLowerCase().includes(s));
+        if (!match) return false;
+      }
+      if (filterDev && inv.developer !== filterDev) return false;
+      if (filterStatus && inv.status !== filterStatus) return false;
+      if (activeSources.size > 0 && inv.source && !activeSources.has(inv.source.toUpperCase())) return false;
+      if (activeCities.size > 0) {
+        const addr = (inv.address || '').toLowerCase();
+        const foundCity = MAIN_CITIES.find(c => addr.includes(c.toLowerCase()));
+        if (!foundCity || !activeCities.has(foundCity)) return false;
+      }
+      return true;
+    });
+  }, [investments, search, filterDev, filterStatus, activeSources, activeCities]);
+
   React.useEffect(() => {
     injectThemeCSS();
     if (rootRef.current) applyTheme(rootRef.current, false, '#E5006D');
@@ -60,19 +96,19 @@ function App() {
     const handler = (e) => {
       if (e.key === 'Escape') setView('list');
       if (e.key === 'ArrowLeft') setSelectedInv(prev => {
-        if (!prev || investments.length === 0) return prev;
-        const idx = investments.findIndex(i => i.slug === prev.slug);
-        return investments[(idx - 1 + investments.length) % investments.length];
+        if (!prev || filteredInvestments.length === 0) return prev;
+        const idx = filteredInvestments.findIndex(i => i.slug === prev.slug);
+        return filteredInvestments[(idx - 1 + filteredInvestments.length) % filteredInvestments.length];
       });
       if (e.key === 'ArrowRight') setSelectedInv(prev => {
-        if (!prev || investments.length === 0) return prev;
-        const idx = investments.findIndex(i => i.slug === prev.slug);
-        return investments[(idx + 1) % investments.length];
+        if (!prev || filteredInvestments.length === 0) return prev;
+        const idx = filteredInvestments.findIndex(i => i.slug === prev.slug);
+        return filteredInvestments[(idx + 1) % filteredInvestments.length];
       });
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [view, investments]);
+  }, [view, filteredInvestments]);
 
   React.useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
@@ -111,7 +147,7 @@ function App() {
   };
 
   const invIndex = selectedInv
-    ? investments.findIndex(i => i.slug === selectedInv.slug)
+    ? filteredInvestments.findIndex(i => i.slug === selectedInv.slug)
     : 0;
 
   if (loading) {
@@ -137,24 +173,30 @@ function App() {
         {view === 'list' && (
           <ListGrid
             investments={investments}
+            filteredInvestments={filteredInvestments}
             onSelectInv={handleSelectInv}
             onNav={handleNav}
+            search={search} onSearch={setSearch}
+            filterDev={filterDev} onFilterDev={setFilterDev}
+            filterStatus={filterStatus} onFilterStatus={setFilterStatus}
+            activeSources={activeSources} onSetActiveSources={setActiveSources}
+            activeCities={activeCities} onSetActiveCities={setActiveCities}
           />
         )}
         {view === 'detail' && selectedInv && (
           <DetailRightPanel
             inv={selectedInv}
             invIndex={invIndex >= 0 ? invIndex : 0}
-            invTotal={investments.length}
+            invTotal={filteredInvestments.length}
             onBack={() => setView('list')}
             onNav={handleNav}
             onPrev={() => setSelectedInv(prev => {
-              const idx = investments.findIndex(i => i.slug === prev.slug);
-              return investments[(idx - 1 + investments.length) % investments.length];
+              const idx = filteredInvestments.findIndex(i => i.slug === prev.slug);
+              return filteredInvestments[(idx - 1 + filteredInvestments.length) % filteredInvestments.length];
             })}
             onNext={() => setSelectedInv(prev => {
-              const idx = investments.findIndex(i => i.slug === prev.slug);
-              return investments[(idx + 1) % investments.length];
+              const idx = filteredInvestments.findIndex(i => i.slug === prev.slug);
+              return filteredInvestments[(idx + 1) % filteredInvestments.length];
             })}
           />
         )}

@@ -10,6 +10,7 @@ from .adapters import RPAdapter, OtodomAdapter, TOAdapter, Merger
 from .scraper_rp import scrape_rynek_pierwotny, discover_rp_investments
 from .scraper_otodom import scrape_otodom, discover_otodom_investments
 from .scraper_to import scrape_tabelaofert, discover_to_investments
+from .csv_importer import import_csv
 
 # Set up logging for the whole application
 logging.basicConfig(
@@ -112,6 +113,13 @@ def main():
     # Command: discover
     parser_discover = subparsers.add_parser("discover", help="Discover new investments for a developer")
     parser_discover.add_argument("dev_slug", help="Developer slug")
+
+    # Command: import-csv
+    parser_import_csv = subparsers.add_parser("import-csv", help="Import investments from USImaster.csv")
+    parser_import_csv.add_argument("--csv", default="reference-data/coda/USImaster.csv", help="Path to CSV file")
+    parser_import_csv.add_argument("--limit", type=int, help="Limit number of rows to process")
+    parser_import_csv.add_argument("--dry-run", action="store_true", help="Do not write files")
+    parser_import_csv.add_argument("--no-split", action="store_true", help="Do not split dual RP+OTO records")
 
     args = parser.parse_args()
 
@@ -267,6 +275,17 @@ def main():
                         json.dump(skeleton, f, indent=2, ensure_ascii=False)
 
         logger.info("Discovery finished.")
+
+    elif args.command == "import-csv":
+        logger.info(f"Starting CSV import from: {args.csv}")
+        import_csv(
+            csv_path=args.csv,
+            output_dir=USI_DATA_DIR,
+            limit=args.limit,
+            dry_run=args.dry_run,
+            split_dual=not args.no_split
+        )
+        logger.info("CSV import finished.")
 
 if __name__ == "__main__":
     main()

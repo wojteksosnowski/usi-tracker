@@ -68,12 +68,13 @@ def extract_developer_slug(row: dict) -> str:
     return slugify(row.get("Deweloper", "unknown"))
 
 
-def build_rp_result(row: dict) -> dict:
+def build_rp_result(row: dict, investment_slug: str = None) -> dict:
     rp_raw = row.get("rpJSON", "").strip()
     rp = json.loads(rp_raw) if rp_raw.startswith("{") else {}
 
     developer_slug = extract_developer_slug(row)
-    investment_slug = row.get("USIfolder", "").strip()
+    if not investment_slug:
+        investment_slug = row.get("USIfolder", "").strip()
 
     # Coordinates: rpJSON geo_point.value.coordinates = [lon, lat]
     geo_point = get_rp_val(rp, "geo_point")
@@ -140,13 +141,14 @@ def build_rp_result(row: dict) -> dict:
     }
 
 
-def build_oto_result(row: dict) -> dict:
+def build_oto_result(row: dict, investment_slug: str = None) -> dict:
     oto_raw = row.get("otoJSON", "").strip()
     page_props = json.loads(oto_raw) if oto_raw.startswith("{") else {}
     ad_data = page_props.get("ad", {})
 
     developer_slug = extract_developer_slug(row)
-    investment_slug = row.get("USIfolder", "").strip()
+    if not investment_slug:
+        investment_slug = row.get("USIfolder", "").strip()
 
     # Coordinates from ad_data
     location = ad_data.get("location", {}).get("mapDetails", {})
@@ -234,8 +236,10 @@ def import_csv(
             try:
                 is_dual = split_dual and has_rp and has_oto
                 if is_dual:
-                    rp_result = build_rp_result(row)
-                    oto_result = build_oto_result(row)
+                    rp_slug = inv_slug
+                    oto_slug = f"{inv_slug}-oto"
+                    rp_result = build_rp_result(row, investment_slug=rp_slug)
+                    oto_result = build_oto_result(row, investment_slug=oto_slug)
                 elif has_rp:
                     rp_result = build_rp_result(row)
                     oto_result = None
@@ -249,33 +253,44 @@ def import_csv(
             dev_slug = (rp_result or oto_result)["developer_slug"]
 
             if not dry_run:
-                inv_dir = output_dir / dev_slug / inv_slug
-                inv_dir.mkdir(parents=True, exist_ok=True)
-
-                rp_raw = row.get("rpJSON", "").strip()
-                if rp_raw.startswith("{"):
-                    rp_path = inv_dir / "rp_details.json"
-                    with open(rp_path, "w", encoding="utf-8") as out:
-                        out.write(rp_raw)
-                    logger.info(f"Wrote {rp_path}")
-
-                oto_raw = row.get("otoJSON", "").strip()
-                if oto_raw.startswith("{"):
-                    oto_path = inv_dir / "oto_details.json"
-                    with open(oto_path, "w", encoding="utf-8") as out:
-                        out.write(oto_raw)
-                    logger.info(f"Wrote {oto_path}")
-
                 if is_dual:
-                    rp_result_path = inv_dir / "app_result_imported_rp.json"
-                    with open(rp_result_path, "w", encoding="utf-8") as out:
+                    # Create two separate directories
+                    inv_dir_rp = output_dir / dev_slug / rp_slug
+                    inv_dir_oto = output_dir / dev_slug / oto_slug
+                    inv_dir_rp.mkdir(parents=True, exist_ok=True)
+                    inv_dir_oto.mkdir(parents=True, exist_ok=True)
+
+                    rp_raw = row.get("rpJSON", "").strip()
+                    with open(inv_dir_rp / "rp_details.json", "w", encoding="utf-8") as out:
+                        out.write(rp_raw)
+                    
+                    oto_raw = row.get("otoJSON", "").strip()
+                    with open(inv_dir_oto / "oto_details.json", "w", encoding="utf-8") as out:
+                        out.write(oto_raw)
+
+                    with open(inv_dir_rp / "app_result_imported.json", "w", encoding="utf-8") as out:
                         json.dump(rp_result, out, indent=4, ensure_ascii=False)
-                    logger.info(f"Wrote {rp_result_path}")
-                    oto_result_path = inv_dir / "app_result_imported_oto.json"
-                    with open(oto_result_path, "w", encoding="utf-8") as out:
+                    
+                    with open(inv_dir_oto / "app_result_imported.json", "w", encoding="utf-8") as out:
                         json.dump(oto_result, out, indent=4, ensure_ascii=False)
-                    logger.info(f"Wrote {oto_result_path}")
                 else:
+                    inv_dir = output_dir / dev_slug / inv_slug
+                    inv_dir.mkdir(parents=True, exist_ok=True)
+
+                    rp_raw = row.get("rpJSON", "").strip()
+                    if rp_raw.startswith("{"):
+                        rp_path = inv_dir / "rp_details.json"
+                        with open(rp_path, "w", encoding="utf-8") as out:
+                            out.write(rp_raw)
+                        logger.info(f"Wrote {rp_path}")
+
+                    oto_raw = row.get("otoJSON", "").strip()
+                    if oto_raw.startswith("{"):
+                        oto_path = inv_dir / "oto_details.json"
+                        with open(oto_path, "w", encoding="utf-8") as out:
+                            out.write(oto_raw)
+                        logger.info(f"Wrote {oto_path}")
+
                     single = rp_result or oto_result
                     result_path = inv_dir / "app_result_imported.json"
                     with open(result_path, "w", encoding="utf-8") as out:
