@@ -2,6 +2,7 @@ import csv
 import json
 import logging
 import re
+import shutil
 import unicodedata
 from pathlib import Path
 from .stage_detector import extract_groups_id, extract_stages
@@ -40,17 +41,21 @@ def parse_imglist(imglist_str: str) -> list:
 
 
 def extract_developer_slug(row: dict) -> str:
-    # 1. From imgList paths: /Public/USI/{dev_slug}/{inv_slug}/...
+    # PRIORYTET 1: Zawsze bierzemy nazwę od użytkownika (Coda) z kolumny "Deweloper"
+    dev_name = row.get("Deweloper", "").strip()
+    if dev_name:
+        return slugify(dev_name)
+
+    # PRIORYTET 2: Z imgList (tylko jako ostateczność, gdy brakuje w CSV)
     imglist = row.get("imgList", "").strip()
     if imglist:
         paths = parse_imglist(imglist)
         if paths:
             parts = paths[0].split("/")
-            # /Public/USI/{dev_slug}/...  → parts = ['', 'Public', 'USI', dev_slug, ...]
             if len(parts) >= 4 and parts[1] == "Public" and parts[2] == "USI":
                 return parts[3]
 
-    # 2. From rpJSON vendor.slug
+    # PRIORYTET 3: Ze zrzutu JSON portalu (najmniej wiarygodne np. "Platforma Mieszkaniowa")
     rp_raw = row.get("rpJSON", "").strip()
     if rp_raw.startswith("{"):
         try:
@@ -64,8 +69,31 @@ def extract_developer_slug(row: dict) -> str:
         except (json.JSONDecodeError, AttributeError):
             pass
 
-    # 3. Fallback: slugify Deweloper name
-    return slugify(row.get("Deweloper", "unknown"))
+    return "unknown"
+
+
+def extract_native_slugs(row: dict) -> tuple[str | None, str | None]:
+    """Wyciąga natywne slugi inwestycji z JSONów RP i OTO."""
+    rp_slug = None
+    oto_slug = None
+
+    # RP Slug extraction
+    rp_raw = row.get("rpJSON", "").strip()
+    if rp_raw.startswith("{"):
+        try:
+            rp = json.loads(rp_raw)
+            # RP v2 API zazwyczaj ma slug w głównym obiekcie lub vendorze
+            rp_slug = rp.get("slug")
+        except: pass
+
+    # OTO Slug extraction (z URL lub JSONa)
+    oto_url = row.get("strona_oto", "").strip()
+    if "/inwestycja/" in oto_url:
+        oto_slug = oto_url.split("/inwestycja/")[-1].split("?")[0].strip("/")
+    
+    # Fallback do USIfolder jeśli nie znaleziono natywnych
+    fallback = row.get("USIfolder", "").strip()
+    return rp_slug or fallback, oto_slug or fallback
 
 
 def build_rp_result(row: dict, investment_slug: str = None) -> dict:
@@ -95,7 +123,8 @@ def build_rp_result(row: dict, investment_slug: str = None) -> dict:
     construction_date = get_rp_val(rp, "construction_date_range")
     const_upper = get_rp_val(construction_date, "upper") if construction_date else None
 
-    image_paths = parse_imglist(row.get("imgList", ""))
+    image_paths_raw = parse_imglist(row.get("imgList", ""))
+    image_paths = [f"/Public/USI/{developer_slug}/{investment_slug}/{Path(p).name}" for p in image_paths_raw]
 
     stages = extract_stages(rp)
     groups_id = extract_groups_id(rp)
@@ -163,7 +192,8 @@ def build_oto_result(row: dict, investment_slug: str = None) -> dict:
 
     agency = ad_data.get("agency", {}) or {}
     delivery = ad_data.get("investmentEstimatedDelivery", {}) or {}
-    image_paths = parse_imglist(row.get("imgList", ""))
+    image_paths_raw = parse_imglist(row.get("imgList", ""))
+    image_paths = [f"/Public/USI/{developer_slug}/{investment_slug}/{Path(p).name}" for p in image_paths_raw]
 
     return {
         "source": "otodom.pl",
@@ -236,8 +266,14 @@ def import_csv(
             try:
                 is_dual = split_dual and has_rp and has_oto
                 if is_dual:
-                    rp_slug = inv_slug
-                    oto_slug = f"{inv_slug}-oto"
+                    # Wyciągamy natywne slugi zamiast doklejać -oto
+                    rp_slug, oto_slug = extract_native_slugs(row)
+                    
+                    # Jeśli slugi są identyczne (kolizja), musimy je rozróżnić, 
+                    # ale zgodnie z planem zakładamy, że natywne slugi portalowe zazwyczaj się różnią.
+                    if rp_slug == oto_slug:
+                        oto_slug = f"{oto_slug}-oto" # Jedyny przypadek kolizji
+                    
                     rp_result = build_rp_result(row, investment_slug=rp_slug)
                     oto_result = build_oto_result(row, investment_slug=oto_slug)
                 elif has_rp:
@@ -254,11 +290,47 @@ def import_csv(
 
             if not dry_run:
                 if is_dual:
-                    # Create two separate directories
+                    # Create two separate directories (DATA)
                     inv_dir_rp = output_dir / dev_slug / rp_slug
                     inv_dir_oto = output_dir / dev_slug / oto_slug
                     inv_dir_rp.mkdir(parents=True, exist_ok=True)
                     inv_dir_oto.mkdir(parents=True, exist_ok=True)
+
+                    # Create two separate directories (IMAGES - SYMMETRY)
+                    # Zakładamy, że Public/USI jest w tej samej strukturze co Public/USIdata
+                    # (wyjście poziom wyżej z Public/USIdata do Public/ i potem do USI/)
+                    usi_base = output_dir.parent / "USI"
+                    usi_dir_rp = usi_base / dev_slug / rp_slug
+                    usi_dir_oto = usi_base / dev_slug / oto_slug
+                    usi_dir_rp.mkdir(parents=True, exist_ok=True)
+                    usi_dir_oto.mkdir(parents=True, exist_ok=True)
+
+                    # Kopiowanie/Synchronizacja zdjęć ze starego USIfolder (jeśli wskazany w CSV)
+                    # aby oba nowe foldery miały dostęp do pobranych wcześniej zasobów.
+                    usi_folder_raw = row.get("USIfolder", "")
+                    if usi_folder_raw:
+                        old_usi_folder = usi_base / usi_folder_raw
+                        if old_usi_folder.exists() and old_usi_folder.is_dir():
+                            for img_file in old_usi_folder.glob("*"):
+                                if img_file.is_file():
+                                    # Kopiujemy tylko jeśli ścieżka docelowa jest inna niż źródłowa
+                                    dst_rp = usi_dir_rp / img_file.name
+                                    if old_usi_folder != usi_dir_rp:
+                                        shutil.copy2(img_file, dst_rp)
+                                    
+                                    dst_oto = usi_dir_oto / img_file.name
+                                    if old_usi_folder != usi_dir_oto:
+                                        shutil.copy2(img_file, dst_oto)
+                        else:
+                            # Fallback do obecnej logiki (jeśli USIfolder nie podano lub nie istnieje)
+                            fallback_old = usi_base / dev_slug / inv_slug
+                            if fallback_old.exists() and fallback_old.is_dir():
+                                for img_file in fallback_old.glob("*"):
+                                    if img_file.is_file():
+                                        if fallback_old != usi_dir_rp:
+                                            shutil.copy2(img_file, usi_dir_rp / img_file.name)
+                                        if fallback_old != usi_dir_oto:
+                                            shutil.copy2(img_file, usi_dir_oto / img_file.name)
 
                     rp_raw = row.get("rpJSON", "").strip()
                     with open(inv_dir_rp / "rp_details.json", "w", encoding="utf-8") as out:

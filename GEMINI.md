@@ -53,7 +53,7 @@ pip install -r python_worker/requirements.txt
 ### UI Development (React 18)
 - **No Bundler**: Files in `python_worker/ui/` are loaded directly in `index.html`.
 - **Global Scope**: Components and hooks are shared via the global `window` object. Load order in `index.html` is critical for dependencies.
-- **Material Design**: High-density UI with 16px/8px grids and virtualization for 6000+ records.
+- **High Density**: UI with 16px/8px grids and virtualization for 6000+ records.
 
 ### Testing
 - Use `pytest` for all backend logic.
