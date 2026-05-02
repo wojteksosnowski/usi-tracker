@@ -11,6 +11,7 @@ from .scraper_rp import scrape_rynek_pierwotny, discover_rp_investments
 from .scraper_otodom import scrape_otodom, discover_otodom_investments
 from .scraper_to import scrape_tabelaofert, discover_to_investments
 from .csv_importer import import_csv
+from .logger_utils import log_to_processing_log
 
 # Set up logging for the whole application
 logging.basicConfig(
@@ -38,6 +39,14 @@ def update_investment(dev_slug, inv_slug):
     rp_unified = None
     oto_unified = None
     to_unified = None
+    fetched_sources = []
+
+    def archive_raw(path):
+        if path.exists():
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            archived = path.with_name(f"{path.stem}_{ts}{path.suffix}")
+            path.rename(archived)
+            logger.info(f"Archived existing raw file: {archived.name}")
 
     # Update RynekPierwotny
     if "rp" in sources and sources["rp"].get("id"):
@@ -45,9 +54,12 @@ def update_investment(dev_slug, inv_slug):
         logger.info(f"Scraping RynekPierwotny for ID: {offer_id}")
         rp_result = scrape_rynek_pierwotny(offer_id, dev_slug, inv_slug)
         if "raw_details" in rp_result:
-            with open(inv_dir / f"raw_rp_{inv_slug}.json", "w", encoding="utf-8") as f_out:
+            raw_path = inv_dir / f"raw_rp_{inv_slug}.json"
+            archive_raw(raw_path)
+            with open(raw_path, "w", encoding="utf-8") as f_out:
                 json.dump(rp_result["raw_details"], f_out, indent=2, ensure_ascii=False)
             rp_unified = RPAdapter.transform(rp_result["raw_details"], inv_slug, dev_slug)
+            fetched_sources.append("RP")
         else:
             logger.warning(f"Could not update RP source: {rp_result.get('error')}")
 
@@ -57,9 +69,12 @@ def update_investment(dev_slug, inv_slug):
         logger.info(f"Scraping Otodom for URL: {oto_url}")
         oto_result = scrape_otodom(oto_url, dev_slug, inv_slug)
         if "raw_details" in oto_result:
-            with open(inv_dir / f"raw_oto_{inv_slug}.json", "w", encoding="utf-8") as f_out:
+            raw_path = inv_dir / f"raw_oto_{inv_slug}.json"
+            archive_raw(raw_path)
+            with open(raw_path, "w", encoding="utf-8") as f_out:
                 json.dump(oto_result["raw_details"], f_out, indent=2, ensure_ascii=False)
             oto_unified = OtodomAdapter.transform(oto_result["raw_details"], inv_slug, dev_slug)
+            fetched_sources.append("Otodom")
         else:
             logger.warning(f"Could not update Otodom source: {oto_result.get('error')}")
 
@@ -69,9 +84,12 @@ def update_investment(dev_slug, inv_slug):
         logger.info(f"Scraping TabelaOfert for URL: {to_url}")
         to_result = scrape_tabelaofert(to_url, dev_slug, inv_slug)
         if "raw_details" in to_result:
-            with open(inv_dir / f"raw_to_{inv_slug}.json", "w", encoding="utf-8") as f_out:
+            raw_path = inv_dir / f"raw_to_{inv_slug}.json"
+            archive_raw(raw_path)
+            with open(raw_path, "w", encoding="utf-8") as f_out:
                 json.dump(to_result["raw_details"], f_out, indent=2, ensure_ascii=False)
             to_unified = TOAdapter.transform(to_result["raw_details"], inv_slug, dev_slug)
+            fetched_sources.append("TO")
         else:
             logger.warning(f"Could not update TO source: {to_result.get('error')}")
 
@@ -83,9 +101,12 @@ def update_investment(dev_slug, inv_slug):
             with open(ratings_path, "r", encoding="utf-8") as f:
                 ratings = json.load(f)
         
-        new_unified = Merger.merge(rp_unified, oto_unified, to_unified, ratings, existing_data=usi_data)
+        event = f"Sync: {', '.join(fetched_sources)}" if fetched_sources else "Manual Update"
+        new_unified = Merger.merge(rp_unified, oto_unified, to_unified, ratings, existing_data=usi_data, event=event)
         with open(usi_path, "w", encoding="utf-8") as f_out:
             json.dump(new_unified, f_out, indent=2, ensure_ascii=False)
+        
+        log_to_processing_log(dev_slug, inv_slug, f"Updated investment data. Sources: {', '.join(fetched_sources)}")
         logger.info(f"Successfully updated {usi_path}")
         return True
     
@@ -214,6 +235,7 @@ def main():
                     }
                     with open(new_inv_dir / f"usi_{inv_slug}.json", "w", encoding="utf-8") as f:
                         json.dump(skeleton, f, indent=2, ensure_ascii=False)
+                    log_to_processing_log(args.dev_slug, inv_slug, f"Discovered and registered from RynekPierwotny (ID: {inv['id']})")
         
         # Discover Otodom
         oto_agency_ids = portal_mapping.get("oto", {}).get("agency_ids", [])
@@ -239,6 +261,7 @@ def main():
                     }
                     with open(new_inv_dir / f"usi_{inv_slug}.json", "w", encoding="utf-8") as f:
                         json.dump(skeleton, f, indent=2, ensure_ascii=False)
+                    log_to_processing_log(args.dev_slug, inv_slug, f"Discovered and registered from Otodom (URL: {inv['url']})")
         
         # Discover TabelaOfert
         to_mapping = portal_mapping.get("to", {})
@@ -273,6 +296,7 @@ def main():
                     }
                     with open(new_inv_dir / f"usi_{inv_slug}.json", "w", encoding="utf-8") as f:
                         json.dump(skeleton, f, indent=2, ensure_ascii=False)
+                    log_to_processing_log(args.dev_slug, inv_slug, f"Discovered and registered from TabelaOfert (URL: {inv['url']})")
 
         logger.info("Discovery finished.")
 

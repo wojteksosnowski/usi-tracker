@@ -72,11 +72,12 @@ function RatingsPanel({ inv, variant = 'circles', focusedCat = -1, onFocusedCatC
   const currentInv = { ratings };
   return (
     <div data-component="RatingsPanel" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div>
+      <div data-component="RatingsPanel-Categories">
         <div className="usi-tiny" style={{ marginBottom: 8 }}>Ocena USI</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {USI_CATEGORIES.map((cat, idx) => (
             <div key={cat.key}
+              data-component="CategoryRating-Row"
               onClick={() => onFocusedCatChange && onFocusedCatChange(idx)}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
@@ -101,16 +102,50 @@ function RatingsPanel({ inv, variant = 'circles', focusedCat = -1, onFocusedCatC
           ))}
         </div>
       </div>
-      <div>
+
+      {(inv.amenities && inv.amenities.length > 0) || (inv.amenities_score > 0) ? (
+        <div data-component="RatingsPanel-Amenities" style={{ padding: '4px 0', borderTop: '.5px solid var(--usi-border)', borderBottom: '.5px solid var(--usi-border)', margin: '4px 0' }}>
+          {inv.amenities && inv.amenities.length > 0 && (
+            <>
+              <div className="usi-tiny" style={{ marginBottom: 6 }}>Udogodnienia</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 12 }}>
+                {inv.amenities.map(a => <span key={a} className="usi-pill">{a}</span>)}
+              </div>
+            </>
+          )}
+          {inv.amenities_score > 0 && (
+            <>
+              <div className="usi-tiny" style={{ marginBottom: 4 }}>Wyróżniki</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {(inv.amenities_matched || []).map(m => (
+                  <span key={m.label} className="usi-pill"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    {m.label}
+                    <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.65 }}>+{m.hm_udo}</span>
+                  </span>
+                ))}
+              </div>
+              <div style={{ marginTop: 6, fontSize: 11, color: 'var(--usi-ink-3)' }}>
+                Suma: <strong>{inv.amenities_score} pkt</strong>
+                {inv.suggested_udogodnienia != null && (
+                  <> → sugestia: <strong style={{ color: 'var(--usi-ink)' }}>{inv.suggested_udogodnienia}</strong></>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      ) : null}
+
+      <div data-component="RatingsPanel-Status">
         <div className="usi-tiny" style={{ marginBottom: 6 }}>Status</div>
         <select className="usi-input" value={status} onChange={e => handleStatus(e.target.value)}
           style={{ width: '100%', fontSize: 13, height: 32, padding: '0 8px' }}>
           {USI_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
-      <textarea className="usi-input usi-textarea" placeholder="Komentarz globalny…"
+      <textarea data-component="RatingsPanel-Comment" className="usi-input usi-textarea" placeholder="Komentarz globalny…"
         value={comment} onChange={handleComment} style={{ minHeight: 72 }} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
+      <div data-component="RatingsPanel-Footer" style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {(() => { const score = ocenaLog(currentInv); return (<>
             <UsiStarScore score={score} />

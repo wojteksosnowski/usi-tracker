@@ -115,6 +115,11 @@ function App() {
     if (v === 'list' || v === 'dashboard' || v === 'detail') setView(v);
   };
 
+  const handleUpdateInv = (updated) => {
+    refetch();
+    setSelectedInv(updated);
+  };
+
   const handleFetchSample = () => {
     setFetching(true);
     fetch('/api/fetch-sample', {
@@ -184,6 +189,7 @@ function App() {
             invTotal={filteredInvestments.length}
             onBack={() => setView('list')}
             onNav={handleNav}
+            onUpdateInv={handleUpdateInv}
             onPrev={() => setSelectedInv(prev => {
               const idx = filteredInvestments.findIndex(i => i.slug === prev.slug);
               return filteredInvestments[(idx - 1 + filteredInvestments.length) % filteredInvestments.length];
@@ -196,7 +202,13 @@ function App() {
           />
         )}
         {view === 'dashboard' && (
-          <DashboardGrid investments={investments} onNav={handleNav} dark={dark} onToggleTheme={handleToggleTheme} hereApiKey={config.hereApiKey} />
+          <DashboardGrid 
+            investments={investments} 
+            onNav={handleNav} 
+            dark={dark} 
+            onToggleTheme={handleToggleTheme} 
+            hereApiKey={config ? config.hereApiKey : undefined} 
+          />
         )}
       </div>
     </div>

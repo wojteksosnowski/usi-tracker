@@ -137,19 +137,33 @@ class TestServeImage:
         assert resp.status_code == 400
 
 
+# ── Metadata Config ────────────────────────────────────────────────────────────
+
+class TestMetadataConfig:
+    def test_metadata_config_returns_json(self, client):
+        resp = client.get("/api/metadata-config")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert isinstance(data, list)
+        assert any(d["key"] == "address" for d in data)
+
+
 # ── Shared fixture helpers ─────────────────────────────────────────────────────
 
 def _make_inv_dir(tmp_path, dev="dev", inv="inv"):
-    """Create minimal USIdata/{dev}/{inv}/app_result_test.json."""
+    """Create minimal USIdata/{dev}/{inv}/usi_{inv}.json."""
     inv_dir = tmp_path / dev / inv
     inv_dir.mkdir(parents=True)
-    (inv_dir / "app_result_test.json").write_text(json.dumps({
-        "source": "rynekpierwotny.pl",
-        "developer_slug": dev,
+    (inv_dir / f"usi_{inv}.json").write_text(json.dumps({
         "investment_slug": inv,
+        "developer_slug": dev,
         "name": "Test Investment",
-        "latitude": 54.0,
-        "longitude": 18.0,
+        "location": {"coords": [54.0, 18.0]},
+        "specifications": {"units_count": 0, "delivery_date": "—"},
+        "financials": {"price_avg": 0},
+        "amenities": {"labels": [], "raw_codes": []},
+        "ratings": {},
+        "status": "Brak"
     }))
     return inv_dir
 
@@ -172,12 +186,11 @@ class TestSaveRatings:
              patch("python_worker.ui_server.PUBLIC_USI_DIR", str(tmp_path / "usi")):
             client.post("/api/ratings/dev/inv",
                         json={"Balkony": 4, "Fasady": 1, "komentarz": "ok", "status": "Wstępna"})
-        saved = json.loads((inv_dir / "usi_ratings.json").read_text())
+        saved = json.loads((inv_dir / "meta_inv_ratings.json").read_text())
         assert saved["Balkony"] == 4
         assert saved["Fasady"] == 1
         assert saved["komentarz"] == "ok"
         assert saved["status"] == "Wstępna"
-        assert "updated_at" in saved
 
     def test_ratings_visible_in_investment_data(self, client, tmp_path):
         _make_inv_dir(tmp_path)

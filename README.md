@@ -8,7 +8,7 @@ Automatyczny system śledzenia i pobierania danych o inwestycjach deweloperskich
 - **Zasoby**: Automatyczne pobieranie i katalogowanie zdjęć inwestycji.
 - **Integracja Coda**: Nasłuchiwanie żądań (`coda_request_*.json`) i dostarczanie wyników w formacie JSON.
 - **Podsumowania**: Generowanie zbiorczych plików `app_latest_results.json` (pełny) oraz `brief` (lekki) dla szybkiej synchronizacji tabel.
-- **Logowanie**: Prowadzenie historii operacji w każdym folderze inwestycji (`processing_log.txt`).
+- **Logowanie**: Prowadzenie historii operacji w każdym folderze inwestycji (`processing_log_{slug}.txt`).
 
 ---
 
@@ -88,7 +88,7 @@ Aby wymusić pobranie danych dla konkretnej inwestycji, Coda wrzuca plik JSON do
 Worker wygeneruje w tym samym folderze:
 - `app_result_{id}.json` - Kluczowe dane (lat/lng, lista ścieżek zdjęć, metadane).
 - `rp_details.json` / `oto_details.json` - Surowy zrzut z API dla Twoich formuł `.ParseJSON`.
-- `processing_log.txt` - Historia (kiedy i co zostało pobrane).
+- `processing_log_{slug}.txt` - Historia (kiedy i co zostało pobrane).
 
 ---
 

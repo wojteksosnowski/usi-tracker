@@ -6,6 +6,7 @@ import shutil
 import unicodedata
 from pathlib import Path
 from .stage_detector import extract_groups_id, extract_stages
+from .logger_utils import log_to_processing_log
 
 logger = logging.getLogger(__name__)
 
@@ -342,9 +343,11 @@ def import_csv(
 
                     with open(inv_dir_rp / "app_result_imported.json", "w", encoding="utf-8") as out:
                         json.dump(rp_result, out, indent=4, ensure_ascii=False)
+                    log_to_processing_log(dev_slug, rp_slug, "Imported from CSV (RP side of dual)")
                     
                     with open(inv_dir_oto / "app_result_imported.json", "w", encoding="utf-8") as out:
                         json.dump(oto_result, out, indent=4, ensure_ascii=False)
+                    log_to_processing_log(dev_slug, oto_slug, "Imported from CSV (OTO side of dual)")
                 else:
                     inv_dir = output_dir / dev_slug / inv_slug
                     inv_dir.mkdir(parents=True, exist_ok=True)
@@ -367,6 +370,7 @@ def import_csv(
                     result_path = inv_dir / "app_result_imported.json"
                     with open(result_path, "w", encoding="utf-8") as out:
                         json.dump(single, out, indent=4, ensure_ascii=False)
+                    log_to_processing_log(dev_slug, inv_slug, "Imported from CSV")
                     logger.info(f"Wrote {result_path}")
 
             if is_dual:
@@ -470,10 +474,10 @@ def migrate_dual(usi_data_dir, dry_run=True) -> list:
 
         if not dry_run:
             result_file.rename(inv_dir / new_name)
-            log_path = inv_dir / "processing_log.txt"
+            log_path = inv_dir / f"processing_log_{inv_dir.name}.txt"
             with open(log_path, "a", encoding="utf-8") as lf:
                 lf.write(
-                    f"[{datetime.now().isoformat()}] migrate_dual: "
+                    f"[{datetime.now().isoformat()}] {inv_dir.parent.name}/{inv_dir.name} - migrate_dual: "
                     f"renamed app_result_imported.json → {new_name}\n"
                 )
             logger.info(f"Renamed {result_file} → {inv_dir / new_name}")

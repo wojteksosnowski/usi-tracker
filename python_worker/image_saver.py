@@ -5,6 +5,7 @@ from pathlib import Path
 from urllib.parse import unquote
 import logging
 from .config import PUBLIC_USI_DIR, IMAGE_EXTENSIONS
+from .logger_utils import log_to_processing_log
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -106,5 +107,7 @@ def save_images(urls: list[str], developer_slug: str, investment_slug: str) -> l
         if fname:
             saved_filenames.append(fname)
             
+    if saved_filenames:
+        log_to_processing_log(developer_slug, investment_slug, f"Saved {len(saved_filenames)} images.")
     logger.info(f"Successfully saved {len(saved_filenames)} images for {investment_slug}")
     return saved_filenames

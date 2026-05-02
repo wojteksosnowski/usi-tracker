@@ -4,6 +4,7 @@ import logging
 import random
 import json
 from .config import SCRAPERAPI_KEY, USI_DATA_DIR
+from .logger_utils import log_to_processing_log
 from .scraper_rp import scrape_rynek_pierwotny
 from .scraper_otodom import scrape_otodom
 from .scraper_otodom import fetch_otodom_via_scraperapi, extract_next_data
@@ -64,6 +65,7 @@ def fetch_recent_rp_investments(test_mode=False, limit=None):
                 raw_path = result_dir / raw_filename
                 with open(raw_path, 'w') as f:
                     json.dump(result.get("raw_details", {}), f, indent=4)
+                log_to_processing_log(actual_dev_slug, actual_inv_slug, f"Saved data from listing (Source: {result.get('source')})")
                 logger.info(f"Saved raw details to {raw_path}")
                 
                 # Add to summary list
@@ -144,6 +146,7 @@ def fetch_recent_otodom_investments(test_mode=False, limit=None):
             raw_path = result_dir / raw_filename
             with open(raw_path, 'w') as f:
                 json.dump(result.get("raw_details", {}), f, indent=4)
+            log_to_processing_log(actual_dev_slug, actual_inv_slug, f"Saved data from listing (Source: {result.get('source')})")
             logger.info(f"Saved raw details to {raw_path}")
             
             # Add to summary list
@@ -203,6 +206,7 @@ def fetch_recent_to_investments(limit=None):
             raw_path = result_dir / "to_details.json"
             with open(raw_path, "w") as f:
                 json.dump(result.get("raw_details", {}), f, indent=4, ensure_ascii=False)
+            log_to_processing_log(actual_dev_slug, actual_inv_slug, f"Saved data from listing (Source: {result.get('source')})")
             logger.info(f"Saved raw details to {raw_path}")
 
             coda_path = f"/Public/USIdata/{actual_dev_slug}/{actual_inv_slug}/{filename}"

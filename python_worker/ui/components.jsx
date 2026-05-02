@@ -440,8 +440,49 @@ function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
   );
 }
 
+// ─── WeightedUsiScore — duża ocena dla HeroBand ────────────────
+function WeightedUsiScore({ score, size = 40 }) {
+  if (score === null || score === undefined) return null;
+  let nFull = Math.floor(score);
+  const frac = score - nFull;
+  let fracChar = null;
+  if (frac >= 0.875) {
+    nFull += 1;
+  } else if (frac >= 0.625) {
+    fracChar = '¾';
+  } else if (frac >= 0.375) {
+    fracChar = '½';
+  } else if (frac >= 0.125) {
+    fracChar = '¼';
+  }
+  return (
+    <div data-component="WeightedUsiScore" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{
+        width: size, height: size, borderRadius: '50%',
+        background: 'var(--usi-accent)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        boxShadow: '0 4px 12px rgba(229, 0, 109, 0.15)',
+        flexShrink: 0,
+      }}>
+        <img 
+          src={score < 0.5 ? '/assets/usi-zero-white.svg' : '/assets/usi-star-white.svg'} 
+          width={size * 0.55} height={size * 0.55} 
+          alt="USI"
+        />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
+        <div style={{ fontSize: size * 0.55, fontWeight: 800, color: 'var(--usi-ink)' }}>
+          {nFull}{fracChar && <span style={{ fontSize: '0.65em', verticalAlign: 'top', marginLeft: 1 }}>{fracChar}</span>}
+          <span style={{ fontSize: '0.5em', color: 'var(--usi-ink-4)', fontWeight: 600, marginLeft: 3 }}>/ 4</span>
+        </div>
+        <div className="usi-tiny" style={{ opacity: 0.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 9 }}>Ważona USI</div>
+      </div>
+    </div>
+  );
+}
+
 Object.assign(window, {
   Spinner, USIStarLogo, StarRating, CategoryRating, SourceBadge,
   CategoryStripe, CategoryDots, MiniMap, ProgressRing, Icon,
-  NavDrawer, NavMenuButton, UsiStarScore,
+  NavDrawer, NavMenuButton, UsiStarScore, WeightedUsiScore,
 });

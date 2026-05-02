@@ -96,3 +96,51 @@ def test_merger_priority():
     
     merged_to_only = Merger.merge(rp_data=None, oto_data=None, to_data=to_data)
     assert merged_to_only["name"] == "TO Name"
+
+def test_merger_audit_history_creation():
+    existing = {
+        "investment_slug": "test",
+        "name": "Test",
+        "financials": {"price_avg": 10000},
+        "audit": {"created_at": "2024-01-01T00:00:00", "history": []},
+        "sources": {"rp": {"id": "1"}}
+    }
+    new_data = {
+        "financials": {"price_avg": 12000},
+        "sources": {"rp": {"id": "1"}}
+    }
+    
+    merged = Merger.merge(rp_data=new_data, existing_data=existing, event="Test Event")
+    
+    assert merged["audit"]["created_at"] == "2024-01-01T00:00:00"
+    assert len(merged["audit"]["history"]) == 1
+    assert merged["audit"]["history"][0]["event"] == "Test Event"
+    assert merged["audit"]["history"][0]["changes"][0]["field"] == "financials.price_avg"
+    assert merged["audit"]["history"][0]["changes"][0]["old"] == 10000
+    assert merged["audit"]["history"][0]["changes"][0]["new"] == 12000
+
+def test_merger_no_changes_no_log_unless_event():
+    existing = {
+        "investment_slug": "test",
+        "financials": {"price_avg": 10000},
+        "status": "Brak",
+        "images_count": 0,
+        "audit": {"history": []},
+        "sources": {"rp": {"id": "1"}}
+    }
+    new_data = {
+        "financials": {"price_avg": 10000},
+        "status": "Brak",
+        "images_count": 0,
+        "sources": {"rp": {"id": "1"}}
+    }
+    
+    # No changes, no event -> no log
+    merged = Merger.merge(rp_data=new_data, existing_data=existing)
+    assert len(merged["audit"]["history"]) == 0
+    
+    # No changes, but event passed -> should log
+    merged_with_event = Merger.merge(rp_data=new_data, existing_data=existing, event="Sync Completed")
+    assert len(merged_with_event["audit"]["history"]) == 1
+    assert merged_with_event["audit"]["history"][0]["event"] == "Sync Completed"
+    assert len(merged_with_event["audit"]["history"][0]["changes"]) == 0

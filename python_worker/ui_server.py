@@ -8,6 +8,7 @@ import logging
 import os
 import re
 import threading
+import math
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
@@ -17,17 +18,21 @@ from flask import Flask, abort, jsonify, request, send_file, send_from_directory
 
 from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR, HERE_API_KEY
 from python_worker.here_maps import build_here_url
+from python_worker.main import update_investment
+from python_worker.logger_utils import log_to_processing_log
 
 logger = logging.getLogger(__name__)
 
 UI_DIR = Path(__file__).parent / "ui"
 UI_PORT = int(os.environ.get("USI_PORT", 5000))
+VISIBLE_METADATA_FILE = Path(__file__).parent / "data" / "visible_metadata.json"
 
 app = Flask(__name__, static_folder=None)
 
 USI_STATUSES = ['Brak', 'AI', 'Wstępna', 'Poszerzona', 'Pełna', 'Aktualizacja', 'Ukończona']
 _WYROZNIKI_CSV = Path(__file__).parent / "data" / "wyrozniki.csv"
 _STANDARD_TIERS = [(16, 4), (8, 3), (4, 2), (1, 1), (0, 0)]
+_CATS = ['Balkony', 'Fasady', 'Wnętrza', 'Teren', 'Mieszkania', 'Udogodnienia']
 
 
 @app.route("/api/config")
@@ -35,6 +40,31 @@ def get_config():
     return jsonify({
         "hereApiKey": HERE_API_KEY
     })
+
+
+@app.route("/api/metadata-config")
+def get_metadata_config():
+    if VISIBLE_METADATA_FILE.exists():
+        return send_file(VISIBLE_METADATA_FILE)
+    # Default fallback
+    return jsonify([
+        {"key": "address", "label": "Adres", "path": "address", "type": "string"},
+        {"key": "units", "label": "Mieszkania", "path": "units", "type": "number"},
+        {"key": "delivery", "label": "Termin", "path": "delivery", "type": "string"},
+        {"key": "price_avg", "label": "Cena śr.", "path": "price_avg", "type": "currency"},
+        {"key": "photos", "label": "Zdjęcia", "path": "photos.length", "type": "count"}
+    ])
+
+
+def _calculate_ocena_log(ratings: dict) -> float | None:
+    vals = [ratings.get(cat) for cat in _CATS if ratings.get(cat) is not None]
+    if not vals:
+        return None
+    try:
+        sum_exp = sum(math.exp(v) for v in vals)
+        return math.log(sum_exp) - math.log(len(vals))
+    except (ValueError, OverflowError):
+        return None
 
 
 @lru_cache(maxsize=1)
@@ -165,30 +195,62 @@ def save_ratings(dev_slug, inv_slug):
         except:
             pass
 
-    for cat in ["Balkony", "Fasady", "Wnętrza", "Teren", "Mieszkania", "Udogodnienia"]:
+    changes = []
+    for cat in _CATS:
         if cat in payload:
             val = payload[cat]
-            if val is None:
-                existing_ratings[cat] = None
-            elif isinstance(val, (int, float)) and 0 <= val <= 4:
-                existing_ratings[cat] = float(val)
+            if val is not None:
+                if not isinstance(val, (int, float)) or not (0 <= val <= 4):
+                    abort(400, f"Invalid value for {cat}")
+                new_val = float(val)
+            else:
+                new_val = None
+            
+            if existing_ratings.get(cat) != new_val:
+                changes.append({"field": f"ratings.{cat}", "old": existing_ratings.get(cat), "new": new_val})
+                existing_ratings[cat] = new_val
 
     if "komentarz" in payload:
-        existing_ratings["komentarz"] = str(payload["komentarz"])
-    if "status" in payload and payload["status"] in USI_STATUSES:
-        existing_ratings["status"] = payload["status"]
+        new_kom = str(payload["komentarz"])
+        if existing_ratings.get("komentarz") != new_kom:
+            existing_ratings["komentarz"] = new_kom
+            
+    if "status" in payload:
+        new_status = payload["status"]
+        if new_status not in USI_STATUSES:
+            abort(400, f"Invalid status: {new_status}")
+        if existing_ratings.get("status") != new_status:
+            changes.append({"field": "status", "old": existing_ratings.get("status"), "new": new_status})
+            existing_ratings["status"] = new_status
         
     # Aktualizuj plik zunifikowany, jeśli istnieje, żeby UI od razu to widziało
     usi_file = inv_dir / f"usi_{inv_slug}.json"
     if usi_file.exists():
         try:
             usi_data = json.loads(usi_file.read_text())
+            old_score = _calculate_ocena_log(usi_data.get("ratings", {}))
+            
             usi_data["ratings"] = {**usi_data.get("ratings", {}), **existing_ratings}
             usi_data["status"] = existing_ratings.get("status", usi_data.get("status", "Brak"))
+            
+            new_score = _calculate_ocena_log(usi_data["ratings"])
+            if old_score != new_score and new_score is not None:
+                changes.append({"field": "ratings_score", "old": old_score, "new": new_score})
+
             audit = usi_data.setdefault("audit", {})
             if "created_at" not in audit:
                 audit["created_at"] = datetime.now().isoformat()
             audit["updated_at"] = datetime.now().isoformat()
+            
+            if changes:
+                history = audit.setdefault("history", [])
+                history.append({
+                    "timestamp": datetime.now().isoformat(),
+                    "event": "Rating Updated",
+                    "changes": changes
+                })
+                log_to_processing_log(dev_slug, inv_slug, f"Ratings updated via UI. Changes: {len(changes)}")
+                
             usi_file.write_text(json.dumps(usi_data, ensure_ascii=False, indent=2))
         except Exception as e:
             logger.error(f"Failed to update USI unified file: {e}")
@@ -210,7 +272,25 @@ def save_deletion_list(dev_slug, inv_slug):
         abort(404)
     out = {"paths": paths, "updated_at": datetime.now().isoformat(timespec="seconds")}
     (inv_dir / "deletion_list.json").write_text(json.dumps(out, ensure_ascii=False, indent=2))
+    log_to_processing_log(dev_slug, inv_slug, f"Updated deletion list for photos. Count: {len(paths)}")
     return jsonify({"ok": True, "count": len(paths)})
+
+@app.route("/api/reload-investment/<dev_slug>/<inv_slug>", methods=["POST"])
+def reload_investment(dev_slug, inv_slug):
+    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
+        abort(400)
+    
+    logger.info(f"UI Trigger: Reloading investment {dev_slug}/{inv_slug}")
+    success = update_investment(dev_slug, inv_slug)
+    
+    if not success:
+        return jsonify({"ok": False, "error": "Failed to update investment from source"}), 500
+        
+    updated_inv = _load_investment(dev_slug, inv_slug)
+    if not updated_inv:
+        return jsonify({"ok": False, "error": "Failed to load updated investment"}), 404
+        
+    return jsonify({"ok": True, "investment": updated_inv})
 
 @app.route("/api/fetch-status")
 def fetch_status():
@@ -349,6 +429,7 @@ def _valid_slug(s: str) -> bool:
     return bool(s) and bool(re.match(r"^[a-zA-Z0-9_\-]+$", s))
 
 def _valid_filename(s: str) -> bool:
+    if ".." in s: return False
     return bool(s) and bool(re.match(r"^[^/\\]+\.(jpg|jpeg|png|webp|svg)$", s, re.IGNORECASE))
 
 def run():

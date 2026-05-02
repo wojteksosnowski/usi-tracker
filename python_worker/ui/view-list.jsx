@@ -168,35 +168,35 @@ function ListToolbar({ mode, onModeChange, count, total, search, onSearch, devel
       background: 'var(--usi-surface)', flexShrink: 0,
       boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
     }}>
-      <div style={{
+      <div data-component="ListToolbar-Top" style={{
         display: 'flex', alignItems: 'center', gap: 12,
         padding: '14px 24px', flexWrap: 'wrap', rowGap: 12,
         position: 'relative'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+        <div data-component="ListToolbar-Nav" style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
           <NavMenuButton onClick={() => setNavOpen(true)} />
           <h1 className="usi-h1" style={{ margin: 0, fontSize: 20 }}>Inwestycje</h1>
           <span className="usi-pill outline">{count}{count !== total ? '/' + total : ''}</span>
         </div>
         <div style={{ flex: 1, minWidth: 20 }} />
-        <div style={{ position: 'relative', flex: '1 1 200px', maxWidth: 400 }}>
+        <div data-component="ListToolbar-Search" style={{ position: 'relative', flex: '1 1 200px', maxWidth: 400 }}>
           <span style={{ position: 'absolute', left: 10, top: 9, color: 'var(--usi-ink-4)' }}><Icon name="search" /></span>
           <input className="usi-input" placeholder="Szukaj inwestycji, dewelopera, dzielnicy…"
             value={search} onChange={e => onSearch(e.target.value)}
             style={{ width: '100%', paddingLeft: 32, borderRadius: 20 }} />
         </div>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-          <select className="usi-input" style={{ width: 'auto', height: 34, minWidth: 160, borderRadius: 8 }}
+        <div data-component="ListToolbar-Filters" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select data-component="Filter-Developer" className="usi-input" style={{ width: 'auto', height: 34, minWidth: 160, borderRadius: 8 }}
             value={filterDev} onChange={e => onFilterDev(e.target.value)}>
             <option value="">Wszyscy deweloperzy</option>
             {developers.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
-          <select className="usi-input" style={{ width: 'auto', height: 34, borderRadius: 8 }}
+          <select data-component="Filter-Status" className="usi-input" style={{ width: 'auto', height: 34, borderRadius: 8 }}
             value={filterStatus} onChange={e => onFilterStatus(e.target.value)}>
             <option value="">Wszystkie statusy</option>
             {USI_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
-          <div style={{ display: 'flex', gap: 2, padding: 2, background: 'var(--usi-surface-3)', borderRadius: 8 }}>
+          <div data-component="ModeToggle" style={{ display: 'flex', gap: 2, padding: 2, background: 'var(--usi-surface-3)', borderRadius: 8 }}>
             <button className="usi-btn icon sm" title="Siatka kart" aria-pressed={mode === 'grid'}
               onClick={() => onModeChange('grid')}
               style={{
@@ -217,15 +217,15 @@ function ListToolbar({ mode, onModeChange, count, total, search, onSearch, devel
         </div>
         {navOpen && <NavDrawer current="list" onClose={() => setNavOpen(false)} onNav={v => { setNavOpen(false); onNav(v); }} dark={dark} onToggleTheme={onToggleTheme} />}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '0 24px 14px', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      <div data-component="ListToolbar-Bottom" style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '0 24px 14px', flexWrap: 'wrap' }}>
+        <div data-component="Filter-Sources" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--usi-ink-4)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Źródła</span>
           {SOURCES.map(s => (
             <Chip key={s.id} label={s.label} source={s.id} active={activeSources.has(s.id)} color={s.color} onClick={(isShift) => onToggleSource(s.id, isShift)} />
           ))}
         </div>
         <div style={{ width: 1, height: 20, background: 'var(--usi-border)' }} />
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div data-component="Filter-Cities" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--usi-ink-4)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Miasta</span>
           {MAIN_CITIES.map(city => (
             <Chip key={city} label={city} active={activeCities.has(city)} onClick={(isShift) => onToggleCity(city, isShift)} />

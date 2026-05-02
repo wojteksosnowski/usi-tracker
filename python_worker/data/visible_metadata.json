@@ -1,0 +1,8 @@
+[
+  {"key": "address", "label": "Adres", "path": "address", "type": "string"},
+  {"key": "units", "label": "Mieszkania", "path": "units", "type": "number"},
+  {"key": "delivery", "label": "Termin", "path": "delivery", "type": "string"},
+  {"key": "price_avg", "label": "Cena śr.", "path": "price_avg", "type": "currency"},
+  {"key": "photos_count", "label": "Zdjęcia", "path": "photos.length", "type": "count"},
+  {"key": "status", "label": "Status", "path": "status", "type": "string"}
+]

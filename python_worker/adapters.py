@@ -290,7 +290,43 @@ class TOAdapter:
 
 class Merger:
     @staticmethod
-    def merge(rp_data: dict = None, oto_data: dict = None, to_data: dict = None, meta_ratings: dict = None, existing_data: dict = None) -> dict:
+    def _detect_changes(old: dict, new: dict) -> list:
+        """Compares significant fields and returns a list of change objects."""
+        changes = []
+        
+        # Mapping of (flat_key, path_in_new)
+        # We compare simplified structures for convenience
+        fields = [
+            ("financials.price_avg", ["financials", "price_avg"]),
+            ("financials.price_min", ["financials", "price_min"]),
+            ("financials.price_max", ["financials", "price_max"]),
+            ("specifications.units_count", ["specifications", "units_count"]),
+            ("specifications.delivery_date", ["specifications", "delivery_date"]),
+            ("images_count", ["images_count"]),
+            ("status", ["status"]),
+        ]
+
+        def get_nested(d, path):
+            for k in path:
+                if not isinstance(d, dict): return None
+                d = d.get(k)
+            return d
+
+        for key, path in fields:
+            old_val = get_nested(old, path)
+            new_val = get_nested(new, path)
+            
+            if old_val != new_val and new_val is not None:
+                changes.append({
+                    "field": key,
+                    "old": old_val,
+                    "new": new_val
+                })
+        
+        return changes
+
+    @staticmethod
+    def merge(rp_data: dict = None, oto_data: dict = None, to_data: dict = None, meta_ratings: dict = None, existing_data: dict = None, event: str = None) -> dict:
         """Merges data from multiple sources into a single USI Unified JSON."""
         # Start with a base, prefer RP > Otodom > TO
         base = rp_data or oto_data or to_data or existing_data or {}
@@ -303,18 +339,19 @@ class Merger:
             "developer_slug": base.get("developer_slug"),
             "name": base.get("name"),
             "developer": base.get("developer"),
-            "status": (meta_ratings or {}).get("status", "Brak"),
+            "status": (meta_ratings or {}).get("status") or (existing_data or {}).get("status") or "Brak",
             "sources": {},
             "location": base.get("location", {}).copy(),
             "specifications": base.get("specifications", {}).copy(),
             "financials": base.get("financials", {}).copy(),
             "amenities": base.get("amenities", {}).copy(),
-            "ratings": meta_ratings or {},
+            "ratings": meta_ratings or (existing_data or {}).get("ratings") or {},
             "images_count": base.get("images_count", 0),
             "image_paths": base.get("image_paths", []),
             "audit": {
                 "created_at": existing_audit.get("created_at") or datetime.now().isoformat(),
-                "updated_at": datetime.now().isoformat()
+                "updated_at": datetime.now().isoformat(),
+                "history": existing_audit.get("history", [])
             }
         }
 
@@ -397,5 +434,28 @@ class Merger:
             if other.get("images_count", 0) > result.get("images_count", 0):
                 result["images_count"] = other["images_count"]
                 result["image_paths"] = other.get("image_paths", [])
+
+        # Detect changes and update history
+        if existing_data:
+            changes = Merger._detect_changes(existing_data, result)
+            if changes or event:
+                result["audit"]["history"].append({
+                    "timestamp": datetime.now().isoformat(),
+                    "event": event or "Data Update",
+                    "changes": changes
+                })
+        else:
+            # First time creation
+            result["audit"]["history"] = [{
+                "timestamp": result["audit"]["created_at"],
+                "event": "Created",
+                "changes": []
+            }]
+            if event:
+                result["audit"]["history"].append({
+                    "timestamp": datetime.now().isoformat(),
+                    "event": event,
+                    "changes": []
+                })
 
         return result

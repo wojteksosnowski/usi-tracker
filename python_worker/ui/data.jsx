@@ -18,14 +18,31 @@ function useInvestments() {
 }
 
 function useConfig() {
-  const [config, setConfig] = React.useState({});
+  const [config, setConfig] = React.useState(null);
   React.useEffect(() => {
     fetch('/api/config')
       .then(r => r.json())
       .then(data => setConfig(data))
-      .catch(e => console.error("Failed to load config", e));
+      .catch(e => {
+        console.error("Failed to load config", e);
+        setConfig({});
+      });
   }, []);
   return config;
+}
+
+function useMetadataConfig() {
+  const [meta, setMeta] = React.useState(null);
+  React.useEffect(() => {
+    fetch('/api/metadata-config')
+      .then(r => r.json())
+      .then(data => setMeta(data))
+      .catch(e => {
+        console.error("Failed to load metadata config", e);
+        setMeta([]);
+      });
+  }, []);
+  return meta;
 }
 
 const _CATS = ['Balkony', 'Fasady', 'Wnętrza', 'Teren', 'Mieszkania', 'Udogodnienia'];
@@ -52,4 +69,4 @@ const ocenaLog = (inv) => {
   return Math.log(sum) - Math.log(vals.length);
 };
 
-Object.assign(window, { useInvestments, useConfig, ratedCount, avgRating, ratingStatus, ocenaLog });
+Object.assign(window, { useInvestments, useConfig, useMetadataConfig, ratedCount, avgRating, ratingStatus, ocenaLog });

@@ -21,7 +21,7 @@ function DashboardGrid({ investments = [], onNav = () => {}, accent, dark, onTog
 
   return (
     <div data-component="DashboardGrid" className="usi-app" style={{ background: 'var(--usi-bg)', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ 
+      <div data-component="Dashboard-Toolbar" style={{ 
         padding: '16px 24px', display: 'flex', alignItems: 'center', gap: 12, 
         borderBottom: '.5px solid var(--usi-border)', background: 'var(--usi-surface)', 
         flexShrink: 0, position: 'relative' 
@@ -32,17 +32,17 @@ function DashboardGrid({ investments = [], onNav = () => {}, accent, dark, onTog
         <div style={{ flex: 1 }} />
         {navOpen && <NavDrawer current="dashboard" onClose={() => setNavOpen(false)} onNav={v => { setNavOpen(false); onNav(v); }} dark={dark} onToggleTheme={onToggleTheme} />}
       </div>
-      <div style={{ padding: 24, display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 16, overflow: 'auto', flex: 1 }} className="usi-scroll">
+      <div data-component="Dashboard-Content" style={{ padding: 24, display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 16, overflow: 'auto', flex: 1 }} className="usi-scroll">
         <KPI title="Inwestycji" value={total} sub="w bazie" col={3} />
         <KPI title="Ocenione" value={rated} sub={`${partial} częściowo`} col={3} accent="var(--usi-success)" />
         <KPI title="Zdjęć" value={photos.toLocaleString('pl-PL')} sub={`${toDelete} do usunięcia`} col={3} />
         <KPI title="Średnia ★" value={globalAvg > 0 ? globalAvg.toFixed(2) : '—'} sub="ze wszystkich" col={3} accent={accent || 'var(--usi-accent)'} />
 
-        <div className="usi-card" style={{ gridColumn: 'span 6', padding: 18 }}>
+        <div data-component="Dashboard-CategoryAvg" className="usi-card" style={{ gridColumn: 'span 6', padding: 18 }}>
           <div className="usi-tiny" style={{ marginBottom: 16 }}>Średnia ocena per kategoria</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {avgByCat.map(c => (
-              <div key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div key={c.key} data-component="CategoryAvg-Row" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ width: 100, fontSize: 13, fontWeight: 500 }}>{c.key}</div>
                 <div style={{ flex: 1, height: 20, background: 'var(--usi-surface-3)', borderRadius: 4, position: 'relative' }}>
                   <div style={{
@@ -61,7 +61,7 @@ function DashboardGrid({ investments = [], onNav = () => {}, accent, dark, onTog
           </div>
         </div>
 
-        <div className="usi-card" style={{ gridColumn: 'span 6', padding: 18, display: 'flex', flexDirection: 'column' }}>
+        <div data-component="Dashboard-GeoDistribution" className="usi-card" style={{ gridColumn: 'span 6', gridRow: 'span 2', padding: 18, display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
             <span className="usi-tiny">Rozkład geograficzny</span>
             <span className="usi-small">{total} inwestycji</span>
@@ -69,11 +69,39 @@ function DashboardGrid({ investments = [], onNav = () => {}, accent, dark, onTog
           <DashboardMap investments={investments} accent={accent} dark={dark} apiKey={hereApiKey} />
         </div>
 
-        <div className="usi-card" style={{ gridColumn: 'span 5', padding: 18 }}>
+        <div data-component="Dashboard-TopInvestments" className="usi-card" style={{ gridColumn: 'span 6', padding: 18 }}>
+          <div className="usi-tiny" style={{ marginBottom: 12 }}>Top inwestycje wg średniej</div>
+          {ranked.length === 0 ? (
+            <div className="usi-small" style={{ color: 'var(--usi-ink-4)' }}>Brak ocenionych inwestycji</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {ranked.slice(0, 5).map((inv, i) => {
+                const thumb = inv.photos && inv.photos.length > 0 ? inv.photos[0] : null;
+                return (
+                  <div key={inv.slug} data-component="TopInvestment-Row" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span className="usi-mono" style={{ width: 18, color: 'var(--usi-ink-4)', fontSize: 12 }}>{i+1}</span>
+                    {thumb
+                      ? <img src={thumb} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover' }} />
+                      : <div style={{ width: 36, height: 36, borderRadius: 6, background: 'var(--usi-surface-3)' }} />
+                    }
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{inv.name}</div>
+                      <div className="usi-small">{inv.developer}</div>
+                    </div>
+                    <CategoryDots ratings={inv.ratings || {}} size={6} />
+                    <span className="usi-mono" style={{ fontWeight: 600, minWidth: 36, textAlign: 'right' }}>★ {avgRating(inv).toFixed(2)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div data-component="Dashboard-Progress" className="usi-card" style={{ gridColumn: 'span 12', padding: 18 }}>
           <div className="usi-tiny" style={{ marginBottom: 12 }}>Postęp ocen</div>
           {total > 0 ? (
             <>
-              <div style={{ display: 'flex', height: 36, borderRadius: 6, overflow: 'hidden' }}>
+              <div data-component="Progress-Bar" style={{ display: 'flex', height: 36, borderRadius: 6, overflow: 'hidden' }}>
                 <div style={{ width: `${rated/total*100}%`, background: 'var(--usi-success)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 600 }}>
                   {rated > 0 ? rated : ''}
                 </div>
@@ -92,34 +120,6 @@ function DashboardGrid({ investments = [], onNav = () => {}, accent, dark, onTog
             </>
           ) : (
             <div className="usi-small" style={{ color: 'var(--usi-ink-4)' }}>Brak danych</div>
-          )}
-        </div>
-
-        <div className="usi-card" style={{ gridColumn: 'span 7', padding: 18 }}>
-          <div className="usi-tiny" style={{ marginBottom: 12 }}>Top inwestycje wg średniej</div>
-          {ranked.length === 0 ? (
-            <div className="usi-small" style={{ color: 'var(--usi-ink-4)' }}>Brak ocenionych inwestycji</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {ranked.slice(0, 5).map((inv, i) => {
-                const thumb = inv.photos && inv.photos.length > 0 ? inv.photos[0] : null;
-                return (
-                  <div key={inv.slug} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span className="usi-mono" style={{ width: 18, color: 'var(--usi-ink-4)', fontSize: 12 }}>{i+1}</span>
-                    {thumb
-                      ? <img src={thumb} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover' }} />
-                      : <div style={{ width: 36, height: 36, borderRadius: 6, background: 'var(--usi-surface-3)' }} />
-                    }
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{inv.name}</div>
-                      <div className="usi-small">{inv.developer}</div>
-                    </div>
-                    <CategoryDots ratings={inv.ratings || {}} size={6} />
-                    <span className="usi-mono" style={{ fontWeight: 600, minWidth: 36, textAlign: 'right' }}>★ {avgRating(inv).toFixed(2)}</span>
-                  </div>
-                );
-              })}
-            </div>
           )}
         </div>
       </div>
@@ -149,6 +149,14 @@ function Legend({ color, label }) {
 function DashboardMap({ investments = [], accent, dark, apiKey }) {
   const withCoords = investments.filter(i => i.coords && i.coords[0] !== 0);
   
+  if (apiKey === undefined) {
+    return (
+      <div data-component="DashboardMap" style={{ flex: 1, position: 'relative', minHeight: 240, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--usi-surface-3)', borderRadius: 8 }}>
+        <Spinner size={24} />
+      </div>
+    );
+  }
+
   if (!apiKey || withCoords.length === 0) {
     return (
       <div data-component="DashboardMap" style={{ flex: 1, position: 'relative', minHeight: 240, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--usi-surface-3)', borderRadius: 8 }}>
@@ -160,16 +168,19 @@ function DashboardMap({ investments = [], accent, dark, apiKey }) {
   }
 
   // Budujemy listę punktów dla HERE Map Image API (v3)
-  // Format: lat,lon|lat,lon|...|size=small;icon=circle
-  // Ograniczamy liczbę punktów do 200, aby nie przekroczyć limitu URL
+  // v3 API wymaga: point:lat1,lon1|lat2,lon2|...|globalStyle
+  // Ograniczamy do 200 punktów.
   const pts = withCoords.slice(0, 200).map(inv => `${inv.coords[0]},${inv.coords[1]}`).join('|');
-  const style = dark ? 'explore.night' : 'explore.day';
   
-  // Używamy overlay:padding=32 aby punkty nie były przy samej krawędzi
-  const src = `https://image.maps.hereapi.com/mia/v3/base/mc/overlay:padding=32/600x300/png?apiKey=${apiKey}&overlay=point:${pts}|size=small;icon=circle&style=${style}&features=pois:disabled&lang=pl`;
+  // Styl lite jest obsługiwany i minimalistyczny
+  const style = dark ? 'lite.night' : 'lite.day';
+  
+  // Używamy mc/overlay:padding=32/600x600/png aby automatycznie dopasować widok do wszystkich punktów
+  // Proporcje 1:1 (600x600) zgodnie z zadaniem B05
+  const src = `https://image.maps.hereapi.com/mia/v3/base/mc/overlay:padding=32/600x600/png?apiKey=${apiKey}&overlay=point:${pts}|size=small;icon=circle;color=white&style=${style}&features=pois:disabled&lang=pl`;
 
   return (
-    <div data-component="DashboardMap" style={{ flex: 1, position: 'relative', minHeight: 240, borderRadius: 8, overflow: 'hidden', background: 'var(--usi-surface-3)' }}>
+    <div data-component="DashboardMap" style={{ position: 'relative', width: '100%', flex: 1, borderRadius: 8, overflow: 'hidden', background: 'var(--usi-surface-3)' }}>
       <img 
         src={src} 
         alt="Mapa inwestycji" 

@@ -11,51 +11,35 @@ function Row({ k, v, mono }) {
   );
 }
 
-function MetadataBlock({ inv }) {
+function MetadataBlock({ inv, config }) {
+  if (!config) return <div className="usi-tiny">Ładowanie metadanych...</div>;
+
+  const getValue = (obj, path) => {
+    return path.split('.').reduce((acc, part) => acc && acc[part], obj);
+  };
+
+  const renderValue = (val, type) => {
+    if (val === null || val === undefined || val === '') return '—';
+    if (type === 'currency' && typeof val === 'number') return `${val.toLocaleString('pl-PL')} zł/m²`;
+    if (Array.isArray(val)) return val.length;
+    return val;
+  };
+
   return (
     <div data-component="MetadataBlock">
       <div className="usi-tiny" style={{ marginBottom: 8 }}>Metadane</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px', fontSize: 13 }}>
-        {inv.address && <Row k="Adres" v={inv.address} />}
-        {inv.units > 0 && <Row k="Mieszkania" v={inv.units} />}
-        <Row k="Termin" v={inv.delivery} />
-        {inv.price_avg > 0 && <Row k="Cena śr." v={`${inv.price_avg.toLocaleString('pl-PL')} zł/m²`} mono />}
-        <Row k="Zdjęcia" v={inv.photos ? inv.photos.length : 0} mono />
+      <div data-component="MetadataBlock-Grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px', fontSize: 13 }}>
+        {config.map(field => {
+          const val = getValue(inv, field.path);
+          return <Row key={field.key} k={field.label} v={renderValue(val, field.type)} mono={field.type === 'currency' || field.type === 'count'} />;
+        })}
         {inv.folder_path && (
-          <div style={{ gridColumn: 'span 2', marginTop: 4 }}>
+          <div data-component="MetadataBlock-FolderPath" style={{ gridColumn: 'span 2', marginTop: 4 }}>
             <div className="usi-small" style={{ marginBottom: 1 }}>Ścieżka folderu</div>
             <div className="usi-mono" style={{ fontSize: 11, wordBreak: 'break-all', opacity: 0.8 }}>{inv.folder_path}</div>
           </div>
         )}
       </div>
-      {inv.amenities && inv.amenities.length > 0 && (
-        <>
-          <div className="usi-tiny" style={{ margin: '14px 0 6px' }}>Udogodnienia</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {inv.amenities.map(a => <span key={a} className="usi-pill">{a}</span>)}
-          </div>
-        </>
-      )}
-      {inv.amenities_score > 0 && (
-        <>
-          <div className="usi-tiny" style={{ margin: '12px 0 4px' }}>Wyróżniki</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {(inv.amenities_matched || []).map(m => (
-              <span key={m.label} className="usi-pill"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                {m.label}
-                <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.65 }}>+{m.hm_udo}</span>
-              </span>
-            ))}
-          </div>
-          <div style={{ marginTop: 6, fontSize: 12, color: 'var(--usi-ink-3)' }}>
-            Suma: <strong>{inv.amenities_score} pkt</strong>
-            {inv.suggested_udogodnienia != null && (
-              <> → sugestia Udogodnienia: <strong style={{ color: 'var(--usi-ink)' }}>{inv.suggested_udogodnienia}</strong></>
-            )}
-          </div>
-        </>
-      )}
     </div>
   );
 }
@@ -84,8 +68,15 @@ function SourceLinks({ inv }) {
 }
 
 function HeroBand({ inv, showMap }) {
+  const score = ocenaLog(inv);
+  const hasMap = showMap && inv.coords && inv.coords[0] !== 0;
   return (
-    <div data-component="HeroBand" style={{ display: 'grid', gridTemplateColumns: showMap && inv.coords && inv.coords[0] !== 0 ? '1fr 280px' : '1fr', gap: 16, padding: '16px 24px 0', flexShrink: 0 }}>
+    <div data-component="HeroBand" style={{
+      display: 'grid',
+      gridTemplateColumns: hasMap ? '1fr auto 280px' : '1fr auto',
+      gap: 24, padding: '16px 24px 0', flexShrink: 0,
+      alignItems: 'center'
+    }}>
       <div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
           <h1 className="usi-h1" style={{ margin: 0 }}>{inv.name}</h1>
@@ -101,7 +92,12 @@ function HeroBand({ inv, showMap }) {
           {inv.amenities && inv.amenities.length > 0 && <span>{inv.amenities.length} udogodnień</span>}
         </div>
       </div>
-      {showMap && inv.coords && inv.coords[0] !== 0 && (
+
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '0 16px' }}>
+        <WeightedUsiScore score={score} size={44} />
+      </div>
+
+      {hasMap && (
         <MiniMap coords={inv.coords} label={inv.district} height={70}
           hereUrl={inv.here_map_url} hereUrlDark={inv.here_map_url_dark} />
       )}
@@ -177,7 +173,7 @@ function ModeC({ inv, density = 4, ratingVariant, showMap, marked, onToggleMark,
 }
 
 // ─── Widok inwestycji: 3 kolumny 50/25/25 ────────────────────
-function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onPrev, onNext, density = 5, ratingVariant = 'circles', showMap = true, dark, onToggleTheme }) {
+function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onUpdateInv, onPrev, onNext, density = 5, ratingVariant = 'circles', showMap = true, dark, onToggleTheme }) {
   const [marked, setMarked] = React.useState(new Set());
   const [hiddenPhotos, setHiddenPhotos] = React.useState(new Set());
   const [lightbox, setLightbox] = React.useState(null);
@@ -185,14 +181,34 @@ function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onPr
   const [navOpen, setNavOpen] = React.useState(false);
   const [detailMode, setDetailMode] = React.useState('A');
   const [focusedCat, setFocusedCat] = React.useState(-1);
+  const [reloading, setReloading] = React.useState(false);
   const { ratings, setRatings, comment, setComment, status, setStatus, saved, handleRating, handleComment, handleStatus } = useRatings(inv);
+  const metaConfig = useMetadataConfig();
 
   React.useEffect(() => {
     setMarked(new Set());
     setHiddenPhotos(new Set());
     setDeleteMsg('');
     setFocusedCat(-1);
+    setReloading(false);
   }, [inv.slug]);
+
+  const handleReload = () => {
+    setReloading(true);
+    fetch(`/api/reload-investment/${inv.developer_slug}/${inv.investment_slug}`, { method: 'POST' })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok && data.investment) {
+          onUpdateInv && onUpdateInv(data.investment);
+          setDeleteMsg('Dane zaktualizowane');
+          setTimeout(() => setDeleteMsg(''), 3000);
+        } else {
+          alert("Błąd przeładowania: " + (data.error || "Nieznany błąd"));
+        }
+      })
+      .catch(e => alert("Błąd połączenia: " + e.message))
+      .finally(() => setReloading(false));
+  };
 
   // Keyboard shortcuts for ratings: 1-6 select category, -/= adjust rating
   React.useEffect(() => {
@@ -252,6 +268,10 @@ function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onPr
       <NavMenuButton onClick={() => setNavOpen(true)} />
       <button className="usi-btn ghost" onClick={onBack}><Icon name="chevronLeft" /> Powrót</button>
       <span className="usi-small">{invIndex + 1} z {invTotal}</span>
+      <button className="usi-btn ghost sm" onClick={handleReload} disabled={reloading} title="Pobierz świeże dane od dostawcy">
+        {reloading ? <Spinner size={12} stroke={1.5} /> : <Icon name="sparkle" size={12} />}
+        {reloading ? ' Pobieranie...' : ' Przeładuj'}
+      </button>
       <div style={{ flex: 1 }} />
       {deleteMsg && (
         <span className="usi-small" style={{ color: 'var(--usi-success)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
@@ -329,7 +349,7 @@ function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onPr
               overflow: 'auto',
               display: 'flex', flexDirection: 'column', gap: 16,
             }} className="usi-scroll">
-              <MetadataBlock inv={inv} />
+              <MetadataBlock inv={inv} config={metaConfig} />
             </aside>
           </div>
         </>

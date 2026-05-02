@@ -165,7 +165,7 @@ Each investment folder `Public/USIdata/{dev_slug}/{inv_slug}/` contains:
 - `oto_details.json` — raw Next.js page props from Otodom (vendor-specific)
 - `to_details.json` — raw data from TabelaOfert.pl (vendor-specific)
 - `app_result_{id}.json` — lightweight metadata written by the worker or importer
-- `processing_log.txt` — per-investment append-only log written by `bus.py` on each task
+- `processing_log_{slug}.txt` — per-investment append-only log written by the worker on each task
 
 The scrapers (`scraper_rp.py`, `scraper_otodom.py`) still include `raw_details` in their `app_result_*.json`. The CSV importer (`csv_importer.py`) writes result files **without** `raw_details` (raw data goes into the separate `rp_details.json`/`oto_details.json` files). Unifying the two formats is deferred.
 
