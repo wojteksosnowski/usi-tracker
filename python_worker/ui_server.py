@@ -25,6 +25,59 @@ from python_worker.scraper_to import discover_to_investments
 from python_worker.url_parser import parse_url
 from python_worker.logger_utils import log_to_processing_log
 
+class JobManager:
+    def __init__(self):
+        self.jobs = {}
+        self.lock = threading.Lock()
+
+    def start_job(self, name, target_func, *args, **kwargs):
+        job_id = f"job_{int(time.time())}_{len(self.jobs)}"
+        self.jobs[job_id] = {
+            "id": job_id,
+            "name": name,
+            "status": "running",
+            "progress": 0,
+            "total": 100,
+            "message": "Initializing...",
+            "started_at": datetime.now().isoformat(),
+            "finished_at": None,
+            "error": None
+        }
+        
+        def wrapper():
+            try:
+                target_func(job_id, *args, **kwargs)
+                with self.lock:
+                    self.jobs[job_id]["status"] = "completed"
+                    self.jobs[job_id]["progress"] = self.jobs[job_id]["total"]
+                    self.jobs[job_id]["message"] = "Finished successfully."
+                    self.jobs[job_id]["finished_at"] = datetime.now().isoformat()
+            except Exception as e:
+                logger.error(f"Job {job_id} failed: {e}")
+                with self.lock:
+                    self.jobs[job_id]["status"] = "failed"
+                    self.jobs[job_id]["error"] = str(e)
+                    self.jobs[job_id]["finished_at"] = datetime.now().isoformat()
+
+        threading.Thread(target=wrapper, daemon=True).start()
+        return job_id
+
+    def update_progress(self, job_id, progress, message=None, total=None):
+        with self.lock:
+            if job_id in self.jobs:
+                if progress is not None: self.jobs[job_id]["progress"] = progress
+                if message is not None: self.jobs[job_id]["message"] = message
+                if total is not None: self.jobs[job_id]["total"] = total
+
+    def get_job(self, job_id):
+        return self.jobs.get(job_id)
+
+    def list_active_jobs(self):
+        return [j for j in self.jobs.values() if j["status"] == "running"]
+
+job_manager = JobManager()
+import time
+
 logger = logging.getLogger(__name__)
 
 UI_DIR = Path(__file__).parent / "ui"
@@ -330,11 +383,134 @@ def download_raw_route(dev_slug, inv_slug):
 
 @app.route("/api/developers")
 def list_developers():
-    data_root = Path(USI_DATA_DIR)
-    if not data_root.exists():
-        return jsonify([])
-    devs = sorted([d.name for d in data_root.iterdir() if d.is_dir() and not d.name.startswith(".")])
-    return jsonify(devs)
+    from python_worker.developer_manager import DeveloperManager
+    dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
+    
+    developers = dm.list_developers()
+    # Sort by name
+    developers.sort(key=lambda x: x.get("name", "").lower())
+    
+    # Optional: enrichment with investment counts if needed by UI
+    for dev in developers:
+        dev_slug = dev["developer_slug"]
+        dev_dir = Path(USI_DATA_DIR) / dev_slug
+        if dev_dir.exists():
+            dev["investments_count"] = sum(1 for d in dev_dir.iterdir() if d.is_dir())
+        else:
+            dev["investments_count"] = 0
+            
+    return jsonify(developers)
+
+
+@app.route("/api/developer/<dev_slug>")
+def get_developer_detail(dev_slug):
+    from python_worker.developer_manager import DeveloperManager
+    dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
+    
+    dev = dm.get_developer(dev_slug)
+    if not dev:
+        abort(404)
+        
+    # Enrich with investments
+    investments = []
+    dev_dir = Path(USI_DATA_DIR) / dev_slug
+    if dev_dir.exists():
+        for inv_dir in dev_dir.iterdir():
+            if inv_dir.is_dir() and not inv_dir.name.startswith("."):
+                inv = _load_investment(dev_slug, inv_dir.name)
+                if inv:
+                    investments.append(inv)
+    
+    dev["investments"] = investments
+    return jsonify(dev)
+
+
+@app.route("/api/developer/<dev_slug>/merge", methods=["POST"])
+def merge_developer(dev_slug):
+    payload = request.get_json() or {}
+    source_slug = payload.get("source_slug")
+    if not source_slug:
+        abort(400, "Missing source_slug")
+        
+    from python_worker.developer_manager import DeveloperManager
+    dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
+    
+    if dm.merge_developers(dev_slug, source_slug):
+        return jsonify({"ok": True})
+    else:
+        return jsonify({"ok": False, "error": "Merge failed"}), 500
+
+
+@app.route("/api/developer/<dev_slug>/dismiss-suggestion", methods=["POST"])
+def dismiss_suggestion(dev_slug):
+    payload = request.get_json() or {}
+    suggested_id = payload.get("usi_dev_id")
+    if not suggested_id:
+        abort(400, "Missing usi_dev_id")
+        
+    from python_worker.developer_manager import DeveloperManager
+    dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
+    
+    if dm.dismiss_suggestion(dev_slug, suggested_id):
+        return jsonify({"ok": True})
+    else:
+        return jsonify({"ok": False}), 500
+
+
+def run_discovery_job(job_id, dev_slug):
+    from python_worker.developer_manager import DeveloperManager
+    dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
+    dev = dm.get_developer(dev_slug)
+    if not dev: return
+    
+    mapping = dev.get("portal_mapping", {})
+    job_manager.update_progress(job_id, 10, "Starting discovery...")
+    
+    found_total = 0
+    
+    # 1. RP
+    rp_map = mapping.get("rp") or {}
+    rp_id = rp_map.get("id") or rp_map.get("slug")
+    if rp_id:
+        job_manager.update_progress(job_id, 20, f"Scanning RynekPierwotny ({rp_id})...")
+        try:
+            res = discover_rp_investments(rp_id)
+            found_total += len(res)
+        except Exception as e:
+            logger.error(f"RP discovery failed: {e}")
+
+    # 2. Otodom
+    oto_map = mapping.get("oto") or {}
+    oto_url = oto_map.get("url")
+    if oto_url:
+        job_manager.update_progress(job_id, 50, f"Scanning Otodom...")
+        try:
+            from python_worker.scraper_otodom import discover_otodom_investments
+            parsed = parse_url(oto_url)
+            if parsed.get("agency_id"):
+                res = discover_otodom_investments(parsed["agency_id"])
+                found_total += len(res)
+        except Exception as e:
+            logger.error(f"Otodom discovery failed: {e}")
+
+    # 3. TO
+    to_map = mapping.get("to") or {}
+    to_slug = to_map.get("slug")
+    if to_slug:
+        job_manager.update_progress(job_id, 80, f"Scanning TabelaOfert...")
+        try:
+            res = discover_to_investments(to_slug)
+            found_total += len(res)
+        except Exception as e:
+            logger.error(f"TO discovery failed: {e}")
+
+    job_manager.update_progress(job_id, 100, f"Finished. Found {found_total} potential investments.")
+
+
+@app.route("/api/developer/<dev_slug>/discover", methods=["POST"])
+def discover_dev_new(dev_slug):
+    job_id = job_manager.start_job(f"Discovery: {dev_slug}", run_discovery_job, dev_slug)
+    return jsonify({"ok": True, "job_id": job_id})
 
 
 @app.route("/api/discovery/<portal>")
@@ -476,6 +652,19 @@ def fetch_status():
         for inv in dev.iterdir() if inv.is_dir() and list(inv.glob("usi_*.json"))
     ) if data_root.exists() else 0
     return jsonify({"count": count})
+
+
+@app.route("/api/jobs")
+def list_jobs():
+    return jsonify(job_manager.list_active_jobs())
+
+
+@app.route("/api/jobs/<job_id>")
+def get_job_status(job_id):
+    job = job_manager.get_job(job_id)
+    if not job:
+        abort(404)
+    return jsonify(job)
 
 
 # ── Data normalization ─────────────────────────────────────────────────────────

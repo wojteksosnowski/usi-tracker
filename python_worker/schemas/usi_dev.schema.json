@@ -4,8 +4,16 @@
   "title": "USI Unified Developer Data",
   "description": "Stabilny format danych dewelopera (usi_dev_{slug}.json). Przechowuje mapowanie identyfikatorów portalowych.",
   "type": "object",
-  "required": ["developer_slug", "name", "portal_mapping"],
+  "required": ["developer_slug", "name", "portal_mapping", "usi_dev_id"],
   "properties": {
+    "usi_dev_id": {
+      "type": "string",
+      "description": "Unikalny identyfikator USI dewelopera (np. DEV-0001)."
+    },
+    "parent_id": {
+      "type": ["string", "null"],
+      "description": "ID nadrzędnego dewelopera (grupa kapitałowa)."
+    },
     "developer_slug": { 
       "type": "string", 
       "description": "Stabilny identyfikator dewelopera (nazwa folderu)." 
@@ -57,6 +65,18 @@
       "type": "object",
       "description": "Dodatkowe informacje (NIP, adres biura, itp.).",
       "additionalProperties": true
+    },
+    "suggestions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "usi_dev_id": { "type": "string" },
+          "developer_slug": { "type": "string" },
+          "reason": { "type": "string" },
+          "score": { "type": "number" }
+        }
+      }
     },
     "audit": {
       "type": "object",

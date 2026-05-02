@@ -17,6 +17,23 @@ function useInvestments() {
   return { investments, loading, refetch: load };
 }
 
+function useDevelopers() {
+  const [developers, setDevelopers] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  const load = React.useCallback(() => {
+    setLoading(true);
+    fetch('/api/developers')
+      .then(r => r.json())
+      .then(data => { setDevelopers(Array.isArray(data) ? data : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  return { developers, loading, refetch: load };
+}
+
 function useConfig() {
   const [config, setConfig] = React.useState(null);
   React.useEffect(() => {
@@ -69,4 +86,4 @@ const ocenaLog = (inv) => {
   return Math.log(sum) - Math.log(vals.length);
 };
 
-Object.assign(window, { useInvestments, useConfig, useMetadataConfig, ratedCount, avgRating, ratingStatus, ocenaLog });
+Object.assign(window, { useInvestments, useDevelopers, useConfig, useMetadataConfig, ratedCount, avgRating, ratingStatus, ocenaLog });

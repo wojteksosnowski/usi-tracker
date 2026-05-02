@@ -37,7 +37,9 @@ function App() {
   const rootRef = React.useRef(null);
   const [view, setView] = React.useState('list');
   const [selectedInv, setSelectedInv] = React.useState(null);
+  const [selectedDev, setSelectedDev] = React.useState(null);
   const { investments, loading, refetch } = useInvestments();
+  const { developers, loading: loadingDevs, refetch: refetchDevs } = useDevelopers();
   const config = useConfig();
   const [fetching, setFetching] = React.useState(false);
   const [fetchCount, setFetchCount] = React.useState(0);
@@ -111,8 +113,17 @@ function App() {
     setView('detail');
   };
 
+  const handleSelectDev = (dev) => {
+    setSelectedDev(dev);
+    setView('dev-detail');
+  };
+
   const handleNav = (v) => {
-    if (v === 'list' || v === 'dashboard' || v === 'detail' || v === 'download') setView(v);
+    if (v === 'list' || v === 'dashboard' || v === 'detail' || v === 'download' || v === 'developers' || v === 'dev-detail') {
+      setView(v);
+      setSelectedInv(null);
+      setSelectedDev(null);
+    }
   };
 
   const handleUpdateInv = (updated) => {
@@ -180,6 +191,26 @@ function App() {
             activeSources={activeSources} onSetActiveSources={setActiveSources}
             activeCities={activeCities} onSetActiveCities={setActiveCities}
             dark={dark} onToggleTheme={handleToggleTheme}
+          />
+        )}
+
+        {view === 'developers' && (
+          <DeveloperListGrid
+            developers={developers}
+            onSelectDev={handleSelectDev}
+            onNav={handleNav}
+            dark={dark} onToggleTheme={handleToggleTheme}
+          />
+        )}
+
+        {view === 'dev-detail' && selectedDev && (
+          <DeveloperDetail
+            dev_slug={selectedDev.developer_slug}
+            onBack={() => setView('developers')}
+            onNav={handleNav}
+            onSelectInv={handleSelectInv}
+            dark={dark}
+            onToggleTheme={handleToggleTheme}
           />
         )}
         {view === 'detail' && selectedInv && (

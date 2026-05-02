@@ -4,9 +4,30 @@ import logging
 from pathlib import Path
 from .fetcher import fetch_html
 from .image_saver import save_images
-from .config import USI_DATA_DIR
+from .config import USI_DATA_DIR, USI_DEV_DIR
 
 logger = logging.getLogger(__name__)
+
+def download_raw_otodom_dev_json(url: str, dev_slug: str) -> Path | None:
+    """
+    Downloads raw JSON for an Otodom developer profile and saves it.
+    """
+    html = fetch_otodom_html(url)
+    if not html:
+        logger.error(f"Failed to fetch Otodom HTML for {url}")
+        return None
+        
+    page_props = extract_next_data(html)
+    if not page_props:
+        logger.error(f"Failed to extract __NEXT_DATA__ for {url}")
+        return None
+
+    # Inject URL into raw data
+    page_props["url"] = url
+
+    from .developer_manager import DeveloperManager
+    dm = DeveloperManager(USI_DATA_DIR, USI_DEV_DIR)
+    return dm.save_dev_raw_json(page_props, dev_slug, "oto")
 
 def download_raw_otodom_json(url: str, dev_slug: str, inv_slug: str) -> Path | None:
     """

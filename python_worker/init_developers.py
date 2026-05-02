@@ -1,94 +1,75 @@
-import csv
+import json
 import logging
-import argparse
-import sys
 from pathlib import Path
-
-# Add parent directory to sys.path to allow imports when running as script
-sys.path.append(str(Path(__file__).parent.parent))
-
+from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
 from python_worker.developer_manager import DeveloperManager
-from python_worker.config import USI_DATA_DIR, DROPBOX_PATH
 
-logger = logging.getLogger("InitDevelopers")
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
 
-def import_developers_from_csv(csv_path: str | Path, data_dir: Path):
+def migrate_developers():
     """
-    Imports developer mappings from Konkurenci.csv and creates usi_dev_{slug}.json files.
+    Scans USI_DATA_DIR for unique developers and creates metadata files in USI_DEV_DIR.
     """
-    manager = DeveloperManager(data_dir)
-    count = 0
+    dm = DeveloperManager(USI_DATA_DIR, USI_DEV_DIR)
     
-    csv_path = Path(csv_path)
-    if not csv_path.exists():
-        logger.error(f"CSV file not found: {csv_path}")
-        return 0
-
-    with open(csv_path, mode='r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            dev_slug = row.get('usiFolder', '').strip()
-            name = row.get('Deweloper', '').strip()
+    unique_devs = {} # slug -> name
+    
+    logger.info(f"Scanning {USI_DATA_DIR} for investments...")
+    
+    investment_files = list(USI_DATA_DIR.rglob("usi_*.json"))
+    logger.info(f"Found {len(investment_files)} investment files.")
+    
+    for inv_file in investment_files:
+        # Skip existing dev files if they were in the wrong place
+        if inv_file.name.startswith("usi_dev_"):
+            continue
             
-            if not dev_slug or not name:
-                continue
-                
-            rp_id = row.get('rpID', '').strip()
-            rp_slug = row.get('rpSlug', '').strip()
-            oto_id_raw = row.get('otoID', '').strip()
-            oto_url = row.get('otoWWW', '').strip()
-            website = row.get('www', '').strip()
+        try:
+            with open(inv_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
             
-            # Extract numeric ID from 'ID8495786'
-            oto_agency_ids = []
-            if oto_id_raw.startswith('ID'):
-                try:
-                    oto_agency_ids.append(int(oto_id_raw[2:]))
-                except ValueError:
+            dev_slug = data.get("developer_slug")
+            dev_name = data.get("developer")
+            
+            if dev_slug and dev_name:
+                if dev_slug not in unique_devs:
+                    unique_devs[dev_slug] = dev_name
+                elif unique_devs[dev_slug] != dev_name:
+                    # In case of name mismatch for same slug, we can log it but we keep the first one
+                    # logger.warning(f"Name mismatch for {dev_slug}: '{unique_devs[dev_slug]}' vs '{dev_name}'")
                     pass
-            elif oto_id_raw.isdigit():
-                 oto_agency_ids.append(int(oto_id_raw))
-
-            dev_data = {
-                "developer_slug": dev_slug,
-                "name": name,
-                "website": website if website else None,
-                "portal_mapping": {
-                    "rp": {},
-                    "oto": {},
-                    "to": {}
-                }
+        except Exception as e:
+            logger.error(f"Error reading {inv_file}: {e}")
+            
+    logger.info(f"Extracted {len(unique_devs)} unique developers.")
+    
+    created_count = 0
+    updated_count = 0
+    
+    for dev_slug, dev_name in unique_devs.items():
+        dev_file = USI_DEV_DIR / f"usi_dev_{dev_slug}.json"
+        
+        if dev_file.exists():
+            # If exists, we might want to update the name if it's missing or something
+            # but for now let's just count it
+            updated_count += 1
+            # We still call create_developer_file to update updated_at audit
+        else:
+            created_count += 1
+            
+        dev_data = {
+            "developer_slug": dev_slug,
+            "name": dev_name,
+            "portal_mapping": {
+                "rp": None,
+                "oto": None,
+                "to": None
             }
-            
-            if rp_id:
-                dev_data["portal_mapping"]["rp"]["id"] = rp_id
-            if rp_slug:
-                dev_data["portal_mapping"]["rp"]["slug"] = rp_slug
-                
-            if oto_agency_ids:
-                dev_data["portal_mapping"]["oto"]["agency_ids"] = oto_agency_ids
-            if oto_url:
-                dev_data["portal_mapping"]["oto"]["url"] = oto_url
-                
-            # Check for TabelaOfert slug in otoSlug if it contains 'tabelaofert' or something?
-            # Actually Konkurenci.csv doesn't seem to have TO-specific slug column yet.
-            # But we can add it later.
-            
-            manager.create_developer_file(dev_data)
-            count += 1
-            
-    logger.info(f"Successfully imported {count} developers from {csv_path}")
-    return count
+        }
+        dm.create_developer_file(dev_data)
+        
+    logger.info(f"Migration complete: {created_count} new, {updated_count} updated.")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Initialize developer database from Konkurenci.csv")
-    parser.add_argument("--csv", default="reference-data/coda/Konkurenci.csv", help="Path to Konkurenci.csv")
-    parser.add_argument("--data-dir", help="Path to USIdata directory (overrides config)")
-    
-    args = parser.parse_args()
-    
-    target_data_dir = Path(args.data_dir) if args.data_dir else USI_DATA_DIR
-    
-    logger.info(f"Initializing developers in: {target_data_dir}")
-    import_developers_from_csv(args.csv, target_data_dir)
+    migrate_developers()

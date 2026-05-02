@@ -5,9 +5,26 @@ from pathlib import Path
 from .fetcher import fetch_html
 from .image_saver import save_images
 from .csv_importer import slugify
-from .config import USI_DATA_DIR
+from .config import USI_DATA_DIR, USI_DEV_DIR
 
 logger = logging.getLogger(__name__)
+
+def download_raw_to_dev_json(url: str, dev_slug: str) -> Path | None:
+    """
+    Downloads raw JSON for a TabelaOfert developer profile and saves it.
+    """
+    html = fetch_to_html(url)
+    if not html:
+        logger.error(f"Failed to fetch TO HTML for {url}")
+        return None
+
+    # For developer profile we might use different extraction or just save raw HTML-derived data
+    # reusing extract_to_data for now as it handles JSON-LD which is common
+    data = extract_to_data(html, url)
+
+    from .developer_manager import DeveloperManager
+    dm = DeveloperManager(USI_DATA_DIR, USI_DEV_DIR)
+    return dm.save_dev_raw_json(data, dev_slug, "to")
 
 def extract_to_data(html: str, url: str) -> dict:
     """

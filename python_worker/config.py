@@ -25,10 +25,14 @@ DROPBOX_PATH = Path(os.getenv("DROPBOX_PATH", "."))
 # Can be overridden individually in .env
 USI_DATA_DIR = Path(os.getenv("USI_DATA_DIR", str(DROPBOX_PATH / "Public" / "USIdata")))
 PUBLIC_USI_DIR = Path(os.getenv("PUBLIC_USI_DIR", str(DROPBOX_PATH / "Public" / "USI")))
+USI_DEV_DIR = Path(os.getenv("USI_DEV_DIR", str(DROPBOX_PATH / "Public" / "USIdev")))
+USI_DEV_RAW_DIR = USI_DEV_DIR / "raw"
 
 # Ensure directories exist
 USI_DATA_DIR.mkdir(parents=True, exist_ok=True)
 PUBLIC_USI_DIR.mkdir(parents=True, exist_ok=True)
+USI_DEV_DIR.mkdir(parents=True, exist_ok=True)
+USI_DEV_RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 # CSV export from Coda.io
 CSV_PATH = DROPBOX_PATH / "reference-data" / "coda" / "USImaster.csv"

@@ -1,12 +1,40 @@
 import logging
 import json
 from pathlib import Path
-from .fetcher import fetch_json
+from .fetcher import fetch_json, fetch_html
 from .image_saver import save_images
 from .stage_detector import extract_groups_id, extract_stages
-from .config import USI_DATA_DIR
+from .config import USI_DATA_DIR, USI_DEV_DIR
 
 logger = logging.getLogger(__name__)
+
+def download_raw_rp_dev_json(vendor_id_or_slug: str, dev_slug: str) -> Path | None:
+    """
+    Downloads raw JSON for an RP developer profile and saves it.
+    """
+    profile = fetch_rp_developer_profile(vendor_id_or_slug)
+    if not profile:
+        logger.error(f"Failed to fetch RP developer profile for {vendor_id_or_slug}")
+        return None
+
+    from .developer_manager import DeveloperManager
+    dm = DeveloperManager(USI_DATA_DIR, USI_DEV_DIR)
+    return dm.save_dev_raw_json(profile, dev_slug, "rp")
+
+def fetch_rp_developer_profile(vendor_id_or_slug: str) -> dict:
+    """
+    Fetches developer profile from RynekPierwotny.pl API.
+    """
+    vendor_id = vendor_id_or_slug
+    if not str(vendor_id_or_slug).isdigit():
+        vendor_id = resolve_rp_vendor_id(vendor_id_or_slug)
+        if not vendor_id:
+            logger.error(f"Could not resolve vendor ID for slug: {vendor_id_or_slug}")
+            return {}
+
+    url = f"https://rynekpierwotny.pl/api/v2/vendors/vendor/{vendor_id}/?s=vendor-detail"
+    logger.info(f"Fetching RynekPierwotny developer profile for ID: {vendor_id} from {url}")
+    return fetch_json(url) or {}
 
 def download_raw_rp_json(offer_id: str, dev_slug: str, inv_slug: str) -> Path | None:
     """
