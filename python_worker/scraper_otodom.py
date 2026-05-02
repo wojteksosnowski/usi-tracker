@@ -1,10 +1,34 @@
 import json
 import re
 import logging
+from pathlib import Path
 from .fetcher import fetch_html
 from .image_saver import save_images
+from .config import USI_DATA_DIR
 
 logger = logging.getLogger(__name__)
+
+def download_raw_otodom_json(url: str, dev_slug: str, inv_slug: str) -> Path | None:
+    """
+    Downloads raw JSON for an Otodom investment and saves it to the database.
+    Does not process images or adapt data.
+    """
+    html = fetch_otodom_html(url)
+    if not html:
+        logger.error(f"Failed to fetch Otodom HTML for {url}")
+        return None
+        
+    page_props = extract_next_data(html)
+    if not page_props:
+        logger.error(f"Failed to extract __NEXT_DATA__ for {url}")
+        return None
+
+    # Inject URL into raw data for traceability
+    page_props["url"] = url
+
+    from .developer_manager import DeveloperManager
+    dm = DeveloperManager(USI_DATA_DIR)
+    return dm.save_raw_json(page_props, dev_slug, inv_slug, "oto")
 
 def fetch_otodom_html(url: str) -> str:
     """Fetches the Otodom URL using the centralized Fetcher."""
@@ -61,13 +85,54 @@ def discover_otodom_investments(agency_id: str) -> list[dict]:
         for item in items:
             slug = item.get("slug")
             if slug:
+                img_data = item.get("images", [])
+                img_url = img_data[0].get("medium") if img_data else None
                 offers.append({
                     "url": f"https://www.otodom.pl/pl/oferta/{slug}",
                     "name": item.get("title"),
-                    "slug": slug
+                    "slug": slug,
+                    "image": img_url
                 })
     except Exception as e:
         logger.error(f"Error parsing Otodom discovery data: {e}")
+
+    return offers
+
+def discover_otodom_listing(url: str) -> list[dict]:
+    """
+    Discovers investments from a general Otodom listing URL (HTML with __NEXT_DATA__).
+    """
+    logger.info(f"Discovering Otodom investments from listing: {url}")
+    html = fetch_otodom_html(url)
+    if not html:
+        return []
+
+    data = extract_next_data(html)
+    if not data:
+        return []
+
+    offers = []
+    try:
+        # Common path for listings
+        search_ads = data.get("data", {}).get("searchAds", {})
+        if not search_ads:
+            # Fallback to alternative path if seen
+            search_ads = data.get("props", {}).get("pageProps", {}).get("data", {}).get("searchAds", {})
+            
+        items = search_ads.get("items", [])
+        for item in items:
+            slug = item.get("slug")
+            if slug:
+                img_data = item.get("images", [])
+                img_url = img_data[0].get("medium") if img_data else None
+                offers.append({
+                    "url": f"https://www.otodom.pl/pl/inwestycja/{slug}",
+                    "name": item.get("title"),
+                    "slug": slug,
+                    "image": img_url
+                })
+    except Exception as e:
+        logger.error(f"Error parsing Otodom listing discovery data: {e}")
 
     return offers
 

@@ -1,9 +1,31 @@
 import logging
+import json
+from pathlib import Path
 from .fetcher import fetch_json
 from .image_saver import save_images
 from .stage_detector import extract_groups_id, extract_stages
+from .config import USI_DATA_DIR
 
 logger = logging.getLogger(__name__)
+
+def download_raw_rp_json(offer_id: str, dev_slug: str, inv_slug: str) -> Path | None:
+    """
+    Downloads raw JSON for an RP investment (details + gallery) and saves it to the database.
+    Does not process images or adapt data.
+    """
+    details = fetch_rp_details(offer_id)
+    if not details:
+        logger.error(f"Failed to fetch RP details for ID {offer_id}")
+        return None
+
+    # Also fetch gallery to make the raw JSON complete
+    gallery_data = fetch_json(f"https://rynekpierwotny.pl/api/v2/offers/offer/{offer_id}/?s=offer-detail-gallery")
+    if gallery_data:
+        details["_raw_gallery"] = gallery_data
+
+    from .developer_manager import DeveloperManager
+    dm = DeveloperManager(USI_DATA_DIR)
+    return dm.save_raw_json(details, dev_slug, inv_slug, "rp")
 
 def fetch_rp_details(offer_id: str) -> dict:
     """
@@ -55,30 +77,124 @@ def resolve_rp_vendor_id(slug: str) -> str | None:
         
     return None
 
-def discover_rp_investments(vendor_id_or_slug: str) -> list[dict]:
+def discover_rp_investments(vendor_id_or_slug: str = None) -> list[dict]:
     """
-    Discovers all investments (offers) for a given vendor ID or slug on RynekPierwotny.pl.
+    Discovers investments on RynekPierwotny.pl.
+    If vendor_id_or_slug is provided, fetches offers for that vendor.
+    If None, fetches recent offers using global JSONMAIN queries from config.
+    Handles stage-flattening (extracts all stages from multi-stage developments).
     """
-    vendor_id = vendor_id_or_slug
-    if not vendor_id_or_slug.isdigit():
-        vendor_id = resolve_rp_vendor_id(vendor_id_or_slug)
-        if not vendor_id:
-            logger.error(f"Could not resolve vendor ID for slug: {vendor_id_or_slug}")
-            return []
+    if vendor_id_or_slug:
+        vendor_id = vendor_id_or_slug
+        if not vendor_id_or_slug.isdigit():
+            vendor_id = resolve_rp_vendor_id(vendor_id_or_slug)
+            if not vendor_id:
+                logger.error(f"Could not resolve vendor ID for slug: {vendor_id_or_slug}")
+                return []
+        url = f"https://rynekpierwotny.pl/api/v2/offers/offer/?s=vendor-detail-offer-list&country=1&country=2&display_type=1&display_type=2&page=1&page_size=100&type=1&type=2&type=3&vendor={vendor_id}"
+        logger.info(f"Discovering RP investments for vendor ID: {vendor_id}")
+        data = fetch_json(url) or {}
+        return _parse_rp_results(data.get("results", []))
+    else:
+        # Global discovery - scan all configured URLs
+        from .config import RP_DISCOVERY_URLS
+        all_results = []
+        seen_ids = set()
+        for url in RP_DISCOVERY_URLS:
+            logger.info(f"Discovering RP investments via global JSONMAIN query: {url}")
+            data = fetch_json(url) or {}
+            batch = _parse_rp_results(data.get("results", []))
+            for item in batch:
+                if item["id"] not in seen_ids:
+                    all_results.append(item)
+                    seen_ids.add(item["id"])
+        return all_results
 
-    url = f"https://rynekpierwotny.pl/api/v2/offers/offer/?s=vendor-detail-offer-list&country=1&country=2&display_type=1&display_type=2&page=1&page_size=100&type=1&type=2&type=3&vendor={vendor_id}"
-    logger.info(f"Discovering RynekPierwotny investments for vendor ID: {vendor_id}")
-    
-    data = fetch_json(url) or {}
+def _parse_rp_results(results: list) -> list[dict]:
+    """Helper to parse RP API results and flatten stages."""
     offers = []
-    results = data.get("results", [])
     for item in results:
-        offers.append({
-            "id": str(item.get("id")),
-            "name": item.get("name"),
-            "slug": item.get("slug"),
-            "address": item.get("address")
-        })
+        # Deep helper to get value from the common {type: ..., value: ...} structure
+        def get_val(obj, key):
+            if not obj or not isinstance(obj, dict): return None
+            v = obj.get(key)
+            if isinstance(v, dict) and "value" in v:
+                return v["value"]
+            return v
+
+        # Parent data
+        parent_name = item.get("name")
+        parent_id = str(item.get("id"))
+        
+        # Robust parent image extraction for Discovery (JSONMAIN)
+        parent_img = None
+        main_img_data = item.get("main_image")
+        if main_img_data:
+            if isinstance(main_img_data, str): parent_img = main_img_data
+            elif isinstance(main_img_data, dict):
+                parent_img = main_img_data.get("m_img_1500") or main_img_data.get("m_img_500") or main_img_data.get("image")
+        
+        if not parent_img:
+            gallery = item.get("gallery")
+            if gallery and isinstance(gallery, list) and len(gallery) > 0:
+                first_img = gallery[0].get("image")
+                if isinstance(first_img, dict):
+                    parent_img = first_img.get("g_img_1500") or first_img.get("g_img_500") or first_img.get("image")
+                elif isinstance(first_img, str):
+                    parent_img = first_img
+
+        groups = get_val(item, "groups") or {}
+        stages = get_val(groups, "stages") or []
+        
+        if stages:
+            # Stage-flattening: yield each stage as a separate discovery item
+            for stage in stages:
+                s_id_internal = stage.get("id")
+                s_offer_val = get_val(stage, "offer")
+                
+                if s_offer_val:
+                    s_id = str(s_offer_val.get("id"))
+                    s_name = s_offer_val.get("name")
+                    s_slug = s_offer_val.get("slug")
+                    s_vendor_val = get_val(s_offer_val, "vendor") or {}
+                    s_vendor_slug = s_vendor_val.get("slug")
+                    
+                    # Stage image - usually missing in discovery, use parent_img
+                    s_img = None
+                    s_main_photo = get_val(s_offer_val, "main_photo") or get_val(s_offer_val, "main_image")
+                    if s_main_photo:
+                        if isinstance(s_main_photo, str): s_img = s_main_photo
+                        elif isinstance(s_main_photo, dict):
+                            s_img = s_main_photo.get("image") or s_main_photo.get("m_img_1500")
+                    
+                    if not s_img:
+                        s_img = parent_img
+                    
+                    offers.append({
+                        "id": s_id,
+                        "name": s_name,
+                        "slug": s_slug,
+                        "url": f"https://rynekpierwotny.pl/oferty/{s_vendor_slug}/{s_slug}-{s_id}/?show_sold_stage=true&stage={s_id_internal}",
+                        "image": s_img,
+                        "is_stage": True,
+                        "parent_id": parent_id
+                    })
+        else:
+            # Single-stage investment
+            v_data = get_val(item, "vendor") or {}
+            v_slug = v_data.get("slug")
+            o_id = str(item.get("id"))
+            o_slug = item.get("slug")
+            
+            offers.append({
+                "id": o_id,
+                "name": parent_name,
+                "slug": o_slug,
+                "url": f"https://rynekpierwotny.pl/oferty/{v_slug}/{o_slug}-{o_id}/",
+                "image": parent_img,
+                "is_stage": False
+            })
+            
     return offers
 
 def scrape_rynek_pierwotny(offer_id: str, developer_slug: str, investment_slug: str, url: str = None) -> dict:

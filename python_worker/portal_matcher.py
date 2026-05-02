@@ -270,3 +270,41 @@ def run_matcher(data_dir: Path, output_path: Path, min_confidence: str = "low") 
     filtered = [s for s in suggestions if order.get(s.confidence, 9) <= min_level]
     save_suggestions(filtered, output_path)
     return len(filtered)
+
+
+def filter_new_investments(discovered_items: list[dict], portal: str) -> list[dict]:
+    """
+    Adds 'is_new' flag to discovered items by comparing with existing USIdata.
+    portal: 'rp' or 'otodom'
+    """
+    from .developer_manager import DeveloperManager
+    from .config import USI_DATA_DIR
+
+    dm = DeveloperManager(USI_DATA_DIR)
+    identifiers = dm.get_existing_identifiers()
+
+    rp_ids = identifiers["rp_ids"]
+    oto_ids = identifiers["oto_ids"]
+    oto_slugs = identifiers["oto_slugs"]
+    to_ids = identifiers.get("to_ids", set())
+
+    for item in discovered_items:
+        is_new = True
+        if portal == "rp":
+            item_id = str(item.get("id"))
+            if item_id in rp_ids:
+                is_new = False
+        elif portal == "otodom":
+            item_id = str(item.get("id"))
+            item_slug = item.get("slug")
+            if item_id in oto_ids or item_slug in oto_slugs:
+                is_new = False
+        elif portal in ("to", "tabelaofert"):
+            item_id = str(item.get("id"))
+            if item_id in to_ids:
+                is_new = False
+
+        item["is_new"] = is_new
+        item["portal"] = portal
+
+    return discovered_items

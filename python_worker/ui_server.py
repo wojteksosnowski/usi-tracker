@@ -18,10 +18,11 @@ from flask import Flask, abort, jsonify, request, send_file, send_from_directory
 
 from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR, HERE_API_KEY
 from python_worker.here_maps import build_here_url
-from python_worker.main import update_investment
+from python_worker.main import update_investment, download_raw_json
 from python_worker.scraper_rp import discover_rp_investments
 from python_worker.scraper_otodom import discover_otodom_investments
 from python_worker.scraper_to import discover_to_investments
+from python_worker.url_parser import parse_url
 from python_worker.logger_utils import log_to_processing_log
 
 logger = logging.getLogger(__name__)
@@ -295,6 +296,38 @@ def reload_investment(dev_slug, inv_slug):
         
     return jsonify({"ok": True, "investment": updated_inv})
 
+@app.route("/api/download-raw/<dev_slug>/<inv_slug>", methods=["POST"])
+def download_raw_route(dev_slug, inv_slug):
+    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
+        abort(400)
+    
+    inv_dir = Path(USI_DATA_DIR) / dev_slug / inv_slug
+    usi_file = inv_dir / f"usi_{inv_slug}.json"
+    if not usi_file.exists():
+        abort(404)
+        
+    try:
+        with open(usi_file, "r") as f:
+            data = json.load(f)
+            sources = data.get("sources", {})
+            
+        success = False
+        portals_to_try = ["rp", "oto", "to"]
+        for p in portals_to_try:
+            if p in sources:
+                identifier = sources[p].get("id") or sources[p].get("url")
+                if identifier:
+                    if download_raw_json(p, identifier, dev_slug, inv_slug):
+                        success = True
+        
+        if success:
+            return jsonify({"ok": True})
+        else:
+            return jsonify({"ok": False, "error": "No valid sources for raw download"}), 400
+    except Exception as e:
+        logger.error(f"UI Download-raw error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 @app.route("/api/developers")
 def list_developers():
     data_root = Path(USI_DATA_DIR)
@@ -307,7 +340,9 @@ def list_developers():
 @app.route("/api/discovery/<portal>")
 def discovery(portal):
         identifier = request.args.get("id", "").strip()
-        if not identifier:
+        
+        # RP, Otodom and TabelaOfert support global discovery without ID
+        if not identifier and portal not in ("rp", "oto", "to"):
             return jsonify({"error": "Missing 'id' parameter"}), 400
 
         # Check if identifier is a URL
@@ -339,11 +374,36 @@ def discovery(portal):
 
         try:
             if portal == "rp":
-                results = discover_rp_investments(identifier)
+                results = discover_rp_investments(identifier if identifier else None)
+                from .portal_matcher import filter_new_investments
+                results = filter_new_investments(results, "rp")
             elif portal == "oto":
-                results = discover_otodom_investments(identifier)
+                from .scraper_otodom import discover_otodom_investments, discover_otodom_listing
+                from .config import OTODOM_DISCOVERY_URLS
+
+                if identifier:
+                    results = discover_otodom_investments(identifier)
+                else:
+                    # Global discovery for Otodom - scan all configured URLs
+                    results = []
+                    seen_slugs = set()
+                    for url in OTODOM_DISCOVERY_URLS:
+                        try:
+                            batch = discover_otodom_listing(url)
+                            for item in batch:
+                                if item["slug"] not in seen_slugs:
+                                    results.append(item)
+                                    seen_slugs.add(item["slug"])
+                        except Exception as e:
+                            logger.warning(f"Failed global discovery for {url}: {e}")
+                
+                from .portal_matcher import filter_new_investments
+                results = filter_new_investments(results, "otodom")
             elif portal == "to":
-                results = discover_to_investments(identifier)
+                from .scraper_to import discover_to_investments
+                results = discover_to_investments(identifier if identifier else None)
+                from .portal_matcher import filter_new_investments
+                results = filter_new_investments(results, "to")
             else:
                 return jsonify({"error": f"Unsupported portal: {portal}"}), 400
 

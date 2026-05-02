@@ -155,9 +155,92 @@ function CategoryRating({ category, value, onChange, variant = 'stars', size = '
 }
 
 // ─── Source badge ─────────────────────────────────────────────
-function SourceBadge({ source }) {
-  const cls = source === 'OTO' ? 'oto' : source === 'RP' ? 'rp' : 'to';
-  return <span data-component="SourceBadge" className={`usi-source ${cls}`}>{source}</span>;
+function SourceBadge({ source, url }) {
+  const cls = source === 'OTO' || source === 'oto' || source === 'otodom' ? 'oto' : (source === 'RP' || source === 'rp' ? 'rp' : 'to');
+  const label = (source === 'otodom' ? 'OTO' : source ? source.toUpperCase() : '??');
+  
+  if (url) {
+    return (
+      <a 
+        data-component="SourceBadge" 
+        href={url} 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className={`usi-source ${cls}`}
+        style={{ textDecoration: 'none' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {label}
+      </a>
+    );
+  }
+  return <span data-component="SourceBadge" className={`usi-source ${cls}`}>{label}</span>;
+}
+
+// ─── StandardCard — wspólna baza dla kart ────────────────────
+function StandardCard({ 
+  image, 
+  title, 
+  subtitle, 
+  extra, 
+  badges, 
+  footerLeft, 
+  footerRight, 
+  onClick, 
+  disabled = false,
+  overlay = null,
+  style = {}
+}) {
+  return (
+    <article 
+      data-component="StandardCard" 
+      className={`usi-card ${disabled ? 'flat' : ''}`} 
+      onClick={disabled ? null : onClick} 
+      style={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        cursor: disabled ? 'default' : 'pointer', 
+        height: 320, 
+        background: 'var(--usi-surface)',
+        position: 'relative',
+        opacity: disabled ? 0.7 : 1,
+        transition: 'all 0.2s ease',
+        ...style 
+      }}
+    >
+      <div style={{ position: 'relative', height: 160, background: 'var(--usi-surface-3)', overflow: 'hidden' }}>
+        {image ? (
+          typeof image === 'string' ? <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : image
+        ) : (
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--usi-ink-4)', fontSize: 32 }}>📷</div>
+        )}
+        <div style={{ position: 'absolute', top: 10, left: 10, display: 'flex', gap: 6 }}>
+          {badges}
+        </div>
+        {overlay && (
+          <div style={{ 
+            position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', 
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontWeight: 800, fontSize: 14, backdropFilter: 'blur(2px)',
+            zIndex: 2
+          }}>
+            {overlay}
+          </div>
+        )}
+      </div>
+      <div style={{ padding: '12px 14px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <div>
+          <h3 className="usi-h3" style={{ margin: 0, marginBottom: 2, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</h3>
+          <div className="usi-small" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subtitle}</div>
+          {extra && <div className="usi-tiny" style={{ marginTop: 4, opacity: 0.7 }}>{extra}</div>}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+          <div>{footerLeft}</div>
+          <div style={{ textAlign: 'right' }}>{footerRight}</div>
+        </div>
+      </div>
+    </article>
+  );
 }
 
 // ─── CategoryStripe — paseczek 6 kategorii w karcie listy ────
@@ -484,7 +567,7 @@ function WeightedUsiScore({ score, size = 40 }) {
 }
 
 Object.assign(window, {
-  Spinner, USIStarLogo, StarRating, CategoryRating, SourceBadge,
+  Spinner, USIStarLogo, StarRating, CategoryRating, SourceBadge, StandardCard,
   CategoryStripe, CategoryDots, MiniMap, ProgressRing, Icon,
   NavDrawer, NavMenuButton, UsiStarScore, WeightedUsiScore,
 });

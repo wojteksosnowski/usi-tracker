@@ -56,6 +56,41 @@ class RPAdapter:
 
         price_range = get_val(raw_data, "price_m2_range")
         
+        # Extract images from gallery if present
+        image_urls = []
+        # Support both _raw_gallery (from download_raw) and gallery (if already in data)
+        gallery_data = raw_data.get("_raw_gallery") or raw_data.get("gallery")
+        if isinstance(gallery_data, dict):
+            gallery_items = gallery_data.get("gallery", [])
+            for item in gallery_items:
+                img_data = item.get("image", {})
+                if not isinstance(img_data, dict): continue
+                
+                # Find highest g_img_X resolution
+                g_keys = [k for k in img_data.keys() if k.startswith("g_img_")]
+                if g_keys:
+                    # Extract numbers and sort to find max
+                    sorted_keys = sorted(g_keys, key=lambda x: int(re.search(r"\d+", x).group() or 0), reverse=True)
+                    img_url = img_data.get(sorted_keys[0])
+                else:
+                    img_url = img_data.get("url") # Fallback to generic url if present
+                
+                if img_url:
+                    image_urls.append(img_url)
+        
+        # Add main image if not in gallery
+        main_img_data = get_val(raw_data, "main_image", {})
+        if isinstance(main_img_data, dict):
+            m_keys = [k for k in main_img_data.keys() if k.startswith("m_img_")]
+            if m_keys:
+                sorted_m = sorted(m_keys, key=lambda x: int(re.search(r"\d+", x).group() or 0), reverse=True)
+                main_image = main_img_data.get(sorted_m[0])
+            else:
+                main_image = main_img_data.get("url")
+            
+            if main_image and main_image not in image_urls:
+                image_urls.insert(0, main_image)
+
         return {
             "investment_slug": investment_slug,
             "developer_slug": developer_slug,
@@ -90,8 +125,9 @@ class RPAdapter:
                 "labels": [], 
                 "raw_codes": get_val(raw_data, "facilities", [])
             },
-            "images_count": get_val(raw_data, "images_count", 0),
-            "image_paths": get_val(raw_data, "image_paths", [])
+            "images_count": get_val(raw_data, "images_count", len(image_urls)),
+            "image_paths": get_val(raw_data, "image_paths", []),
+            "image_urls": image_urls
         }
 
 class OtodomAdapter:
@@ -144,6 +180,24 @@ class OtodomAdapter:
         except (ValueError, TypeError):
             price_min = None
 
+        # Extract images
+        image_urls = []
+        images_raw = get_val(raw_data, "images", [])
+        if isinstance(images_raw, list):
+            for img in images_raw:
+                if not isinstance(img, dict): continue
+                # Common Otodom keys: large, medium, small, thumbnail
+                # Prefer large, then generic url, then whatever is first
+                img_url = img.get("large") or img.get("medium") or img.get("url")
+                if not img_url:
+                    # Take first available value that looks like a URL
+                    for val in img.values():
+                        if isinstance(val, str) and val.startswith("http"):
+                            img_url = val
+                            break
+                if img_url:
+                    image_urls.append(img_url)
+
         return {
             "investment_slug": investment_slug,
             "developer_slug": developer_slug,
@@ -178,8 +232,9 @@ class OtodomAdapter:
                 "labels": get_val(raw_data, "features", []),
                 "matched": []
             },
-            "images_count": get_val(raw_data, "images_count", 0),
-            "image_paths": get_val(raw_data, "image_paths", [])
+            "images_count": get_val(raw_data, "images_count", len(image_urls)),
+            "image_paths": get_val(raw_data, "image_paths", []),
+            "image_urls": image_urls
         }
 
 from .here_maps import enrich_with_here_map, geocode_address
@@ -226,6 +281,12 @@ class TOAdapter:
 
         lat_lng = [float(lat) if lat else None, float(lng) if lng else None]
 
+        # Name cleaning - prioritize name if it was explicitly cleaned by scraper/extractor
+        name = raw_data.get("name")
+        if not name:
+            # Fallback to title if name is missing
+            name = investment_slug.replace("-", " ").title()
+
         # Delivery Date from additionalProperty
         delivery_str = None
         dq, dy = None, None
@@ -249,6 +310,25 @@ class TOAdapter:
             price_max = float(agg_offers.get("highPrice") or 0) or None
         except:
             price_min, price_max = None, None
+
+        # Extract images and pick best resolution for each unique file
+        raw_urls = raw_data.get("_raw_gallery_urls", [])
+        image_urls = []
+        
+        if raw_urls:
+            # Group by filename to pick best scale
+            from .scraper_to import _cdn_filename
+            by_filename = {}
+            for url in raw_urls:
+                fname = _cdn_filename(url)
+                # Extract scale_N
+                m = re.search(r"scale_(\d+)", url)
+                scale = int(m.group(1)) if m else 0
+                
+                if fname not in by_filename or scale > by_filename[fname][0]:
+                    by_filename[fname] = (scale, url)
+            
+            image_urls = [v[1] for v in by_filename.values()]
 
         return {
             "investment_slug": investment_slug,
@@ -284,8 +364,9 @@ class TOAdapter:
                 "labels": [],
                 "raw_codes": [p.get("name") for p in raw_data.get("additionalProperty", [])]
             },
-            "images_count": raw_data.get("images_count", 0),
-            "image_paths": raw_data.get("image_paths", [])
+            "images_count": raw_data.get("images_count", len(image_urls)),
+            "image_paths": raw_data.get("image_paths", []),
+            "image_urls": image_urls
         }
 
 class Merger:
@@ -348,6 +429,7 @@ class Merger:
             "ratings": meta_ratings or (existing_data or {}).get("ratings") or {},
             "images_count": base.get("images_count", 0),
             "image_paths": base.get("image_paths", []),
+            "image_urls": base.get("image_urls", []),
             "audit": {
                 "created_at": existing_audit.get("created_at") or datetime.now().isoformat(),
                 "updated_at": datetime.now().isoformat(),
@@ -358,11 +440,16 @@ class Merger:
         # Preserve existing source info (URLs, IDs) if new data is missing them
         existing_sources = (existing_data or {}).get("sources", {})
         
+        # Aggregate image URLs from all sources
+        all_image_urls = set(result.get("image_urls", []))
+
         if rp_data:
             result["sources"]["rp"] = rp_data["sources"].get("rp")
             # Restore lost URL if missing in new RP data
             if not result["sources"]["rp"].get("url") and existing_sources.get("rp", {}).get("url"):
                 result["sources"]["rp"]["url"] = existing_sources["rp"]["url"]
+            if "image_urls" in rp_data:
+                all_image_urls.update(rp_data["image_urls"])
         elif "rp" in existing_sources:
             result["sources"]["rp"] = existing_sources["rp"]
 
@@ -370,6 +457,8 @@ class Merger:
             result["sources"]["oto"] = oto_data["sources"].get("oto")
             if not result["sources"]["oto"].get("url") and existing_sources.get("oto", {}).get("url"):
                 result["sources"]["oto"]["url"] = existing_sources["oto"]["url"]
+            if "image_urls" in oto_data:
+                all_image_urls.update(oto_data["image_urls"])
         elif "oto" in existing_sources:
             result["sources"]["oto"] = existing_sources["oto"]
 
@@ -377,8 +466,12 @@ class Merger:
             result["sources"]["to"] = to_data["sources"].get("to")
             if not result["sources"]["to"].get("url") and existing_sources.get("to", {}).get("url"):
                 result["sources"]["to"]["url"] = existing_sources["to"]["url"]
+            if "image_urls" in to_data:
+                all_image_urls.update(to_data["image_urls"])
         elif "to" in existing_sources:
             result["sources"]["to"] = existing_sources["to"]
+
+        result["image_urls"] = sorted(list(all_image_urls))
 
         # Data enrichment from other sources
         for other in [rp_data, oto_data, to_data]:

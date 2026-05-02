@@ -2,7 +2,7 @@ import json
 import pytest
 import requests_mock
 from unittest.mock import patch
-from .scraper_otodom import fetch_otodom_via_scraperapi, extract_next_data, scrape_otodom
+from .scraper_otodom import fetch_otodom_html, extract_next_data, scrape_otodom
 from .image_saver import clean_filename
 from .config import SCRAPERAPI_KEY
 
@@ -21,16 +21,14 @@ def test_extract_next_data():
     assert data["ad"]["title"] == "Test Ad"
     assert data["ad"]["id"] == 123
 
-def test_fetch_otodom_via_scraperapi():
+def test_fetch_otodom_html_integration():
+    """This test requires network access or mocks. Using mocks for safety."""
     url = "https://www.otodom.pl/foo"
-    scraper_url = f"https://api.scraperapi.com/?api_key={SCRAPERAPI_KEY}&url={url}"
-    mock_html = "<html><body>Content</body></html>"
-
-    with requests_mock.Mocker() as m:
-        m.get(scraper_url, text=mock_html)
-
-        html = fetch_otodom_via_scraperapi(url)
-        assert html == mock_html
+    # We should mock fetch_html (which is used by fetch_otodom_html)
+    with patch("python_worker.scraper_otodom.fetch_html") as mock_fetch:
+        mock_fetch.return_value = "<html><body>Content</body></html>"
+        html = fetch_otodom_html(url)
+        assert html == "<html><body>Content</body></html>"
 
 
 def test_clean_filename_otodom_unique():
@@ -98,7 +96,8 @@ _MOCK_OTODOM_HTML = """
 def test_scrape_otodom_images():
     """scrape_otodom() must extract 2 distinct image URLs and return 2 unique image_paths."""
     oto_url = "https://www.otodom.pl/pl/inwestycja/testowa-inwestycja-ID1234"
-    scraper_url = f"https://api.scraperapi.com/?api_key={SCRAPERAPI_KEY}&url={oto_url}"
+    # New Fetcher uses http://api.scraperapi.com with params
+    scraper_url = f"http://api.scraperapi.com?api_key={SCRAPERAPI_KEY}&url={oto_url}&render=false"
 
     captured = {}
 
@@ -109,9 +108,14 @@ def test_scrape_otodom_images():
         return [clean_filename(u) for u in urls]
 
     with requests_mock.Mocker() as rm:
-        rm.get(scraper_url, text=_MOCK_OTODOM_HTML)
-        with patch("python_worker.scraper_otodom.save_images", side_effect=mock_save_images):
-            result = scrape_otodom(oto_url, "test-dev", "testowa-inwestycja")
+        # We need to use real_http=True or mock both curl_cffi and requests
+        # or just mock the scraperapi call which is the fallback.
+        # requests_mock handles std_requests.
+        rm.get("http://api.scraperapi.com", text=_MOCK_OTODOM_HTML)
+        # We must also bypass curl_cffi impersonation in the test to avoid delay/failure
+        with patch("python_worker.fetcher.curl_requests.Session.get", side_effect=Exception("Mocked curl_cffi failure")):
+            with patch("python_worker.scraper_otodom.save_images", side_effect=mock_save_images):
+                result = scrape_otodom(oto_url, "test-dev", "testowa-inwestycja")
 
     assert "error" not in result, f"Unexpected error: {result.get('error')}"
     assert result["images_count"] == 2

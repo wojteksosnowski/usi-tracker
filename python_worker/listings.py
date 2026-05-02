@@ -6,11 +6,21 @@ import json
 from .config import SCRAPERAPI_KEY, USI_DATA_DIR
 from .logger_utils import log_to_processing_log
 from .scraper_rp import scrape_rynek_pierwotny
-from .scraper_otodom import scrape_otodom
-from .scraper_otodom import fetch_otodom_via_scraperapi, extract_next_data
+from .scraper_otodom import scrape_otodom, discover_otodom_listing
 from .scraper_to import fetch_to_html, scrape_tabelaofert
+from .config import SCRAPERAPI_KEY, USI_DATA_DIR, OTODOM_DISCOVERY_URLS
 
 logger = logging.getLogger(__name__)
+
+def get_random_prime_delay() -> float:
+    """Returns a random prime number between 300 and 700, converted to seconds."""
+    primes = [
+        307, 311, 313, 317, 331, 337, 347, 349, 353, 359, 367, 373, 379, 383, 389, 397,
+        401, 409, 419, 421, 431, 433, 439, 443, 449, 457, 461, 463, 467, 479, 487, 491,
+        499, 503, 509, 521, 523, 541, 547, 557, 563, 569, 571, 577, 587, 593, 599, 601,
+        607, 613, 617, 619, 631, 641, 643, 647, 653, 659, 661, 673, 677, 683, 691
+    ]
+    return random.choice(primes) / 1000.0
 
 def fetch_recent_rp_investments(test_mode=False, limit=None):
     """
@@ -85,37 +95,28 @@ def fetch_recent_otodom_investments(test_mode=False, limit=None):
     Fetches recent investments from Otodom.pl and processes them.
     Returns a list of processed result objects (path and data).
     """
-    url = "https://www.otodom.pl/pl/wyniki/sprzedaz/inwestycja/cala-polska?limit=72&investmentEstateType=FLATS&by=LATEST&direction=DESC&viewType=listing"
-    logger.info(f"Fetching recent Otodom investments from {url}")
-    
     processed_results = []
-    
-    # Fetch HTML via ScraperAPI
-    html = fetch_otodom_via_scraperapi(url)
-    if not html:
-        logger.error("Could not fetch Otodom listing HTML.")
-        return []
+    all_items = []
+
+    for url in OTODOM_DISCOVERY_URLS:
+        logger.info(f"Fetching recent Otodom investments from {url}")
+        items = discover_otodom_listing(url)
+        all_items.extend(items)
         
-    # Extract JSON data
-    page_props = extract_next_data(html)
-    if not page_props:
-        logger.error("Could not extract __NEXT_DATA__ from Otodom listing.")
-        return []
+        # Apply rate limit between listing pages
+        delay = get_random_prime_delay()
+        logger.info(f"Rate limiting: sleeping for {delay*1000:.0f}ms")
+        time.sleep(delay)
         
-    # Get items
-    items = page_props.get("data", {}).get("searchAds", {}).get("items", [])
-    if not items:
-        items = page_props.get("ad", {}).get("items", [])
-        
-    if test_mode and len(items) > 3:
+    if test_mode and len(all_items) > 3:
         logger.info("Test mode active: sampling 3 random items from Otodom listing.")
-        items = random.sample(items, 3)
-    elif limit is not None and len(items) > limit:
-        items = items[:limit]
+        all_items = random.sample(all_items, 3)
+    elif limit is not None and len(all_items) > limit:
+        all_items = all_items[:limit]
         
-    logger.info(f"Found {len(items)} investments on Otodom listing.")
+    logger.info(f"Found {len(all_items)} investments on Otodom listing.")
     
-    for item in items:
+    for item in all_items:
         slug = item.get("slug")
         if not slug:
             continue
@@ -124,6 +125,12 @@ def fetch_recent_otodom_investments(test_mode=False, limit=None):
         # For Otodom listings, we don't have the developer slug initially, 
         # but scraping will extract it if available.
         logger.info(f"Processing Otodom listing item: {slug}")
+        
+        # Apply rate limit before each detail scrape
+        delay = get_random_prime_delay()
+        logger.info(f"Rate limiting: sleeping for {delay*1000:.0f}ms before scraping {slug}")
+        time.sleep(delay)
+        
         result = scrape_otodom(full_url, "unknown", slug)
         
         # Save JSON result to USIdata in structured folder

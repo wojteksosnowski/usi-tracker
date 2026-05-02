@@ -36,5 +36,28 @@ CSV_PATH = DROPBOX_PATH / "reference-data" / "coda" / "USImaster.csv"
 # HERE Maps API Key
 HERE_API_KEY = os.getenv("HERE_API_KEY", "BDske2zxCqqwwBGMf4IBKA49FRvRZLe4TnfBtYTor9c")
 
+# Otodom discovery URLs
+OTODOM_DISCOVERY_URLS = [
+    "https://www.otodom.pl/pl/wyniki/sprzedaz/inwestycja/cala-polska?limit=72&investmentEstateType=FLATS&by=LATEST&direction=DESC&viewType=listing"
+]
+
+# RynekPierwotny discovery URLs
+RP_DISCOVERY_URLS = [
+    "https://rynekpierwotny.pl/api/v2/offers/offer/?s=offer-list&display_type=1&distance=5&for_sale=true&limited_presentation=false&page=1&page_size=100&show_on_listing=true&type=1"
+]
+
+# TabelaOfert discovery URLs
+TABELA_OFERT_DISCOVERY_URLS = [
+    "https://tabelaofert.pl/nowe-mieszkania"
+]
+
+# Delay settings for portals (seconds)
+FETCH_DELAYS = {
+    "otodom.pl": 3.0,
+    "rynekpierwotny.pl": 1.0,
+    "tabelaofert.pl": 1.0,
+    "default": 0.5
+}
+
 # Other constants
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")

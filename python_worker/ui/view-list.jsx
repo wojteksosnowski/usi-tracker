@@ -243,34 +243,31 @@ function ListCard({ inv, onSelect }) {
   const score = ocenaLog(inv);
   const avg = avgRating(inv);
   const thumb = inv.photos && inv.photos.length > 0 ? inv.photos[0] : null;
+
   return (
-    <article data-component="ListCard" className="usi-card" onClick={onSelect} style={{ display: 'flex', flexDirection: 'column', cursor: 'pointer', height: 320, background: 'var(--usi-surface)' }}>
-      <div style={{ position: 'relative', height: 160, background: 'var(--usi-surface-3)', overflow: 'hidden' }}>
-        {thumb ? <img src={thumb} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--usi-ink-4)', fontSize: 32 }}>📷</div>}
-        <div style={{ position: 'absolute', top: 10, left: 10, display: 'flex', gap: 6 }}>
-          <SourceBadge source={inv.source} />
-        </div>
-      </div>
-      <div style={{ padding: '12px 14px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+    <window.StandardCard
+      title={inv.name}
+      subtitle={inv.developer}
+      extra={inv.district}
+      image={thumb}
+      badges={<window.SourceBadge source={inv.source} />}
+      onClick={onSelect}
+      footerLeft={
         <div>
-          <h3 className="usi-h3" style={{ margin: 0, marginBottom: 2, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.name}</h3>
-          <div className="usi-small" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.developer}</div>
-          <div className="usi-tiny" style={{ marginTop: 4, opacity: 0.7 }}>{inv.district}</div>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--usi-ink)' }}>{inv.price_avg > 0 ? (inv.price_avg / 1000).toFixed(1) + 'k' : '—'} <small style={{ fontWeight: 400, opacity: 0.6 }}>zł/m²</small></div>
-            <div className="usi-tiny" style={{ opacity: 0.6 }}>{inv.delivery}</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--usi-ink)' }}>
+            {inv.price_avg > 0 ? (inv.price_avg / 1000).toFixed(1) + 'k' : '—'} 
+            <small style={{ fontWeight: 400, opacity: 0.6 }}> zł/m²</small>
           </div>
-          {score !== null && (
-            <div style={{ textAlign: 'right' }}>
-              <div className="usi-pill success usi-mono" style={{ fontSize: 11, fontWeight: 700 }}>{score.toFixed(2)}</div>
-              {avg > 0 && <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--usi-accent)', marginTop: 2 }}>★ {avg.toFixed(1)}</div>}
-            </div>
-          )}
+          <div className="usi-tiny" style={{ opacity: 0.6 }}>{inv.delivery}</div>
         </div>
-      </div>
-    </article>
+      }
+      footerRight={score !== null && (
+        <div>
+          <div className="usi-pill success usi-mono" style={{ fontSize: 11, fontWeight: 700 }}>{score.toFixed(2)}</div>
+          {avg > 0 && <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--usi-accent)', marginTop: 2 }}>★ {avg.toFixed(1)}</div>}
+        </div>
+      )}
+    />
   );
 }
 

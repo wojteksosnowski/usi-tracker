@@ -1,17 +1,5 @@
 # **Notatki projektowe USI-TRACKER**
 
-## **Podstrona Pobieranie**
-
-**Mechanizm pobierania danych:**
-
-* RP: używanie JSON query tak jak coda.io JSONMAIN RP.  
-* OTO: używa predefiniowanej listy adresów, skąd zaciąga listę z HTML (zagnieżdżony JSON).  
-* RP i OTO: zaciąga listę wskaźników inwestycji, którą najpierw odmiela z powtórzeń względem bazy usidata.  
-* Wskaźniki inwestycji są otwierane i system pobiera surowy JSON inwestycji.  
-* Z surowego JSONA system pobiera grafiki i metadane.  
-* Należy zawsze pobierać największy dostępny rozmiar grafik.  
-* Tabela ofert powinna naśladować ten mechanizm.
-
 **Elementy interfejsu i funkcjonalności:**
 
 1. Przycisk do zeskanowania nowości bez pobierania.  

@@ -1,11 +1,12 @@
 import logging
 import time
 import json
+from urllib.parse import urlparse
 from datetime import datetime, date
 from typing import Optional
 from curl_cffi import requests as curl_requests
 import requests as std_requests
-from .config import SCRAPERAPI_KEY, SCRAPERAPI_LIMIT, USAGE_STATS_PATH
+from .config import SCRAPERAPI_KEY, SCRAPERAPI_LIMIT, USAGE_STATS_PATH, FETCH_DELAYS
 
 logger = logging.getLogger("Fetcher")
 
@@ -13,11 +14,42 @@ class Fetcher:
     """
     Centralized fetcher for usi-tracker.
     Supports direct requests, impersonation (via curl_cffi), and ScraperAPI fallback.
+    Includes rate-limiting per domain to avoid blocking.
     """
     
     def __init__(self, scraperapi_key: Optional[str] = None):
         self.scraperapi_key = scraperapi_key or SCRAPERAPI_KEY
         self.session = curl_requests.Session()
+        self.last_fetch_times = {} # domain -> timestamp
+
+    def _get_domain(self, url: str) -> str:
+        """Extracts the base domain from a URL (e.g., otodom.pl)."""
+        try:
+            parsed = urlparse(url)
+            domain = parsed.netloc
+            if domain.startswith("www."):
+                domain = domain[4:]
+            return domain
+        except Exception:
+            return ""
+
+    def _apply_rate_limit(self, domain: str):
+        """Applies a delay if the last request to the same domain was too recent."""
+        if not domain:
+            return
+
+        delay = FETCH_DELAYS.get(domain, FETCH_DELAYS.get("default", 0.5))
+        last_time = self.last_fetch_times.get(domain, 0)
+        
+        elapsed = time.time() - last_time
+        if elapsed < delay:
+            wait_time = delay - elapsed
+            logger.info(f"Rate limiting: waiting {wait_time:.2f}s for {domain}")
+            time.sleep(wait_time)
+        
+        # We update the time before the request starts to be safe 
+        # (if request fails, we still want to maintain the gap)
+        self.last_fetch_times[domain] = time.time()
 
     def _get_usage(self):
         """Loads and updates usage stats."""
@@ -38,7 +70,6 @@ class Fetcher:
                         logger.info("ScraperAPI reset date reached. Resetting counter.")
                         stats["used"] = 0
                         # Set next reset date (naive +1 month approach)
-                        # For simple usage, we just push it 30 days or same day next month
                         new_month = reset_date.month + 1
                         new_year = reset_date.year
                         if new_month > 12:
@@ -55,8 +86,12 @@ class Fetcher:
         """Saves usage stats."""
         try:
             USAGE_STATS_PATH.parent.mkdir(parents=True, exist_ok=True)
-            with open(USAGE_STATS_PATH, "r") as f:
-                full_data = json.load(f)
+            # Load full data to preserve other fields
+            full_data = {}
+            if USAGE_STATS_PATH.exists():
+                with open(USAGE_STATS_PATH, "r") as f:
+                    full_data = json.load(f)
+            
             full_data["scraperapi"] = stats
             with open(USAGE_STATS_PATH, "w") as f:
                 json.dump(full_data, f, indent=2)
@@ -67,6 +102,9 @@ class Fetcher:
         """
         Fetches HTML content from a URL using the best available strategy.
         """
+        domain = self._get_domain(url)
+        self._apply_rate_limit(domain)
+
         # Strategy 1: Impersonate (curl_cffi)
         if use_impersonate:
             try:
@@ -117,7 +155,6 @@ class Fetcher:
         content = self.fetch(url, **kwargs)
         if content:
             try:
-                import json
                 return json.loads(content)
             except Exception as e:
                 logger.error(f"Failed to parse JSON from {url}: {e}")
