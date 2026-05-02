@@ -296,6 +296,7 @@ function Icon({ name, size = 16, stroke = 1.6 }) {
     undo: <><path d="M3 7h7a3 3 0 010 6H6"/><path d="M5 4L2 7l3 3"/></>,
     info: <><circle cx="8" cy="8" r="6"/><path d="M8 7v4M8 5h.01"/></>,
     menu: <><path d="M2 4h12M2 8h12M2 12h12"/></>,
+    download: <><path d="M8 2v10M4 8l4 4 4-4"/></>,
   };
   return (
     <svg data-component="Icon" width={size} height={size} viewBox="0 0 16 16" fill="none"
@@ -351,6 +352,7 @@ function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
   const items = [
     { id: 'list', label: 'Inwestycje', icon: 'grid', desc: 'Lista wszystkich inwestycji' },
     { id: 'dashboard', label: 'Dashboard', icon: 'sparkle', desc: 'Podsumowania i wykresy' },
+    { id: 'download', label: 'Pobieranie', icon: 'download', desc: 'Pobierz nowe inwestycje' },
   ];
   
   React.useEffect(() => {

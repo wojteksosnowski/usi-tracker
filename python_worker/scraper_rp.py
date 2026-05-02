@@ -32,10 +32,40 @@ def fetch_rp_gallery(offer_id: str) -> list[str]:
                 
     return images
 
-def discover_rp_investments(vendor_id: str) -> list[dict]:
+def resolve_rp_vendor_id(slug: str) -> str | None:
     """
-    Discovers all investments (offers) for a given vendor ID on RynekPierwotny.pl.
+    Scrapes the developer profile page on RynekPierwotny.pl to find their vendor ID.
     """
+    url = f"https://rynekpierwotny.pl/deweloperzy/{slug}/"
+    logger.info(f"Resolving RP vendor ID for slug: {slug} from {url}")
+    html = fetch_html(url)
+    if not html:
+        return None
+    
+    # Look for "vendor": ID in the page source or API calls mentioned in scripts
+    # Usually it is in a script tag with some JSON
+    match = re.search(r'"vendor_id":\s*(\d+)', html)
+    if match:
+        return match.group(1)
+    
+    # Alternative: check for vendor={ID} in links
+    match = re.search(r'vendor=(\d+)', html)
+    if match:
+        return match.group(1)
+        
+    return None
+
+def discover_rp_investments(vendor_id_or_slug: str) -> list[dict]:
+    """
+    Discovers all investments (offers) for a given vendor ID or slug on RynekPierwotny.pl.
+    """
+    vendor_id = vendor_id_or_slug
+    if not vendor_id_or_slug.isdigit():
+        vendor_id = resolve_rp_vendor_id(vendor_id_or_slug)
+        if not vendor_id:
+            logger.error(f"Could not resolve vendor ID for slug: {vendor_id_or_slug}")
+            return []
+
     url = f"https://rynekpierwotny.pl/api/v2/offers/offer/?s=vendor-detail-offer-list&country=1&country=2&display_type=1&display_type=2&page=1&page_size=100&type=1&type=2&type=3&vendor={vendor_id}"
     logger.info(f"Discovering RynekPierwotny investments for vendor ID: {vendor_id}")
     

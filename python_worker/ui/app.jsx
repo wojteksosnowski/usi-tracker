@@ -112,7 +112,7 @@ function App() {
   };
 
   const handleNav = (v) => {
-    if (v === 'list' || v === 'dashboard' || v === 'detail') setView(v);
+    if (v === 'list' || v === 'dashboard' || v === 'detail' || v === 'download') setView(v);
   };
 
   const handleUpdateInv = (updated) => {
@@ -208,6 +208,13 @@ function App() {
             dark={dark} 
             onToggleTheme={handleToggleTheme} 
             hereApiKey={config ? config.hereApiKey : undefined} 
+          />
+        )}
+        {view === 'download' && (
+          <ViewDownload 
+            onNav={handleNav}
+            dark={dark}
+            onToggleTheme={handleToggleTheme}
           />
         )}
       </div>

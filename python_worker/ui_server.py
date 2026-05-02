@@ -19,6 +19,9 @@ from flask import Flask, abort, jsonify, request, send_file, send_from_directory
 from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR, HERE_API_KEY
 from python_worker.here_maps import build_here_url
 from python_worker.main import update_investment
+from python_worker.scraper_rp import discover_rp_investments
+from python_worker.scraper_otodom import discover_otodom_investments
+from python_worker.scraper_to import discover_to_investments
 from python_worker.logger_utils import log_to_processing_log
 
 logger = logging.getLogger(__name__)
@@ -291,6 +294,118 @@ def reload_investment(dev_slug, inv_slug):
         return jsonify({"ok": False, "error": "Failed to load updated investment"}), 404
         
     return jsonify({"ok": True, "investment": updated_inv})
+
+@app.route("/api/developers")
+def list_developers():
+    data_root = Path(USI_DATA_DIR)
+    if not data_root.exists():
+        return jsonify([])
+    devs = sorted([d.name for d in data_root.iterdir() if d.is_dir() and not d.name.startswith(".")])
+    return jsonify(devs)
+
+
+@app.route("/api/discovery/<portal>")
+def discovery(portal):
+        identifier = request.args.get("id", "").strip()
+        if not identifier:
+            return jsonify({"error": "Missing 'id' parameter"}), 400
+
+        # Check if identifier is a URL
+        parsed = None
+        if identifier.startswith("http"):
+            parsed = parse_url(identifier)
+            if parsed["type"] == "unknown":
+                return jsonify({"error": "Unknown or unsupported URL"}), 400
+
+            # Override portal from URL if needed, but usually we respect the selected portal
+            # unless it is obvious. For now, let is use the parsed data.
+            if parsed["kind"] == "investment":
+                # Direct investment registration suggested
+                return jsonify([{
+                    "id": parsed.get("offer_id") or parsed.get("to_id"),
+                    "name": f"Wykryto inwestycję: {parsed.get('investment_slug', 'bez nazwy')}",
+                    "slug": parsed.get("investment_slug"),
+                    "url": parsed.get("url"),
+                    "kind": "single"
+                }])
+
+            # For developer profiles, extract the ID/slug
+            if parsed["type"] == "rynekpierwotny":
+                identifier = parsed["developer_slug"]
+            elif parsed["type"] == "otodom":
+                identifier = parsed["agency_id"]
+            elif parsed["type"] == "tabelaofert":
+                identifier = parsed["developer_slug"]
+
+        try:
+            if portal == "rp":
+                results = discover_rp_investments(identifier)
+            elif portal == "oto":
+                results = discover_otodom_investments(identifier)
+            elif portal == "to":
+                results = discover_to_investments(identifier)
+            else:
+                return jsonify({"error": f"Unsupported portal: {portal}"}), 400
+
+            return jsonify(results)
+        except Exception as e:
+            logger.error(f"Discovery error for {portal}: {e}")
+            return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/register", methods=["POST"])
+def register():
+    payload = request.get_json()
+    portal = payload.get("portal")
+    dev_slug = payload.get("dev_slug")
+    inv_slug = payload.get("inv_slug")
+    name = payload.get("name")
+    item_id = payload.get("id")
+    url = payload.get("url")
+
+    if not all([portal, dev_slug, inv_slug, name]):
+        return jsonify({"error": "Missing parameters"}), 400
+
+    inv_dir = Path(USI_DATA_DIR) / dev_slug / inv_slug
+    usi_path = inv_dir / f"usi_{inv_slug}.json"
+
+    if usi_path.exists():
+        return jsonify({"error": "Investment already exists"}), 409
+
+    inv_dir.mkdir(parents=True, exist_ok=True)
+
+    sources = {}
+    if portal == "rp":
+        sources["rp"] = {"id": item_id, "url": url}
+    elif portal == "oto":
+        sources["oto"] = {"url": url}
+    elif portal == "to":
+        sources["to"] = {"url": url}
+
+    skeleton = {
+        "investment_slug": inv_slug,
+        "developer_slug": dev_slug,
+        "name": name,
+        "sources": sources,
+        "status": "Brak",
+        "audit": {"created_at": datetime.now().isoformat()}
+    }
+
+    try:
+        with open(usi_path, "w", encoding="utf-8") as f:
+            json.dump(skeleton, f, indent=2, ensure_ascii=False)
+        
+        log_to_processing_log(dev_slug, inv_slug, f"Registered from discovery ({portal})")
+        
+        # Trigger immediate update to fetch all data
+        # We pass slugs to ensure scraper knows where to save
+        success = update_investment(dev_slug, inv_slug)
+        
+        return jsonify({"ok": True, "updated": success})
+    except Exception as e:
+        logger.error(f"Registration error: {e}")
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route("/api/fetch-status")
 def fetch_status():
