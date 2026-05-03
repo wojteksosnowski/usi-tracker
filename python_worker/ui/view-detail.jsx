@@ -67,9 +67,23 @@ function SourceLinks({ inv }) {
   );
 }
 
-function HeroBand({ inv, showMap }) {
+function HeroBand({ inv, showMap, moduleContext }) {
   const score = ocenaLog(inv);
   const hasMap = showMap && inv.coords && inv.coords[0] !== 0;
+
+  // Specyfikacja dla modułu minimapy (Krok B07)
+  const miniMapSpec = {
+    inputs: {
+      geo: { type: ModuleTypes.GeoPoint, required: true },
+      label: { type: 'String', required: false, from: 'district' },
+      hereUrl: { type: 'String', required: false },
+      hereUrlDark: { type: 'String', required: false }
+    },
+    config: {
+      zoom: 14
+    }
+  };
+
   return (
     <div data-component="HeroBand" style={{
       display: 'grid',
@@ -97,9 +111,13 @@ function HeroBand({ inv, showMap }) {
         <WeightedUsiScore score={score} size={44} />
       </div>
 
-      {hasMap && (
-        <MiniMap coords={inv.coords} label={inv.district} height={70}
-          hereUrl={inv.here_map_url} hereUrlDark={inv.here_map_url_dark} />
+      {hasMap && moduleContext && (
+        <ModuleWrapper 
+          component={MiniMap} 
+          moduleSpec={miniMapSpec} 
+          context={moduleContext} 
+          height={70} 
+        />
       )}
     </div>
   );
@@ -107,12 +125,12 @@ function HeroBand({ inv, showMap }) {
 
 // ─── Tryb C: galeria full-width + sticky pasek ocen na dole ──
 function ModeC({ inv, density = 4, ratingVariant, showMap, marked, onToggleMark, onLightbox,
-    ratings = {}, handleRating, comment = '', handleComment, saved = false, focusedCat = -1, onFocusedCatChange }) {
+    ratings = {}, handleRating, comment = '', handleComment, saved = false, focusedCat = -1, onFocusedCatChange, moduleContext }) {
   const [expanded, setExpanded] = React.useState(false);
 
   return (
     <div data-component="ModeC" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <HeroBand inv={inv} showMap={showMap} />
+      <HeroBand inv={inv} showMap={showMap} moduleContext={moduleContext} />
       <SlideShow photos={inv.photos || []} marked={marked} onToggleMark={onToggleMark}
         onLightbox={onLightbox} style={{ marginTop: 16 }} />
       <div style={{
@@ -205,7 +223,10 @@ function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onUp
       currentInvestment: inv,
       geo: extractModuleContext.extractGeoPoint(inv),
       rating: avgRating(inv),
-      color: 'var(--usi-accent)'
+      color: 'var(--usi-accent)',
+      district: inv.district,
+      hereUrl: inv.here_map_url,
+      hereUrlDark: inv.here_map_url_dark
     };
   }, [inv]);
 
@@ -385,7 +406,7 @@ function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onUp
 
       {detailMode === 'A' ? (
         <>
-          <HeroBand inv={inv} showMap={showMap} />
+          <HeroBand inv={inv} showMap={showMap} moduleContext={getModuleContext()} />
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', flex: 1, overflow: 'hidden', marginTop: 16 }}>
             <div style={{ padding: '0 8px 24px 24px', overflow: 'auto' }} className="usi-scroll">
               <Gallery inv={{...inv, photos: visiblePhotos}} columns={density} marked={marked} onToggleMark={toggleMark} onLightbox={setLightbox} />
@@ -419,7 +440,8 @@ function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onUp
           marked={marked} onToggleMark={toggleMark} onLightbox={setLightbox}
           ratings={ratings} handleRating={handleRating}
           comment={comment} handleComment={handleComment} saved={saved}
-          focusedCat={focusedCat} onFocusedCatChange={setFocusedCat} />
+          focusedCat={focusedCat} onFocusedCatChange={setFocusedCat}
+          moduleContext={getModuleContext()} />
       )}
 
       {lightbox != null && <Lightbox inv={{...inv, photos: visiblePhotos}} index={lightbox} onClose={() => setLightbox(null)} />}
