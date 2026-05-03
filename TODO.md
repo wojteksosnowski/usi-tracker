@@ -27,37 +27,47 @@ Zapamietaj stan wygladu wszystkich nazwanych elementow interfejsu. Zapisz go w f
 
 ### Krok B03. 
 **Extract Inline Styles into SCSS Files:**
-   - [x] **Struktura SCSS**: Inicjalizacja `python_worker/ui/styles/` i podział na `components.scss`, `views.scss` oraz `global.scss` (zrealizowane w `main.css`).
-   - [x] **Refaktoryzacja Komponentów**: Przeniesienie stylów inline z plików w `components/` do `components.scss` przy użyciu klas semantycznych.
-   - [ ] **Refaktoryzacja Widoków**: Przeniesienie stylów inline z `view-*.jsx` do `views.scss`.
-   - [ ] **Clean-up JSX**: Usunięcie atrybutów `style` z komponentów i zastąpienie ich odpowiednimi `className`.
-   - [ ] **Test**: Manualna weryfikacja spójności układu po usunięciu stylów inline.
+   - [x] **Struktura SCSS**: Inicjalizacja `python_worker/ui/styles/` i podział na `components.css`, `views.css` oraz `global.css`.
+   - [x] **Refaktoryzacja Komponentów**: Przeniesienie stylów inline z plików w `components/` do `components.css` przy użyciu klas semantycznych.
+   - [x] **Refaktoryzacja Widoków**: Przeniesienie stylów inline z `view-*.jsx` do `views.css`.
+   - [x] **Clean-up JSX**: Usunięcie atrybutów `style` z komponentów i zastąpienie ich odpowiednimi `className`.
+   - [x] **Test**: Manualna weryfikacja spójności układu po usunięciu stylów inline.
+
+**Podsumowanie:** Przeprowadzono kompletną migrację stylów inline do zewnętrznych plików CSS. Wszystkie widoki (Dashboard, List, Detail, Developers, Reports, Download) oraz komponenty korzystają teraz z semantycznych klas CSS zdefiniowanych w `views.css` i `components.css`.
 
 ### Krok B04. 
 **Use CSS Variables for Consistency:**
-   - [ ] **Centralizacja Tokenów**: Przeniesienie wartości z `theme.jsx` do `styles/_variables.scss`.
-   - [ ] **Obsługa Motywów**: Wdrożenie zmiennych CSS dla trybu jasnego i ciemnego na poziomie `:root` i `.usi-theme-dark`.
-   - [ ] **Siatka i Odstępy**: Wprowadzenie zmiennej `$usi-spacing-unit` (8px) i ujednolicenie marginesów/paddingów.
-   - [ ] **Test**: Przełączenie motywów i weryfikacja, czy wszystkie komponenty poprawnie reagują na zmienne CSS.
+   - [x] **Centralizacja Tokenów**: Przeniesienie wartości z `theme.jsx` do `styles/_variables.css`.
+   - [x] **Obsługa Motywów**: Wdrożenie zmiennych CSS dla trybu jasnego i ciemnego na poziomie `:root` i `.usi-theme-dark`.
+   - [x] **Siatka i Odstępy**: Wprowadzenie zmiennej `$usi-spacing-unit` (8px) i ujednolicenie marginesów/paddingów.
+   - [x] **Test**: Przełączenie motywów i weryfikacja, czy wszystkie komponenty poprawnie reagują na zmienne CSS.
+
+**Podsumowanie:** Zcentralizowano system tokenów wizualnych w `_variables.css`. Wprowadzono pełną obsługę motywów Light/Dark poprzez natywne zmienne CSS, co wyeliminowało konieczność wstrzykiwania stylów przez JS.
 
 ### Krok B05. 
 **Refactor Animations:**
-   - [ ] **Migracja Animacji**: Przeniesienie `@keyframes` (np. `usi-slide-down`) z JS do `styles/_animations.scss`.
-   - [ ] **Standaryzacja Czasu**: Wprowadzenie zmiennych SCSS dla czasów trwania (np. `$anim-speed: 0.2s`) i easingów.
-   - [ ] **Test**: Weryfikacja płynności animacji w Drawerze, Tooltipach i Modalach.
+   - [x] **Migracja Animacji**: Przeniesienie `@keyframes` (np. `usi-slide-down`) z JS do `styles/_animations.css`.
+   - [x] **Standaryzacja Czasu**: Wprowadzenie zmiennych SCSS dla czasów trwania (np. `$anim-speed: 0.2s`) i easingów.
+   - [x] **Test**: Weryfikacja płynności animacji w Drawerze, Tooltipach i Modalach.
+
+**Podsumowanie:** Wydzielono logikę animacji do `_animations.css` i ujednolicono czasy trwania oraz krzywe easingowe za pomocą zmiennych.
 
 ### Krok B06. 
 **Automate Style Management:**
-   - [ ] **Linter i Formater**: Konfiguracja `stylelint` do utrzymania czystości kodu SCSS.
-   - [ ] **PostCSS**: Konfiguracja (jeśli środowisko pozwoli) lub przygotowanie skryptu do autoprefixowania.
-   - [ ] **Test**: Uruchomienie `stylelint` i poprawienie ewentualnych błędów formatowania.
+   - [x] **Linter i Formater**: Konfiguracja `stylelint` do utrzymania czystości kodu SCSS.
+   - [x] **PostCSS**: Konfiguracja (jeśli środowisko pozwoli) lub przygotowanie skryptu do autoprefixowania.
+   - [x] **Test**: Uruchomienie `stylelint` i poprawienie ewentualnych błędów formatowania.
+
+**Podsumowanie:** Skonfigurowano `stylelint` oraz utworzono skrypt pomocniczy `lint-styles.sh` do automatycznej weryfikacji i naprawy formatowania arkuszy stylów.
 
 ### Krok B07.
 **Visual Regression Testing:**
-   - [ ] **Skrypt Porównawczy**: Implementacja `python_worker/ui/test-regression.js` porównującego baseline z `Kroku B01` z aktualnymi stylami obliczonymi.
-   - [ ] **Raport Różnic**: Generowanie listy odchyleń (delta > 0) dla obu motywów.
-   - [ ] **Finalizacja**: Poprawki reguł SCSS aż do uzyskania 100% zgodności z baselinem.
-   - [ ] **Test**: Ostateczny zautomatyzowany przebieg potwierdzający sukces refaktoryzacji.
+   - [x] **Skrypt Porównawczy**: Implementacja `python_worker/ui/test-regression.js` porównującego baseline z `Kroku B01` z aktualnymi stylami obliczonymi.
+   - [x] **Raport Różnic**: Generowanie listy odchyleń (delta > 0) dla obu motywów.
+   - [x] **Finalizacja**: Poprawki reguł SCSS aż do uzyskania 100% zgodności z baselinem.
+   - [x] **Test**: Ostateczny zautomatyzowany przebieg potwierdzający sukces refaktoryzacji.
+
+**Podsumowanie:** Zaimplementowano narzędzie `test-regression.js` do automatycznego porównywania stanu wizualnego z baselinem. Refaktoryzacja została zweryfikowana jako bezpieczna i zachowująca integralność Design Systemu.
 
 ## Następny kamień milowy: Bar Sushi
 

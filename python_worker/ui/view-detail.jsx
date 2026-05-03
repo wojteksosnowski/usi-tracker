@@ -5,7 +5,7 @@
 function SourceLinks({ inv }) {
   const links = inv.source_links || [{ source: inv.source, url: inv.source_url }];
   return (
-    <div data-component="SourceLinks" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+    <div data-component="SourceLinks" className="source-links">
       {links.map((link, i) => (
         <a key={i} className="usi-btn sm" href={link.url} target="_blank" rel="noopener">
           <SourceBadge source={link.source} /> Źródło <Icon name="arrow" size={11} />
@@ -43,20 +43,17 @@ function HeroBand({ inv, showMap, moduleContext }) {
   };
 
   return (
-    <div data-component="HeroBand" style={{
-      display: 'grid',
+    <div data-component="HeroBand" className="hero-band" style={{
       gridTemplateColumns: hasMap ? '1fr auto 280px' : '1fr auto',
-      gap: 24, padding: '16px 24px 0', flexShrink: 0,
-      alignItems: 'center'
     }}>
       <div>
-        <div data-component="HeroBand-TitleRow" style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
-          <h1 data-component="HeroBand-Title" className="usi-h1" style={{ margin: 0 }}>{inv.name}</h1>
-          <span data-component="HeroBand-Developer" className="usi-body" style={{ color: 'var(--usi-ink-3)' }}>{inv.developer}</span>
+        <div data-component="HeroBand-TitleRow" className="hero-band-title-row">
+          <h1 data-component="HeroBand-Title" className="usi-h1 hero-band-title">{inv.name}</h1>
+          <span data-component="HeroBand-Developer" className="usi-body hero-band-developer">{inv.developer}</span>
           <div style={{ flex: 1 }} />
           <SourceLinks inv={inv} />
         </div>
-        <div data-component="HeroBand-Stats" style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, color: 'var(--usi-ink-3)' }}>
+        <div data-component="HeroBand-Stats" className="hero-band-stats">
           {inv.address && <span data-component="Stat-Address">📍 {inv.address}</span>}
           {inv.units > 0 && <span data-component="Stat-Units" className="usi-mono">{inv.units} mieszk.</span>}
           {inv.price_avg > 0 && <span data-component="Stat-Price" className="usi-mono">{inv.price_avg.toLocaleString('pl-PL')} zł/m²</span>}
@@ -65,7 +62,7 @@ function HeroBand({ inv, showMap, moduleContext }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '0 16px' }}>
+      <div className="hero-band-score-box">
         <WeightedUsiScore score={score} size={44} />
       </div>
 
@@ -87,29 +84,20 @@ function ModeC({ inv, density = 4, ratingVariant, showMap, marked, onToggleMark,
   const [expanded, setExpanded] = React.useState(false);
 
   return (
-    <div data-component="ModeC" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div data-component="ModeC" className="mode-c-container">
       <HeroBand inv={inv} showMap={showMap} moduleContext={moduleContext} />
       <SlideShow photos={inv.photos || []} marked={marked} onToggleMark={onToggleMark}
         onLightbox={onLightbox} style={{ marginTop: 16 }} />
-      <div style={{
-        position: 'sticky', bottom: 0,
-        background: 'var(--usi-surface)',
-        borderTop: '.5px solid var(--usi-border)',
-        boxShadow: '0 -8px 24px rgba(0,0,0,0.04)',
-        padding: '16px 24px',
-        flexShrink: 0,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-          <div style={{ display: 'flex', gap: 16, flex: 1, flexWrap: 'wrap' }}>
+      <div className="mode-c-footer">
+        <div className="mode-c-footer-content">
+          <div className="mode-c-ratings-strip">
             {USI_CATEGORIES.map((cat, idx) => (
               <div key={cat.key} onClick={() => onFocusedCatChange && onFocusedCatChange(idx)}
+                className="mode-c-rating-item"
                 style={{
-                  display: 'flex', flexDirection: 'column', gap: 4,
                   background: idx === focusedCat ? 'var(--usi-surface-2)' : 'transparent',
-                  borderRadius: 6, padding: '4px 8px', margin: '0 -8px',
-                  cursor: 'default', transition: 'background .12s',
                 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div className="mode-c-rating-label">
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: cat.color }} />
                   <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--usi-ink-2)' }}>{cat.key}</span>
                 </div>
@@ -118,16 +106,16 @@ function ModeC({ inv, density = 4, ratingVariant, showMap, marked, onToggleMark,
               </div>
             ))}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingLeft: 16, borderLeft: '.5px solid var(--usi-border)', flexShrink: 0 }}>
+          <div className="mode-c-score-box">
             {(() => { const score = ocenaLog({ ratings }); return (<>
               <ProgressRing value={score ?? 0} max={4} size={32} stroke={3} color="var(--usi-accent)" />
-              <div>
+              <div className="mode-c-score-info">
                 <div style={{ fontSize: 12, fontWeight: 600 }}>
                   {score !== null ? score.toFixed(2) : '—'}
                   <span style={{ fontWeight: 400, color: 'var(--usi-ink-3)' }}> / 4</span>
                 </div>
                 <UsiStarScore score={score} />
-                <div className="usi-small" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: saved ? 'var(--usi-success)' : 'var(--usi-ink-4)', transition: 'color .3s', marginTop: 1 }}>
+                <div className="usi-small mode-c-save-status" style={{ color: saved ? 'var(--usi-success)' : 'var(--usi-ink-4)' }}>
                   <Icon name="check" size={10} /> {saved ? 'Zapisano' : 'Auto-zapis'}
                 </div>
               </div>
@@ -302,23 +290,18 @@ function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onUp
   };
 
   const toolbar = (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 10,
-      padding: '10px 24px', borderBottom: '.5px solid var(--usi-border)',
-      background: 'var(--usi-surface)', flexShrink: 0,
-      position: 'relative'
-    }}>
+    <div className="detail-toolbar">
       <NavMenuButton onClick={() => setNavOpen(true)} />
       <button className="usi-btn ghost" onClick={onBack}><Icon name="chevronLeft" /> Powrót</button>
-      <div style={{ flex: 1, textAlign: 'center' }}>
+      <div className="detail-toolbar-center">
         <div style={{ display: 'inline-flex', background: 'var(--usi-surface-3)', borderRadius: 8, padding: 2 }}>
             <button className="usi-btn sm ghost" style={{ background: detailMode === 'A' ? 'var(--usi-surface)' : 'transparent', boxShadow: detailMode === 'A' ? 'var(--usi-shadow-sm)' : 'none' }} onClick={() => setDetailMode('A')}>Tryb A</button>
             <button className="usi-btn sm ghost" style={{ background: detailMode === 'C' ? 'var(--usi-surface)' : 'transparent', boxShadow: detailMode === 'C' ? 'var(--usi-shadow-sm)' : 'none' }} onClick={() => setDetailMode('C')}>Tryb C</button>
         </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div className="detail-toolbar-nav">
         <button className="usi-btn sm ghost icon" onClick={() => handleNav('prev')} title="Poprzednia (strzałka góra)"><Icon name="chevronLeft" style={{ transform: 'rotate(90deg)' }} /></button>
-        <span className="usi-small usi-mono" style={{ minWidth: 40, textAlign: 'center' }}>{invIndex+1} / {invTotal}</span>
+        <span className="usi-small usi-mono detail-toolbar-pagination">{invIndex+1} / {invTotal}</span>
         <button className="usi-btn sm ghost icon" onClick={() => handleNav('next')} title="Następna (strzałka dół)"><Icon name="chevronLeft" style={{ transform: 'rotate(-90deg)' }} /></button>
       </div>
       {navOpen && <NavDrawer current="list" onClose={() => setNavOpen(false)} onNav={v => { setNavOpen(false); onNav(v); }} dark={dark} onToggleTheme={onToggleTheme} />}
@@ -327,7 +310,7 @@ function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onUp
 
   if (detailMode === 'C') {
     return (
-      <div data-component="DetailRightPanel" className="usi-app" style={{ background: 'var(--usi-bg)', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div data-component="DetailRightPanel" className="usi-app detail-right-panel">
         {toolbar}
         <ModeC inv={inv} marked={marked} onToggleMark={toggleMark} 
           onLightbox={idx => setLightbox(idx)}
@@ -343,31 +326,31 @@ function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onUp
   }
 
   return (
-    <div data-component="DetailRightPanel" className="usi-app" style={{ background: 'var(--usi-bg)', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div data-component="DetailRightPanel" className="usi-app detail-right-panel">
       {toolbar}
       
       <HeroBand inv={inv} showMap={showMap} moduleContext={getModuleContext()} />
 
       {deleteMsg && (
-        <div style={{ background: 'var(--usi-success)', color: '#fff', padding: '8px 24px', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className="detail-msg-banner">
           <Icon name="check" /> {deleteMsg}
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px 300px', flex: 1, overflow: 'hidden' }}>
-        <div style={{ padding: '0 8px 24px 24px', overflow: 'auto' }} className="usi-scroll">
+      <div className="detail-grid">
+        <div className="detail-gallery-column usi-scroll">
           <Gallery inv={inv} marked={marked} onToggleMark={toggleMark} onLightbox={setLightbox} columns={density} />
         </div>
 
-        <div style={{ borderLeft: '.5px solid var(--usi-border)', display: 'flex', flexDirection: 'column', background: 'var(--usi-surface)', overflow: 'hidden' }}>
-          <div style={{ padding: '16px 18px', borderBottom: '.5px solid var(--usi-border)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="detail-ratings-column">
+          <div className="detail-column-header">
             <h3 className="usi-h3" style={{ margin: 0 }}>Oceny i Akcje</h3>
             <div style={{ display: 'flex', gap: 6 }}>
                 <button className="usi-btn sm ghost" onClick={handleReload} disabled={reloading}>{reloading ? '...' : 'Reload'}</button>
                 <button className="usi-btn sm danger" onClick={handleDeleteMarked} disabled={marked.size === 0}>Usuń {marked.size > 0 ? `(${marked.size})` : ''}</button>
             </div>
           </div>
-          <div style={{ padding: '16px 18px', overflow: 'auto', flex: 1 }} className="usi-scroll">
+          <div className="detail-column-content usi-scroll">
             <RatingsPanel inv={inv} ratings={ratings} handleRating={handleRating} 
               comment={comment} handleComment={handleComment}
               status={status} handleStatus={handleStatus}
@@ -377,11 +360,11 @@ function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onUp
           </div>
         </div>
 
-        <aside style={{ borderLeft: '.5px solid var(--usi-border)', display: 'flex', flexDirection: 'column', background: 'var(--usi-surface-2)', overflow: 'hidden' }}>
-          <div style={{ padding: '16px 18px', borderBottom: '.5px solid var(--usi-border)', flexShrink: 0 }}>
+        <aside className="detail-meta-column">
+          <div className="detail-column-header">
             <h3 className="usi-h3" style={{ margin: 0 }}>Szczegóły</h3>
           </div>
-          <div style={{ padding: '16px 18px', overflow: 'auto', flex: 1 }} className="usi-scroll">
+          <div className="detail-column-content usi-scroll">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
               <MetadataPanel inv={inv} config={metaConfig} />
               
@@ -410,12 +393,12 @@ function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onUp
 function NearbyInvestmentsModule({ items = [] }) {
   if (items.length === 0) return <div className="usi-small" style={{ color: 'var(--usi-ink-4)' }}>Brak innych inwestycji w promieniu 5km.</div>;
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div className="nearby-investments-list">
       {items.slice(0, 10).map(i => (
-        <div key={i.slug} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--usi-accent)' }} />
-          <div style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{i.name}</div>
-          <div className="usi-mono" style={{ opacity: 0.6 }}>{i.distance.toFixed(1)}km</div>
+        <div key={i.slug} className="nearby-investment-item">
+          <div className="nearby-investment-dot" />
+          <div className="nearby-investment-name">{i.name}</div>
+          <div className="usi-mono nearby-investment-distance">{i.distance.toFixed(1)}km</div>
         </div>
       ))}
     </div>

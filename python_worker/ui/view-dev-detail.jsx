@@ -104,7 +104,7 @@ function DeveloperDetail({
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+      <div className="usi-app-loading">
         <window.Spinner />
       </div>
     );
@@ -112,7 +112,7 @@ function DeveloperDetail({
 
   if (!developer) {
     return (
-      <div style={{ padding: 40, textAlign: 'center' }}>
+      <div className="usi-app-empty">
         <h2 className="usi-h2">Nie znaleziono dewelopera</h2>
         <button className="usi-btn" onClick={onBack}>Powrót</button>
       </div>
@@ -124,12 +124,7 @@ function DeveloperDetail({
     : (developer.investments || []);
 
   const toolbar = (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 12,
-      padding: '16px 24px', borderBottom: '.5px solid var(--usi-border)',
-      background: 'var(--usi-surface)', flexShrink: 0, fontSize: 13,
-      position: 'relative'
-    }}>
+    <div className="developer-detail-toolbar">
       <window.NavMenuButton onClick={() => setNavOpen(true)} />
       <button className="usi-btn ghost" onClick={onBack}><window.Icon name="chevronLeft" /> Powrót</button>
       <div style={{ flex: 1 }} />
@@ -142,23 +137,23 @@ function DeveloperDetail({
   );
 
   return (
-    <div data-component="DeveloperDetail" className="usi-app" style={{ background: 'var(--usi-bg)', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div data-component="DeveloperDetail" className="usi-app developer-detail-container">
       {toolbar}
-      <div style={{ overflow: 'auto', flex: 1 }} className="usi-scroll">
+      <div className="usi-scroll" style={{ flex: 1 }}>
         <DeveloperHeroBand dev={developer} />
         
         {activeJob && <JobStatusOverlay job={activeJob} onClose={() => setActiveJobId(null)} />}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 24, padding: '24px 24px 40px' }}>
+        <div className="developer-main-content">
           <section>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div className="developer-investments-header">
                 <h2 className="usi-h2" style={{ margin: 0 }}>Inwestycje ({filteredInvestments.length})</h2>
                 {filterCity && (
                     <button className="usi-btn ghost sm" onClick={() => setFilterCity(null)}>Pokaż wszystkie miasta</button>
                 )}
             </div>
             
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
+            <div className="developer-investments-grid">
               {filteredInvestments.map(inv => (
                 <window.StandardCard
                   key={inv.slug}
@@ -174,13 +169,13 @@ function DeveloperDetail({
               ))}
             </div>
             {filteredInvestments.length === 0 && (
-              <div className="usi-card flat" style={{ padding: 32, textAlign: 'center', color: 'var(--usi-ink-4)' }}>
+              <div className="usi-card flat developer-empty-state">
                 Brak inwestycji spełniających kryteria.
               </div>
             )}
           </section>
 
-          <aside style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <aside className="developer-sidebar">
             <DeveloperSuggestions dev={developer} onMerge={handleMerge} onDismiss={handleDismiss} />
             <DeveloperStats dev={developer} onCityClick={setFilterCity} activeCity={filterCity} />
             <DeveloperMetadata dev={developer} />
@@ -197,24 +192,16 @@ function JobStatusOverlay({ job, onClose }) {
   const progress = (job.progress / job.total) * 100;
 
   return (
-    <div style={{ 
-        margin: '0 24px 24px', 
+    <div className="job-status-overlay" style={{ 
         background: job.status === 'failed' ? 'var(--usi-danger)' : 'var(--usi-accent)', 
-        color: '#fff', 
-        padding: '12px 20px', 
-        borderRadius: 12,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 16,
-        boxShadow: '0 8px 24px rgba(0,0,0,0.1)'
     }}>
-        <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 13, fontWeight: 700 }}>
+        <div className="job-progress-container">
+            <div className="job-progress-info">
                 <span>{job.name} — {job.message}</span>
                 <span>{Math.round(progress)}%</span>
             </div>
-            <div style={{ height: 4, background: 'rgba(255,255,255,0.2)', borderRadius: 2, overflow: 'hidden' }}>
-                <div style={{ width: `${progress}%`, height: '100%', background: '#fff', transition: 'width 0.3s' }} />
+            <div className="job-progress-bar-bg">
+                <div className="job-progress-bar-fill" style={{ width: `${progress}%` }} />
             </div>
         </div>
         {isFinished && (
@@ -247,17 +234,13 @@ function DeveloperStats({ dev, onCityClick, activeCity }) {
   return (
     <div className="usi-card" style={{ padding: 16 }}>
       <h3 className="usi-h3" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 16, color: 'var(--usi-ink-4)' }}>Zasięg inwestycji</h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div className="stats-list">
         {cityStats.map(s => (
           <div 
             key={s.name} 
             onClick={() => onCityClick(s.name === activeCity ? null : s.name)}
-            style={{ 
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
-                padding: '8px 10px', borderRadius: 8, cursor: 'pointer',
-                background: s.name === activeCity ? 'var(--usi-surface-3)' : 'transparent',
-                border: s.name === activeCity ? '1px solid var(--usi-border-strong)' : '1px solid transparent'
-            }}
+            data-active={s.name === activeCity}
+            className="stats-item"
           >
             <div>
                 <div style={{ fontWeight: 600, fontSize: 13 }}>{s.name}</div>
@@ -273,24 +256,13 @@ function DeveloperStats({ dev, onCityClick, activeCity }) {
 
 function DeveloperHeroBand({ dev }) {
   return (
-    <div data-component="DeveloperHeroBand" style={{
-      background: 'var(--usi-surface)',
-      borderBottom: '.5px solid var(--usi-border)',
-      padding: '24px 24px',
-      marginBottom: 24
-    }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 24 }}>
-        <div data-component="Developer-Avatar" style={{ 
-          width: 80, height: 80, borderRadius: 12, 
-          background: 'var(--usi-surface-3)', 
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 32, color: 'var(--usi-ink-4)',
-          flexShrink: 0
-        }}>
+    <div data-component="DeveloperHeroBand" className="developer-hero-band">
+      <div className="developer-hero-content">
+        <div data-component="Developer-Avatar" className="developer-avatar">
           🏢
         </div>
         <div style={{ flex: 1 }}>
-          <div data-component="Developer-TitleRow" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+          <div data-component="Developer-TitleRow" className="developer-title-row">
             <h1 data-component="Developer-Name" className="usi-h1" style={{ margin: 0 }}>{dev.name}</h1>
             <span data-component="Developer-ID" className="usi-pill outline usi-mono">{dev.usi_dev_id}</span>
           </div>
@@ -310,7 +282,7 @@ function DeveloperHeroBand({ dev }) {
 
 function PropertyRow({ label, value, mono }) {
   return (
-    <div style={{ marginBottom: 12 }}>
+    <div className="property-row">
       <div className="usi-tiny" style={{ color: 'var(--usi-ink-4)', marginBottom: 2 }}>{label}</div>
       <div style={{ fontWeight: 500, fontSize: 13 }} className={mono ? 'usi-mono' : ''}>{value || '—'}</div>
     </div>

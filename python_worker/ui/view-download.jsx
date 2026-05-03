@@ -195,22 +195,12 @@ window.ViewDownload = function ViewDownload({ dark, onNav, onToggleTheme }) {
   const Chip = ({ label, active, onClick, color, source }) => (
     <button
       onClick={() => onClick()}
+      data-active={active}
+      className="filter-chip"
       style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        padding: '6px 12px',
-        borderRadius: '16px',
-        fontSize: '11px',
-        fontWeight: 700,
-        cursor: 'pointer',
-        border: '1.5px solid ' + (active ? (color || 'var(--usi-accent)') : 'var(--usi-border)'),
-        background: active ? (color ? color + '15' : 'var(--usi-accent-10)') : 'var(--usi-surface)',
+        borderColor: active ? (color || 'var(--usi-accent)') : 'var(--usi-border)',
+        background: active ? (color ? color + '15' : 'rgba(229, 0, 109, 0.1)') : 'var(--usi-surface)',
         color: active ? (color || 'var(--usi-accent)') : 'var(--usi-ink-3)',
-        transition: 'all 0.15s ease',
-        boxShadow: active ? '0 2px 4px rgba(0,0,0,0.06)' : 'none',
-        outline: 'none',
-        textTransform: 'uppercase',
-        letterSpacing: '0.02em'
       }}
     >
       {source && SourceBadge && <SourceBadge source={source} />}
@@ -221,40 +211,26 @@ window.ViewDownload = function ViewDownload({ dark, onNav, onToggleTheme }) {
   const ProgressBar = ({ current, total, label }) => {
     const percent = total > 0 ? Math.round((current / total) * 100) : 0;
     return (
-      <div data-component="ProgressBar" style={{ 
-        flex: 1, minWidth: 200, display: 'flex', flexDirection: 'column', gap: 4 
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 800, color: 'var(--usi-ink-3)', textTransform: 'uppercase' }}>
+      <div data-component="ProgressBar" className="progress-bar-container">
+        <div className="progress-bar-info">
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 300 }}>
             {safeRender(label, 'Pobieranie...')}
           </span>
           <span>{current} / {total} ({percent}%)</span>
         </div>
-        <div style={{ height: 6, background: 'var(--usi-surface-3)', borderRadius: 3, overflow: 'hidden' }}>
-          <div style={{ 
-            height: '100%', width: `${percent}%`, background: 'var(--usi-success)', 
-            transition: 'width 0.3s ease-out' 
-          }} />
+        <div className="progress-bar-bg">
+          <div className="progress-bar-fill" style={{ width: `${percent}%` }} />
         </div>
       </div>
     );
   };
 
   return (
-    <div data-component="ViewDownload" className="usi-app" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: 'var(--usi-bg)' }}>
+    <div data-component="ViewDownload" className="usi-app download-view-container">
       {/* Toolbar - System Style */}
-      <div data-component="ListToolbar" style={{
-        display: 'flex', flexDirection: 'column',
-        borderBottom: '.5px solid var(--usi-border)',
-        background: 'var(--usi-surface)', flexShrink: 0,
-        boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
-      }}>
+      <div data-component="ListToolbar" className="download-toolbar">
         {/* Toolbar Top: Global Nav, Search, Portal Select */}
-        <div data-component="ListToolbar-Top" style={{
-          display: 'flex', alignItems: 'center', gap: 12,
-          padding: '14px 24px', flexWrap: 'wrap', rowGap: 12,
-          position: 'relative'
-        }}>
+        <div data-component="ListToolbar-Top" className="download-toolbar-top">
           <div data-component="ListToolbar-Nav" style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
             {NavMenuButton && <NavMenuButton onClick={() => setNavOpen(true)} />}
             <h1 className="usi-h1" style={{ margin: 0, fontSize: 20 }}>Pobieranie</h1>
@@ -264,7 +240,7 @@ window.ViewDownload = function ViewDownload({ dark, onNav, onToggleTheme }) {
           <div style={{ flex: 1, minWidth: 20 }} />
 
           {/* Quick Identifier Input */}
-          <div data-component="ListToolbar-Search" style={{ position: 'relative', flex: '1 1 300px', maxWidth: 500, display: 'flex', gap: 8 }}>
+          <div data-component="ListToolbar-Search" className="download-search-box">
             <div style={{ position: 'relative', flex: 1 }}>
               <span style={{ position: 'absolute', left: 10, top: 9, color: 'var(--usi-ink-4)' }}>{Icon && <Icon name="search" />}</span>
               <input 
@@ -295,7 +271,7 @@ window.ViewDownload = function ViewDownload({ dark, onNav, onToggleTheme }) {
             </button>
           </div>
 
-          <div data-component="ListToolbar-Filters" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <div data-component="ListToolbar-Filters" className="download-filters-box">
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 11, fontWeight: 700, color: 'var(--usi-ink-3)', textTransform: 'uppercase' }}>
               <input 
                 type="checkbox" 
@@ -316,9 +292,9 @@ window.ViewDownload = function ViewDownload({ dark, onNav, onToggleTheme }) {
         </div>
 
         {/* Toolbar Bottom: Batch Controls & Discovery */}
-        <div data-component="ListToolbar-Bottom" style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '0 24px 14px', flexWrap: 'wrap' }}>
-          <div data-component="Filter-Sources" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--usi-ink-4)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Skanuj</span>
+        <div data-component="ListToolbar-Bottom" className="download-toolbar-bottom">
+          <div data-component="Filter-Sources" className="filter-group">
+            <span className="filter-group-label">Skanuj</span>
             {['rp', 'oto', 'to'].map(p => (
               <Chip 
                 key={p} 
@@ -338,7 +314,7 @@ window.ViewDownload = function ViewDownload({ dark, onNav, onToggleTheme }) {
             </button>
           </div>
 
-          <div style={{ width: 1, height: 20, background: 'var(--usi-border)' }} />
+          <div className="filter-divider" />
 
           {batchProgress ? (
             <ProgressBar 
@@ -347,8 +323,8 @@ window.ViewDownload = function ViewDownload({ dark, onNav, onToggleTheme }) {
               label={`Pobieranie: ${batchProgress.itemName}`} 
             />
           ) : (
-            <div data-component="Batch-Download" style={{ display: 'flex', gap: 12, alignItems: 'center', flex: 1 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--usi-ink-4)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Deweloper</span>
+            <div data-component="Batch-Download" className="download-batch-box">
+              <span className="filter-group-label">Deweloper</span>
               <select className="usi-input" value={selectedDev} onChange={e => setSelectedDev(e.target.value)} style={{ width: 'auto', height: 28, minWidth: 200, borderRadius: 6, fontSize: 12 }}>
                 <option value="">Wybierz z bazy...</option>
                 {developers.map(dev => {
@@ -363,7 +339,7 @@ window.ViewDownload = function ViewDownload({ dark, onNav, onToggleTheme }) {
                 className="usi-btn success sm" 
                 style={{ 
                   height: 28, borderRadius: 14, fontSize: 11, fontWeight: 700,
-                  background: 'var(--usi-success)', borderColor: 'var(--usi-success)', color: '#fff'
+                  color: '#fff'
                 }}
                 disabled={loading || !selectedDev || results.filter(r => r && r.is_new && !r.registered).length === 0}
                 onClick={handleBatchDownload}
@@ -376,22 +352,15 @@ window.ViewDownload = function ViewDownload({ dark, onNav, onToggleTheme }) {
       </div>
 
       {/* Main Content Area */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 24px 60px' }} className="usi-scroll">
+      <div className="download-content usi-scroll">
         {error && (
-          <div style={{ 
-            padding: '12px 16px', borderRadius: 8, background: 'rgba(192, 57, 43, 0.1)', 
-            color: 'var(--usi-danger)', marginBottom: 24, fontSize: 13, fontWeight: 600,
-            border: '1px solid rgba(192, 57, 43, 0.2)', display: 'flex', alignItems: 'center', gap: 12
-          }}>
+          <div className="download-error-banner">
             {Icon && <Icon name="close" size={14} />} {safeRender(error)}
           </div>
         )}
 
         {results.length === 0 && !loading && (
-          <div style={{ 
-            display: 'flex', flexDirection: 'column', alignItems: 'center', 
-            justifyContent: 'center', height: '60%', opacity: 0.3 
-          }}>
+          <div className="download-empty-state">
             <div style={{ marginBottom: 16 }}>
               {Icon && <Icon name="download" size={48} stroke={1} />}
             </div>
@@ -403,18 +372,14 @@ window.ViewDownload = function ViewDownload({ dark, onNav, onToggleTheme }) {
         )}
 
         {loading && results.length === 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 100, gap: 16 }}>
+          <div className="usi-app-loading" style={{ height: 'auto', marginTop: 100 }}>
             {Spinner && <Spinner size={40} />}
-            <div className="usi-h3" style={{ opacity: 0.6 }}>Skanowanie źródeł...</div>
+            <div className="usi-h3" style={{ opacity: 0.6, marginTop: 16 }}>Skanowanie źródeł...</div>
           </div>
         )}
 
         {results.length > 0 && (
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', 
-            gap: 20 
-          }}>
+          <div className="download-grid-layout">
             {filteredResults.map((item, idx) => {
               if (!item) return null;
               const portalColor = item.portal === 'rp' ? '#C0392B' : (item.portal === 'oto' ? '#002C57' : '#5A4A2A');

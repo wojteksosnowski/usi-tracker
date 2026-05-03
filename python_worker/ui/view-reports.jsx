@@ -21,8 +21,8 @@ function ReportsList({ onSelectReport, onNav, dark, onToggleTheme }) {
   }, []);
 
   return (
-    <div data-component="ReportsList" className="usi-app" style={{ background: 'var(--usi-bg)', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div data-component="ReportsList-Toolbar" style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 24px', borderBottom: '.5px solid var(--usi-border)', background: 'var(--usi-surface)' }}>
+    <div data-component="ReportsList" className="usi-app reports-list-container">
+      <div data-component="ReportsList-Toolbar" className="reports-list-toolbar">
         <NavMenuButton onClick={() => setNavOpen(true)} />
         <h1 className="usi-h2" style={{ margin: 0 }}>Raporty USI</h1>
         <div style={{ flex: 1 }} />
@@ -31,19 +31,18 @@ function ReportsList({ onSelectReport, onNav, dark, onToggleTheme }) {
         </button>
       </div>
 
-      <div data-component="ReportsList-Grid" style={{ padding: 24, overflow: 'auto', flex: 1 }} className="usi-scroll">
+      <div data-component="ReportsList-Grid" className="reports-list-content usi-scroll">
         {loading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 100 }}><Spinner /></div>
+          <div className="usi-app-loading"><Spinner /></div>
         ) : reports.length === 0 ? (
-          <div className="usi-body" style={{ color: 'var(--usi-ink-3)', textAlign: 'center', paddingTop: 100 }}>Brak definicji raportów w Public/USIdata/reports/</div>
+          <div className="usi-app-empty">Brak definicji raportów w Public/USIdata/reports/</div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
+          <div className="reports-grid-layout">
             {reports.map(report => (
               <div key={report.id} 
                 data-component="ReportCard"
-                className="usi-card" 
-                onClick={() => onSelectReport(report)}
-                style={{ padding: 20, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 10, transition: 'transform .2s' }}>
+                className="usi-card report-card" 
+                onClick={() => onSelectReport(report)}>
                 <h2 className="usi-h2" style={{ margin: 0 }}>{report.title}</h2>
                 <p className="usi-small" style={{ color: 'var(--usi-ink-2)', flex: 1 }}>{report.description}</p>
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -77,18 +76,18 @@ function ReportDetail({ reportId, onBack, onNav, dark, onToggleTheme }) {
   }, [reportId]);
 
   if (loading) return (
-    <div className="usi-app" style={{ background: 'var(--usi-bg)', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div className="usi-app-loading">
       <Spinner />
     </div>
   );
 
-  if (!data) return <div>Błąd ładowania raportu.</div>;
+  if (!data) return <div className="usi-app-empty">Błąd ładowania raportu.</div>;
 
   const { definition, data: investments } = data;
 
   return (
-    <div data-component="ReportDetail" className="usi-app" style={{ background: 'var(--usi-bg)', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '12px 24px', borderBottom: '.5px solid var(--usi-border)', background: 'var(--usi-surface)' }}>
+    <div data-component="ReportDetail" className="usi-app report-detail-container">
+      <div className="report-detail-toolbar">
         <NavMenuButton onClick={() => setNavOpen(true)} />
         <button className="usi-btn ghost sm" onClick={onBack}><Icon name="chevronLeft" /> Powrót</button>
         <div>
@@ -98,8 +97,8 @@ function ReportDetail({ reportId, onBack, onNav, dark, onToggleTheme }) {
         <div style={{ flex: 1 }} />
       </div>
 
-      <div style={{ padding: 24, overflow: 'auto', flex: 1 }} className="usi-scroll">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 32, maxWidth: 1200, margin: '0 auto' }}>
+      <div className="report-detail-content usi-scroll">
+        <div className="report-modules-stack">
           {definition.modules && definition.modules.map((mod, idx) => (
             <ReportModuleContainer key={idx} module={mod} investments={investments} />
           ))}
@@ -115,12 +114,12 @@ function ReportModuleContainer({ module, investments }) {
   const ModuleComponent = ModuleRegistry[module.type] || (() => <div>Nieznany typ modułu: {module.type}</div>);
   
   return (
-    <div data-component="ReportModuleContainer" className="usi-card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '12px 20px', borderBottom: '.5px solid var(--usi-border)', background: 'rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div data-component="ReportModuleContainer" className="usi-card report-module-container">
+      <div className="report-module-header">
         <h3 className="usi-h3" style={{ margin: 0, fontSize: 14 }}>{module.title}</h3>
         <div className="usi-tiny" style={{ opacity: 0.5 }}>{module.type.toUpperCase()}</div>
       </div>
-      <div style={{ padding: 20 }}>
+      <div className="report-module-content">
         <ModuleComponent config={module.config} investments={investments} />
       </div>
     </div>
@@ -133,18 +132,18 @@ function TableModule({ config, investments }) {
   const columns = config.columns || ['name', 'address', 'price_avg'];
   
   return (
-    <div data-component="TableModule" style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+    <div data-component="TableModule" className="table-module-container">
+      <table className="table-module-table">
         <thead>
           <tr style={{ borderBottom: '1px solid var(--usi-border)', textAlign: 'left' }}>
-            {columns.map(col => <th key={col} style={{ padding: '8px 4px', fontWeight: 600 }}>{col}</th>)}
+            {columns.map(col => <th key={col} className="table-module-th">{col}</th>)}
           </tr>
         </thead>
         <tbody>
           {investments.slice(0, 20).map((inv, idx) => (
             <tr key={idx} style={{ borderBottom: '.5px solid var(--usi-border)' }}>
               {columns.map(col => (
-                <td key={col} style={{ padding: '8px 4px' }}>
+                <td key={col} className="table-module-td">
                   {col === 'price_avg' ? (inv[col] ? `${inv[col].toLocaleString()} zł` : '—') : inv[col]}
                 </td>
               ))}
@@ -164,7 +163,7 @@ function MapModule({ config, investments }) {
   
   if (!apiKey || withCoords.length === 0) {
     return (
-      <div style={{ height: 400, background: 'var(--usi-surface-3)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="map-module-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div className="usi-small" style={{ color: 'var(--usi-ink-4)' }}>
           {!apiKey ? 'Brak klucza API HERE' : 'Brak danych geolokalizacyjnych'}
         </div>
@@ -177,7 +176,7 @@ function MapModule({ config, investments }) {
   const src = `https://image.maps.hereapi.com/mia/v3/base/mc/overlay:padding=32/800x400/png?apiKey=${apiKey}&overlay=point:${pts}|size=small;icon=circle;color=white&style=${style}&features=pois:disabled&lang=pl`;
 
   return (
-    <div style={{ height: 400, background: 'var(--usi-surface-3)', borderRadius: 8, overflow: 'hidden' }}>
+    <div className="map-module-container">
       <img src={src} alt="Mapa" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
     </div>
   );
@@ -234,7 +233,7 @@ function PriceTrendModule({ config, investments }) {
   }, [investments]);
 
   return (
-    <div style={{ height: 300 }}>
+    <div className="chart-module-container">
       <canvas ref={canvasRef}></canvas>
     </div>
   );
@@ -291,7 +290,7 @@ function RatingComparisonModule({ config, investments }) {
   }, [investments]);
 
   return (
-    <div style={{ height: 300 }}>
+    <div className="chart-module-container">
       <canvas ref={canvasRef}></canvas>
     </div>
   );

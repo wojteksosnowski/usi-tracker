@@ -115,7 +115,7 @@ function DeveloperListGrid({
   const paddingBottom = Math.max(0, (totalRows - endRow) * rowHeight);
 
   return (
-    <div data-component="DeveloperListGrid" className="usi-app" style={{ background: 'var(--usi-bg)', height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div data-component="DeveloperListGrid" className="usi-app developer-list-container">
       <DeveloperListToolbar
         count={filteredDevelopers.length} total={developers.length}
         search={search} onSearch={setSearch}
@@ -127,22 +127,18 @@ function DeveloperListGrid({
       <div 
         ref={containerRef}
         onScroll={handleScroll}
-        style={{ padding: '0 24px 32px', overflow: 'auto', flex: 1, position: 'relative' }} 
-        className="usi-scroll"
+        className="developer-list-content usi-scroll"
       >
         <div style={{ paddingTop, paddingBottom, minHeight: '100%' }}>
-          <div style={{ 
-            display: 'grid', 
+          <div className="developer-grid-layout" style={{ 
             gridTemplateColumns: `repeat(${itemsPerRow}, 1fr)`, 
-            gap: 16,
-            paddingTop: 20
           }}>
             {visibleItems.map(dev => <DeveloperCard key={dev.usi_dev_id} dev={dev} onSelect={() => onSelectDev(dev)} />)}
           </div>
         </div>
         
         {filteredDevelopers.length === 0 && (
-          <div style={{ textAlign: 'center', color: 'var(--usi-ink-4)', padding: '60px 0' }}>
+          <div className="developer-empty-state">
             <div style={{ fontSize: 32, marginBottom: 12 }}>🔍</div>
             <div className="usi-body">Brak deweloperów pasujących do filtrów</div>
           </div>
@@ -158,22 +154,12 @@ function DeveloperListToolbar({ count, total, search, onSearch, onNav, activeSou
   const Chip = ({ label, active, onClick, color, source }) => (
     <button
       onClick={(e) => onClick(e.shiftKey)}
+      data-active={active}
+      className="filter-chip"
       style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        padding: '6px 12px',
-        borderRadius: '16px',
-        fontSize: '11px',
-        fontWeight: 700,
-        cursor: 'pointer',
-        border: '1.5px solid ' + (active ? (color || 'var(--usi-accent)') : 'var(--usi-border)'),
-        background: active ? (color ? color + '15' : 'var(--usi-accent-10)') : 'var(--usi-surface)',
+        borderColor: active ? (color || 'var(--usi-accent)') : 'var(--usi-border)',
+        background: active ? (color ? color + '15' : 'rgba(229, 0, 109, 0.1)') : 'var(--usi-surface)',
         color: active ? (color || 'var(--usi-accent)') : 'var(--usi-ink-3)',
-        transition: 'all 0.15s ease',
-        boxShadow: active ? '0 2px 4px rgba(0,0,0,0.06)' : 'none',
-        outline: 'none',
-        textTransform: 'uppercase',
-        letterSpacing: '0.02em'
       }}
     >
       {source && <window.SourceBadge source={source} />}
@@ -182,24 +168,15 @@ function DeveloperListToolbar({ count, total, search, onSearch, onNav, activeSou
   );
 
   return (
-    <div data-component="DeveloperListToolbar" style={{
-      display: 'flex', flexDirection: 'column',
-      borderBottom: '.5px solid var(--usi-border)',
-      background: 'var(--usi-surface)', flexShrink: 0,
-      boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
-    }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 12,
-        padding: '14px 24px', flexWrap: 'wrap', rowGap: 12,
-        position: 'relative'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+    <div data-component="DeveloperListToolbar" className="developer-list-toolbar">
+      <div className="developer-list-toolbar-top">
+        <div className="developer-list-toolbar-title-box">
           <window.NavMenuButton onClick={() => setNavOpen(true)} />
           <h1 className="usi-h1" style={{ margin: 0, fontSize: 20 }}>Deweloperzy</h1>
           <span className="usi-pill outline">{count}{count !== total ? '/' + total : ''}</span>
         </div>
         <div style={{ flex: 1, minWidth: 20 }} />
-        <div style={{ position: 'relative', flex: '1 1 200px', maxWidth: 400 }}>
+        <div className="developer-list-toolbar-search">
           <span style={{ position: 'absolute', left: 10, top: 9, color: 'var(--usi-ink-4)' }}><window.Icon name="search" /></span>
           <input className="usi-input" placeholder="Szukaj dewelopera po nazwie lub USI ID…"
             value={search} onChange={e => onSearch(e.target.value)}
@@ -208,16 +185,16 @@ function DeveloperListToolbar({ count, total, search, onSearch, onNav, activeSou
         {navOpen && <window.NavDrawer current="developers" onClose={() => setNavOpen(false)} onNav={v => { setNavOpen(false); onNav(v); }} dark={dark} onToggleTheme={onToggleTheme} />}
       </div>
       
-      <div data-component="ListToolbar-Bottom" style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '0 24px 14px', flexWrap: 'wrap' }}>
-        <div data-component="Filter-Sources" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--usi-ink-4)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Źródła</span>
+      <div data-component="ListToolbar-Bottom" className="developer-list-toolbar-bottom">
+        <div data-component="Filter-Sources" className="filter-group">
+          <span className="filter-group-label">Źródła</span>
           {SOURCES.map(s => (
             <Chip key={s.id} label={s.label} source={s.id} active={activeSources.has(s.id)} color={s.color} onClick={(isShift) => onToggleSource(s.id, isShift)} />
           ))}
         </div>
-        <div style={{ width: 1, height: 20, background: 'var(--usi-border)' }} />
-        <div data-component="Filter-Cities" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--usi-ink-4)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Miasta</span>
+        <div className="filter-divider" />
+        <div data-component="Filter-Cities" className="filter-group" style={{ flexWrap: 'wrap' }}>
+          <span className="filter-group-label">Miasta</span>
           {MAIN_CITIES.map(city => (
             <Chip key={city} label={city} active={activeCities.has(city)} onClick={(isShift) => onToggleCity(city, isShift)} />
           ))}

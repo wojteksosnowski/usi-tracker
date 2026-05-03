@@ -2,7 +2,7 @@
 
 function LoadingScreen() {
   return (
-    <div data-component="LoadingScreen" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', flexDirection: 'column', gap: 16 }}>
+    <div data-component="LoadingScreen" className="app-loading-screen">
       <Spinner />
       <span className="usi-small">Ładowanie danych…</span>
     </div>
@@ -11,12 +11,12 @@ function LoadingScreen() {
 
 function EmptyScreen({ onFetch, fetching, fetchCount }) {
   return (
-    <div data-component="EmptyScreen" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', flexDirection: 'column', gap: 20, background: 'var(--usi-bg)' }}>
-      <svg width="64" height="64" viewBox="0 0 48 48" fill="none" style={{ opacity: 0.18 }}>
+    <div data-component="EmptyScreen" className="app-empty-screen">
+      <svg width="64" height="64" viewBox="0 0 48 48" fill="none" className="empty-screen-icon">
         <path d="M22.85 15.05c0-.32 .21-.6 .51-.69 .75-.21 2.53-.5 6.57-.5 4.05 0 5.83 .3 6.58 .51 .3 .09 .51 .37 .51 .68v15.78L51.06 26c.3-.1 .63 .02 .81 .28 .43 .65 1.27 2.25 2.51 6.1 1.25 3.85 1.51 5.64 1.55 6.42 .01 .31-.19 .6-.49 .69-3.04 .99-20.55 6.68-30 9.75l18.55 25.56c.17 .25 .16 .59 .03 .83-.49 .61-1.75 1.9-5.02 4.27-3.27 2.38-4.89 3.18-5.62 3.45-.26 .09-.54 .03-.74-.16L24 88c-19.36-26-19.55-26.21-19.71-26.34-.29-.21-.49-.49-.46-.81 .03-.78 .29-2.57 1.55-6.43 1.26-3.89 2.1-5.48 2.53-6.11 .17-.25 .49-.36 .77-.27z" fill="currentColor" />
       </svg>
       <h2 className="usi-h1" style={{ margin: 0 }}>Baza jest pusta</h2>
-      <p className="usi-body" style={{ color: 'var(--usi-ink-3)', textAlign: 'center', maxWidth: 360, margin: 0 }}>
+      <p className="usi-body empty-screen-text">
         Brak inwestycji w bazie. Pobierz przykładowe rekordy z RynekPierwotny.pl.
       </p>
       {fetching ? (
@@ -175,7 +175,7 @@ function App() {
 
   if (loading) {
     return (
-      <div data-component="App" ref={rootRef} style={{ minHeight: '100vh' }}>
+      <div data-component="App" ref={rootRef} className="app-container">
         <LoadingScreen />
       </div>
     );
@@ -183,15 +183,15 @@ function App() {
 
   if (investments.length === 0) {
     return (
-      <div data-component="App" ref={rootRef} style={{ minHeight: '100vh' }}>
+      <div data-component="App" ref={rootRef} className="app-container">
         <EmptyScreen onFetch={handleFetchSample} fetching={fetching} fetchCount={fetchCount} />
       </div>
     );
   }
 
   return (
-    <div data-component="App" ref={rootRef} style={{ height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ flex: 1, overflow: 'hidden' }}>
+    <div data-component="App" ref={rootRef} className="app-container">
+      <div className="app-main-content">
         {view === 'list' && (
           <ListGrid
             investments={investments}

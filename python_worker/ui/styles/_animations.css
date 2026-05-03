@@ -1,0 +1,37 @@
+/* _animations.css — Animacje USI Tracker */
+
+@keyframes usi-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes usi-slide-down {
+  from { transform: translateY(-10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes usi-pulse {
+  0% { opacity: 0.5; }
+  50% { opacity: 0.8; }
+  100% { opacity: 0.5; }
+}
+
+.usi-spin { 
+    animation: usi-spin 0.8s linear infinite; 
+}
+
+.usi-slide-down { 
+    animation: usi-slide-down var(--usi-anim-md) var(--usi-ease-out) forwards; 
+}
+
+.usi-pulse { 
+    animation: usi-pulse 1.5s infinite ease-in-out; 
+}
+
+/* Transitions */
+.usi-trans-all {
+    transition: all var(--usi-anim-fast) var(--usi-ease-out);
+}
+
+.usi-trans-bg {
+    transition: background var(--usi-anim-fast) var(--usi-ease-out), color var(--usi-anim-fast) var(--usi-ease-out);
+}
