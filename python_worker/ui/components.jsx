@@ -330,9 +330,17 @@ function ModuleWrapper({ component: Component, moduleSpec, context, title, icon,
 
 // ─── MiniMap — fake map z markerami, klik → google maps ─────
 // W Kroku B07 zostanie zrefaktoryzowana, teraz dostosowujemy ją by czytała GeoPoint
-function MiniMap({ geo, label, height = 140, points = [], hereUrl = '', hereUrlDark = '', coords }) {
+function MiniMap({ geo, label, height = 140, points = [], hereUrl = '', hereUrlDark = '', coords, containerWidth }) {
   // Kompatybilność wsteczna z coords [lat, lng] dla starych widoków, docelowo używa geo {lat, lng}
   const mapCoords = geo ? [geo.lat, geo.lng] : coords;
+
+  // Symulacja map.invalidateSize() lub zmiana wariantu dla wąskich okien (Krok B06)
+  React.useEffect(() => {
+    if (containerWidth > 0) {
+      console.log(`[MiniMap] containerWidth changed to ${Math.round(containerWidth)}px. (Simulating map.invalidateSize())`);
+    }
+  }, [containerWidth]);
+
   if (!mapCoords || mapCoords[0] === 0) return null;
 
   const url = `https://www.google.com/maps/@${mapCoords[0]},${mapCoords[1]},780m/`;
@@ -625,8 +633,32 @@ class ModuleErrorBoundary extends React.Component {
 }
 
 function BaseModule({ title, icon, children, errorFallback, style }) {
+  const containerRef = React.useRef(null);
+  const [containerWidth, setContainerWidth] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        // Prevent layout thrashing loops if possible
+        window.requestAnimationFrame(() => {
+          setContainerWidth(entry.contentRect.width);
+        });
+      }
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const enhancedChildren = React.Children.map(children, child => {
+    if (React.isValidElement(child)) {
+      return React.cloneElement(child, { containerWidth });
+    }
+    return child;
+  });
+
   return (
-    <div className="usi-card module-card" style={{ display: 'flex', flexDirection: 'column', minHeight: 100, ...style }}>
+    <div ref={containerRef} className="usi-card module-card" style={{ display: 'flex', flexDirection: 'column', minHeight: 100, ...style }}>
       {title && (
         <div style={{ padding: '12px 16px', borderBottom: '.5px solid var(--usi-border)', display: 'flex', alignItems: 'center', gap: 8 }}>
           {icon && <Icon name={icon} size={16} color="var(--usi-ink-3)" />}
@@ -635,7 +667,7 @@ function BaseModule({ title, icon, children, errorFallback, style }) {
       )}
       <div style={{ flex: 1, padding: 16, display: 'flex', flexDirection: 'column', position: 'relative' }}>
         <ModuleErrorBoundary fallback={errorFallback}>
-          {children}
+          {enhancedChildren}
         </ModuleErrorBoundary>
       </div>
     </div>
