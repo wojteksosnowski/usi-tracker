@@ -44,6 +44,11 @@ pip install -r python_worker/requirements.txt
 - `Public/USI/`: Downloaded investment images.
 - `reference-data/`: Static snapshots and CSV source files.
 
+### Raporty i Analizy
+- **System raportowy**: Oparty na plikach JSON w `Public/USIdata/reports/`. Definiują one filtry inwestycji oraz moduły prezentacji (mapy, wykresy, tabele).
+- **Szyna Danych (DataBus)**: System wymiany danych między niezależnymi komponentami (np. lista -> raport -> widżety). Zaimplementowany w `python_worker/ui/data.jsx` przy użyciu React Context. 
+- **Moduły analityczne**: Reużywalne komponenty (np. `MapModule`, `PriceTrendModule`) osadzane w raportach i widokach szczegółowych. Wykorzystują Chart.js oraz HERE Maps API.
+
 ## ⚖️ Development Conventions
 
 ### Data Unification

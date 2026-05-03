@@ -38,6 +38,7 @@ function App() {
   const [view, setView] = React.useState('list');
   const [selectedInv, setSelectedInv] = React.useState(null);
   const [selectedDev, setSelectedDev] = React.useState(null);
+  const [selectedReport, setSelectedReport] = React.useState(null);
   const { investments, loading, refetch } = useInvestments();
   const { developers, loading: loadingDevs, refetch: refetchDevs } = useDevelopers();
   const config = useConfig();
@@ -52,6 +53,8 @@ function App() {
   const [filterStatus, setFilterStatus] = React.useState('');
   const [activeSources, setActiveSources] = React.useState(new Set(['RP', 'OTO', 'TO']));
   const [activeCities, setActiveCities] = React.useState(new Set());
+
+  const { setVariable } = useDataBus();
 
   const filteredInvestments = React.useMemo(() => {
     return investments.filter(inv => {
@@ -74,6 +77,10 @@ function App() {
       return true;
     });
   }, [investments, search, filterDev, filterStatus, activeSources, activeCities]);
+
+  React.useEffect(() => {
+    setVariable('visibleInvestments', filteredInvestments);
+  }, [filteredInvestments, setVariable]);
 
   React.useEffect(() => {
     injectThemeCSS();
@@ -119,11 +126,17 @@ function App() {
   };
 
   const handleNav = (v) => {
-    if (v === 'list' || v === 'dashboard' || v === 'detail' || v === 'download' || v === 'developers' || v === 'dev-detail') {
+    if (v === 'list' || v === 'dashboard' || v === 'detail' || v === 'download' || v === 'developers' || v === 'dev-detail' || v === 'reports' || v === 'report-detail') {
       setView(v);
       setSelectedInv(null);
       setSelectedDev(null);
+      setSelectedReport(null);
     }
+  };
+
+  const handleSelectReport = (report) => {
+    setSelectedReport(report);
+    setView('report-detail');
   };
 
   const handleUpdateInv = (updated) => {
@@ -248,9 +261,30 @@ function App() {
             onToggleTheme={handleToggleTheme}
           />
         )}
+        {view === 'reports' && (
+          <ReportsList
+            onSelectReport={handleSelectReport}
+            onNav={handleNav}
+            dark={dark}
+            onToggleTheme={handleToggleTheme}
+          />
+        )}
+        {view === 'report-detail' && selectedReport && (
+          <ReportDetail
+            reportId={selectedReport.id}
+            onBack={() => setView('reports')}
+            onNav={handleNav}
+            dark={dark}
+            onToggleTheme={handleToggleTheme}
+          />
+        )}
       </div>
     </div>
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <DataBusProvider>
+    <App />
+  </DataBusProvider>
+);

@@ -1,6 +1,45 @@
 // data.jsx — async hook for loading investments from server
 
+const DataBusContext = React.createContext();
+
+function DataBusProvider({ children }) {
+  const [bus, setBus] = React.useState({
+    visibleInvestments: [],
+    currentInvestment: null,
+    nearbyInvestments: [],
+    reports: []
+  });
+
+  const setVariable = React.useCallback((name, value) => {
+    setBus(prev => {
+      // Avoid unnecessary state updates if value is strictly equal
+      if (prev[name] === value) return prev;
+      return { ...prev, [name]: value };
+    });
+  }, []);
+
+  const getVariable = React.useCallback((name) => bus[name], [bus]);
+
+  const value = React.useMemo(() => ({ bus, setVariable, getVariable }), [bus, setVariable, getVariable]);
+
+  return (
+    <DataBusContext.Provider value={value}>
+      {children}
+    </DataBusContext.Provider>
+  );
+}
+
+function useDataBus() {
+  const context = React.useContext(DataBusContext);
+  if (!context) {
+    // Fallback for components rendered outside provider (e.g. during initial loads)
+    return { bus: {}, setVariable: () => {}, getVariable: () => {} };
+  }
+  return context;
+}
+
 function useInvestments() {
+// ... existing useInvestments ...
   const [investments, setInvestments] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
 
@@ -86,4 +125,4 @@ const ocenaLog = (inv) => {
   return Math.log(sum) - Math.log(vals.length);
 };
 
-Object.assign(window, { useInvestments, useDevelopers, useConfig, useMetadataConfig, ratedCount, avgRating, ratingStatus, ocenaLog });
+Object.assign(window, { useInvestments, useDevelopers, useConfig, useMetadataConfig, ratedCount, avgRating, ratingStatus, ocenaLog, DataBusProvider, useDataBus });

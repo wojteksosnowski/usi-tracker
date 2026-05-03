@@ -1,41 +1,44 @@
 # TODO
 
-## Bieżący kamień milowy: Domowe obiady
+## Bieżący kamień milowy: Analiza Trendów
 
 ### Krok B01
 
-Podstrona raporty.
+Analiza trendów cenowych: zmiana średniej ceny za m² w czasie.
+
+- [ ] Zaimplementować moduł `PriceHistoryModule` pobierający dane z historycznych plików USI.
+- [ ] Dodać wykres liniowy trendu ceny średniej dla wybranych grup inwestycji.
+- [ ] Stworzyć widżet "Zmiana ceny" na karcie inwestycji pokazujący % różnicy względem poprzedniego miesiąca.
 
 ### Krok B02
 
-Lista raportów generowana na podstawie JSONów.
+Porównywarka inwestycji: widok side-by-side dla wybranych ofert.
+
+- [ ] Dodać mechanizm "Koszyka" do zaznaczania inwestycji do porównania.
+- [ ] Stworzyć widok `ComparisonTable` zestawiający parametry techniczne i oceny w układzie kolumnowym.
+- [ ] Dodać funkcję wyróżniania różnic (np. najniższa cena w grupie).
 
 ### Krok B03
 
-JSONy raportów określają filtry inwestycji (np. GUS, region, deweloper, odległość od punktu na mapie).
+Raport "Okazje": automatyczne wykrywanie spadków cen i nowych ofert.
+
+- [ ] Zaimplementować algorytm wykrywający istotne (np. >3%) obniżki ceny m².
+- [ ] Stworzyć dedykowany moduł raportowy prezentujący "Okazje tygodnia".
+- [ ] Dodać oznaczenie "New" dla rekordów dodanych w ciągu ostatnich 7 dni.
 
 ### Krok B04
 
-JSONy raportów określają moduły prezentacji pokazywane w raporcie.
+Heatmapa dostępności: zagęszczenie inwestycji na mapie.
 
-### Krok B05
+- [ ] Zaimplementować moduł `HeatmapModule` wykorzystujący HERE Maps Layer API lub własną agregację punktów.
+- [ ] Dodać przełącznik trybu mapy (punkty vs heatmapa) w Dashboardzie.
 
-Moduły (wymagają danych wejściowych):
-* Mapa z punktami (wymaga listy).
-* Wykres zmian cen w czasie (wymaga listy cen).
-* Wykres zmian oceny w czasie (wymaga listy ocen).
-* Wykres ceny w zależności od oceny.
-* Wykres zmian oceny w kategorii w czasie.
-
-### Krok B06
-
-Zapewnienie uniwersalności i elastyczności modułów (możliwość osadzania w innych miejscach).
-
-## Następny kamień milowy: Domowe obiady (zapasowy)
+## Następny kamień milowy: Eksploracja okolicy
 
 ### Krok N01
 
-- [ ] Integracja z API Wikipedii dla obiektów w okolicy
+- [ ] Integracja z API Wikipedii dla obiektów w okolicy (Wyszukiwanie interesujących obiektów).
+- [ ] Wizualizacja punktów POI z Wikipedii na mapie sąsiedztwa inwestycji.
 
 ## Przyszłe kamienie milowe
 
@@ -45,32 +48,8 @@ Zapewnienie uniwersalności i elastyczności modułów (możliwość osadzania w
 
 ### Krok P02
 
-- [ ] Analiza trendów cenowych: zmiana średniej ceny za m² w czasie.
-- [ ] Porównywarka inwestycji: widok side-by-side dla wybranych ofert.
-- [ ] Raport "Okazje": automatyczne wykrywanie spadków cen i nowych ofert.
-- [ ] Heatmapa dostępności: zagęszczenie inwestycji na mapie.
+- [ ] Eksport do XLSX/CSV dla przefiltrowanych list inwestycji.
 
 ### Krok P03
 
-- [ ] Eksport do XLSX/CSV dla przefiltrowanych list inwestycji.
-
-### Krok P04
-
 - [ ] System powiadomień o nowych inwestycjach (crawler alerts).
-
-### Krok P05
-
-Podstrona Deweloperzy. Utworzenie podstrony do przegladania listy deweloperów.
-- [x] Utworzyc podstrone Deweloperzy
-- [x] Pobieranie i zarządzanie listą deweloperów (przeniesione z B27)
-- [x] Automatyczne dopasowywanie inwestycji do deweloperów na podstawie danych portalowych
-
-### Krok P06
-
-Przeniesione z Pizzeria (B01).
-
-- [ ] Wyszukiwanie z API wikipedii interesujących obiektów w okolicy na podstawie lokalizacji
-
-### Krok P07
-
-- [ ] Integracja z API Wikipedii dla obiektów w okolicy

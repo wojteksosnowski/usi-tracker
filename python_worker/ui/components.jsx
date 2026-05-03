@@ -435,6 +435,7 @@ function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
   const items = [
     { id: 'list', label: 'Inwestycje', icon: 'grid', desc: 'Lista wszystkich inwestycji' },
     { id: 'developers', label: 'Deweloperzy', icon: 'list', desc: 'Baza firm deweloperskich' },
+    { id: 'reports', label: 'Raporty', icon: 'list', desc: 'Analizy i zestawienia' },
     { id: 'dashboard', label: 'Dashboard', icon: 'sparkle', desc: 'Podsumowania i wykresy' },
     { id: 'download', label: 'Pobieranie', icon: 'download', desc: 'Pobierz nowe inwestycje' },
   ];

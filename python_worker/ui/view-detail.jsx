@@ -172,6 +172,19 @@ function ModeC({ inv, density = 4, ratingVariant, showMap, marked, onToggleMark,
   );
 }
 
+// ... existing ...
+
+function getDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 // ─── Widok inwestycji: 3 kolumny 50/25/25 ────────────────────
 function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onUpdateInv, onPrev, onNext, density = 5, ratingVariant = 'circles', showMap = true, dark, onToggleTheme }) {
   const [marked, setMarked] = React.useState(new Set());
@@ -184,6 +197,40 @@ function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onUp
   const [reloading, setReloading] = React.useState(false);
   const { ratings, setRatings, comment, setComment, status, setStatus, saved, handleRating, handleComment, handleStatus } = useRatings(inv);
   const metaConfig = useMetadataConfig();
+  const { bus, setVariable } = useDataBus();
+
+  React.useEffect(() => {
+    setVariable('currentInvestment', inv);
+    
+    if (inv.coords && inv.coords[0] !== 0) {
+      const [lat, lng] = inv.coords;
+      const visible = bus.visibleInvestments || [];
+      const nearby = visible
+        .filter(other => {
+          if (other.slug === inv.slug) return false;
+          if (!other.coords || other.coords[0] === 0) return false;
+          const dist = getDistance(lat, lng, other.coords[0], other.coords[1]);
+          return dist <= 5; // 5 km radius
+        })
+        .map(other => ({ 
+          ...other, 
+          distance: getDistance(lat, lng, other.coords[0], other.coords[1]) 
+        }))
+        .sort((a, b) => a.distance - b.distance);
+      
+      setVariable('nearbyInvestments', nearby);
+    } else {
+      setVariable('nearbyInvestments', []);
+    }
+  }, [inv.slug, bus.visibleInvestments, setVariable]);
+
+  // Global unmount cleanup
+  React.useEffect(() => {
+    return () => {
+      setVariable('currentInvestment', null);
+      setVariable('nearbyInvestments', []);
+    };
+  }, [setVariable]);
 
   React.useEffect(() => {
     setMarked(new Set());
