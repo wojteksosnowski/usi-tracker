@@ -26,10 +26,13 @@ function ListGrid({
     setScrollTop(e.target.scrollTop);
   };
 
-  // Zgodnie z Krok B04: generowanie kontekstu dla modułów
+  // Zgodnie z Krok B04 i B05: generowanie kontekstu dla modułów
   const getModuleContext = React.useCallback(() => {
     return {
       visibleInvestments: filteredInvestments,
+      sumApartments: extractModuleContext.sumApartments(filteredInvestments),
+      avgRating: extractModuleContext.avgListRating(filteredInvestments),
+      statsByQuarter: extractModuleContext.aggregateByQuarter(filteredInvestments)
     };
   }, [filteredInvestments]);
 

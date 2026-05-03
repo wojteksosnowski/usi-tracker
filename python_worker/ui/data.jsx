@@ -125,4 +125,43 @@ const ocenaLog = (inv) => {
   return Math.log(sum) - Math.log(vals.length);
 };
 
-Object.assign(window, { useInvestments, useDevelopers, useConfig, useMetadataConfig, ratedCount, avgRating, ratingStatus, ocenaLog, DataBusProvider, useDataBus });
+// ─── Ekstraktory Danych dla Modułów (Krok B05) ─────────────────
+const extractModuleContext = {
+  sumApartments: (records) => {
+    if (!Array.isArray(records)) return 0;
+    return records.reduce((sum, inv) => sum + (parseInt(inv.flats_count) || parseInt(inv.units_count) || 0), 0);
+  },
+  avgListRating: (records) => {
+    if (!Array.isArray(records) || records.length === 0) return 0;
+    const rated = records.filter(inv => ratedCount(inv) > 0);
+    if (rated.length === 0) return 0;
+    return rated.reduce((sum, inv) => sum + avgRating(inv), 0) / rated.length;
+  },
+  aggregateByQuarter: (records) => {
+    if (!Array.isArray(records)) return [];
+    const quarters = {};
+    records.forEach(inv => {
+      // Usi schema stores delivery_quarter, sometimes delivery_date
+      const q = inv.delivery_quarter || inv.delivery_date || 'Nieznany';
+      if (!quarters[q]) quarters[q] = { flats: 0, ratingSum: 0, ratedCount: 0 };
+      quarters[q].flats += (parseInt(inv.flats_count) || parseInt(inv.units_count) || 0);
+      const r = avgRating(inv);
+      if (r > 0) {
+        quarters[q].ratingSum += r;
+        quarters[q].ratedCount += 1;
+      }
+    });
+    return Object.entries(quarters)
+      .map(([q, data]) => ({
+        quarter: q,
+        flats: data.flats,
+        avgRating: data.ratedCount > 0 ? data.ratingSum / data.ratedCount : 0
+      }))
+      .sort((a, b) => a.quarter.localeCompare(b.quarter));
+  },
+  extractGeoPoint: (inv) => {
+    return inv?.coords && inv.coords[0] !== 0 ? { lat: inv.coords[0], lng: inv.coords[1] } : null;
+  }
+};
+
+Object.assign(window, { useInvestments, useDevelopers, useConfig, useMetadataConfig, ratedCount, avgRating, ratingStatus, ocenaLog, DataBusProvider, useDataBus, extractModuleContext });
