@@ -568,8 +568,70 @@ function WeightedUsiScore({ score, size = 40 }) {
   );
 }
 
+// ─── Moduły (BaseModule & ErrorBoundary) ───────────────────────
+class ModuleErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      if (this.props.fallback) return this.props.fallback;
+      return (
+        <div style={{ padding: 16, border: '1px dashed var(--usi-danger)', borderRadius: 12, backgroundColor: 'var(--usi-surface-2)', color: 'var(--usi-danger)', fontSize: 13, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <strong>Moduł niedostępny</strong>
+          <span style={{ fontSize: 11, opacity: 0.8, fontFamily: 'monospace' }}>{this.state.error?.message || 'Błąd renderowania'}</span>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function BaseModule({ title, icon, children, errorFallback, style }) {
+  return (
+    <div className="usi-card module-card" style={{ display: 'flex', flexDirection: 'column', minHeight: 100, ...style }}>
+      {title && (
+        <div style={{ padding: '12px 16px', borderBottom: '.5px solid var(--usi-border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {icon && <Icon name={icon} size={16} color="var(--usi-ink-3)" />}
+          <span className="usi-h3" style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--usi-ink-2)' }}>{title}</span>
+        </div>
+      )}
+      <div style={{ flex: 1, padding: 16, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+        <ModuleErrorBoundary fallback={errorFallback}>
+          {children}
+        </ModuleErrorBoundary>
+      </div>
+    </div>
+  );
+}
+
+function SkeletonModule({ shouldThrow = false }) {
+  if (shouldThrow) {
+    throw new Error("Sztuczny błąd wygenerowany dla testu ErrorBoundary");
+  }
+  return (
+    <BaseModule title="Skeleton Test" icon="box">
+      <div style={{ flex: 1, backgroundColor: 'var(--usi-surface-3)', borderRadius: 8, animation: 'pulse 1.5s infinite ease-in-out' }} />
+      <style>{`
+        @keyframes pulse {
+          0% { opacity: 0.5; }
+          50% { opacity: 0.8; }
+          100% { opacity: 0.5; }
+        }
+      `}</style>
+    </BaseModule>
+  );
+}
+
 Object.assign(window, {
   Spinner, USIStarLogo, StarRating, CategoryRating, SourceBadge, StandardCard,
   CategoryStripe, CategoryDots, MiniMap, ProgressRing, Icon,
   NavDrawer, NavMenuButton, UsiStarScore, WeightedUsiScore,
+  ModuleErrorBoundary, BaseModule, SkeletonModule
 });
