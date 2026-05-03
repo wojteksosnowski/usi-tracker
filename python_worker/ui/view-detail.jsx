@@ -2,48 +2,6 @@
 // Komponenty galerii → view-detail-gallery.jsx
 // Hook i panel ocen → view-detail-ratings.jsx
 
-function Row({ k, v, mono }) {
-  return (
-    <div data-component="Row">
-      <div className="usi-small" style={{ marginBottom: 1 }}>{k}</div>
-      <div className={mono ? 'usi-mono' : ''} style={{ fontWeight: 500 }}>{v}</div>
-    </div>
-  );
-}
-
-function MetadataBlock({ inv, config }) {
-  if (!config) return <div className="usi-tiny">Ładowanie metadanych...</div>;
-
-  const getValue = (obj, path) => {
-    return path.split('.').reduce((acc, part) => acc && acc[part], obj);
-  };
-
-  const renderValue = (val, type) => {
-    if (val === null || val === undefined || val === '') return '—';
-    if (type === 'currency' && typeof val === 'number') return `${val.toLocaleString('pl-PL')} zł/m²`;
-    if (Array.isArray(val)) return val.length;
-    return val;
-  };
-
-  return (
-    <div data-component="MetadataBlock">
-      <div className="usi-tiny" style={{ marginBottom: 8 }}>Metadane</div>
-      <div data-component="MetadataBlock-Grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px', fontSize: 13 }}>
-        {config.map(field => {
-          const val = getValue(inv, field.path);
-          return <Row key={field.key} k={field.label} v={renderValue(val, field.type)} mono={field.type === 'currency' || field.type === 'count'} />;
-        })}
-        {inv.folder_path && (
-          <div data-component="MetadataBlock-FolderPath" style={{ gridColumn: 'span 2', marginTop: 4 }}>
-            <div className="usi-small" style={{ marginBottom: 1 }}>Ścieżka folderu</div>
-            <div className="usi-mono" style={{ fontSize: 11, wordBreak: 'break-all', opacity: 0.8 }}>{inv.folder_path}</div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function SourceLinks({ inv }) {
   const links = inv.source_links || [{ source: inv.source, url: inv.source_url }];
   return (
@@ -92,18 +50,18 @@ function HeroBand({ inv, showMap, moduleContext }) {
       alignItems: 'center'
     }}>
       <div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
-          <h1 className="usi-h1" style={{ margin: 0 }}>{inv.name}</h1>
-          <span className="usi-body" style={{ color: 'var(--usi-ink-3)' }}>{inv.developer}</span>
+        <div data-component="HeroBand-TitleRow" style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
+          <h1 data-component="HeroBand-Title" className="usi-h1" style={{ margin: 0 }}>{inv.name}</h1>
+          <span data-component="HeroBand-Developer" className="usi-body" style={{ color: 'var(--usi-ink-3)' }}>{inv.developer}</span>
           <div style={{ flex: 1 }} />
           <SourceLinks inv={inv} />
         </div>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, color: 'var(--usi-ink-3)' }}>
-          {inv.address && <span>📍 {inv.address}</span>}
-          {inv.units > 0 && <span className="usi-mono">{inv.units} mieszk.</span>}
-          {inv.price_avg > 0 && <span className="usi-mono">{inv.price_avg.toLocaleString('pl-PL')} zł/m²</span>}
-          <span className="usi-mono">{inv.delivery}</span>
-          {inv.amenities && inv.amenities.length > 0 && <span>{inv.amenities.length} udogodnień</span>}
+        <div data-component="HeroBand-Stats" style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, color: 'var(--usi-ink-3)' }}>
+          {inv.address && <span data-component="Stat-Address">📍 {inv.address}</span>}
+          {inv.units > 0 && <span data-component="Stat-Units" className="usi-mono">{inv.units} mieszk.</span>}
+          {inv.price_avg > 0 && <span data-component="Stat-Price" className="usi-mono">{inv.price_avg.toLocaleString('pl-PL')} zł/m²</span>}
+          <span data-component="Stat-Delivery" className="usi-mono">{inv.delivery}</span>
+          {inv.amenities && inv.amenities.length > 0 && <span data-component="Stat-Amenities">{inv.amenities.length} udogodnień</span>}
         </div>
       </div>
 
@@ -138,21 +96,21 @@ function ModeC({ inv, density = 4, ratingVariant, showMap, marked, onToggleMark,
         background: 'var(--usi-surface)',
         borderTop: '.5px solid var(--usi-border)',
         boxShadow: '0 -8px 24px rgba(0,0,0,0.04)',
-        padding: '12px 24px',
+        padding: '16px 24px',
         flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
           <div style={{ display: 'flex', gap: 16, flex: 1, flexWrap: 'wrap' }}>
             {USI_CATEGORIES.map((cat, idx) => (
               <div key={cat.key} onClick={() => onFocusedCatChange && onFocusedCatChange(idx)}
                 style={{
                   display: 'flex', flexDirection: 'column', gap: 4,
-                  background: idx === focusedCat ? 'rgba(0,0,0,0.05)' : 'transparent',
-                  borderRadius: 6, padding: '3px 6px', margin: '0 -6px',
+                  background: idx === focusedCat ? 'var(--usi-surface-2)' : 'transparent',
+                  borderRadius: 6, padding: '4px 8px', margin: '0 -8px',
                   cursor: 'default', transition: 'background .12s',
                 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: cat.color }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: cat.color }} />
                   <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--usi-ink-2)' }}>{cat.key}</span>
                 </div>
                 <CategoryRating category={cat} value={ratings[cat.key] ?? null}
@@ -189,8 +147,6 @@ function ModeC({ inv, density = 4, ratingVariant, showMap, marked, onToggleMark,
     </div>
   );
 }
-
-// ... existing ...
 
 function getDistance(lat1, lon1, lat2, lon2) {
   const R = 6371; // km
@@ -318,135 +274,152 @@ function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onUp
 
   const toggleMark = (i) => {
     const s = new Set(marked);
-    s.has(i) ? s.delete(i) : s.add(i);
+    if (s.has(i)) s.delete(i); else s.add(i);
     setMarked(s);
   };
 
-  const handleSaveDelete = () => {
-    const paths = [...marked].map(i => inv.photos[i]).filter(Boolean);
-    fetch(`/api/mark-delete/${inv.developer_slug}/${inv.investment_slug}`, {
+  const handleDeleteMarked = () => {
+    if (marked.size === 0) return;
+    if (!confirm(`Czy na pewno chcesz oznaczyć ${marked.size} zdjęć do usunięcia?`)) return;
+    const slugs = Array.from(marked).map(idx => inv.photos[idx]);
+    fetch(`/api/investment/${inv.developer_slug}/${inv.investment_slug}/delete-photos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paths }),
+      body: JSON.stringify({ photos: slugs })
     })
-      .then(() => {
-        setHiddenPhotos(prev => new Set([...prev, ...paths]));
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        setDeleteMsg(`${marked.size} zdjęć oznaczono do usunięcia.`);
         setMarked(new Set());
-        setDeleteMsg(`Ukryto ${paths.length} zdjęć`);
         setTimeout(() => setDeleteMsg(''), 3000);
-      })
-      .catch(() => {});
+      }
+    });
   };
 
-  const visiblePhotos = (inv.photos || []).filter(p => !hiddenPhotos.has(p));
+  const handleNav = (dir) => {
+    if (dir === 'prev') onPrev(); else onNext();
+  };
 
   const toolbar = (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 10,
       padding: '10px 24px', borderBottom: '.5px solid var(--usi-border)',
-      background: 'var(--usi-surface)', flexShrink: 0, fontSize: 13,
+      background: 'var(--usi-surface)', flexShrink: 0,
       position: 'relative'
     }}>
       <NavMenuButton onClick={() => setNavOpen(true)} />
       <button className="usi-btn ghost" onClick={onBack}><Icon name="chevronLeft" /> Powrót</button>
-      <span className="usi-small">{invIndex + 1} z {invTotal}</span>
-      <button className="usi-btn ghost sm" onClick={handleReload} disabled={reloading} title="Pobierz świeże dane od dostawcy">
-        {reloading ? <Spinner size={12} stroke={1.5} /> : <Icon name="sparkle" size={12} />}
-        {reloading ? ' Pobieranie...' : ' Przeładuj'}
-      </button>
-      <div style={{ flex: 1 }} />
-      {deleteMsg && (
-        <span className="usi-small" style={{ color: 'var(--usi-success)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-          <Icon name="check" size={11} /> {deleteMsg}
-        </span>
-      )}
-      {marked.size > 0 ? (
-        <>
-          <span className="usi-pill danger">
-            <Icon name="trash" size={11} /> {marked.size} do usunięcia
-          </span>
-          <button className="usi-btn ghost sm" onClick={() => setMarked(new Set())} title="Cofnij wszystkie">
-            <Icon name="undo" size={12} /> Cofnij
-          </button>
-          <button className="usi-btn sm danger" onClick={handleSaveDelete}>
-            <Icon name="trash" size={12} /> Zatwierdź ({marked.size})
-          </button>
-        </>
-      ) : (
-        <span className="usi-small" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--usi-ink-4)' }}>
-          <Icon name="info" size={12} /> Kliknij <Icon name="trash" size={11} /> przy zdjęciu, by oznaczyć
-        </span>
-      )}
-      <div style={{
-        display: 'inline-flex', background: 'var(--usi-surface-3)', borderRadius: 8, padding: 2,
-        border: '.5px solid var(--usi-border)',
-      }}>
-        {['A', 'C'].map(m => (
-          <button key={m} onClick={() => setDetailMode(m)}
-            style={{
-              border: 'none', borderRadius: 6,
-              background: detailMode === m ? 'var(--usi-surface)' : 'transparent',
-              color: detailMode === m ? 'var(--usi-ink)' : 'var(--usi-ink-3)',
-              fontWeight: 600, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
-              padding: '3px 10px', height: 26,
-              boxShadow: detailMode === m ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-              transition: 'all .12s',
-            }}>{m}</button>
-        ))}
+      <div style={{ flex: 1, textAlign: 'center' }}>
+        <div style={{ display: 'inline-flex', background: 'var(--usi-surface-3)', borderRadius: 8, padding: 2 }}>
+            <button className="usi-btn sm ghost" style={{ background: detailMode === 'A' ? 'var(--usi-surface)' : 'transparent', boxShadow: detailMode === 'A' ? 'var(--usi-shadow-sm)' : 'none' }} onClick={() => setDetailMode('A')}>Tryb A</button>
+            <button className="usi-btn sm ghost" style={{ background: detailMode === 'C' ? 'var(--usi-surface)' : 'transparent', boxShadow: detailMode === 'C' ? 'var(--usi-shadow-sm)' : 'none' }} onClick={() => setDetailMode('C')}>Tryb C</button>
+        </div>
       </div>
-      <button className="usi-btn ghost icon" onClick={onPrev} title="Poprzednia"><Icon name="chevronLeft" /></button>
-      <button className="usi-btn ghost icon" onClick={onNext} title="Następna"><Icon name="chevron" /></button>
-      {navOpen && <NavDrawer current="detail" onClose={() => setNavOpen(false)} onNav={v => { setNavOpen(false); onNav && onNav(v); }} dark={dark} onToggleTheme={onToggleTheme} />}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button className="usi-btn sm ghost icon" onClick={() => handleNav('prev')} title="Poprzednia (strzałka góra)"><Icon name="chevronLeft" style={{ transform: 'rotate(90deg)' }} /></button>
+        <span className="usi-small usi-mono" style={{ minWidth: 40, textAlign: 'center' }}>{invIndex+1} / {invTotal}</span>
+        <button className="usi-btn sm ghost icon" onClick={() => handleNav('next')} title="Następna (strzałka dół)"><Icon name="chevronLeft" style={{ transform: 'rotate(-90deg)' }} /></button>
+      </div>
+      {navOpen && <NavDrawer current="list" onClose={() => setNavOpen(false)} onNav={v => { setNavOpen(false); onNav(v); }} dark={dark} onToggleTheme={onToggleTheme} />}
     </div>
   );
+
+  if (detailMode === 'C') {
+    return (
+      <div data-component="DetailRightPanel" className="usi-app" style={{ background: 'var(--usi-bg)', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {toolbar}
+        <ModeC inv={inv} marked={marked} onToggleMark={toggleMark} 
+          onLightbox={idx => setLightbox(idx)}
+          ratings={ratings} handleRating={handleRating}
+          comment={comment} handleComment={handleComment}
+          saved={saved} focusedCat={focusedCat} 
+          onFocusedCatChange={setFocusedCat}
+          moduleContext={getModuleContext()}
+        />
+        {lightbox !== null && <Lightbox inv={inv} index={lightbox} onClose={() => setLightbox(null)} />}
+      </div>
+    );
+  }
 
   return (
     <div data-component="DetailRightPanel" className="usi-app" style={{ background: 'var(--usi-bg)', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {toolbar}
+      
+      <HeroBand inv={inv} showMap={showMap} moduleContext={getModuleContext()} />
 
-      {detailMode === 'A' ? (
-        <>
-          <HeroBand inv={inv} showMap={showMap} moduleContext={getModuleContext()} />
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', flex: 1, overflow: 'hidden', marginTop: 16 }}>
-            <div style={{ padding: '0 8px 24px 24px', overflow: 'auto' }} className="usi-scroll">
-              <Gallery inv={{...inv, photos: visiblePhotos}} columns={density} marked={marked} onToggleMark={toggleMark} onLightbox={setLightbox} />
-            </div>
-            <aside style={{
-              borderLeft: '.5px solid var(--usi-border)',
-              background: 'var(--usi-surface)',
-              padding: '16px 18px',
-              overflow: 'auto',
-              display: 'flex', flexDirection: 'column', gap: 16,
-            }} className="usi-scroll">
-              <RatingsPanel inv={inv} variant={ratingVariant}
-                ratings={ratings} handleRating={handleRating}
-                comment={comment} handleComment={handleComment}
-                status={status} handleStatus={handleStatus} saved={saved}
-                focusedCat={focusedCat} onFocusedCatChange={setFocusedCat} />
-            </aside>
-            <aside style={{
-              borderLeft: '.5px solid var(--usi-border)',
-              background: 'var(--usi-surface)',
-              padding: '16px 18px',
-              overflow: 'auto',
-              display: 'flex', flexDirection: 'column', gap: 16,
-            }} className="usi-scroll">
-              <MetadataBlock inv={inv} config={metaConfig} />
-            </aside>
-          </div>
-        </>
-      ) : (
-        <ModeC inv={{...inv, photos: visiblePhotos}} density={density + 1} ratingVariant={ratingVariant} showMap={showMap}
-          marked={marked} onToggleMark={toggleMark} onLightbox={setLightbox}
-          ratings={ratings} handleRating={handleRating}
-          comment={comment} handleComment={handleComment} saved={saved}
-          focusedCat={focusedCat} onFocusedCatChange={setFocusedCat}
-          moduleContext={getModuleContext()} />
+      {deleteMsg && (
+        <div style={{ background: 'var(--usi-success)', color: '#fff', padding: '8px 24px', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Icon name="check" /> {deleteMsg}
+        </div>
       )}
 
-      {lightbox != null && <Lightbox inv={{...inv, photos: visiblePhotos}} index={lightbox} onClose={() => setLightbox(null)} />}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px 300px', flex: 1, overflow: 'hidden' }}>
+        <div style={{ padding: '0 8px 24px 24px', overflow: 'auto' }} className="usi-scroll">
+          <Gallery inv={inv} marked={marked} onToggleMark={toggleMark} onLightbox={setLightbox} columns={density} />
+        </div>
+
+        <div style={{ borderLeft: '.5px solid var(--usi-border)', display: 'flex', flexDirection: 'column', background: 'var(--usi-surface)', overflow: 'hidden' }}>
+          <div style={{ padding: '16px 18px', borderBottom: '.5px solid var(--usi-border)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h3 className="usi-h3" style={{ margin: 0 }}>Oceny i Akcje</h3>
+            <div style={{ display: 'flex', gap: 6 }}>
+                <button className="usi-btn sm ghost" onClick={handleReload} disabled={reloading}>{reloading ? '...' : 'Reload'}</button>
+                <button className="usi-btn sm danger" onClick={handleDeleteMarked} disabled={marked.size === 0}>Usuń {marked.size > 0 ? `(${marked.size})` : ''}</button>
+            </div>
+          </div>
+          <div style={{ padding: '16px 18px', overflow: 'auto', flex: 1 }} className="usi-scroll">
+            <RatingsPanel inv={inv} ratings={ratings} handleRating={handleRating} 
+              comment={comment} handleComment={handleComment}
+              status={status} handleStatus={handleStatus}
+              saved={saved} focusedCat={focusedCat}
+              onFocusedCatChange={setFocusedCat}
+            />
+          </div>
+        </div>
+
+        <aside style={{ borderLeft: '.5px solid var(--usi-border)', display: 'flex', flexDirection: 'column', background: 'var(--usi-surface-2)', overflow: 'hidden' }}>
+          <div style={{ padding: '16px 18px', borderBottom: '.5px solid var(--usi-border)', flexShrink: 0 }}>
+            <h3 className="usi-h3" style={{ margin: 0 }}>Szczegóły</h3>
+          </div>
+          <div style={{ padding: '16px 18px', overflow: 'auto', flex: 1 }} className="usi-scroll">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              <MetadataPanel inv={inv} config={metaConfig} />
+              
+              {inv.coords && (
+                 <ModuleWrapper 
+                   component={NearbyInvestmentsModule}
+                   moduleSpec={{
+                     inputs: { items: { type: ModuleTypes.RecordSet, from: 'nearbyInvestments' } }
+                   }}
+                   context={bus}
+                   title="W okolicy"
+                   icon="map"
+                   height={240}
+                 />
+              )}
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      {lightbox !== null && <Lightbox inv={inv} index={lightbox} onClose={() => setLightbox(null)} />}
     </div>
   );
 }
 
-Object.assign(window, { DetailRightPanel, MetadataBlock });
+function NearbyInvestmentsModule({ items = [] }) {
+  if (items.length === 0) return <div className="usi-small" style={{ color: 'var(--usi-ink-4)' }}>Brak innych inwestycji w promieniu 5km.</div>;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {items.slice(0, 10).map(i => (
+        <div key={i.slug} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--usi-accent)' }} />
+          <div style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{i.name}</div>
+          <div className="usi-mono" style={{ opacity: 0.6 }}>{i.distance.toFixed(1)}km</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+Object.assign(window, { DetailRightPanel });

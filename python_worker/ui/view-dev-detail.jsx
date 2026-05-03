@@ -125,8 +125,8 @@ function DeveloperDetail({
 
   const toolbar = (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 10,
-      padding: '10px 24px', borderBottom: '.5px solid var(--usi-border)',
+      display: 'flex', alignItems: 'center', gap: 12,
+      padding: '16px 24px', borderBottom: '.5px solid var(--usi-border)',
       background: 'var(--usi-surface)', flexShrink: 0, fontSize: 13,
       position: 'relative'
     }}>
@@ -277,10 +277,10 @@ function DeveloperHeroBand({ dev }) {
       background: 'var(--usi-surface)',
       borderBottom: '.5px solid var(--usi-border)',
       padding: '24px 24px',
-      marginBottom: 20
+      marginBottom: 24
     }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20 }}>
-        <div style={{ 
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 24 }}>
+        <div data-component="Developer-Avatar" style={{ 
           width: 80, height: 80, borderRadius: 12, 
           background: 'var(--usi-surface-3)', 
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -290,11 +290,11 @@ function DeveloperHeroBand({ dev }) {
           🏢
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
-            <h1 className="usi-h1" style={{ margin: 0 }}>{dev.name}</h1>
-            <span className="usi-pill outline usi-mono">{dev.usi_dev_id}</span>
+          <div data-component="Developer-TitleRow" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+            <h1 data-component="Developer-Name" className="usi-h1" style={{ margin: 0 }}>{dev.name}</h1>
+            <span data-component="Developer-ID" className="usi-pill outline usi-mono">{dev.usi_dev_id}</span>
           </div>
-          <div className="usi-body" style={{ color: 'var(--usi-ink-3)', marginBottom: 12 }}>{dev.developer_slug}</div>
+          <div data-component="Developer-Slug" className="usi-body" style={{ color: 'var(--usi-ink-3)', marginBottom: 12 }}>{dev.developer_slug}</div>
           <div style={{ display: 'flex', gap: 16 }}>
             {dev.website && (
               <a href={dev.website} target="_blank" rel="noopener" className="usi-btn sm ghost">
@@ -368,7 +368,7 @@ function DeveloperSuggestions({ dev, onMerge, onDismiss }) {
   if (!dev.suggestions || dev.suggestions.length === 0) return null;
 
   return (
-    <div className="usi-card" style={{ padding: 16, border: '1px solid var(--usi-accent-10)', background: 'var(--usi-bg)' }}>
+    <div className="usi-card" style={{ padding: 16, border: '1px solid var(--usi-accent)', background: 'var(--usi-surface-2)' }}>
       <h3 className="usi-h3" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12, color: 'var(--usi-accent)' }}>
         <window.Icon name="sparkle" size={12} /> Sugerowane Powiązania
       </h3>

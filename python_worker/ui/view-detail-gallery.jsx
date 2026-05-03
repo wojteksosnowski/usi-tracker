@@ -3,7 +3,7 @@
 function tileBtn(active) {
   return {
     width: 28, height: 28, borderRadius: 6, border: 'none',
-    background: active ? '#C0392B' : 'rgba(0,0,0,0.55)',
+    background: active ? 'var(--usi-danger)' : 'rgba(0,0,0,0.55)',
     color: '#fff', cursor: 'pointer', backdropFilter: 'blur(6px)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     zIndex: 1, position: 'relative',
@@ -15,7 +15,7 @@ function DeletionBadge({ zIndex }) {
   return (
     <div data-component="DeletionBadge" style={{
       position: 'absolute', top: 10, left: 10,
-      background: '#C0392B', color: '#fff',
+      background: 'var(--usi-danger)', color: '#fff',
       padding: '4px 8px', borderRadius: 4,
       fontSize: 10, fontWeight: 700, letterSpacing: '.06em',
       display: 'flex', alignItems: 'center', gap: 5,
@@ -57,7 +57,7 @@ function PhotoTile({ src, marked, onMark, onOpen, ratio = '4/3', hero = false })
       style={{
         position: 'relative', aspectRatio: ratio, borderRadius: hero ? 12 : 8, overflow: 'hidden',
         background: 'var(--usi-surface-3)',
-        border: marked ? '2px solid #C0392B' : '.5px solid var(--usi-border)',
+        border: marked ? '2px solid var(--usi-danger)' : '.5px solid var(--usi-border)',
         outline: marked ? '3px solid rgba(192,57,43,0.18)' : 'none',
         outlineOffset: marked ? -3 : 0,
         transition: 'border-color .15s, outline-color .15s',

@@ -22,16 +22,16 @@ function ReportsList({ onSelectReport, onNav, dark, onToggleTheme }) {
 
   return (
     <div data-component="ReportsList" className="usi-app" style={{ background: 'var(--usi-bg)', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '12px 24px', borderBottom: '.5px solid var(--usi-border)', background: 'var(--usi-surface)' }}>
+      <div data-component="ReportsList-Toolbar" style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 24px', borderBottom: '.5px solid var(--usi-border)', background: 'var(--usi-surface)' }}>
         <NavMenuButton onClick={() => setNavOpen(true)} />
-        <h1 className="usi-h1" style={{ margin: 0, fontSize: 18 }}>Raporty USI</h1>
+        <h1 className="usi-h2" style={{ margin: 0 }}>Raporty USI</h1>
         <div style={{ flex: 1 }} />
-        <button className="usi-btn ghost sm" onClick={fetchReports}>
+        <button data-component="Reports-Refresh" className="usi-btn ghost sm" onClick={fetchReports}>
           <Icon name="sparkle" size={14} /> Odśwież
         </button>
       </div>
 
-      <div style={{ padding: 24, overflow: 'auto', flex: 1 }} className="usi-scroll">
+      <div data-component="ReportsList-Grid" style={{ padding: 24, overflow: 'auto', flex: 1 }} className="usi-scroll">
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 100 }}><Spinner /></div>
         ) : reports.length === 0 ? (
@@ -39,7 +39,9 @@ function ReportsList({ onSelectReport, onNav, dark, onToggleTheme }) {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
             {reports.map(report => (
-              <div key={report.id} className="usi-card" 
+              <div key={report.id} 
+                data-component="ReportCard"
+                className="usi-card" 
                 onClick={() => onSelectReport(report)}
                 style={{ padding: 20, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 10, transition: 'transform .2s' }}>
                 <h2 className="usi-h2" style={{ margin: 0 }}>{report.title}</h2>

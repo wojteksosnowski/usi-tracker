@@ -255,19 +255,23 @@ function App() {
           />
         )}
         {view === 'download' && (
-          <ViewDownload 
-            onNav={handleNav}
-            dark={dark}
-            onToggleTheme={handleToggleTheme}
-          />
+          <ModuleErrorBoundary>
+            <ViewDownload 
+              onNav={handleNav}
+              dark={dark}
+              onToggleTheme={handleToggleTheme}
+            />
+          </ModuleErrorBoundary>
         )}
         {view === 'reports' && (
-          <ReportsList
-            onSelectReport={handleSelectReport}
-            onNav={handleNav}
-            dark={dark}
-            onToggleTheme={handleToggleTheme}
-          />
+          <ModuleErrorBoundary>
+            <ReportsList
+              onSelectReport={handleSelectReport}
+              onNav={handleNav}
+              dark={dark}
+              onToggleTheme={handleToggleTheme}
+            />
+          </ModuleErrorBoundary>
         )}
         {view === 'report-detail' && selectedReport && (
           <ReportDetail

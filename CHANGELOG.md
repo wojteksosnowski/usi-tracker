@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## Witryna sklepowa — 2026-05-03
+
+- Zsynchronizowano `theme.jsx` z Design Systemem, wprowadzając tokeny CSS i ujednolicając siatkę (8px/16px) we wszystkich widokach.
+- Wzbogacono warstwę semantyczną interfejsu poprzez dodanie precyzyjnych atrybutów `data-component` do interaktywnych elementów i sekcji informacyjnych.
+- Przeprowadzono refaktoryzację struktury UI, wydzielając logikę analityczną i metadane do reużywalnych komponentów w `components.jsx`.
+- Zoptymalizowano pliki widoków (Dashboard, List, Detail) poprzez redukcję nadmiarowego kodu i wprowadzenie uniwersalnych komponentów sterujących.
+- Potwierdzono stabilność systemu i poprawność komunikacji przez `DataBus` oraz bezbłędne działanie filtrów i nawigacji po zmianach.
+
+## Dania Fast Food — 2026-05-03
+
+- Zaimplementowano fundamenty architektury modułowej: BaseModule, ModuleErrorBoundary i SkeletonModule.
+- Dodano system typowania i walidacji ModuleSchemaValidator dla wejść do modułów.
+- Wyciągnięto logikę dostępu do danych w extractModuleContext i zintegrowano ją w widokach listy i szczegółów inwestycji.
+- Stworzono uniwersalny ModuleWrapper pozwalający na łatwe podpinanie komponentów pod nową architekturę.
+- Dodano responsywność modułów przez ResizeObserver przekazujący szerokość kontenera.
+- Zrefaktoryzowano i podpięto MiniMap jako udany test nowej architektury.
+
 ## Domowe obiady — 2026-05-03
 
 - Wdrożono infrastrukturę Szyny Danych (DataBus) opartą na React Context, umożliwiającą globalną wymianę stanu między niezależnymi widokami.
@@ -45,11 +62,4 @@
 - Zaimplementowano audyt zmian (created_at/updated_at) oraz mechanizm rozdzielania rekordów dualnych (RP+OTO).
 - Zoptymalizowano strukturę danych i schematy JSON oraz usprawniono proces importu z CSV (USImaster).
 
-## Dania Fast Food — 2026-05-03
 
-- Zaimplementowano fundamenty architektury modułowej: BaseModule, ModuleErrorBoundary i SkeletonModule.
-- Dodano system typowania i walidacji ModuleSchemaValidator dla wejść do modułów.
-- Wyciągnięto logikę dostępu do danych w extractModuleContext i zintegrowano ją w widokach listy i szczegółów inwestycji.
-- Stworzono uniwersalny ModuleWrapper pozwalający na łatwe podpinanie komponentów pod nową architekturę.
-- Dodano responsywność modułów przez ResizeObserver przekazujący szerokość kontenera.
-- Zrefaktoryzowano i podpięto MiniMap jako udany test nowej architektury.

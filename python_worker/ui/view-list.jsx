@@ -101,39 +101,38 @@ function ListGrid({
 
   return (
     <div data-component="ListGrid" className="usi-app" style={{ background: 'var(--usi-bg)', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <ListToolbar
-        mode={mode} onModeChange={setMode}
-        count={filteredInvestments.length} total={investments.length}
+      <ListToolbar 
+        mode={mode} onModeChange={setMode} 
+        count={filteredInvestments.length} total={investments.length} 
         search={search} onSearch={onSearch}
-        developers={developers} filterDev={filterDev} onFilterDev={onFilterDev}
+        developers={developers}
+        filterDev={filterDev} onFilterDev={onFilterDev}
         filterStatus={filterStatus} onFilterStatus={onFilterStatus}
         onNav={onNav}
         activeSources={activeSources} onToggleSource={toggleSource}
         activeCities={activeCities} onToggleCity={toggleCity}
         dark={dark} onToggleTheme={onToggleTheme}
       />
+      
       <div 
         ref={containerRef}
         onScroll={handleScroll}
-        style={{ padding: '0 24px 32px', overflow: 'auto', flex: 1, position: 'relative' }} 
+        style={{ padding: '0 24px 32px', overflow: 'auto', flex: 1, position: 'relative' }}
         className="usi-scroll"
       >
-        <div style={{ paddingTop, paddingBottom, minHeight: '100%' }}>
+        <div style={{ height: paddingTop }} />
+        <div style={{ 
+            display: mode === 'grid' ? 'grid' : 'block', 
+            gridTemplateColumns: mode === 'grid' ? `repeat(${itemsPerRow}, 1fr)` : 'none',
+            gap: 16,
+        }}>
           {mode === 'grid' ? (
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: `repeat(${itemsPerRow}, 1fr)`, 
-              gap: 16,
-              paddingTop: 20
-            }}>
-              {visibleItems.map(inv => <ListCard key={inv.slug} inv={inv} onSelect={() => onSelectInv(inv)} />)}
-            </div>
+            visibleItems.map(inv => <ListCard key={inv.slug} inv={inv} onSelect={() => onSelectInv(inv)} />)
           ) : (
-            <div style={{ paddingTop: 16 }}>
-              <ListTableContent investments={visibleItems} onSelectInv={onSelectInv} />
-            </div>
+            <ListTableContent investments={visibleItems} onSelectInv={onSelectInv} />
           )}
         </div>
+        <div style={{ height: paddingBottom }} />
         
         {filteredInvestments.length === 0 && (
           <div style={{ textAlign: 'center', color: 'var(--usi-ink-4)', padding: '60px 0' }}>
@@ -149,32 +148,6 @@ function ListGrid({
 function ListToolbar({ mode, onModeChange, count, total, search, onSearch, developers, filterDev, onFilterDev, filterStatus, onFilterStatus, onNav, activeSources, onToggleSource, activeCities, onToggleCity, dark, onToggleTheme }) {
   const [navOpen, setNavOpen] = React.useState(false);
 
-  const Chip = ({ label, active, onClick, color, source }) => (
-    <button
-      onClick={(e) => onClick(e.shiftKey)}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        padding: '6px 12px',
-        borderRadius: '16px',
-        fontSize: '11px',
-        fontWeight: 700,
-        cursor: 'pointer',
-        border: '1.5px solid ' + (active ? (color || 'var(--usi-accent)') : 'var(--usi-border)'),
-        background: active ? (color ? color + '15' : 'var(--usi-accent-10)') : 'var(--usi-surface)',
-        color: active ? (color || 'var(--usi-accent)') : 'var(--usi-ink-3)',
-        transition: 'all 0.15s ease',
-        boxShadow: active ? '0 2px 4px rgba(0,0,0,0.06)' : 'none',
-        outline: 'none',
-        textTransform: 'uppercase',
-        letterSpacing: '0.02em'
-      }}
-    >
-      {source && <SourceBadge source={source} />}
-      <span style={{ marginLeft: source ? 6 : 0 }}>{label}</span>
-    </button>
-  );
-
   return (
     <div data-component="ListToolbar" style={{
       display: 'flex', flexDirection: 'column',
@@ -184,18 +157,18 @@ function ListToolbar({ mode, onModeChange, count, total, search, onSearch, devel
     }}>
       <div data-component="ListToolbar-Top" style={{
         display: 'flex', alignItems: 'center', gap: 12,
-        padding: '14px 24px', flexWrap: 'wrap', rowGap: 12,
+        padding: '16px 24px', flexWrap: 'wrap', rowGap: 12,
         position: 'relative'
       }}>
         <div data-component="ListToolbar-Nav" style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
           <NavMenuButton onClick={() => setNavOpen(true)} />
-          <h1 className="usi-h1" style={{ margin: 0, fontSize: 20 }}>Inwestycje</h1>
-          <span className="usi-pill outline">{count}{count !== total ? '/' + total : ''}</span>
+          <h1 data-component="ListToolbar-Title" className="usi-h2" style={{ margin: 0 }}>Inwestycje</h1>
+          <span data-component="ListToolbar-Count" className="usi-pill outline">{count}{count !== total ? '/' + total : ''}</span>
         </div>
         <div style={{ flex: 1, minWidth: 20 }} />
         <div data-component="ListToolbar-Search" style={{ position: 'relative', flex: '1 1 200px', maxWidth: 400 }}>
           <span style={{ position: 'absolute', left: 10, top: 9, color: 'var(--usi-ink-4)' }}><Icon name="search" /></span>
-          <input className="usi-input" placeholder="Szukaj inwestycji, dewelopera, dzielnicy…"
+          <input data-component="Search-Input" className="usi-input" placeholder="Szukaj inwestycji, dewelopera, dzielnicy…"
             value={search} onChange={e => onSearch(e.target.value)}
             style={{ width: '100%', paddingLeft: 32, borderRadius: 20 }} />
         </div>
@@ -203,7 +176,11 @@ function ListToolbar({ mode, onModeChange, count, total, search, onSearch, devel
           <select data-component="Filter-Developer" className="usi-input" style={{ width: 'auto', height: 34, minWidth: 160, borderRadius: 8 }}
             value={filterDev} onChange={e => onFilterDev(e.target.value)}>
             <option value="">Wszyscy deweloperzy</option>
-            {developers.map(d => <option key={d} value={d}>{d}</option>)}
+            {developers.map(d => {
+              const val = typeof d === 'string' ? d : (d.developer_slug || d.name);
+              const label = typeof d === 'string' ? d : d.name;
+              return <option key={val} value={val}>{label}</option>;
+            })}
           </select>
           <select data-component="Filter-Status" className="usi-input" style={{ width: 'auto', height: 34, borderRadius: 8 }}
             value={filterStatus} onChange={e => onFilterStatus(e.target.value)}>
@@ -235,14 +212,14 @@ function ListToolbar({ mode, onModeChange, count, total, search, onSearch, devel
         <div data-component="Filter-Sources" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--usi-ink-4)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Źródła</span>
           {SOURCES.map(s => (
-            <Chip key={s.id} label={s.label} source={s.id} active={activeSources.has(s.id)} color={s.color} onClick={(isShift) => onToggleSource(s.id, isShift)} />
+            <FilterChip key={s.id} label={s.label} source={s.id} active={activeSources.has(s.id)} color={s.color} onClick={(isShift) => onToggleSource(s.id, isShift)} />
           ))}
         </div>
         <div style={{ width: 1, height: 20, background: 'var(--usi-border)' }} />
         <div data-component="Filter-Cities" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--usi-ink-4)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Miasta</span>
           {MAIN_CITIES.map(city => (
-            <Chip key={city} label={city} active={activeCities.has(city)} onClick={(isShift) => onToggleCity(city, isShift)} />
+            <FilterChip key={city} label={city} active={activeCities.has(city)} onClick={(isShift) => onToggleCity(city, isShift)} />
           ))}
           {activeCities.size > 0 && (
             <button className="usi-btn ghost sm" onClick={() => onToggleCity(null, true)} style={{ padding: '4px 8px', fontSize: 11 }}>Wyczyść</button>
@@ -259,43 +236,36 @@ function ListCard({ inv, onSelect }) {
   const thumb = inv.photos && inv.photos.length > 0 ? inv.photos[0] : null;
 
   return (
-    <window.StandardCard
+    <StandardCard
+      data-component="ListCard"
+      image={thumb}
       title={inv.name}
       subtitle={inv.developer}
       extra={inv.district}
-      image={thumb}
-      badges={<window.SourceBadge source={inv.source} />}
       onClick={onSelect}
-      footerLeft={
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--usi-ink)' }}>
-            {inv.price_avg > 0 ? (inv.price_avg / 1000).toFixed(1) + 'k' : '—'} 
-            <small style={{ fontWeight: 400, opacity: 0.6 }}> zł/m²</small>
-          </div>
-          <div className="usi-tiny" style={{ opacity: 0.6 }}>{inv.delivery}</div>
+      badges={<SourceBadge source={inv.source} />}
+      footerLeft={<CategoryStripe ratings={inv.ratings || {}} />}
+      footerRight={
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Icon name="star" size={12} />
+          <span className="usi-mono" style={{ fontWeight: 600 }}>{avg.toFixed(2)}</span>
         </div>
       }
-      footerRight={score !== null && (
-        <div>
-          <div className="usi-pill success usi-mono" style={{ fontSize: 11, fontWeight: 700 }}>{score.toFixed(2)}</div>
-          {avg > 0 && <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--usi-accent)', marginTop: 2 }}>★ {avg.toFixed(1)}</div>}
-        </div>
-      )}
     />
   );
 }
 
-function ListTableContent({ investments = [], onSelectInv = () => {} }) {
+function ListTableContent({ investments = [], onSelectInv }) {
   return (
-    <div data-component="ListTableContent" className="usi-card flat" style={{ background: 'var(--usi-surface)', borderRadius: 12, overflow: 'hidden' }}>
+    <div data-component="ListTableContent" className="usi-card" style={{ overflow: 'hidden' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
-          <tr style={{ background: 'var(--usi-surface-2)' }}>
-            <th className="usi-tiny" style={{ padding: '11px 12px', textAlign: 'left', borderBottom: '.5px solid var(--usi-border)' }}></th>
-            <th className="usi-tiny" style={{ padding: '11px 12px', textAlign: 'left', borderBottom: '.5px solid var(--usi-border)' }}>Inwestycja</th>
-            <th className="usi-tiny" style={{ padding: '11px 12px', textAlign: 'left', borderBottom: '.5px solid var(--usi-border)' }}>Deweloper</th>
-            <th className="usi-tiny" style={{ padding: '11px 12px', textAlign: 'left', borderBottom: '.5px solid var(--usi-border)' }}>Lokalizacja</th>
-            <th className="usi-tiny" style={{ padding: '11px 12px', textAlign: 'right', borderBottom: '.5px solid var(--usi-border)' }}>Wynik</th>
+          <tr style={{ background: 'var(--usi-surface-2)', borderBottom: '1px solid var(--usi-border)', textAlign: 'left' }}>
+            <th style={{ padding: '12px', width: 60 }}></th>
+            <th style={{ padding: '12px' }}>Inwestycja</th>
+            <th style={{ padding: '12px' }}>Deweloper</th>
+            <th style={{ padding: '12px' }}>Dzielnica</th>
+            <th style={{ padding: '12px', textAlign: 'right' }}>Ocena</th>
           </tr>
         </thead>
         <tbody>

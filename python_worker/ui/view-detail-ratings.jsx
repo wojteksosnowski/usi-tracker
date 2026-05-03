@@ -71,7 +71,7 @@ function RatingsPanel({ inv, variant = 'circles', focusedCat = -1, onFocusedCatC
     ratings = {}, handleRating, comment = '', handleComment, status = 'Brak', handleStatus, saved = false }) {
   const currentInv = { ratings };
   return (
-    <div data-component="RatingsPanel" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div data-component="RatingsPanel" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div data-component="RatingsPanel-Categories">
         <div className="usi-tiny" style={{ marginBottom: 8 }}>Ocena USI</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -81,8 +81,8 @@ function RatingsPanel({ inv, variant = 'circles', focusedCat = -1, onFocusedCatC
               onClick={() => onFocusedCatChange && onFocusedCatChange(idx)}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-                background: idx === focusedCat ? 'rgba(0,0,0,0.05)' : 'transparent',
-                borderRadius: 6, padding: '3px 4px', margin: '0 -4px',
+                background: idx === focusedCat ? 'var(--usi-surface-2)' : 'transparent',
+                borderRadius: 6, padding: '4px 8px', margin: '0 -8px',
                 cursor: 'default', transition: 'background .12s',
               }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 110 }}>
@@ -104,7 +104,7 @@ function RatingsPanel({ inv, variant = 'circles', focusedCat = -1, onFocusedCatC
       </div>
 
       {(inv.amenities && inv.amenities.length > 0) || (inv.amenities_score > 0) ? (
-        <div data-component="RatingsPanel-Amenities" style={{ padding: '4px 0', borderTop: '.5px solid var(--usi-border)', borderBottom: '.5px solid var(--usi-border)', margin: '4px 0' }}>
+        <div data-component="RatingsPanel-Amenities" style={{ padding: '8px 0', borderTop: '.5px solid var(--usi-border)', borderBottom: '.5px solid var(--usi-border)', margin: '8px 0' }}>
           {inv.amenities && inv.amenities.length > 0 && (
             <>
               <div className="usi-tiny" style={{ marginBottom: 6 }}>Udogodnienia</div>

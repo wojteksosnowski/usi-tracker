@@ -38,6 +38,7 @@ const THEME_LIGHT = {
   '--usi-shadow-lg':     '0 8px 16px rgba(31,28,22,.08), 0 24px 56px rgba(31,28,22,.12)',
   '--usi-overlay-strong':'rgba(255,255,255,.78)',
   '--usi-success':       '#1F8A4C',
+  '--usi-warn':          '#F39200',
   '--usi-danger':        '#C0392B',
   '--usi-star-empty':    'rgba(31,28,22,0.14)',
   '--usi-star-half':     'linear-gradient(90deg, currentColor 50%, rgba(31,28,22,0.14) 50%)',
@@ -59,6 +60,7 @@ const THEME_DARK = {
   '--usi-shadow-lg':     '0 8px 16px rgba(0,0,0,.5), 0 24px 56px rgba(0,0,0,.55)',
   '--usi-overlay-strong':'rgba(22,20,15,.78)',
   '--usi-success':       '#4ED38A',
+  '--usi-warn':          '#F39200',
   '--usi-danger':        '#FF6B5C',
   '--usi-star-empty':    'rgba(245,241,232,0.16)',
   '--usi-star-half':     'linear-gradient(90deg, currentColor 50%, rgba(245,241,232,0.16) 50%)',
@@ -72,6 +74,16 @@ function injectThemeCSS() {
   style.textContent = `
     @import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
+    /* USI Categories */
+    :root {
+      --usi-cat-bal: #E5006D;
+      --usi-cat-fas: #7DB951;
+      --usi-cat-wnt: #F39200;
+      --usi-cat-ter: #3989C6;
+      --usi-cat-msz: #FFCC00;
+      --usi-cat-udg: #7E7B7B;
+    }
+
     .usi-app {
       font-family: 'Instrument Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
       color: var(--usi-ink);
@@ -84,6 +96,18 @@ function injectThemeCSS() {
     .usi-app * { box-sizing: border-box; }
     .usi-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
     .usi-num  { font-variant-numeric: tabular-nums; }
+
+    /* Grid Helpers */
+    .usi-p-8 { padding: 8px; }
+    .usi-p-16 { padding: 16px; }
+    .usi-p-24 { padding: 24px; }
+    .usi-m-8 { margin: 8px; }
+    .usi-m-16 { margin: 16px; }
+    .usi-gap-4 { gap: 4px; }
+    .usi-gap-8 { gap: 8px; }
+    .usi-gap-12 { gap: 12px; }
+    .usi-gap-16 { gap: 16px; }
+    .usi-gap-24 { gap: 24px; }
 
     /* Typography scale */
     .usi-h0 { font-size: 36px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; }
