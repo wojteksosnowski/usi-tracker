@@ -1,0 +1,1080 @@
+{
+  "LoadingScreen_0_app.jsx": {
+    "component": "LoadingScreen",
+    "file": "app.jsx",
+    "static_styles": {
+      "display": "flex",
+      "alignItems": "center",
+      "justifyContent": "center",
+      "height": "100vh",
+      "flexDirection": "column",
+      "gap": "16"
+    }
+  },
+  "EmptyScreen_1_app.jsx": {
+    "component": "EmptyScreen",
+    "file": "app.jsx",
+    "static_styles": {
+      "display": "flex",
+      "alignItems": "center",
+      "justifyContent": "center",
+      "height": "100vh",
+      "flexDirection": "column",
+      "gap": "20",
+      "background": "var(--usi-bg)"
+    }
+  },
+  "App_2_app.jsx": {
+    "component": "App",
+    "file": "app.jsx",
+    "static_styles": {
+      "minHeight": "100vh"
+    }
+  },
+  "App_3_app.jsx": {
+    "component": "App",
+    "file": "app.jsx",
+    "static_styles": {
+      "minHeight": "100vh"
+    }
+  },
+  "App_4_app.jsx": {
+    "component": "App",
+    "file": "app.jsx",
+    "static_styles": {
+      "minHeight": "100vh"
+    }
+  },
+  "Spinner_0_components.jsx": {
+    "component": "Spinner",
+    "file": "components.jsx",
+    "static_styles": {}
+  },
+  "USIStarLogo_1_components.jsx": {
+    "component": "USIStarLogo",
+    "file": "components.jsx",
+    "static_styles": {}
+  },
+  "StarRating_2_components.jsx": {
+    "component": "StarRating",
+    "file": "components.jsx",
+    "static_styles": {
+      "display": "inline-flex",
+      "gap": "2",
+      "color": "c",
+      "cursor": "readonly ? 'default' : 'pointer"
+    }
+  },
+  "CategoryRating_3_components.jsx": {
+    "component": "CategoryRating",
+    "file": "components.jsx",
+    "static_styles": {
+      "display": "flex",
+      "gap": "5",
+      "alignItems": "center"
+    }
+  },
+  "CategoryRating_4_components.jsx": {
+    "component": "CategoryRating",
+    "file": "components.jsx",
+    "static_styles": {
+      "display": "flex",
+      "gap": "4",
+      "alignItems": "center"
+    }
+  },
+  "CategoryRating_5_components.jsx": {
+    "component": "CategoryRating",
+    "file": "components.jsx",
+    "static_styles": {
+      "display": "inline-flex",
+      "background": "var(--usi-surface-3)",
+      "borderRadius": "8",
+      "padding": "2",
+      "position": "relative"
+    }
+  },
+  "CategoryRating_6_components.jsx": {
+    "component": "CategoryRating",
+    "file": "components.jsx",
+    "static_styles": {
+      "display": "inline-flex",
+      "gap": "4"
+    }
+  },
+  "SourceBadge_7_components.jsx": {
+    "component": "SourceBadge",
+    "file": "components.jsx",
+    "static_styles": {
+      "textDecoration": "none"
+    }
+  },
+  "SourceBadge_8_components.jsx": {
+    "component": "SourceBadge",
+    "file": "components.jsx",
+    "static_styles": {
+      "textDecoration": "none"
+    }
+  },
+  "FilterChip_9_components.jsx": {
+    "component": "FilterChip",
+    "file": "components.jsx",
+    "static_styles": {}
+  },
+  "StandardCard_10_components.jsx": {
+    "component": "StandardCard",
+    "file": "components.jsx",
+    "static_styles": {}
+  },
+  "CategoryStripe_11_components.jsx": {
+    "component": "CategoryStripe",
+    "file": "components.jsx",
+    "static_styles": {
+      "display": "flex",
+      "gap": "1.5",
+      "borderRadius": "2",
+      "overflow": "hidden"
+    }
+  },
+  "CategoryDots_12_components.jsx": {
+    "component": "CategoryDots",
+    "file": "components.jsx",
+    "static_styles": {
+      "display": "flex",
+      "gap": "4"
+    }
+  },
+  "MiniMap_13_components.jsx": {
+    "component": "MiniMap",
+    "file": "components.jsx",
+    "static_styles": {}
+  },
+  "ProgressRing_14_components.jsx": {
+    "component": "ProgressRing",
+    "file": "components.jsx",
+    "static_styles": {}
+  },
+  "Icon_15_components.jsx": {
+    "component": "Icon",
+    "file": "components.jsx",
+    "static_styles": {}
+  },
+  "UsiStarScore_16_components.jsx": {
+    "component": "UsiStarScore",
+    "file": "components.jsx",
+    "static_styles": {
+      "display": "block"
+    }
+  },
+  "NavMenuButton_17_components.jsx": {
+    "component": "NavMenuButton",
+    "file": "components.jsx",
+    "static_styles": {}
+  },
+  "NavDrawer-Backdrop_18_components.jsx": {
+    "component": "NavDrawer-Backdrop",
+    "file": "components.jsx",
+    "static_styles": {
+      "position": "fixed",
+      "inset": "0",
+      "zIndex": "850",
+      "background": "rgba(0"
+    }
+  },
+  "NavDrawer_19_components.jsx": {
+    "component": "NavDrawer",
+    "file": "components.jsx",
+    "static_styles": {
+      "position": "fixed",
+      "inset": "0",
+      "zIndex": "850",
+      "background": "rgba(0"
+    }
+  },
+  "NavDrawer-Item_20_components.jsx": {
+    "component": "NavDrawer-Item",
+    "file": "components.jsx",
+    "static_styles": {}
+  },
+  "ThemeToggle_21_components.jsx": {
+    "component": "ThemeToggle",
+    "file": "components.jsx",
+    "static_styles": {
+      "padding": "12px",
+      "borderTop": ".5px solid var(--usi-border)",
+      "background": "var(--usi-surface-2)",
+      "display": "flex",
+      "flexDirection": "column",
+      "gap": "8"
+    }
+  },
+  "ExportBaseline_22_components.jsx": {
+    "component": "ExportBaseline",
+    "file": "components.jsx",
+    "static_styles": {
+      "fontSize": "16"
+    }
+  },
+  "WeightedUsiScore_23_components.jsx": {
+    "component": "WeightedUsiScore",
+    "file": "components.jsx",
+    "static_styles": {
+      "display": "flex",
+      "alignItems": "center",
+      "gap": "10"
+    }
+  },
+  "CategoryAvg-Row_24_components.jsx": {
+    "component": "CategoryAvg-Row",
+    "file": "components.jsx",
+    "static_styles": {
+      "display": "flex",
+      "alignItems": "center",
+      "gap": "12"
+    }
+  },
+  "Progress-Bar_25_components.jsx": {
+    "component": "Progress-Bar",
+    "file": "components.jsx",
+    "static_styles": {
+      "color": "var(--usi-ink-4)"
+    }
+  },
+  "Legend_26_components.jsx": {
+    "component": "Legend",
+    "file": "components.jsx",
+    "static_styles": {
+      "display": "flex",
+      "gap": "14",
+      "marginTop": "12",
+      "flexWrap": "wrap"
+    }
+  },
+  "Legend_27_components.jsx": {
+    "component": "Legend",
+    "file": "components.jsx",
+    "static_styles": {
+      "width": "10",
+      "height": "10",
+      "borderRadius": "2",
+      "background": "var(--usi-success)"
+    }
+  },
+  "Legend_28_components.jsx": {
+    "component": "Legend",
+    "file": "components.jsx",
+    "static_styles": {
+      "width": "10",
+      "height": "10",
+      "borderRadius": "2",
+      "background": "var(--usi-warn)"
+    }
+  },
+  "Metadata-Row_29_components.jsx": {
+    "component": "Metadata-Row",
+    "file": "components.jsx",
+    "static_styles": {
+      "marginBottom": "1"
+    }
+  },
+  "MetadataPanel_30_components.jsx": {
+    "component": "MetadataPanel",
+    "file": "components.jsx",
+    "static_styles": {
+      "marginBottom": "1"
+    }
+  },
+  "Metadata-Grid_31_components.jsx": {
+    "component": "Metadata-Grid",
+    "file": "components.jsx",
+    "static_styles": {
+      "marginBottom": "8"
+    }
+  },
+  "Metadata-FolderPath_32_components.jsx": {
+    "component": "Metadata-FolderPath",
+    "file": "components.jsx",
+    "static_styles": {
+      "gridColumn": "span 2",
+      "marginTop": "8"
+    }
+  },
+  "DashboardGrid_0_view-dashboard.jsx": {
+    "component": "DashboardGrid",
+    "file": "view-dashboard.jsx",
+    "static_styles": {
+      "background": "var(--usi-bg)",
+      "height": "100%",
+      "display": "flex",
+      "flexDirection": "column"
+    }
+  },
+  "Dashboard-Toolbar_1_view-dashboard.jsx": {
+    "component": "Dashboard-Toolbar",
+    "file": "view-dashboard.jsx",
+    "static_styles": {
+      "background": "var(--usi-bg)",
+      "height": "100%",
+      "display": "flex",
+      "flexDirection": "column"
+    }
+  },
+  "Dashboard-Content_2_view-dashboard.jsx": {
+    "component": "Dashboard-Content",
+    "file": "view-dashboard.jsx",
+    "static_styles": {
+      "padding": "24",
+      "display": "grid",
+      "gridTemplateColumns": "repeat(12",
+      "gap": "16",
+      "overflow": "auto",
+      "flex": "1"
+    }
+  },
+  "Dashboard-CategoryAvg_3_view-dashboard.jsx": {
+    "component": "Dashboard-CategoryAvg",
+    "file": "view-dashboard.jsx",
+    "static_styles": {
+      "gridColumn": "span 6",
+      "padding": "16"
+    }
+  },
+  "Dashboard-GeoDistribution_4_view-dashboard.jsx": {
+    "component": "Dashboard-GeoDistribution",
+    "file": "view-dashboard.jsx",
+    "static_styles": {
+      "gridColumn": "span 6",
+      "gridRow": "span 2",
+      "padding": "16",
+      "display": "flex",
+      "flexDirection": "column"
+    }
+  },
+  "Dashboard-TopInvestments_5_view-dashboard.jsx": {
+    "component": "Dashboard-TopInvestments",
+    "file": "view-dashboard.jsx",
+    "static_styles": {
+      "gridColumn": "span 6",
+      "padding": "16"
+    }
+  },
+  "TopInvestment-Row_6_view-dashboard.jsx": {
+    "component": "TopInvestment-Row",
+    "file": "view-dashboard.jsx",
+    "static_styles": {
+      "display": "flex",
+      "alignItems": "center",
+      "gap": "12"
+    }
+  },
+  "Dashboard-Progress_7_view-dashboard.jsx": {
+    "component": "Dashboard-Progress",
+    "file": "view-dashboard.jsx",
+    "static_styles": {
+      "gridColumn": "span 12",
+      "padding": "16"
+    }
+  },
+  "KPI_8_view-dashboard.jsx": {
+    "component": "KPI",
+    "file": "view-dashboard.jsx",
+    "static_styles": {
+      "marginBottom": "6"
+    }
+  },
+  "DeletionBadge_0_view-detail-gallery.jsx": {
+    "component": "DeletionBadge",
+    "file": "view-detail-gallery.jsx",
+    "static_styles": {}
+  },
+  "PhotoOverlay_1_view-detail-gallery.jsx": {
+    "component": "PhotoOverlay",
+    "file": "view-detail-gallery.jsx",
+    "static_styles": {}
+  },
+  "PhotoTile_2_view-detail-gallery.jsx": {
+    "component": "PhotoTile",
+    "file": "view-detail-gallery.jsx",
+    "static_styles": {}
+  },
+  "SlideShow_3_view-detail-gallery.jsx": {
+    "component": "SlideShow",
+    "file": "view-detail-gallery.jsx",
+    "static_styles": {
+      "flex": "1",
+      "display": "flex",
+      "alignItems": "center",
+      "justifyContent": "center",
+      "flexDirection": "column",
+      "gap": "8",
+      "color": "var(--usi-ink-4)"
+    }
+  },
+  "SlideShow_4_view-detail-gallery.jsx": {
+    "component": "SlideShow",
+    "file": "view-detail-gallery.jsx",
+    "static_styles": {
+      "flex": "1",
+      "position": "relative",
+      "overflow": "hidden",
+      "background": "var(--usi-bg)"
+    }
+  },
+  "Gallery_5_view-detail-gallery.jsx": {
+    "component": "Gallery",
+    "file": "view-detail-gallery.jsx",
+    "static_styles": {
+      "display": "flex",
+      "alignItems": "center",
+      "justifyContent": "center",
+      "height": "200",
+      "color": "var(--usi-ink-4)",
+      "flexDirection": "column",
+      "gap": "8"
+    }
+  },
+  "Gallery_6_view-detail-gallery.jsx": {
+    "component": "Gallery",
+    "file": "view-detail-gallery.jsx",
+    "static_styles": {
+      "fontSize": "32"
+    }
+  },
+  "Lightbox_7_view-detail-gallery.jsx": {
+    "component": "Lightbox",
+    "file": "view-detail-gallery.jsx",
+    "static_styles": {}
+  },
+  "RatingsPanel_0_view-detail-ratings.jsx": {
+    "component": "RatingsPanel",
+    "file": "view-detail-ratings.jsx",
+    "static_styles": {
+      "display": "flex",
+      "flexDirection": "column",
+      "gap": "16"
+    }
+  },
+  "RatingsPanel-Categories_1_view-detail-ratings.jsx": {
+    "component": "RatingsPanel-Categories",
+    "file": "view-detail-ratings.jsx",
+    "static_styles": {
+      "display": "flex",
+      "flexDirection": "column",
+      "gap": "16"
+    }
+  },
+  "CategoryRating-Row_2_view-detail-ratings.jsx": {
+    "component": "CategoryRating-Row",
+    "file": "view-detail-ratings.jsx",
+    "static_styles": {
+      "display": "flex",
+      "flexDirection": "column",
+      "gap": "6"
+    }
+  },
+  "RatingsPanel-Amenities_3_view-detail-ratings.jsx": {
+    "component": "RatingsPanel-Amenities",
+    "file": "view-detail-ratings.jsx",
+    "static_styles": {
+      "padding": "8px 0",
+      "borderTop": ".5px solid var(--usi-border)",
+      "borderBottom": ".5px solid var(--usi-border)",
+      "margin": "8px 0"
+    }
+  },
+  "RatingsPanel-Status_4_view-detail-ratings.jsx": {
+    "component": "RatingsPanel-Status",
+    "file": "view-detail-ratings.jsx",
+    "static_styles": {
+      "color": "var(--usi-ink)"
+    }
+  },
+  "RatingsPanel-Comment_5_view-detail-ratings.jsx": {
+    "component": "RatingsPanel-Comment",
+    "file": "view-detail-ratings.jsx",
+    "static_styles": {
+      "width": "100%",
+      "fontSize": "13",
+      "height": "32",
+      "padding": "0 8px"
+    }
+  },
+  "RatingsPanel-Footer_6_view-detail-ratings.jsx": {
+    "component": "RatingsPanel-Footer",
+    "file": "view-detail-ratings.jsx",
+    "static_styles": {
+      "minHeight": "72"
+    }
+  },
+  "SourceLinks_0_view-detail.jsx": {
+    "component": "SourceLinks",
+    "file": "view-detail.jsx",
+    "static_styles": {
+      "display": "flex",
+      "gap": "6",
+      "flexWrap": "wrap"
+    }
+  },
+  "HeroBand_1_view-detail.jsx": {
+    "component": "HeroBand",
+    "file": "view-detail.jsx",
+    "static_styles": {
+      "display": "grid",
+      "gridTemplateColumns": "hasMap ? '1fr auto 280px' : '1fr auto",
+      "gap": "24",
+      "padding": "16px 24px 0",
+      "flexShrink": "0",
+      "alignItems": "center"
+    }
+  },
+  "HeroBand-TitleRow_2_view-detail.jsx": {
+    "component": "HeroBand-TitleRow",
+    "file": "view-detail.jsx",
+    "static_styles": {
+      "display": "flex",
+      "alignItems": "baseline",
+      "gap": "10",
+      "marginBottom": "6",
+      "flexWrap": "wrap"
+    }
+  },
+  "HeroBand-Title_3_view-detail.jsx": {
+    "component": "HeroBand-Title",
+    "file": "view-detail.jsx",
+    "static_styles": {
+      "display": "flex",
+      "alignItems": "baseline",
+      "gap": "10",
+      "marginBottom": "6",
+      "flexWrap": "wrap"
+    }
+  },
+  "HeroBand-Developer_4_view-detail.jsx": {
+    "component": "HeroBand-Developer",
+    "file": "view-detail.jsx",
+    "static_styles": {
+      "margin": "0"
+    }
+  },
+  "HeroBand-Stats_5_view-detail.jsx": {
+    "component": "HeroBand-Stats",
+    "file": "view-detail.jsx",
+    "static_styles": {
+      "color": "var(--usi-ink-3)"
+    }
+  },
+  "Stat-Address_6_view-detail.jsx": {
+    "component": "Stat-Address",
+    "file": "view-detail.jsx",
+    "static_styles": {
+      "display": "flex",
+      "gap": "16",
+      "flexWrap": "wrap",
+      "fontSize": "12",
+      "color": "var(--usi-ink-3)"
+    }
+  },
+  "Stat-Units_7_view-detail.jsx": {
+    "component": "Stat-Units",
+    "file": "view-detail.jsx",
+    "static_styles": {}
+  },
+  "Stat-Price_8_view-detail.jsx": {
+    "component": "Stat-Price",
+    "file": "view-detail.jsx",
+    "static_styles": {}
+  },
+  "Stat-Delivery_9_view-detail.jsx": {
+    "component": "Stat-Delivery",
+    "file": "view-detail.jsx",
+    "static_styles": {}
+  },
+  "Stat-Amenities_10_view-detail.jsx": {
+    "component": "Stat-Amenities",
+    "file": "view-detail.jsx",
+    "static_styles": {
+      "display": "flex",
+      "justifyContent": "center",
+      "padding": "0 16px"
+    }
+  },
+  "ModeC_11_view-detail.jsx": {
+    "component": "ModeC",
+    "file": "view-detail.jsx",
+    "static_styles": {
+      "flex": "1",
+      "display": "flex",
+      "flexDirection": "column",
+      "overflow": "hidden"
+    }
+  },
+  "DetailRightPanel_12_view-detail.jsx": {
+    "component": "DetailRightPanel",
+    "file": "view-detail.jsx",
+    "static_styles": {
+      "background": "var(--usi-bg)",
+      "height": "100%",
+      "display": "flex",
+      "flexDirection": "column",
+      "overflow": "hidden"
+    }
+  },
+  "DetailRightPanel_13_view-detail.jsx": {
+    "component": "DetailRightPanel",
+    "file": "view-detail.jsx",
+    "static_styles": {
+      "background": "var(--usi-bg)",
+      "height": "100%",
+      "display": "flex",
+      "flexDirection": "column",
+      "overflow": "hidden"
+    }
+  },
+  "DeveloperDetail_0_view-dev-detail.jsx": {
+    "component": "DeveloperDetail",
+    "file": "view-dev-detail.jsx",
+    "static_styles": {
+      "background": "var(--usi-bg)",
+      "height": "100%",
+      "display": "flex",
+      "flexDirection": "column",
+      "overflow": "hidden"
+    }
+  },
+  "DeveloperHeroBand_1_view-dev-detail.jsx": {
+    "component": "DeveloperHeroBand",
+    "file": "view-dev-detail.jsx",
+    "static_styles": {
+      "background": "var(--usi-surface)",
+      "borderBottom": ".5px solid var(--usi-border)",
+      "padding": "24px 24px",
+      "marginBottom": "24"
+    }
+  },
+  "Developer-Avatar_2_view-dev-detail.jsx": {
+    "component": "Developer-Avatar",
+    "file": "view-dev-detail.jsx",
+    "static_styles": {
+      "display": "flex",
+      "alignItems": "flex-start",
+      "gap": "24"
+    }
+  },
+  "Developer-TitleRow_3_view-dev-detail.jsx": {
+    "component": "Developer-TitleRow",
+    "file": "view-dev-detail.jsx",
+    "static_styles": {
+      "flex": "1"
+    }
+  },
+  "Developer-Name_4_view-dev-detail.jsx": {
+    "component": "Developer-Name",
+    "file": "view-dev-detail.jsx",
+    "static_styles": {
+      "flex": "1"
+    }
+  },
+  "Developer-ID_5_view-dev-detail.jsx": {
+    "component": "Developer-ID",
+    "file": "view-dev-detail.jsx",
+    "static_styles": {
+      "display": "flex",
+      "alignItems": "center",
+      "gap": "12",
+      "marginBottom": "4"
+    }
+  },
+  "Developer-Slug_6_view-dev-detail.jsx": {
+    "component": "Developer-Slug",
+    "file": "view-dev-detail.jsx",
+    "static_styles": {
+      "margin": "0"
+    }
+  },
+  "DeveloperListGrid_0_view-dev-list.jsx": {
+    "component": "DeveloperListGrid",
+    "file": "view-dev-list.jsx",
+    "static_styles": {
+      "background": "var(--usi-bg)",
+      "height": "100%",
+      "display": "flex",
+      "flexDirection": "column"
+    }
+  },
+  "DeveloperListToolbar_1_view-dev-list.jsx": {
+    "component": "DeveloperListToolbar",
+    "file": "view-dev-list.jsx",
+    "static_styles": {
+      "marginLeft": "source ? 6 : 0"
+    }
+  },
+  "ListToolbar-Bottom_2_view-dev-list.jsx": {
+    "component": "ListToolbar-Bottom",
+    "file": "view-dev-list.jsx",
+    "static_styles": {
+      "display": "flex",
+      "alignItems": "center",
+      "gap": "16",
+      "padding": "0 24px 14px",
+      "flexWrap": "wrap"
+    }
+  },
+  "Filter-Sources_3_view-dev-list.jsx": {
+    "component": "Filter-Sources",
+    "file": "view-dev-list.jsx",
+    "static_styles": {
+      "display": "flex",
+      "alignItems": "center",
+      "gap": "16",
+      "padding": "0 24px 14px",
+      "flexWrap": "wrap"
+    }
+  },
+  "Filter-Cities_4_view-dev-list.jsx": {
+    "component": "Filter-Cities",
+    "file": "view-dev-list.jsx",
+    "static_styles": {
+      "width": "1",
+      "height": "20",
+      "background": "var(--usi-border)"
+    }
+  },
+  "ProgressBar_0_view-download.jsx": {
+    "component": "ProgressBar",
+    "file": "view-download.jsx",
+    "static_styles": {
+      "flex": "1",
+      "minWidth": "200",
+      "display": "flex",
+      "flexDirection": "column",
+      "gap": "4"
+    }
+  },
+  "ViewDownload_1_view-download.jsx": {
+    "component": "ViewDownload",
+    "file": "view-download.jsx",
+    "static_styles": {
+      "display": "flex",
+      "flexDirection": "column",
+      "height": "100vh",
+      "overflow": "hidden",
+      "background": "var(--usi-bg)"
+    }
+  },
+  "ListToolbar_2_view-download.jsx": {
+    "component": "ListToolbar",
+    "file": "view-download.jsx",
+    "static_styles": {
+      "display": "flex",
+      "flexDirection": "column",
+      "height": "100vh",
+      "overflow": "hidden",
+      "background": "var(--usi-bg)"
+    }
+  },
+  "ListToolbar-Top_3_view-download.jsx": {
+    "component": "ListToolbar-Top",
+    "file": "view-download.jsx",
+    "static_styles": {
+      "display": "flex",
+      "alignItems": "center",
+      "gap": "12",
+      "padding": "14px 24px",
+      "flexWrap": "wrap",
+      "rowGap": "12",
+      "position": "relative"
+    }
+  },
+  "ListToolbar-Nav_4_view-download.jsx": {
+    "component": "ListToolbar-Nav",
+    "file": "view-download.jsx",
+    "static_styles": {
+      "display": "flex",
+      "alignItems": "center",
+      "gap": "12",
+      "padding": "14px 24px",
+      "flexWrap": "wrap",
+      "rowGap": "12",
+      "position": "relative"
+    }
+  },
+  "ListToolbar-Search_5_view-download.jsx": {
+    "component": "ListToolbar-Search",
+    "file": "view-download.jsx",
+    "static_styles": {
+      "flex": "1",
+      "minWidth": "20"
+    }
+  },
+  "ListToolbar-Filters_6_view-download.jsx": {
+    "component": "ListToolbar-Filters",
+    "file": "view-download.jsx",
+    "static_styles": {
+      "display": "flex",
+      "gap": "12",
+      "alignItems": "center"
+    }
+  },
+  "ListToolbar-Bottom_7_view-download.jsx": {
+    "component": "ListToolbar-Bottom",
+    "file": "view-download.jsx",
+    "static_styles": {
+      "display": "flex",
+      "alignItems": "center",
+      "gap": "16",
+      "padding": "0 24px 14px",
+      "flexWrap": "wrap"
+    }
+  },
+  "Filter-Sources_8_view-download.jsx": {
+    "component": "Filter-Sources",
+    "file": "view-download.jsx",
+    "static_styles": {
+      "display": "flex",
+      "alignItems": "center",
+      "gap": "16",
+      "padding": "0 24px 14px",
+      "flexWrap": "wrap"
+    }
+  },
+  "Batch-Download_9_view-download.jsx": {
+    "component": "Batch-Download",
+    "file": "view-download.jsx",
+    "static_styles": {
+      "display": "flex",
+      "gap": "12",
+      "alignItems": "center",
+      "flex": "1"
+    }
+  },
+  "ListGrid_0_view-list.jsx": {
+    "component": "ListGrid",
+    "file": "view-list.jsx",
+    "static_styles": {
+      "background": "var(--usi-bg)",
+      "height": "100%",
+      "display": "flex",
+      "flexDirection": "column"
+    }
+  },
+  "ListToolbar_1_view-list.jsx": {
+    "component": "ListToolbar",
+    "file": "view-list.jsx",
+    "static_styles": {}
+  },
+  "ListToolbar-Top_2_view-list.jsx": {
+    "component": "ListToolbar-Top",
+    "file": "view-list.jsx",
+    "static_styles": {
+      "display": "flex",
+      "alignItems": "center",
+      "gap": "12",
+      "padding": "16px 24px",
+      "flexWrap": "wrap",
+      "rowGap": "12",
+      "position": "relative"
+    }
+  },
+  "ListToolbar-Nav_3_view-list.jsx": {
+    "component": "ListToolbar-Nav",
+    "file": "view-list.jsx",
+    "static_styles": {
+      "display": "flex",
+      "alignItems": "center",
+      "gap": "12",
+      "padding": "16px 24px",
+      "flexWrap": "wrap",
+      "rowGap": "12",
+      "position": "relative"
+    }
+  },
+  "ListToolbar-Title_4_view-list.jsx": {
+    "component": "ListToolbar-Title",
+    "file": "view-list.jsx",
+    "static_styles": {
+      "display": "flex",
+      "alignItems": "center",
+      "gap": "12",
+      "flexShrink": "0"
+    }
+  },
+  "ListToolbar-Count_5_view-list.jsx": {
+    "component": "ListToolbar-Count",
+    "file": "view-list.jsx",
+    "static_styles": {
+      "margin": "0"
+    }
+  },
+  "ListToolbar-Search_6_view-list.jsx": {
+    "component": "ListToolbar-Search",
+    "file": "view-list.jsx",
+    "static_styles": {
+      "flex": "1",
+      "minWidth": "20"
+    }
+  },
+  "Search-Input_7_view-list.jsx": {
+    "component": "Search-Input",
+    "file": "view-list.jsx",
+    "static_styles": {
+      "position": "absolute",
+      "left": "10",
+      "top": "9",
+      "color": "var(--usi-ink-4)"
+    }
+  },
+  "ListToolbar-Filters_8_view-list.jsx": {
+    "component": "ListToolbar-Filters",
+    "file": "view-list.jsx",
+    "static_styles": {
+      "width": "100%",
+      "paddingLeft": "32",
+      "borderRadius": "20"
+    }
+  },
+  "Filter-Developer_9_view-list.jsx": {
+    "component": "Filter-Developer",
+    "file": "view-list.jsx",
+    "static_styles": {
+      "display": "flex",
+      "gap": "12",
+      "flexWrap": "wrap",
+      "alignItems": "center"
+    }
+  },
+  "Filter-Status_10_view-list.jsx": {
+    "component": "Filter-Status",
+    "file": "view-list.jsx",
+    "static_styles": {
+      "width": "auto",
+      "height": "34",
+      "borderRadius": "8"
+    }
+  },
+  "ModeToggle_11_view-list.jsx": {
+    "component": "ModeToggle",
+    "file": "view-list.jsx",
+    "static_styles": {
+      "display": "flex",
+      "gap": "2",
+      "padding": "2",
+      "background": "var(--usi-surface-3)",
+      "borderRadius": "8"
+    }
+  },
+  "ListToolbar-Bottom_12_view-list.jsx": {
+    "component": "ListToolbar-Bottom",
+    "file": "view-list.jsx",
+    "static_styles": {
+      "display": "flex",
+      "alignItems": "center",
+      "gap": "16",
+      "padding": "0 24px 14px",
+      "flexWrap": "wrap"
+    }
+  },
+  "Filter-Sources_13_view-list.jsx": {
+    "component": "Filter-Sources",
+    "file": "view-list.jsx",
+    "static_styles": {
+      "display": "flex",
+      "alignItems": "center",
+      "gap": "16",
+      "padding": "0 24px 14px",
+      "flexWrap": "wrap"
+    }
+  },
+  "Filter-Cities_14_view-list.jsx": {
+    "component": "Filter-Cities",
+    "file": "view-list.jsx",
+    "static_styles": {
+      "width": "1",
+      "height": "20",
+      "background": "var(--usi-border)"
+    }
+  },
+  "ListCard_15_view-list.jsx": {
+    "component": "ListCard",
+    "file": "view-list.jsx",
+    "static_styles": {}
+  },
+  "ListTableContent_16_view-list.jsx": {
+    "component": "ListTableContent",
+    "file": "view-list.jsx",
+    "static_styles": {
+      "fontWeight": "600"
+    }
+  },
+  "ReportsList_0_view-reports.jsx": {
+    "component": "ReportsList",
+    "file": "view-reports.jsx",
+    "static_styles": {
+      "background": "var(--usi-bg)",
+      "height": "100%",
+      "display": "flex",
+      "flexDirection": "column"
+    }
+  },
+  "ReportsList-Toolbar_1_view-reports.jsx": {
+    "component": "ReportsList-Toolbar",
+    "file": "view-reports.jsx",
+    "static_styles": {
+      "background": "var(--usi-bg)",
+      "height": "100%",
+      "display": "flex",
+      "flexDirection": "column"
+    }
+  },
+  "Reports-Refresh_2_view-reports.jsx": {
+    "component": "Reports-Refresh",
+    "file": "view-reports.jsx",
+    "static_styles": {
+      "margin": "0"
+    }
+  },
+  "ReportsList-Grid_3_view-reports.jsx": {
+    "component": "ReportsList-Grid",
+    "file": "view-reports.jsx",
+    "static_styles": {
+      "padding": "24",
+      "overflow": "auto",
+      "flex": "1"
+    }
+  },
+  "ReportCard_4_view-reports.jsx": {
+    "component": "ReportCard",
+    "file": "view-reports.jsx",
+    "static_styles": {
+      "display": "grid",
+      "gridTemplateColumns": "repeat(auto-fill",
+      "gap": "20"
+    }
+  },
+  "ReportDetail_5_view-reports.jsx": {
+    "component": "ReportDetail",
+    "file": "view-reports.jsx",
+    "static_styles": {
+      "background": "var(--usi-bg)",
+      "height": "100%",
+      "display": "flex",
+      "flexDirection": "column"
+    }
+  },
+  "ReportModuleContainer_6_view-reports.jsx": {
+    "component": "ReportModuleContainer",
+    "file": "view-reports.jsx",
+    "static_styles": {
+      "padding": "0",
+      "overflow": "hidden",
+      "display": "flex",
+      "flexDirection": "column"
+    }
+  },
+  "TableModule_7_view-reports.jsx": {
+    "component": "TableModule",
+    "file": "view-reports.jsx",
+    "static_styles": {
+      "overflowX": "auto"
+    }
+  }
+}

@@ -578,7 +578,7 @@ function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
           })}
         </nav>
         
-        <div style={{ padding: '12px', borderTop: '.5px solid var(--usi-border)', background: 'var(--usi-surface-2)' }}>
+        <div style={{ padding: '12px', borderTop: '.5px solid var(--usi-border)', background: 'var(--usi-surface-2)', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <button
             data-component="ThemeToggle"
             onClick={onToggleTheme}
@@ -591,6 +591,20 @@ function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
           >
             <span style={{ fontSize: 16 }}>{dark ? '☀' : '◑'}</span>
             <span>{dark ? 'Jasny motyw' : 'Ciemny motyw'}</span>
+          </button>
+
+          <button
+            data-component="ExportBaseline"
+            onClick={() => window.captureVisualBaseline && window.captureVisualBaseline()}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+              padding: '8px 12px', borderRadius: 6, border: '.5px solid var(--usi-border)',
+              background: 'var(--usi-surface-3)', color: 'var(--usi-ink-2)',
+              cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500, fontSize: 11
+            }}
+          >
+            <Icon name="download" size={14} />
+            <span>Eksportuj Baseline (Visual)</span>
           </button>
         </div>
       </aside>

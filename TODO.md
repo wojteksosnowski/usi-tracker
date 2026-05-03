@@ -4,74 +4,56 @@
 
 Refactoring Styles to SCSS
 
-### Krok B01. 
+### Krok B01.
 Zapamietaj stan wygladu wszystkich nazwanych elementow interfejsu. Zapisz go w formie wystarczajacej do pozniejszego testu refactoringu na SCSS.
 
+- [ ] **Audyt `data-component`**: Przeskanowanie plików `components.jsx` i widoków w celu zebrania pełnej listy nazwanych komponentów do monitorowania.
+- [ ] **Implementacja `captureStyles`**: Dodanie do `theme.jsx` lub tymczasowego skryptu w `index.html` funkcji, która iteruje po elementach i zapisuje ich kolory, wymiary, paddingi i fonty do obiektu.
+- [ ] **Ekstrakcja Baseline**: Uruchomienie UI i wygenerowanie pliku `docs/visual-baseline.json` zawierającego dane dla obu motywów (Light/Dark).
+- [ ] **Dokumentacja różnic**: Ręczna weryfikacja czy skomplikowane elementy (np. animacje, gradienty) są poprawnie opisane w baseline.
+- [ ] **Test poprawności zapisu**: Uruchomienie skryptu porównującego obecny stan z właśnie zapisanym snapshotem (powinien zwrócić 100% zgodności).
+
 ### Krok B02. 
-**Streamline `components.jsx`:**
-   - Break down the 742 lines into smaller files:
-     - `components/core.jsx`: UI primitives like `Spinner`, `Icon`.
-     - `components/ratings.jsx`: Star Rating and rating components.
-     - `components/modules.jsx`: `ModuleWrapper`, `BaseModule`.
+**Streamline `components.jsx` (Dekompozycja):**
+   - [ ] **Migracja Core**: Utworzenie `python_worker/ui/components/core.jsx` i przeniesienie `Spinner`, `Icon`, `Badge`, `Button`.
+   - [ ] **Migracja Ocen**: Utworzenie `python_worker/ui/components/ratings.jsx` i przeniesienie `StarRating`, `CategoryRating`, `ocenaLog`, `avgRating`.
+   - [ ] **Migracja Modułów**: Utworzenie `python_worker/ui/components/modules.jsx` i przeniesienie `ModuleWrapper`, `BaseModule`, `ModuleErrorBoundary`.
+   - [ ] **Aktualizacja Inicjalizacji**: Dostosowanie `index.html` do ładowania nowych plików i weryfikacja dostępności komponentów w obiekcie `window`.
+   - [ ] **Test**: Potwierdzenie, że wszystkie widoki poprawnie ładują komponenty z nowej struktury.
 
 ### Krok B03. 
 **Extract Inline Styles into SCSS Files:**
-   - Categorize styles into separate SCSS files, e.g., `styles/components.scss` and `styles/views.scss`, to group similar styling items.
-
-   Example: Replace this inline style:
-   ```jsx
-   <div style={{ padding: '16px', display: 'flex', background: 'var(--usi-bg)' }}></div>
-   ```
-   With this SCSS class:
-   ```scss
-   .dashboard-toolbar {
-     padding: 16px;
-     display: flex;
-     background: var(--usi-bg);
-   }
-   ``
-   Then use in JSX:
-   ```jsx
-   <div className="dashboard-toolbar"></div>
-   ```
+   - [ ] **Struktura SCSS**: Inicjalizacja `python_worker/ui/styles/` i podział na `components.scss`, `views.scss` oraz `global.scss`.
+   - [ ] **Refaktoryzacja Komponentów**: Przeniesienie stylów inline z plików w `components/` do `components.scss` przy użyciu klas semantycznych.
+   - [ ] **Refaktoryzacja Widoków**: Przeniesienie stylów inline z `view-*.jsx` do `views.scss`.
+   - [ ] **Clean-up JSX**: Usunięcie atrybutów `style` z komponentów i zastąpienie ich odpowiednimi `className`.
+   - [ ] **Test**: Manualna weryfikacja spójności układu po usunięciu stylów inline.
 
 ### Krok B04. 
 **Use CSS Variables for Consistency:**
-   - Define reusable variables in SCSS for colors, paddings, and fonts:
-   ```scss
-   :root {
-     --usi-bg: #ffffff;
-     --usi-accent: #e5006d;
-   }
-   ```
+   - [ ] **Centralizacja Tokenów**: Przeniesienie wartości z `theme.jsx` do `styles/_variables.scss`.
+   - [ ] **Obsługa Motywów**: Wdrożenie zmiennych CSS dla trybu jasnego i ciemnego na poziomie `:root` i `.usi-theme-dark`.
+   - [ ] **Siatka i Odstępy**: Wprowadzenie zmiennej `$usi-spacing-unit` (8px) i ujednolicenie marginesów/paddingów.
+   - [ ] **Test**: Przełączenie motywów i weryfikacja, czy wszystkie komponenty poprawnie reagują na zmienne CSS.
 
 ### Krok B05. 
 **Refactor Animations:**
-   - Move animations (e.g., `usi-slide-down`) into SCSS:
-     ```scss
-     @keyframes usi-slide-down {
-       from {
-         transform: translateY(-10px);
-         opacity: 0;
-       }
-       to {
-         transform: translateY(0);
-         opacity: 1;
-       }
-     }
-
-     .usi-slide-down {
-       animation: usi-slide-down 0.2s ease-out forwards;
-     }
-     ```
+   - [ ] **Migracja Animacji**: Przeniesienie `@keyframes` (np. `usi-slide-down`) z JS do `styles/_animations.scss`.
+   - [ ] **Standaryzacja Czasu**: Wprowadzenie zmiennych SCSS dla czasów trwania (np. `$anim-speed: 0.2s`) i easingów.
+   - [ ] **Test**: Weryfikacja płynności animacji w Drawerze, Tooltipach i Modalach.
 
 ### Krok B06. 
 **Automate Style Management:**
-   - Use tools like `stylelint` to keep code consistent and enforce best practices.
-   - Use `postcss` for vendor prefixes and optimizations.
+   - [ ] **Linter i Formater**: Konfiguracja `stylelint` do utrzymania czystości kodu SCSS.
+   - [ ] **PostCSS**: Konfiguracja (jeśli środowisko pozwoli) lub przygotowanie skryptu do autoprefixowania.
+   - [ ] **Test**: Uruchomienie `stylelint` i poprawienie ewentualnych błędów formatowania.
 
 ### Krok B07.
-Przeprowadz automatyczne testy wykorzystujac zapisana wiedze z Krok B01. Porownaj wyglad elementow przed i po zmianie na SCSS. Zaplanuj automatyczne testy.  
+**Visual Regression Testing:**
+   - [ ] **Skrypt Porównawczy**: Implementacja `python_worker/ui/test-regression.js` porównującego baseline z `Kroku B01` z aktualnymi stylami obliczonymi.
+   - [ ] **Raport Różnic**: Generowanie listy odchyleń (delta > 0) dla obu motywów.
+   - [ ] **Finalizacja**: Poprawki reguł SCSS aż do uzyskania 100% zgodności z baselinem.
+   - [ ] **Test**: Ostateczny zautomatyzowany przebieg potwierdzający sukces refaktoryzacji.
 
 ## Następny kamień milowy: Bar Sushi
 
