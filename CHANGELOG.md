@@ -44,3 +44,12 @@
 - Wprowadzono system oceniania inwestycji w kategoriach oraz automatyczne obliczanie oceny złożonej.
 - Zaimplementowano audyt zmian (created_at/updated_at) oraz mechanizm rozdzielania rekordów dualnych (RP+OTO).
 - Zoptymalizowano strukturę danych i schematy JSON oraz usprawniono proces importu z CSV (USImaster).
+
+## Dania Fast Food — 2026-05-03
+
+- Zaimplementowano fundamenty architektury modułowej: BaseModule, ModuleErrorBoundary i SkeletonModule.
+- Dodano system typowania i walidacji ModuleSchemaValidator dla wejść do modułów.
+- Wyciągnięto logikę dostępu do danych w extractModuleContext i zintegrowano ją w widokach listy i szczegółów inwestycji.
+- Stworzono uniwersalny ModuleWrapper pozwalający na łatwe podpinanie komponentów pod nową architekturę.
+- Dodano responsywność modułów przez ResizeObserver przekazujący szerokość kontenera.
+- Zrefaktoryzowano i podpięto MiniMap jako udany test nowej architektury.
