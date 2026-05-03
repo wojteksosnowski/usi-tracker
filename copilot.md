@@ -113,6 +113,65 @@
      };
      ```
 
+5. **Refactor Styles to CSS/SCSS:**
+   - Move inline styles scattered across components to SCSS for better reusability and maintainability, ensuring a cleaner component structure.
+
+---
+
+## Refactoring Styles to SCSS
+
+1. **Extract Inline Styles into SCSS Files:**
+   - Categorize styles into separate SCSS files, e.g., `styles/components.scss` and `styles/views.scss`, to group similar styling items.
+
+   Example: Replace this inline style:
+   ```jsx
+   <div style={{ padding: '16px', display: 'flex', background: 'var(--usi-bg)' }}></div>
+   ```
+   With this SCSS class:
+   ```scss
+   .dashboard-toolbar {
+     padding: 16px;
+     display: flex;
+     background: var(--usi-bg);
+   }
+   ``
+   Then use in JSX:
+   ```jsx
+   <div className="dashboard-toolbar"></div>
+   ```
+
+2. **Use CSS Variables for Consistency:**
+   - Define reusable variables in SCSS for colors, paddings, and fonts:
+   ```scss
+   :root {
+     --usi-bg: #ffffff;
+     --usi-accent: #e5006d;
+   }
+   ```
+
+3. **Refactor Animations:**
+   - Move animations (e.g., `usi-slide-down`) into SCSS:
+     ```scss
+     @keyframes usi-slide-down {
+       from {
+         transform: translateY(-10px);
+         opacity: 0;
+       }
+       to {
+         transform: translateY(0);
+         opacity: 1;
+       }
+     }
+
+     .usi-slide-down {
+       animation: usi-slide-down 0.2s ease-out forwards;
+     }
+     ```
+
+4. **Automate Style Management:**
+   - Use tools like `stylelint` to keep code consistent and enforce best practices.
+   - Use `postcss` for vendor prefixes and optimizations.
+
 ---
 
 ## Long-Term Considerations
