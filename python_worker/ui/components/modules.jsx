@@ -1,6 +1,7 @@
 // modules.jsx — Module System architecture
 
 function useDarkMode() {
+  const { React } = window;
   const [dark, setDark] = React.useState(
     document.documentElement.dataset.dark === '1'
   );
@@ -12,11 +13,11 @@ function useDarkMode() {
       attributes: true, attributeFilter: ['data-dark'],
     });
     return () => obs.disconnect();
-  }, []);
+  }, [React]);
   return dark;
 }
 
-class ModuleErrorBoundary extends React.Component {
+class ModuleErrorBoundary extends window.React.Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -37,6 +38,7 @@ class ModuleErrorBoundary extends React.Component {
 }
 
 function BaseModule({ title, icon, children, errorFallback, style }) {
+  const { React } = window;
   const containerRef = React.useRef(null);
   const [containerWidth, setContainerWidth] = React.useState(0);
 

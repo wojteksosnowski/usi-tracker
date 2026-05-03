@@ -3,6 +3,7 @@
 // Hook i panel ocen → view-detail-ratings.jsx
 
 function SourceLinks({ inv }) {
+  const { SourceBadge, Icon } = window;
   const links = inv.source_links || [{ source: inv.source, url: inv.source_url }];
   return (
     <div data-component="SourceLinks" className="source-links">
@@ -26,6 +27,12 @@ function SourceLinks({ inv }) {
 }
 
 function HeroBand({ inv, showMap, moduleContext }) {
+  const { 
+    React, Icon, MiniMap,
+    WeightedUsiScore, ModuleWrapper, 
+    ProgressRing, UsiStarScore,
+    ocenaLog, ModuleTypes
+  } = window;
   const score = ocenaLog(inv);
   const hasMap = showMap && inv.coords && inv.coords[0] !== 0;
 
@@ -81,6 +88,7 @@ function HeroBand({ inv, showMap, moduleContext }) {
 // ─── Tryb C: galeria full-width + sticky pasek ocen na dole ──
 function ModeC({ inv, density = 4, ratingVariant, showMap, marked, onToggleMark, onLightbox,
     ratings = {}, handleRating, comment = '', handleComment, saved = false, focusedCat = -1, onFocusedCatChange, moduleContext }) {
+  const { React, USI_CATEGORIES, CategoryRating, UsiStarScore, ocenaLog, Icon, SlideShow } = window;
   const [expanded, setExpanded] = React.useState(false);
 
   return (
@@ -149,6 +157,11 @@ function getDistance(lat1, lon1, lat2, lon2) {
 
 // ─── Widok inwestycji: 3 kolumny 50/25/25 ────────────────────
 function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onUpdateInv, onPrev, onNext, density = 5, ratingVariant = 'circles', showMap = true, dark, onToggleTheme }) {
+  const {
+    React, NavMenuButton, Icon, NavDrawer, Gallery, RatingsPanel, MetadataPanel,
+    useRatings, useMetadataConfig, useDataBus, extractModuleContext,
+    avgRating, USI_CATEGORIES, ModuleTypes, ModuleWrapper, Lightbox
+  } = window;
   const [marked, setMarked] = React.useState(new Set());
   const [hiddenPhotos, setHiddenPhotos] = React.useState(new Set());
   const [lightbox, setLightbox] = React.useState(null);

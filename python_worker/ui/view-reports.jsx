@@ -1,6 +1,10 @@
 // view-reports.jsx — Widok raportów USI
 
 function ReportsList({ onSelectReport, onNav, dark, onToggleTheme }) {
+  const {
+    React, NavMenuButton, Spinner, Icon,
+    NavDrawer, useConfig, avgRating
+  } = window;
   const [reports, setReports] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [navOpen, setNavOpen] = React.useState(false);
@@ -60,6 +64,7 @@ function ReportsList({ onSelectReport, onNav, dark, onToggleTheme }) {
 }
 
 function ReportDetail({ reportId, onBack, onNav, dark, onToggleTheme }) {
+  const { React, Spinner, NavMenuButton, NavDrawer, Icon } = window;
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [navOpen, setNavOpen] = React.useState(false);
@@ -157,6 +162,7 @@ function TableModule({ config, investments }) {
 }
 
 function MapModule({ config, investments }) {
+  const { useConfig } = window;
   const cfg = useConfig();
   const apiKey = cfg?.hereApiKey;
   const withCoords = investments.filter(i => i.coords && i.coords[0] !== 0);
@@ -183,6 +189,7 @@ function MapModule({ config, investments }) {
 }
 
 function PriceTrendModule({ config, investments }) {
+  const { React } = window;
   const canvasRef = React.useRef(null);
   const chartRef = React.useRef(null);
 
@@ -240,6 +247,7 @@ function PriceTrendModule({ config, investments }) {
 }
 
 function RatingComparisonModule({ config, investments }) {
+  const { React, avgRating } = window;
   const canvasRef = React.useRef(null);
   const chartRef = React.useRef(null);
 

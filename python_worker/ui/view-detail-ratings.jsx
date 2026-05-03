@@ -4,6 +4,7 @@
 const _ratingCache = new Map(); // slug → { ratings, comment, status }
 
 function useRatings(inv) {
+  const { React } = window;
   const CATS = ['Balkony', 'Fasady', 'Wnętrza', 'Teren', 'Mieszkania', 'Udogodnienia'];
   const init = () => {
     const cached = _ratingCache.get(inv.slug);
@@ -69,6 +70,7 @@ function useRatings(inv) {
 
 function RatingsPanel({ inv, variant = 'circles', focusedCat = -1, onFocusedCatChange,
     ratings = {}, handleRating, comment = '', handleComment, status = 'Brak', handleStatus, saved = false }) {
+  const { USI_CATEGORIES, USI_STATUSES, CategoryRating, UsiStarScore, ocenaLog, Icon } = window;
   const currentInv = { ratings };
   return (
     <div data-component="RatingsPanel" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

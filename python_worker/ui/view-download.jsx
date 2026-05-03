@@ -1,14 +1,7 @@
-const { React } = window;
-
 window.ViewDownload = function ViewDownload({ dark, onNav, onToggleTheme }) {
-  // Extract components inside to ensure they are available on window
-  const { 
-    Icon, 
-    Spinner,
-    NavDrawer,
-    NavMenuButton,
-    SourceBadge,
-    StandardCard
+  const {
+    React, Icon, Spinner, NavDrawer, NavMenuButton,
+    SourceBadge, StandardCard, useDevelopers
   } = window;
 
   const [portal, setPortal] = React.useState('rp');

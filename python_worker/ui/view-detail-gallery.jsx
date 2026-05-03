@@ -12,6 +12,7 @@ function tileBtn(active) {
 }
 
 function DeletionBadge({ zIndex }) {
+  const { Icon } = window;
   return (
     <div data-component="DeletionBadge" style={{
       position: 'absolute', top: 10, left: 10,
@@ -29,6 +30,7 @@ function DeletionBadge({ zIndex }) {
 }
 
 function PhotoOverlay({ onOpen, onToggleMark, marked, visible, zIndex }) {
+  const { Icon } = window;
   return (
     <div data-component="PhotoOverlay" style={{
       position: 'absolute', top: 8, right: 8,
@@ -49,6 +51,7 @@ function PhotoOverlay({ onOpen, onToggleMark, marked, visible, zIndex }) {
 }
 
 function PhotoTile({ src, marked, onMark, onOpen, ratio = '4/3', hero = false }) {
+  const { React } = window;
   const [hover, setHover] = React.useState(false);
   return (
     <div data-component="PhotoTile"
@@ -78,6 +81,7 @@ function PhotoTile({ src, marked, onMark, onOpen, ratio = '4/3', hero = false })
 }
 
 function SlideShow({ photos = [], marked, onToggleMark, onLightbox, style: extraStyle = {} }) {
+  const { React } = window;
   const [idx, setIdx] = React.useState(0);
   const total = photos.length;
 
@@ -169,6 +173,7 @@ function Gallery({ inv, columns = 4, marked, onToggleMark, onLightbox }) {
 }
 
 function Lightbox({ inv, index, onClose }) {
+  const { React, ReactDOM, Icon } = window;
   const [i, setI] = React.useState(index);
   React.useEffect(() => {
     const k = (e) => {

@@ -1,6 +1,7 @@
 // view-dev-detail.jsx — widok szczegółowy dewelopera
 
 function useJobStatus(jobId, onFinished) {
+  const { React } = window;
   const [job, setJob] = React.useState(null);
   
   React.useEffect(() => {
@@ -36,6 +37,11 @@ function DeveloperDetail({
   dark, 
   onToggleTheme 
 }) {
+  const {
+    React, Spinner, NavMenuButton, Icon,
+    NavDrawer, StandardCard, SourceBadge, MetadataPanel,
+    MAIN_CITIES
+  } = window;
   const [developer, setDeveloper] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [navOpen, setNavOpen] = React.useState(false);

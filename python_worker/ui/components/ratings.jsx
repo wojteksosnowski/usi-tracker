@@ -1,6 +1,7 @@
 // ratings.jsx — Star Rating and scoring components
 
 function StarRating({ value = 0, max = 4, size = 22, color, onChange, readonly = false, label }) {
+  const { React } = window;
   const [hover, setHover] = React.useState(0);
   const display = hover || value;
   const c = color || 'var(--usi-accent, #1F1C16)';

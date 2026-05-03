@@ -1,6 +1,11 @@
 // view-dashboard.jsx — dashboard z mapą, wykresami, podsumowaniem
 
 function DashboardGrid({ investments = [], onNav = () => {}, accent, dark, onToggleTheme, hereApiKey }) {
+  const {
+    React, USI_CATEGORIES, ratingStatus, avgRating,
+    NavMenuButton, NavDrawer, CategoryAvgRow,
+    ProgressBarAnalytics, MiniMap
+  } = window;
   const [navOpen, setNavOpen] = React.useState(false);
   const total = investments.length;
   const rated = investments.filter(i => ratingStatus(i) === 'done').length;

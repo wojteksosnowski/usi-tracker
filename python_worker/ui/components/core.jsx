@@ -186,6 +186,7 @@ function NavMenuButton({ onClick, label = 'Menu' }) {
 }
 
 function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
+  const { React, Icon } = window;
   const items = [
     { id: 'list', label: 'Inwestycje', icon: 'grid', desc: 'Lista wszystkich inwestycji' },
     { id: 'developers', label: 'Deweloperzy', icon: 'list', desc: 'Baza firm deweloperskich' },

@@ -69,6 +69,15 @@ Zapamietaj stan wygladu wszystkich nazwanych elementow interfejsu. Zapisz go w f
 
 **Podsumowanie:** Zaimplementowano narzędzie `test-regression.js` do automatycznego porównywania stanu wizualnego z baselinem. Refaktoryzacja została zweryfikowana jako bezpieczna i zachowująca integralność Design Systemu.
 
+### Krok B08.
+**UI Stability & Recovery (Finalizacja):**
+   - [x] **Diagnostic Overlay**: Wdrożenie globalnego przechwytywania błędów w `index.html` w celu eliminacji "cichych crashy".
+   - [x] **Race Condition Fix**: Przeniesienie destrukcji z `window` do wnętrza komponentów, zapewniając poprawną inicjalizację w środowisku Babel Standalone.
+   - [x] **Dependency Waiter**: Dodanie mechanizmu oczekiwania na załadowanie wszystkich modułów przed renderowaniem aplikacji.
+   - [x] **ReferenceError Cleanup**: Naprawa błędnych nazw handlerów (`onXXX` vs `setXXX`) powstałych podczas refaktoryzacji.
+
+**Podsumowanie:** Ustabilizowano interfejs po głębokiej dekompozycji. Rozwiązano krytyczne problemy z kolejnością ładowania skryptów oraz błędami dostępu do zmiennych globalnych. System posiada teraz wbudowaną diagnostykę ułatwiającą dalszy rozwój.
+
 ## Następny kamień milowy: Bar Sushi
 
 ### Krok N01
@@ -79,6 +88,78 @@ Zasady Navbar-Bottom. Wprowadzenie jasnych reguł dla dolnego paska: Filtry, Wys
 
 ## Przyszłe kamienie milowe
 
+
+- **Refactor Views with Shared Grids:** - Abstract shared grid logic from `view-reports` and `view-dashboard` into reusable `DataGrid` components.
+- **Improve DataBus Readership:** - Refactor components to directly consume variables from DataBus instead of relying heavily on props. This will enforce its role as a centralized state.
+     ```javascript
+     const { bus } = useDataBus();
+     const visibleInvestments = bus.visibleInvestments || [];
+     ```
+
+- **Scoped Namespaces:** - Use namespaces in variables to prevent key collisions and better organize the state.
+     ```javascript
+     setVariable('filters.investments', { developer: 'XYZ', status: 'Active' });
+     const filters = bus.filters?.investments;
+     ```
+
+- **Introduce Asynchronous Dispatchers:** - Extend `setVariable` to handle async reducers to allow dynamic fetch-and-set operations.
+     ```javascript
+     const actions = {
+       fetchReports: async () => {
+         const reports = await fetch('/api/reports').then((r) => r.json());
+         setVariable('reports', reports);
+       };
+     };
+     ```
+
+- **DevTools Compatibility:** - Log state updates to debug data flow easily.
+     ```javascript
+     const debugVariableChange = (prev, next, name) => console.log(`Variable ${name} changed:`, prev, '→', next);
+     ```
+- **Dynamic Module Registry:** - Register modules dynamically with a registry for runtime extensibility.
+     ```javascript
+     const ModuleRegistry = new Map();
+
+     const registerModule = (type, component) => {
+       ModuleRegistry.set(type, component);
+     };
+
+     const getRegisteredComponent = (type) => {
+       return ModuleRegistry.has(type)
+         ? ModuleRegistry.get(type)
+         : () => <div>Unknown Module: {type}</div>;
+     };
+
+     registerModule('map', MapModule);
+     ```
+
+- **Encapsulate Module Context Logic:** - Replace repetitive validation logic with a shared `useModuleContext` hook.
+     ```javascript
+     const useModuleContext = (schema, data) => {
+       const validationResults = validate(schema, data);
+       return validationResults.valid ? validationResults.aliasedData : null;
+     };
+     ```
+
+- **Support Chained Modules:**
+   - Enable modules to provide context for child modules, e.g., hierarchical visualizations.
+     ```javascript
+     <ModuleWrapper>
+        <PriceTrendModule config={trendConfig}>
+           <BarChart dataKey="aggregatedPriceDistribution" />
+        </PriceTrendModule>
+     </ModuleWrapper>
+     ```
+
+-  **Standardize Module Specs:** - Define a JSON-based module specification to manage inputs and outputs systematically.
+     ```json
+     {
+       "modules": [
+         { "id": "price", "type": "PriceTrendModule", "config": { "highlight": "Warsaw" } },
+         { "id": "map", "type": "MapModule", "config": { "dark": true } }
+       ]
+     }
+     ```
 - **Raspbery** - Przygotowanie środowiska i testy wydajnościowe na docelowej architekturze ARM (Raspberry Pi) po przejściu testów lokalnych.
 - **Crawler** — Powolne zaciąganie inwestycji w tle.
 - **Wikipednia** — Dodawanie kontekstu do rekordów inwestycji.

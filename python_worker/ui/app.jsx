@@ -1,6 +1,7 @@
 // app.jsx — USI Tracker SPA
 
 function LoadingScreen() {
+  const { Spinner } = window;
   return (
     <div data-component="LoadingScreen" className="app-loading-screen">
       <Spinner />
@@ -10,11 +11,14 @@ function LoadingScreen() {
 }
 
 function EmptyScreen({ onFetch, fetching, fetchCount }) {
+  const { Spinner, Icon } = window;
   return (
     <div data-component="EmptyScreen" className="app-empty-screen">
-      <svg width="64" height="64" viewBox="0 0 48 48" fill="none" className="empty-screen-icon">
-        <path d="M22.85 15.05c0-.32 .21-.6 .51-.69 .75-.21 2.53-.5 6.57-.5 4.05 0 5.83 .3 6.58 .51 .3 .09 .51 .37 .51 .68v15.78L51.06 26c.3-.1 .63 .02 .81 .28 .43 .65 1.27 2.25 2.51 6.1 1.25 3.85 1.51 5.64 1.55 6.42 .01 .31-.19 .6-.49 .69-3.04 .99-20.55 6.68-30 9.75l18.55 25.56c.17 .25 .16 .59 .03 .83-.49 .61-1.75 1.9-5.02 4.27-3.27 2.38-4.89 3.18-5.62 3.45-.26 .09-.54 .03-.74-.16L24 88c-19.36-26-19.55-26.21-19.71-26.34-.29-.21-.49-.49-.46-.81 .03-.78 .29-2.57 1.55-6.43 1.26-3.89 2.1-5.48 2.53-6.11 .17-.25 .49-.36 .77-.27z" fill="currentColor" />
-      </svg>
+      <div className="empty-screen-icon">
+        <svg width="64" height="64" viewBox="0 0 48 48" fill="none">
+          <path d="M22.85 15.05c0-.32 .21-.6 .51-.69 .75-.21 2.53-.5 6.57-.5 4.05 0 5.83 .3 6.58 .51 .3 .09 .51 .37 .51 .68v15.78L51.06 26c.3-.1 .63 .02 .81 .28 .43 .65 1.27 2.25 2.51 6.1 1.25 3.85 1.51 5.64 1.55 6.42 .01 .31-.19 .6-.49 .69-3.04 .99-20.55 6.68-30 9.75l18.55 25.56c.17 .25 .16 .59 .03 .83-.49 .61-1.75 1.9-5.02 4.27-3.27 2.38-4.89 3.18-5.62 3.45-.26 .09-.54 .03-.74-.16L24 88c-19.36-26-19.55-26.21-19.71-26.34-.29-.21-.49-.49-.46-.81 .03-.78 .29-2.57 1.55-6.43 1.26-3.89 2.1-5.48 2.53-6.11 .17-.25 .49-.36 .77-.27z" fill="currentColor" />
+        </svg>
+      </div>
       <h2 className="usi-h1" style={{ margin: 0 }}>Baza jest pusta</h2>
       <p className="usi-body empty-screen-text">
         Brak inwestycji w bazie. Pobierz przykładowe rekordy z RynekPierwotny.pl.
@@ -34,261 +38,298 @@ function EmptyScreen({ onFetch, fetching, fetchCount }) {
 }
 
 function App() {
-  const rootRef = React.useRef(null);
-  const [view, setView] = React.useState('list');
-  const [selectedInv, setSelectedInv] = React.useState(null);
-  const [selectedDev, setSelectedDev] = React.useState(null);
-  const [selectedReport, setSelectedReport] = React.useState(null);
-  const { investments, loading, refetch } = useInvestments();
-  const { developers, loading: loadingDevs, refetch: refetchDevs } = useDevelopers();
-  const config = useConfig();
-  const [fetching, setFetching] = React.useState(false);
-  const [fetchCount, setFetchCount] = React.useState(0);
-  const pollRef = React.useRef(null);
-  const [dark, setDark] = React.useState(false);
+  try {
+    const {
+      React, Spinner, Icon, ModuleErrorBoundary,
+      ListGrid, DeveloperListGrid, DeveloperDetail,
+      DetailRightPanel, DashboardGrid, ViewDownload,
+      ReportsList, ReportDetail, DataBusProvider, useDataBus,
+      useInvestments, useDevelopers, useConfig,
+      MAIN_CITIES, applyTheme, injectThemeCSS
+    } = window;
 
-  // Filter state (lifted from ListGrid)
-  const [search, setSearch] = React.useState('');
-  const [filterDev, setFilterDev] = React.useState('');
-  const [filterStatus, setFilterStatus] = React.useState('');
-  const [activeSources, setActiveSources] = React.useState(new Set(['RP', 'OTO', 'TO']));
-  const [activeCities, setActiveCities] = React.useState(new Set());
+    const rootRef = React.useRef(null);
+    const [view, setView] = React.useState('list');
+    const [selectedInv, setSelectedInv] = React.useState(null);
+    const [selectedDev, setSelectedDev] = React.useState(null);
+    const [selectedReport, setSelectedReport] = React.useState(null);
+    const { investments, loading, refetch } = useInvestments();
+    const { developers, loading: loadingDevs, refetch: refetchDevs } = useDevelopers();
+    const config = useConfig();
+    const [fetching, setFetching] = React.useState(false);
+    const [fetchCount, setFetchCount] = React.useState(0);
+    const pollRef = React.useRef(null);
+    const [dark, setDark] = React.useState(false);
 
-  const { setVariable } = useDataBus();
+    // Filter state (lifted from ListGrid)
+    const [search, setSearch] = React.useState('');
+    const [filterDev, setFilterDev] = React.useState('');
+    const [filterStatus, setFilterStatus] = React.useState('');
+    const [activeSources, setActiveSources] = React.useState(new Set(['RP', 'OTO', 'TO']));
+    const [activeCities, setActiveCities] = React.useState(new Set());
 
-  const filteredInvestments = React.useMemo(() => {
-    return investments.filter(inv => {
-      if (search) {
-        const s = search.toLowerCase();
-        const match = (inv.name?.toLowerCase().includes(s) ||
-                     inv.developer?.toLowerCase().includes(s) ||
-                     inv.district?.toLowerCase().includes(s) ||
-                     inv.address?.toLowerCase().includes(s));
-        if (!match) return false;
-      }
-      if (filterDev && inv.developer !== filterDev) return false;
-      if (filterStatus && inv.status !== filterStatus) return false;
-      if (activeSources.size > 0 && inv.source && !activeSources.has(inv.source.toUpperCase())) return false;
-      if (activeCities.size > 0) {
-        const addr = (inv.address || '').toLowerCase();
-        const foundCity = MAIN_CITIES.find(c => addr.includes(c.toLowerCase()));
-        if (!foundCity || !activeCities.has(foundCity)) return false;
-      }
-      return true;
-    });
-  }, [investments, search, filterDev, filterStatus, activeSources, activeCities]);
+    const { setVariable } = useDataBus();
 
-  React.useEffect(() => {
-    setVariable('visibleInvestments', filteredInvestments);
-  }, [filteredInvestments, setVariable]);
-
-  React.useEffect(() => {
-    injectThemeCSS();
-    if (rootRef.current) applyTheme(rootRef.current, false, '#E5006D');
-  }, []);
-
-  const handleToggleTheme = () => {
-    const next = !dark;
-    setDark(next);
-    if (rootRef.current) applyTheme(rootRef.current, next, '#E5006D');
-  };
-
-  // Keyboard nav in detail view
-  React.useEffect(() => {
-    if (view !== 'detail') return;
-    const handler = (e) => {
-      if (e.key === 'Escape') setView('list');
-      if (e.key === 'ArrowLeft') setSelectedInv(prev => {
-        if (!prev || filteredInvestments.length === 0) return prev;
-        const idx = filteredInvestments.findIndex(i => i.slug === prev.slug);
-        return filteredInvestments[(idx - 1 + filteredInvestments.length) % filteredInvestments.length];
+    const filteredInvestments = React.useMemo(() => {
+      return investments.filter(inv => {
+        if (search) {
+          const s = search.toLowerCase();
+          const match = (inv.name?.toLowerCase().includes(s) ||
+                       inv.developer?.toLowerCase().includes(s) ||
+                       inv.district?.toLowerCase().includes(s) ||
+                       inv.address?.toLowerCase().includes(s));
+          if (!match) return false;
+        }
+        if (filterDev && inv.developer !== filterDev) return false;
+        if (filterStatus && inv.status !== filterStatus) return false;
+        if (activeSources.size > 0 && inv.source && !activeSources.has(inv.source.toUpperCase())) return false;
+        if (activeCities.size > 0) {
+          const addr = (inv.address || '').toLowerCase();
+          const foundCity = MAIN_CITIES.find(c => addr.includes(c.toLowerCase()));
+          if (!foundCity || !activeCities.has(foundCity)) return false;
+        }
+        return true;
       });
-      if (e.key === 'ArrowRight') setSelectedInv(prev => {
-        if (!prev || filteredInvestments.length === 0) return prev;
-        const idx = filteredInvestments.findIndex(i => i.slug === prev.slug);
-        return filteredInvestments[(idx + 1) % filteredInvestments.length];
-      });
+    }, [investments, search, filterDev, filterStatus, activeSources, activeCities]);
+
+    React.useEffect(() => {
+      setVariable('visibleInvestments', filteredInvestments);
+    }, [filteredInvestments, setVariable]);
+
+    React.useEffect(() => {
+      injectThemeCSS();
+      if (rootRef.current) applyTheme(rootRef.current, false, '#E5006D');
+    }, []);
+
+    const handleToggleTheme = () => {
+      const next = !dark;
+      setDark(next);
+      if (rootRef.current) applyTheme(rootRef.current, next, '#E5006D');
     };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [view, filteredInvestments]);
 
-  React.useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+    // Keyboard nav in detail view
+    React.useEffect(() => {
+      if (view !== 'detail') return;
+      const handler = (e) => {
+        if (e.key === 'Escape') setView('list');
+        if (e.key === 'ArrowLeft') setSelectedInv(prev => {
+          if (!prev || filteredInvestments.length === 0) return prev;
+          const idx = filteredInvestments.findIndex(i => i.slug === prev.slug);
+          return filteredInvestments[(idx - 1 + filteredInvestments.length) % filteredInvestments.length];
+        });
+        if (e.key === 'ArrowRight') setSelectedInv(prev => {
+          if (!prev || filteredInvestments.length === 0) return prev;
+          const idx = filteredInvestments.findIndex(i => i.slug === prev.slug);
+          return filteredInvestments[(idx + 1) % filteredInvestments.length];
+        });
+      };
+      document.addEventListener('keydown', handler);
+      return () => document.removeEventListener('keydown', handler);
+    }, [view, filteredInvestments]);
 
-  const handleSelectInv = (inv) => {
-    setSelectedInv(inv);
-    setView('detail');
-  };
+    React.useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
-  const handleSelectDev = (dev) => {
-    setSelectedDev(dev);
-    setView('dev-detail');
-  };
+    const handleSelectInv = (inv) => {
+      setSelectedInv(inv);
+      setView('detail');
+    };
 
-  const handleNav = (v) => {
-    if (v === 'list' || v === 'dashboard' || v === 'detail' || v === 'download' || v === 'developers' || v === 'dev-detail' || v === 'reports' || v === 'report-detail') {
-      setView(v);
-      setSelectedInv(null);
-      setSelectedDev(null);
-      setSelectedReport(null);
-    }
-  };
+    const handleSelectDev = (dev) => {
+      setSelectedDev(dev);
+      setView('dev-detail');
+    };
 
-  const handleSelectReport = (report) => {
-    setSelectedReport(report);
-    setView('report-detail');
-  };
+    const handleNav = (v) => {
+      if (v === 'list' || v === 'dashboard' || v === 'detail' || v === 'download' || v === 'developers' || v === 'dev-detail' || v === 'reports' || v === 'report-detail') {
+        setView(v);
+        setSelectedInv(null);
+        setSelectedDev(null);
+        setSelectedReport(null);
+      }
+    };
 
-  const handleUpdateInv = (updated) => {
-    refetch();
-    setSelectedInv(updated);
-  };
+    const handleSelectReport = (report) => {
+      setSelectedReport(report);
+      setView('report-detail');
+    };
 
-  const handleFetchSample = () => {
-    setFetching(true);
-    fetch('/api/fetch-sample', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ count: 50 }),
-    })
-      .then(() => {
-        pollRef.current = setInterval(() => {
-          fetch('/api/fetch-status')
-            .then(r => r.json())
-            .then(d => {
-              setFetchCount(d.count);
-              if (d.count > 0) {
-                clearInterval(pollRef.current);
-                setFetching(false);
-                refetch();
-              }
-            })
-            .catch(() => {});
-        }, 3000);
+    const handleUpdateInv = (updated) => {
+      refetch();
+      setSelectedInv(updated);
+    };
+
+    const handleFetchSample = () => {
+      setFetching(true);
+      fetch('/api/fetch-sample', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count: 50 }),
       })
-      .catch(() => setFetching(false));
-  };
+        .then(() => {
+          pollRef.current = setInterval(() => {
+            fetch('/api/fetch-status')
+              .then(r => r.json())
+              .then(d => {
+                setFetchCount(d.count);
+                if (d.count > 0) {
+                  clearInterval(pollRef.current);
+                  setFetching(false);
+                  refetch();
+                }
+              })
+              .catch(() => {});
+          }, 3000);
+        })
+        .catch(() => setFetching(false));
+    };
 
-  const invIndex = selectedInv
-    ? filteredInvestments.findIndex(i => i.slug === selectedInv.slug)
-    : 0;
+    const invIndex = selectedInv
+      ? filteredInvestments.findIndex(i => i.slug === selectedInv.slug)
+      : 0;
 
-  if (loading) {
+    if (loading) {
+      return (
+        <div data-component="App" ref={rootRef} className="app-container">
+          <LoadingScreen />
+        </div>
+      );
+    }
+
+    if (investments.length === 0) {
+      return (
+        <div data-component="App" ref={rootRef} className="app-container">
+          <EmptyScreen onFetch={handleFetchSample} fetching={fetching} fetchCount={fetchCount} />
+        </div>
+      );
+    }
+
     return (
       <div data-component="App" ref={rootRef} className="app-container">
-        <LoadingScreen />
-      </div>
-    );
-  }
+        <div className="app-main-content">
+          {view === 'list' && (
+            <ListGrid
+              investments={investments}
+              filteredInvestments={filteredInvestments}
+              onSelectInv={handleSelectInv}
+              onNav={handleNav}
+              search={search} onSearch={setSearch}
+              filterDev={filterDev} onFilterDev={setFilterDev}
+              filterStatus={filterStatus} onFilterStatus={setFilterStatus}
+              activeSources={activeSources} onSetActiveSources={setActiveSources}
+              activeCities={activeCities} onSetActiveCities={setActiveCities}
+              dark={dark} onToggleTheme={handleToggleTheme}
+            />
+          )}
 
-  if (investments.length === 0) {
-    return (
-      <div data-component="App" ref={rootRef} className="app-container">
-        <EmptyScreen onFetch={handleFetchSample} fetching={fetching} fetchCount={fetchCount} />
-      </div>
-    );
-  }
+          {view === 'developers' && (
+            <DeveloperListGrid
+              developers={developers}
+              onSelectDev={handleSelectDev}
+              onNav={handleNav}
+              dark={dark} onToggleTheme={handleToggleTheme}
+            />
+          )}
 
-  return (
-    <div data-component="App" ref={rootRef} className="app-container">
-      <div className="app-main-content">
-        {view === 'list' && (
-          <ListGrid
-            investments={investments}
-            filteredInvestments={filteredInvestments}
-            onSelectInv={handleSelectInv}
-            onNav={handleNav}
-            search={search} onSearch={setSearch}
-            filterDev={filterDev} onFilterDev={setFilterDev}
-            filterStatus={filterStatus} onFilterStatus={setFilterStatus}
-            activeSources={activeSources} onSetActiveSources={setActiveSources}
-            activeCities={activeCities} onSetActiveCities={setActiveCities}
-            dark={dark} onToggleTheme={handleToggleTheme}
-          />
-        )}
-
-        {view === 'developers' && (
-          <DeveloperListGrid
-            developers={developers}
-            onSelectDev={handleSelectDev}
-            onNav={handleNav}
-            dark={dark} onToggleTheme={handleToggleTheme}
-          />
-        )}
-
-        {view === 'dev-detail' && selectedDev && (
-          <DeveloperDetail
-            dev_slug={selectedDev.developer_slug}
-            onBack={() => setView('developers')}
-            onNav={handleNav}
-            onSelectInv={handleSelectInv}
-            dark={dark}
-            onToggleTheme={handleToggleTheme}
-          />
-        )}
-        {view === 'detail' && selectedInv && (
-          <DetailRightPanel
-            inv={selectedInv}
-            invIndex={invIndex >= 0 ? invIndex : 0}
-            invTotal={filteredInvestments.length}
-            onBack={() => setView('list')}
-            onNav={handleNav}
-            onUpdateInv={handleUpdateInv}
-            onPrev={() => setSelectedInv(prev => {
-              const idx = filteredInvestments.findIndex(i => i.slug === prev.slug);
-              return filteredInvestments[(idx - 1 + filteredInvestments.length) % filteredInvestments.length];
-            })}
-            onNext={() => setSelectedInv(prev => {
-              const idx = filteredInvestments.findIndex(i => i.slug === prev.slug);
-              return filteredInvestments[(idx + 1) % filteredInvestments.length];
-            })}
-            dark={dark} onToggleTheme={handleToggleTheme}
-          />
-        )}
-        {view === 'dashboard' && (
-          <DashboardGrid 
-            investments={investments} 
-            onNav={handleNav} 
-            dark={dark} 
-            onToggleTheme={handleToggleTheme} 
-            hereApiKey={config ? config.hereApiKey : undefined} 
-          />
-        )}
-        {view === 'download' && (
-          <ModuleErrorBoundary>
-            <ViewDownload 
+          {view === 'dev-detail' && selectedDev && (
+            <DeveloperDetail
+              dev_slug={selectedDev.developer_slug}
+              onBack={() => setView('developers')}
+              onNav={handleNav}
+              onSelectInv={handleSelectInv}
+              dark={dark}
+              onToggleTheme={handleToggleTheme}
+            />
+          )}
+          {view === 'detail' && selectedInv && (
+            <DetailRightPanel
+              inv={selectedInv}
+              invIndex={invIndex >= 0 ? invIndex : 0}
+              invTotal={filteredInvestments.length}
+              onBack={() => setView('list')}
+              onNav={handleNav}
+              onUpdateInv={handleUpdateInv}
+              onPrev={() => setSelectedInv(prev => {
+                const idx = filteredInvestments.findIndex(i => i.slug === prev.slug);
+                return filteredInvestments[(idx - 1 + filteredInvestments.length) % filteredInvestments.length];
+              })}
+              onNext={() => setSelectedInv(prev => {
+                const idx = filteredInvestments.findIndex(i => i.slug === prev.slug);
+                return filteredInvestments[(idx + 1) % filteredInvestments.length];
+              })}
+              dark={dark} onToggleTheme={handleToggleTheme}
+            />
+          )}
+          {view === 'dashboard' && (
+            <DashboardGrid 
+              investments={investments} 
+              onNav={handleNav} 
+              dark={dark} 
+              onToggleTheme={handleToggleTheme} 
+              hereApiKey={config ? config.hereApiKey : undefined} 
+            />
+          )}
+          {view === 'download' && (
+            <ModuleErrorBoundary>
+              <ViewDownload 
+                onNav={handleNav}
+                dark={dark}
+                onToggleTheme={handleToggleTheme}
+              />
+            </ModuleErrorBoundary>
+          )}
+          {view === 'reports' && (
+            <ModuleErrorBoundary>
+              <ReportsList
+                onSelectReport={handleSelectReport}
+                onNav={handleNav}
+                dark={dark}
+                onToggleTheme={handleToggleTheme}
+              />
+            </ModuleErrorBoundary>
+          )}
+          {view === 'report-detail' && selectedReport && (
+            <ReportDetail
+              reportId={selectedReport.id}
+              onBack={() => setView('reports')}
               onNav={handleNav}
               dark={dark}
               onToggleTheme={handleToggleTheme}
             />
-          </ModuleErrorBoundary>
-        )}
-        {view === 'reports' && (
-          <ModuleErrorBoundary>
-            <ReportsList
-              onSelectReport={handleSelectReport}
-              onNav={handleNav}
-              dark={dark}
-              onToggleTheme={handleToggleTheme}
-            />
-          </ModuleErrorBoundary>
-        )}
-        {view === 'report-detail' && selectedReport && (
-          <ReportDetail
-            reportId={selectedReport.id}
-            onBack={() => setView('reports')}
-            onNav={handleNav}
-            dark={dark}
-            onToggleTheme={handleToggleTheme}
-          />
-        )}
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  } catch (err) {
+    console.error("CRITICAL APP RENDER ERROR:", err);
+    return (
+      <div style={{ padding: 40, background: '#fee', color: '#c00', height: '100vh', display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <h1>Błąd renderowania aplikacji</h1>
+        <pre style={{ whiteSpace: 'pre-wrap' }}>{err.stack}</pre>
+        <button onClick={() => window.location.reload()}>Przeładuj stronę</button>
+      </div>
+    );
+  }
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <DataBusProvider>
-    <App />
-  </DataBusProvider>
-);
+const renderApp = () => {
+  const required = [
+    'React', 'ReactDOM', 'DataBusProvider', 'useInvestments', 
+    'useDevelopers', 'useConfig', 'ListGrid', 'Spinner'
+  ];
+  const missing = required.filter(k => !window[k]);
+  
+  if (missing.length > 0) {
+    console.warn("Waiting for dependencies: " + missing.join(', '));
+    setTimeout(renderApp, 100);
+    return;
+  }
+
+  console.log("All dependencies ready. Rendering App.");
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    <window.DataBusProvider>
+      <App />
+    </window.DataBusProvider>
+  );
+};
+
+renderApp();

@@ -1,8 +1,10 @@
 // data.jsx — async hook for loading investments from server
 
-const DataBusContext = React.createContext();
+// Defined at top level but safely using window.React
+const DataBusContext = window.React.createContext();
 
 function DataBusProvider({ children }) {
+  const { React } = window;
   const [bus, setBus] = React.useState({
     visibleInvestments: [],
     currentInvestment: null,
@@ -30,6 +32,7 @@ function DataBusProvider({ children }) {
 }
 
 function useDataBus() {
+  const { React } = window;
   const context = React.useContext(DataBusContext);
   if (!context) {
     // Fallback for components rendered outside provider (e.g. during initial loads)
@@ -39,9 +42,11 @@ function useDataBus() {
 }
 
 function useInvestments() {
+  const { React } = window;
 // ... existing useInvestments ...
   const [investments, setInvestments] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  // ...
 
   const load = React.useCallback(() => {
     setLoading(true);
@@ -57,8 +62,10 @@ function useInvestments() {
 }
 
 function useDevelopers() {
+  const { React } = window;
   const [developers, setDevelopers] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  // ...
 
   const load = React.useCallback(() => {
     setLoading(true);
@@ -74,6 +81,7 @@ function useDevelopers() {
 }
 
 function useConfig() {
+  const { React } = window;
   const [config, setConfig] = React.useState(null);
   React.useEffect(() => {
     fetch('/api/config')
@@ -83,11 +91,12 @@ function useConfig() {
         console.error("Failed to load config", e);
         setConfig({});
       });
-  }, []);
+  }, [React]);
   return config;
 }
 
 function useMetadataConfig() {
+  const { React } = window;
   const [meta, setMeta] = React.useState(null);
   React.useEffect(() => {
     fetch('/api/metadata-config')
@@ -97,7 +106,7 @@ function useMetadataConfig() {
         console.error("Failed to load metadata config", e);
         setMeta([]);
       });
-  }, []);
+  }, [React]);
   return meta;
 }
 

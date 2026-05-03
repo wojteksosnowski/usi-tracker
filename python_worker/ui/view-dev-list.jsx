@@ -6,7 +6,13 @@ function DeveloperListGrid({
   onNav = () => {},
   dark, onToggleTheme
 }) {
+  const {
+    React, MAIN_CITIES, NavMenuButton, Icon,
+    NavDrawer, SOURCES, StandardCard, SourceBadge
+  } = window;
+  const [navOpen, setNavOpen] = React.useState(false);
   const [search, setSearch] = React.useState('');
+
   const [activeSources, setActiveSources] = React.useState(new Set(['RP', 'OTO', 'TO']));
   const [activeCities, setActiveCities] = React.useState(new Set());
   

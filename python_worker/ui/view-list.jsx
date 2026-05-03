@@ -12,6 +12,12 @@ function ListGrid({
   activeCities, onSetActiveCities,
   dark, onToggleTheme
 }) {
+  const {
+    React, NavMenuButton, Icon, NavDrawer,
+    FilterChip, StandardCard, SourceBadge, CategoryStripe,
+    USI_STATUSES, MAIN_CITIES, SOURCES,
+    ocenaLog, avgRating, useDataBus, extractModuleContext
+  } = window;
   const [mode, setMode] = React.useState('grid');
   
   // Virtualization state
@@ -106,8 +112,8 @@ function ListGrid({
         count={filteredInvestments.length} total={investments.length} 
         search={search} onSearch={onSearch}
         developers={developers}
-        filterDev={filterDev} onFilterDev={setFilterDev}
-        filterStatus={filterStatus} onFilterStatus={setFilterStatus}
+        filterDev={filterDev} onFilterDev={onFilterDev}
+        filterStatus={filterStatus} onFilterStatus={onFilterStatus}
         onNav={onNav}
         activeSources={activeSources} onToggleSource={toggleSource}
         activeCities={activeCities} onToggleCity={toggleCity}

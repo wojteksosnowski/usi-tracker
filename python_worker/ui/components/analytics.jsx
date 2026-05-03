@@ -1,7 +1,7 @@
 // analytics.jsx — Analytics and Metadata display modules
 
 function CategoryAvgRow({ label, avg, count, color }) {
-  const { StarRating } = window;
+  const { React, StarRating } = window;
   return (
     <div data-component="CategoryAvg-Row" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
       <div style={{ width: 100, fontSize: 13, fontWeight: 500 }}>{label}</div>
