@@ -199,6 +199,20 @@ function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onUp
   const metaConfig = useMetadataConfig();
   const { bus, setVariable } = useDataBus();
 
+  // Zgodnie z Krok B04: generowanie kontekstu dla modułów
+  const getModuleContext = React.useCallback(() => {
+    return {
+      currentInvestment: inv,
+      geo: inv.coords && inv.coords[0] !== 0 ? { lat: inv.coords[0], lng: inv.coords[1] } : null,
+      rating: avgRating(inv),
+      color: 'var(--usi-accent)'
+    };
+  }, [inv]);
+
+  React.useEffect(() => {
+    console.log("[DetailRightPanel] getModuleContext() generated:", getModuleContext());
+  }, [getModuleContext]);
+
   React.useEffect(() => {
     setVariable('currentInvestment', inv);
     

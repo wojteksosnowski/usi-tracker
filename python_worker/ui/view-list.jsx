@@ -26,6 +26,17 @@ function ListGrid({
     setScrollTop(e.target.scrollTop);
   };
 
+  // Zgodnie z Krok B04: generowanie kontekstu dla modułów
+  const getModuleContext = React.useCallback(() => {
+    return {
+      visibleInvestments: filteredInvestments,
+    };
+  }, [filteredInvestments]);
+
+  React.useEffect(() => {
+    console.log("[ListGrid] getModuleContext() generated:", getModuleContext());
+  }, [getModuleContext]);
+
   React.useEffect(() => {
     const update = () => {
       if (containerRef.current) {
