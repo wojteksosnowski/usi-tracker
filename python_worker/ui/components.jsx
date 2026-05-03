@@ -629,9 +629,50 @@ function SkeletonModule({ shouldThrow = false }) {
   );
 }
 
+// ─── System Typów dla Modułów (B02) ────────────────────────────
+const ModuleTypes = {
+  RecordSet: 'RecordSet', // Tablica rekordów inwestycji
+  GeoPoint: 'GeoPoint',   // { lat: number, lng: number }
+  Rating: 'Rating',       // { value: number, count: number }
+  Color: 'Color',         // String hex/rgb
+  Number: 'Number',       // Liczba
+};
+
+class ModuleSchemaValidator {
+  static validate(schema, data) {
+    const result = { valid: true, errors: [], aliasedData: {} };
+    for (const [key, spec] of Object.entries(schema)) {
+      const sourceKey = spec.from || key;
+      const value = data[sourceKey];
+      if (value === undefined && spec.required) {
+        result.valid = false;
+        result.errors.push(`Missing required field: ${sourceKey} for module input: ${key}`);
+      } else if (value !== undefined) {
+        if (spec.type === ModuleTypes.GeoPoint && (typeof value.lat !== 'number' || typeof value.lng !== 'number')) {
+          result.valid = false; result.errors.push(`Invalid GeoPoint for ${sourceKey}`);
+        } else if (spec.type === ModuleTypes.RecordSet && !Array.isArray(value)) {
+          result.valid = false; result.errors.push(`Invalid RecordSet for ${sourceKey}`);
+        }
+        result.aliasedData[key] = value;
+      }
+    }
+    return result;
+  }
+}
+
+// Przykładowa specyfikacja (i test walidacji w konsoli)
+const exampleModuleJSON = {
+  inputs: {
+    center: { type: ModuleTypes.GeoPoint, required: true, from: 'currentGeo' },
+    items: { type: ModuleTypes.RecordSet, required: false, from: 'visibleInvestments' }
+  }
+};
+console.log("ModuleSchema Test:", ModuleSchemaValidator.validate(exampleModuleJSON.inputs, { currentGeo: { lat: 52.2, lng: 21.0 } }));
+
 Object.assign(window, {
   Spinner, USIStarLogo, StarRating, CategoryRating, SourceBadge, StandardCard,
   CategoryStripe, CategoryDots, MiniMap, ProgressRing, Icon,
   NavDrawer, NavMenuButton, UsiStarScore, WeightedUsiScore,
-  ModuleErrorBoundary, BaseModule, SkeletonModule
+  ModuleErrorBoundary, BaseModule, SkeletonModule,
+  ModuleTypes, ModuleSchemaValidator
 });
