@@ -302,9 +302,40 @@ function useDarkMode() {
   return dark;
 }
 
+// ─── ModuleWrapper (Krok B03) ──────────────────────────────────
+// Mechanizm spinający istniejące komponenty z architekturą modułów.
+// Założenia:
+// 1. Otrzymuje kontekst wygenerowany z widoku (np. przez extractModuleContext).
+// 2. Mapuje ten kontekst na zmienne zrozumiałe dla zawiniętego komponentu używając specyfikacji JSON.
+// 3. Renderuje wewnątrz `BaseModule` dla spójności układu i ErrorBoundary.
+function ModuleWrapper({ component: Component, moduleSpec, context, title, icon, height }) {
+  const validation = ModuleSchemaValidator.validate(moduleSpec.inputs, context);
+  
+  if (!validation.valid) {
+    return (
+      <BaseModule title={title} icon={icon}>
+        <div style={{ color: 'var(--usi-danger)', fontSize: 12 }}>
+          {validation.errors.map((err, i) => <div key={i}>{err}</div>)}
+        </div>
+      </BaseModule>
+    );
+  }
+
+  return (
+    <BaseModule title={title} icon={icon}>
+      <Component {...validation.aliasedData} height={height} />
+    </BaseModule>
+  );
+}
+
 // ─── MiniMap — fake map z markerami, klik → google maps ─────
-function MiniMap({ coords, label, height = 140, points = [], hereUrl = '', hereUrlDark = '' }) {
-  const url = `https://www.google.com/maps/@${coords[0]},${coords[1]},780m/`;
+// W Kroku B07 zostanie zrefaktoryzowana, teraz dostosowujemy ją by czytała GeoPoint
+function MiniMap({ geo, label, height = 140, points = [], hereUrl = '', hereUrlDark = '', coords }) {
+  // Kompatybilność wsteczna z coords [lat, lng] dla starych widoków, docelowo używa geo {lat, lng}
+  const mapCoords = geo ? [geo.lat, geo.lng] : coords;
+  if (!mapCoords || mapCoords[0] === 0) return null;
+
+  const url = `https://www.google.com/maps/@${mapCoords[0]},${mapCoords[1]},780m/`;
   const isDark = useDarkMode();
   const imgSrc = (isDark && hereUrlDark) ? hereUrlDark : hereUrl;
   return (
@@ -674,5 +705,5 @@ Object.assign(window, {
   CategoryStripe, CategoryDots, MiniMap, ProgressRing, Icon,
   NavDrawer, NavMenuButton, UsiStarScore, WeightedUsiScore,
   ModuleErrorBoundary, BaseModule, SkeletonModule,
-  ModuleTypes, ModuleSchemaValidator
+  ModuleTypes, ModuleSchemaValidator, ModuleWrapper
 });
