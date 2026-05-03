@@ -1,0 +1,59 @@
+/* _variables.scss — CSS Variables & Design Tokens */
+
+:root {
+  /* Colors */
+  --usi-bg: #f0eee9;
+  --usi-surface: #ffffff;
+  --usi-surface-2: #f8f6f2;
+  --usi-surface-3: #eeebe3;
+  
+  --usi-accent: #e5006d;
+  --usi-accent-hover: #c4005d;
+  
+  --usi-ink: #1f1c16;
+  --usi-ink-2: #4a453e;
+  --usi-ink-3: #7e766c;
+  --usi-ink-4: #b0a9a0;
+  
+  --usi-border: rgba(0, 0, 0, 0.08);
+  --usi-border-strong: rgba(0, 0, 0, 0.15);
+  
+  --usi-success: #2e7d32;
+  --usi-warn: #ed6c02;
+  --usi-danger: #d32f2f;
+  
+  --usi-star-empty: #e0e0e0;
+  
+  /* Spacing */
+  --usi-space-1: 8px;
+  --usi-space-2: 16px;
+  --usi-space-3: 24px;
+  --usi-space-4: 32px;
+  
+  /* Radius */
+  --usi-radius-sm: 6px;
+  --usi-radius-md: 10px;
+  --usi-radius-lg: 16px;
+  
+  /* Shadows */
+  --usi-shadow-sm: 0 2px 4px rgba(0,0,0,0.05);
+  --usi-shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --usi-shadow-lg: 0 12px 24px rgba(0,0,0,0.12);
+}
+
+.usi-theme-dark {
+  --usi-bg: #12110e;
+  --usi-surface: #1c1b18;
+  --usi-surface-2: #252420;
+  --usi-surface-3: #2f2e2a;
+  
+  --usi-ink: #eeebe3;
+  --usi-ink-2: #b0a9a0;
+  --usi-ink-3: #7e766c;
+  --usi-ink-4: #4a453e;
+  
+  --usi-border: rgba(255, 255, 255, 0.08);
+  --usi-border-strong: rgba(255, 255, 255, 0.15);
+  
+  --usi-star-empty: #3a3834;
+}

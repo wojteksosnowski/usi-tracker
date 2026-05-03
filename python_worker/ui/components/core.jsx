@@ -1,0 +1,277 @@
+// core.jsx — UI primitives for USI
+
+function Spinner({ size = 40, stroke = 3 }) {
+  return (
+    <div data-component="Spinner">
+      <div className="usi-spinner" style={{ width: size, height: size, borderWidth: stroke }} />
+    </div>
+  );
+}
+
+function USIStarLogo({ size = 24, color }) {
+  return (
+    <svg data-component="USIStarLogo" width={size} height={size} viewBox="0 0 48 48" fill="none">
+      <path d="M22.85 15.05c0-.32 .21-.6 .51-.69 .75-.21 2.53-.5 6.57-.5 4.05 0 5.83 .3 6.58 .51 .3 .09 .51 .37 .51 .68v15.78L51.06 26c.3-.1 .63 .02 .81 .28 .43 .65 1.27 2.25 2.51 6.1 1.25 3.85 1.51 5.64 1.55 6.42 .01 .31-.19 .6-.49 .69-3.04 .99-20.55 6.68-30 9.75l18.55 25.56c.17 .25 .16 .59 .03 .83-.49 .61-1.75 1.9-5.02 4.27-3.27 2.38-4.89 3.18-5.62 3.45-.26 .09-.54 .03-.74-.16L24 88c-19.36-26-19.55-26.21-19.71-26.34-.29-.21-.49-.49-.46-.81 .03-.78 .29-2.57 1.55-6.43 1.26-3.89 2.1-5.48 2.53-6.11 .17-.25 .49-.36 .77-.27z" fill={color || 'currentColor'} />
+    </svg>
+  );
+}
+
+function SourceBadge({ source, url }) {
+  const cls = source === 'OTO' || source === 'oto' || source === 'otodom' ? 'oto' : (source === 'RP' || source === 'rp' ? 'rp' : 'to');
+  const label = (source === 'otodom' ? 'OTO' : source ? source.toUpperCase() : '??');
+  
+  if (url) {
+    return (
+      <a 
+        data-component="SourceBadge" 
+        href={url} 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className={`usi-source ${cls}`}
+        style={{ textDecoration: 'none' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {label}
+      </a>
+    );
+  }
+  return <span data-component="SourceBadge" className={`usi-source ${cls}`}>{label}</span>;
+}
+
+function FilterChip({ label, active, onClick, color, source }) {
+  return (
+    <button
+      data-component="FilterChip"
+      data-active={active}
+      onClick={(e) => onClick && onClick(e.shiftKey)}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '6px 12px',
+        borderRadius: '16px',
+        fontSize: '11px',
+        fontWeight: 700,
+        cursor: 'pointer',
+        border: '1.5px solid ' + (active ? (color || 'var(--usi-accent)') : 'var(--usi-border)'),
+        background: active ? (color ? color + '15' : 'rgba(229, 0, 109, 0.1)') : 'var(--usi-surface)',
+        color: active ? (color || 'var(--usi-accent)') : 'var(--usi-ink-3)',
+        transition: 'all 0.15s ease',
+        boxShadow: active ? '0 2px 4px rgba(0,0,0,0.06)' : 'none',
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function StandardCard({ 
+  image, 
+  title, 
+  subtitle, 
+  extra, 
+  badges, 
+  footerLeft, 
+  footerRight, 
+  onClick, 
+  disabled = false,
+  overlay = null,
+  style = {}
+}) {
+  return (
+    <article 
+      data-component="StandardCard" 
+      className={`usi-card ${disabled ? 'flat' : ''}`} 
+      onClick={disabled ? null : onClick} 
+      style={{ 
+        height: 320, 
+        display: 'flex', 
+        flexDirection: 'column', 
+        cursor: disabled ? 'default' : 'pointer', 
+        opacity: disabled ? 0.7 : 1,
+        ...style 
+      }}
+    >
+      <div style={{ position: 'relative', height: 160, background: 'var(--usi-surface-3)', overflow: 'hidden' }}>
+        {image ? (
+          typeof image === 'string' ? <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : image
+        ) : (
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--usi-ink-4)', fontSize: 32 }}>📷</div>
+        )}
+        <div style={{ position: 'absolute', top: 10, left: 10, display: 'flex', gap: 6 }}>
+          {badges}
+        </div>
+        {overlay && (
+          <div style={{ 
+            position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', 
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontWeight: 800, fontSize: 14, backdropFilter: 'blur(2px)',
+            zIndex: 2
+          }}>
+            {overlay}
+          </div>
+        )}
+      </div>
+      <div style={{ padding: '12px 14px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <div>
+          <h3 className="usi-h3" style={{ margin: 0, marginBottom: 2, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</h3>
+          <div className="usi-small" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subtitle}</div>
+          {extra && <div className="usi-tiny" style={{ marginTop: 4, opacity: 0.7 }}>{extra}</div>}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+          <div>{footerLeft}</div>
+          <div style={{ textAlign: 'right' }}>{footerRight}</div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function ProgressRing({ value, max, size = 32, stroke = 3, color }) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c - (value / max) * c;
+  return (
+    <svg data-component="ProgressRing" width={size} height={size}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--usi-star-empty)" strokeWidth={stroke} />
+      <circle cx={size/2} cy={size/2} r={r} fill="none"
+        stroke={color || 'var(--usi-accent)'} strokeWidth={stroke}
+        strokeDasharray={c} strokeDashoffset={offset} strokeLinecap="round"
+        transform={`rotate(-90 ${size/2} ${size/2})`}
+        style={{ transition: 'stroke-dashoffset .3s' }} />
+    </svg>
+  );
+}
+
+function Icon({ name, size = 16, stroke = 1.6 }) {
+  const paths = {
+    search: <><circle cx="7" cy="7" r="5"/><path d="M11 11l4 4"/></>,
+    filter: <path d="M2 4h12M4 8h8M6 12h4"/>,
+    grid: <><rect x="2" y="2" width="5" height="5"/><rect x="9" y="2" width="5" height="5"/><rect x="2" y="9" width="5" height="5"/><rect x="9" y="9" width="5" height="5"/></>,
+    list: <><path d="M2 4h12M2 8h12M2 12h12"/></>,
+    chevron: <path d="M5 3l4 4-4 4"/>,
+    chevronDown: <path d="M3 5l4 4 4-4"/>,
+    chevronLeft: <path d="M11 13L5 7l6-6"/>,
+    arrow: <><path d="M3 8h10M9 4l4 4-4 4"/></>,
+    trash: <><path d="M3 4h10M5 4V2h6v2M4 4l1 10h6l1-10"/></>,
+    eye: <><path d="M2 8s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z"/><circle cx="8" cy="8" r="2"/></>,
+    check: <path d="M3 8l3 3 7-7"/>,
+    close: <path d="M3 3l10 10M13 3L3 13"/>,
+    star: <path d="M8 2l1.8 4 4.2.4-3.2 2.8 1 4.4L8 11.4 4.2 13.6l1-4.4L2 6.4l4.2-.4z"/>,
+    map: <><path d="M2 4l4-2 4 2 4-2v10l-4 2-4-2-4 2z"/><path d="M6 2v10M10 4v10"/></>,
+    plus: <path d="M8 3v10M3 8h10"/>,
+    sparkle: <><path d="M8 1v3M8 12v3M1 8h3M12 8h3M3 3l2 2M11 11l2 2M3 13l2-2M11 5l2-2"/></>,
+    grip: <><circle cx="6" cy="4" r="1"/><circle cx="10" cy="4" r="1"/><circle cx="6" cy="8" r="1"/><circle cx="10" cy="8" r="1"/><circle cx="6" cy="12" r="1"/><circle cx="10" cy="12" r="1"/></>,
+    sort: <><path d="M5 3v10M3 11l2 2 2-2"/><path d="M11 13V3M9 5l2-2 2 2"/></>,
+    undo: <><path d="M3 7h7a3 3 0 010 6H6"/><path d="M5 4L2 7l3 3"/></>,
+    info: <><circle cx="8" cy="8" r="6"/><path d="M8 7v4M8 5h.01"/></>,
+    menu: <><path d="M2 4h12M2 8h12M2 12h12"/></>,
+    download: <><path d="M8 2v10M4 8l4 4 4-4"/></>,
+    building: <path d="M2 14V2h8v12M10 6h4v8M5 5h1M5 8h1M5 11h1" />,
+  };
+  const path = paths[name] || <circle cx="8" cy="8" r="6" opacity="0.3" />;
+  return (
+    <svg data-component="Icon" width={size} height={size} viewBox="0 0 16 16" fill="none"
+      stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
+      {path}
+    </svg>
+  );
+}
+
+function NavMenuButton({ onClick, label = 'Menu' }) {
+  return (
+    <button data-component="NavMenuButton" className="usi-btn ghost icon" onClick={onClick} title={label} aria-label={label}>
+      <Icon name="menu" size={18} />
+    </button>
+  );
+}
+
+function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
+  const items = [
+    { id: 'list', label: 'Inwestycje', icon: 'grid', desc: 'Lista wszystkich inwestycji' },
+    { id: 'developers', label: 'Deweloperzy', icon: 'list', desc: 'Baza firm deweloperskich' },
+    { id: 'reports', label: 'Raporty', icon: 'list', desc: 'Analizy i zestawienia' },
+    { id: 'dashboard', label: 'Dashboard', icon: 'sparkle', desc: 'Podsumowania i wykresy' },
+    { id: 'download', label: 'Pobieranie', icon: 'download', desc: 'Pobierz nowe inwestycje' },
+  ];
+  
+  React.useEffect(() => {
+    const k = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', k);
+    return () => document.removeEventListener('keydown', k);
+  }, [onClose]);
+
+  return (
+    <>
+      <div 
+        data-component="NavDrawer-Backdrop"
+        onClick={onClose}
+        className="usi-nav-drawer-backdrop"
+      />
+      <aside 
+        data-component="NavDrawer" 
+        className="usi-nav-drawer usi-slide-down"
+      >
+        <nav style={{ flex: 1, padding: '12px 10px', overflow: 'auto' }} className="usi-scroll">
+          {items.map(it => {
+            const active = it.id === current;
+            return (
+              <button key={it.id} 
+                data-component="NavDrawer-Item"
+                data-active={active}
+                onClick={() => { if (onNav) onNav(it.id); onClose(); }}
+                className="usi-nav-item"
+              >
+                <span className="usi-nav-icon-wrapper" style={{
+                  background: active ? 'var(--usi-accent)' : 'var(--usi-surface-3)',
+                  color: active ? '#fff' : 'var(--usi-ink-3)',
+                }}>
+                  <Icon name={it.icon} size={14} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: 'block', fontWeight: 600, fontSize: 13 }}>{it.label}</span>
+                </span>
+                {active && <span style={{ width: 4, height: 16, borderRadius: 2, background: 'var(--usi-accent)' }} />}
+              </button>
+            );
+          })}
+        </nav>
+        
+        <div style={{ padding: '12px', borderTop: '.5px solid var(--usi-border)', background: 'var(--usi-surface-2)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <button
+            data-component="ThemeToggle"
+            onClick={onToggleTheme}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+              padding: '8px 12px', borderRadius: 6, border: '.5px solid var(--usi-border-strong)',
+              background: 'var(--usi-surface)', color: 'var(--usi-ink)',
+              cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: 12
+            }}
+          >
+            <span style={{ fontSize: 16 }}>{dark ? '☀' : '◑'}</span>
+            <span>{dark ? 'Jasny motyw' : 'Ciemny motyw'}</span>
+          </button>
+
+          <button
+            data-component="ExportBaseline"
+            onClick={() => window.captureVisualBaseline && window.captureVisualBaseline()}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+              padding: '8px 12px', borderRadius: 6, border: '.5px solid var(--usi-border)',
+              background: 'var(--usi-surface-3)', color: 'var(--usi-ink-2)',
+              cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500, fontSize: 11
+            }}
+          >
+            <Icon name="download" size={14} />
+            <span>Eksportuj Baseline (Visual)</span>
+          </button>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+// Global registration
+Object.assign(window, {
+  Spinner, USIStarLogo, SourceBadge, FilterChip, StandardCard,
+  ProgressRing, Icon, NavMenuButton, NavDrawer
+});
