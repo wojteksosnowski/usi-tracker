@@ -58,7 +58,15 @@ pip install -r python_worker/requirements.txt
 ### UI Development (React 18)
 - **No Bundler**: Files in `python_worker/ui/` are loaded directly in `index.html`.
 - **Global Scope**: Components and hooks are shared via the global `window` object. Load order in `index.html` is critical for dependencies.
-- **High Density**: UI with 16px/8px grids and virtualization for 6000+ records.
+- **Shell Layout Pattern**: Centralize all view-specific controls (Search, Filters, Mode-Toggles, Actions) in the global `ActionBar`. Use the `DataBus` to manage shared state across navigation. Individual views should focus on data presentation only.
+- **Expert UI (Density)**: UIs should prioritize information density. Use `DataGrid` with `minCardWidth` to achieve 7-9 columns on wide screens. Virtualization logic must dynamically sync with responsive column counts.
+- **Asynchronous Operations**: Any task longer than 1s (e.g., registration, updates) must use the `JobManager` backend. The UI must poll `/api/jobs` to provide progress feedback via `NotificationCenter`.
+
+### Data Ingestion & Scrapers
+- **Portal Normalization**: Always normalize portal identifiers to `rp`, `oto`, or `to` in the API layer before routing or saving.
+- **Discovery Enrichment**: Discovery results must include developer name and vendor slug to ensure correct automated folder mapping and prevent "Unknown Developer" records.
+- **Raw Data Integrity**: Every registered investment must include a `raw_{portal}.json` file containing the complete original payload from the portal API (including galleries) to ensure future rebuild capability.
+- **Slug Consistency**: Maintain strict consistency between `USIdata` folder names and `USI` asset folders. Avoid overwriting `developer_slug` within scrapers if a local slug has already been established.
 
 ### Testing
 - Use `pytest` for all backend logic.
