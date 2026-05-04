@@ -177,6 +177,16 @@ function Icon({ name, size = 16, stroke = 1.6 }) {
   );
 }
 
+function NavbarShell({ left, center, right, style = {} }) {
+  return (
+    <header data-component="NavbarShell" className="usi-navbar-top" style={style}>
+      <div className="usi-navbar-left">{left}</div>
+      <div className="usi-navbar-center">{center}</div>
+      <div className="usi-navbar-right">{right}</div>
+    </header>
+  );
+}
+
 function NavMenuButton({ onClick, label = 'Menu' }) {
   return (
     <button data-component="NavMenuButton" className="usi-btn ghost icon" onClick={onClick} title={label} aria-label={label}>
@@ -271,8 +281,143 @@ function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
   );
 }
 
+function NotificationCenter() {
+  const { React, useDataBus } = window;
+  const { bus } = useDataBus();
+  const jobs = bus.activeJobs || [];
+  
+  if (jobs.length === 0) return null;
+  
+  // Pokazujemy tylko pierwsze aktywne zadanie dla uproszczenia w Navbarze
+  const job = jobs[0];
+  const progress = job.progress || 0;
+  
+  return (
+    <div data-component="NotificationCenter" style={{ 
+      width: '100%', maxWidth: 400, display: 'flex', flexDirection: 'column', gap: 4,
+      background: 'var(--usi-surface-2)', padding: '6px 12px', borderRadius: 8,
+      border: '.5px solid var(--usi-border)', animation: 'usi-slide-down 0.3s ease-out'
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span className="usi-tiny" style={{ fontWeight: 700, color: 'var(--usi-accent)', textTransform: 'uppercase', fontSize: 9 }}>
+          Zadanie w toku
+        </span>
+        <span className="usi-mono" style={{ fontSize: 10, fontWeight: 700 }}>{progress}%</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span className="usi-small" style={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {job.name || 'Przetwarzanie...'}
+        </span>
+        <div style={{ flex: 1.5, height: 4, background: 'var(--usi-surface-3)', borderRadius: 2, overflow: 'hidden' }}>
+          <div style={{ 
+            height: '100%', width: `${progress}%`, background: 'var(--usi-accent)', 
+            transition: 'width 0.3s ease-out', borderRadius: 2 
+          }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ActionBar({ left, center, right, style = {} }) {
+  return (
+    <footer data-component="ActionBar" className="usi-navbar-bottom" style={style}>
+      <div className="usi-action-left">{left}</div>
+      <div className="usi-action-center">{center}</div>
+      <div className="usi-action-right">{right}</div>
+    </footer>
+  );
+}
+
+function GlobalSearch({ value, onChange, placeholder = 'Szukaj...' }) {
+  const { Icon } = window;
+  return (
+    <div data-component="GlobalSearch" style={{ 
+      position: 'relative', flex: 1, maxWidth: 400, display: 'flex', alignItems: 'center' 
+    }}>
+      <span style={{ position: 'absolute', left: 12, color: 'var(--usi-ink-4)', display: 'flex' }}>
+        <Icon name="search" size={14} />
+      </span>
+      <input
+        data-component="Search-Input"
+        className="usi-input"
+        style={{ paddingLeft: 34, height: 36, borderRadius: 18, fontSize: 13, background: 'var(--usi-surface-2)', border: '.5px solid var(--usi-border)' }}
+        placeholder={placeholder}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+      />
+    </div>
+  );
+}
+
+function FilterGroup({ label, children }) {
+  return (
+    <div data-component="FilterGroup" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      {label && <span className="usi-tiny" style={{ fontWeight: 700, opacity: 0.6, textTransform: 'uppercase' }}>{label}</span>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function StatusMessenger() {
+  const { React, useDataBus, Icon } = window;
+  const { bus, setVariable } = useDataBus();
+  const status = bus.appStatus;
+  
+  React.useEffect(() => {
+    if (status && status.type !== 'error') {
+      const timer = setTimeout(() => {
+        setVariable('appStatus', null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [status, setVariable]);
+
+  if (!status) return null;
+
+  const config = {
+    success: { icon: 'check', color: 'var(--usi-success)', bg: 'rgba(34, 197, 94, 0.1)' },
+    error: { icon: 'close', color: 'var(--usi-error)', bg: 'rgba(239, 68, 68, 0.1)' },
+    info: { icon: 'info', color: 'var(--usi-accent)', bg: 'rgba(229, 0, 109, 0.1)' },
+  };
+  
+  const theme = config[status.type] || config.info;
+
+  return (
+    <div data-component="StatusMessenger" style={{
+      display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px',
+      borderRadius: '20px', background: theme.bg, color: theme.color,
+      border: `.5px solid ${theme.color}40`, animation: 'usi-slide-down 0.2s ease-out'
+    }}>
+      <Icon name={theme.icon} size={14} stroke={2.5} />
+      <span style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 300 }}>
+        {status.msg}
+      </span>
+      {status.type === 'error' && (
+        <button onClick={() => setVariable('appStatus', null)} style={{ 
+          background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 2, display: 'flex' 
+        }}>
+          <Icon name="close" size={12} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function NavbarTitle({ title, subtitle }) {
+  return (
+    <div data-component="NavbarTitle" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      <span style={{ fontWeight: 700, fontSize: 15, lineHeight: 1.2, color: 'var(--usi-ink)' }}>{title}</span>
+      {subtitle && <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--usi-ink-3)' }}>{subtitle}</span>}
+    </div>
+  );
+}
+
 // Global registration
 Object.assign(window, {
   Spinner, USIStarLogo, SourceBadge, FilterChip, StandardCard,
-  ProgressRing, Icon, NavMenuButton, NavDrawer
+  ProgressRing, Icon, NavMenuButton, NavDrawer, NavbarShell, NavbarTitle, NotificationCenter, ActionBar,
+  GlobalSearch, FilterGroup, StatusMessenger
 });

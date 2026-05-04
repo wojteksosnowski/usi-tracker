@@ -111,7 +111,7 @@ function DeveloperDetail({
   if (loading) {
     return (
       <div className="usi-app-loading">
-        <window.Spinner />
+        <Spinner />
       </div>
     );
   }
@@ -131,14 +131,14 @@ function DeveloperDetail({
 
   const toolbar = (
     <div className="developer-detail-toolbar">
-      <window.NavMenuButton onClick={() => setNavOpen(true)} />
-      <button className="usi-btn ghost" onClick={onBack}><window.Icon name="chevronLeft" /> Powrót</button>
+      <NavMenuButton onClick={() => setNavOpen(true)} />
+      <button className="usi-btn ghost" onClick={onBack}><Icon name="chevronLeft" /> Powrót</button>
       <div style={{ flex: 1 }} />
       <button className="usi-btn ghost sm" onClick={handleUpdate} disabled={!!activeJobId}>
-        {activeJobId ? <window.Spinner size={12} stroke={1.5} /> : <window.Icon name="sparkle" size={12} />}
+        {activeJobId ? <Spinner size={12} stroke={1.5} /> : <Icon name="sparkle" size={12} />}
         {activeJobId ? ' Zadanie w tle...' : ' Sprawdź nowe inwestycje'}
       </button>
-      {navOpen && <window.NavDrawer current="developers" onClose={() => setNavOpen(false)} onNav={v => { setNavOpen(false); onNav(v); }} dark={dark} onToggleTheme={onToggleTheme} />}
+      {navOpen && <NavDrawer current="developers" onClose={() => setNavOpen(false)} onNav={v => { setNavOpen(false); onNav(v); }} dark={dark} onToggleTheme={handleToggleTheme} />}
     </div>
   );
 
@@ -161,14 +161,14 @@ function DeveloperDetail({
             
             <div className="developer-investments-grid">
               {filteredInvestments.map(inv => (
-                <window.StandardCard
+                <StandardCard
                   key={inv.slug}
                   title={inv.name}
                   subtitle={inv.district}
                   image={inv.photos?.[0]}
                   onClick={() => onSelectInv(inv)}
                   style={{ height: 240 }}
-                  badges={<window.SourceBadge source={inv.source} />}
+                  badges={<SourceBadge source={inv.source} />}
                   footerLeft={<div className="usi-tiny">{inv.delivery}</div>}
                   footerRight={inv.ratings_score && <div className="usi-pill success sm">{inv.ratings_score.toFixed(2)}</div>}
                 />
@@ -261,8 +261,11 @@ function DeveloperStats({ dev, onCityClick, activeCity }) {
 }
 
 function DeveloperHeroBand({ dev }) {
+  const { Icon, MiniMap } = window;
+  const firstInvWithCoords = (dev.investments || []).find(i => i.coords && i.coords[0] !== 0);
+
   return (
-    <div data-component="DeveloperHeroBand" className="developer-hero-band">
+    <div data-component="DeveloperHeroBand" className="developer-hero-band" style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 24, alignItems: 'center' }}>
       <div className="developer-hero-content">
         <div data-component="Developer-Avatar" className="developer-avatar">
           🏢
@@ -276,12 +279,22 @@ function DeveloperHeroBand({ dev }) {
           <div style={{ display: 'flex', gap: 16 }}>
             {dev.website && (
               <a href={dev.website} target="_blank" rel="noopener" className="usi-btn sm ghost">
-                <window.Icon name="search" size={12} /> Strona www
+                <Icon name="search" size={12} /> Strona www
               </a>
             )}
           </div>
         </div>
       </div>
+
+      {firstInvWithCoords ? (
+        <div style={{ height: 120, borderRadius: 12, overflow: 'hidden', border: '.5px solid var(--usi-border)' }}>
+            <MiniMap coords={firstInvWithCoords.coords} height="100%" />
+        </div>
+      ) : (
+        <div style={{ height: 120, borderRadius: 12, background: 'var(--usi-surface-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--usi-ink-4)', fontSize: 11 }}>
+            Brak współrzędnych
+        </div>
+      )}
     </div>
   );
 }
@@ -317,13 +330,13 @@ function DeveloperPortals({ dev }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {mapping.rp && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <window.SourceBadge source="rp" />
+            <SourceBadge source="rp" />
             <span className="usi-mono" style={{ fontSize: 11 }}>{mapping.rp.id || mapping.rp.slug}</span>
           </div>
         )}
         {mapping.oto && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <window.SourceBadge source="oto" />
+            <SourceBadge source="oto" />
             <div style={{ textAlign: 'right' }}>
                <div className="usi-mono" style={{ fontSize: 11 }}>{mapping.oto.agency_id}</div>
                {mapping.oto.url && <a href={mapping.oto.url} target="_blank" rel="noopener" className="usi-tiny" style={{ display: 'block' }}>Profil Otodom</a>}
@@ -332,7 +345,7 @@ function DeveloperPortals({ dev }) {
         )}
         {mapping.to && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <window.SourceBadge source="to" />
+            <SourceBadge source="to" />
             <span className="usi-mono" style={{ fontSize: 11 }}>{mapping.to.slug}</span>
           </div>
         )}
@@ -348,7 +361,7 @@ function DeveloperSuggestions({ dev, onMerge, onDismiss }) {
   return (
     <div className="usi-card" style={{ padding: 16, border: '1px solid var(--usi-accent)', background: 'var(--usi-surface-2)' }}>
       <h3 className="usi-h3" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12, color: 'var(--usi-accent)' }}>
-        <window.Icon name="sparkle" size={12} /> Sugerowane Powiązania
+        <Icon name="sparkle" size={12} /> Sugerowane Powiązania
       </h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {dev.suggestions.map(s => (

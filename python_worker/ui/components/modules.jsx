@@ -23,6 +23,19 @@ class ModuleErrorBoundary extends window.React.Component {
     this.state = { hasError: false, error: null };
   }
   static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, errorInfo) {
+    console.error("Module Error:", error, errorInfo);
+    fetch('/api/ui-error', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: 'Module Error: ' + (error?.message || 'Unknown'),
+        stack: error?.stack || 'no stack',
+        componentStack: errorInfo?.componentStack,
+        url: window.location.href
+      })
+    }).catch(err => console.log('Failed to report module error:', err));
+  }
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback;
@@ -38,7 +51,7 @@ class ModuleErrorBoundary extends window.React.Component {
 }
 
 function BaseModule({ title, icon, children, errorFallback, style }) {
-  const { React } = window;
+  const { React, Icon } = window;
   const containerRef = React.useRef(null);
   const [containerWidth, setContainerWidth] = React.useState(0);
 
@@ -66,7 +79,7 @@ function BaseModule({ title, icon, children, errorFallback, style }) {
     <div ref={containerRef} className="usi-card module-card" style={style}>
       {title && (
         <div className="module-header">
-          {icon && <window.Icon name={icon} size={16} color="var(--usi-ink-3)" />}
+          {icon && <Icon name={icon} size={16} color="var(--usi-ink-3)" />}
           <span className="usi-h3" style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--usi-ink-2)' }}>{title}</span>
         </div>
       )}

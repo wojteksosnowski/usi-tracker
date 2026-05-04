@@ -7,6 +7,109 @@
   --usi-border: rgba(0, 0, 0, 0.08);
 }
 
+/* Navbar-Top */
+.usi-navbar-top {
+  height: 64px;
+  background: var(--usi-surface);
+  border-bottom: .5px solid var(--usi-border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 900;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .usi-navbar-top {
+    height: 56px;
+    padding: 0 12px;
+    gap: 12px;
+  }
+}
+
+.usi-navbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.usi-navbar-center {
+  flex: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .usi-navbar-center {
+    display: none;
+  }
+}
+
+.usi-navbar-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Navbar-Bottom (Action Bar) */
+.usi-navbar-bottom {
+  height: 56px;
+  background: var(--usi-surface);
+  border-bottom: .5px solid var(--usi-border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 16px;
+  z-index: 800;
+  flex-shrink: 0;
+}
+
+@media (max-width: 1024px) {
+  .usi-action-center {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .usi-navbar-bottom {
+    height: 48px;
+    padding: 0 8px;
+  }
+}
+
+.usi-action-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.usi-action-center {
+  flex: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.usi-action-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 1;
+}
+
 /* Spinner */
 .usi-spinner {
   border: 3px solid var(--usi-border);
@@ -17,8 +120,8 @@
 
 /* NavDrawer */
 .usi-nav-drawer {
-  position: absolute;
-  top: 100%;
+  position: fixed;
+  top: 64px;
   left: 0;
   width: 280px;
   background: var(--usi-surface);
@@ -29,6 +132,12 @@
   box-shadow: 0 12px 24px rgba(0,0,0,0.08);
   z-index: 860;
   max-height: calc(100vh - 60px);
+}
+
+@media (max-width: 768px) {
+  .usi-nav-drawer {
+    top: 56px;
+  }
 }
 
 .usi-nav-drawer-backdrop {

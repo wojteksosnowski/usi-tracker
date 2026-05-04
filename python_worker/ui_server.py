@@ -100,6 +100,29 @@ def get_config():
     })
 
 
+@app.route("/api/ui-error", methods=["POST"])
+def log_ui_error():
+    payload = request.get_json(silent=True) or {}
+    msg = payload.get("message", "Unknown error")
+    stack = payload.get("stack", "No stack trace")
+    url = payload.get("url", "Unknown URL")
+    
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    log_file = log_dir / "ui_errors.log"
+    
+    ts = datetime.now().isoformat()
+    with open(log_file, "a", encoding="utf-8") as f:
+        f.write(f"--- UI ERROR at {ts} ---\n")
+        f.write(f"URL: {url}\n")
+        f.write(f"Message: {msg}\n")
+        f.write(f"Stack:\n{stack}\n")
+        f.write("-" * 40 + "\n")
+        
+    logger.error(f"UI Error captured: {msg}")
+    return jsonify({"ok": True})
+
+
 @app.route("/api/metadata-config")
 def get_metadata_config():
     if VISIBLE_METADATA_FILE.exists():

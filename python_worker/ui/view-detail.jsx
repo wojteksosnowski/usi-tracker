@@ -1,145 +1,161 @@
 // view-detail.jsx — widok inwestycji (rdzeń: HeroBand, ModeC, DetailRightPanel)
-// Komponenty galerii → view-detail-gallery.jsx
-// Hook i panel ocen → view-detail-ratings.jsx
 
 function SourceLinks({ inv }) {
   const { SourceBadge, Icon } = window;
   const links = inv.source_links || [{ source: inv.source, url: inv.source_url }];
   return (
-    <div data-component="SourceLinks" className="source-links">
+    <div data-component="SourceLinks" className="source-links" style={{ display: 'flex', gap: 8 }}>
       {links.map((link, i) => (
-        <a key={i} className="usi-btn sm" href={link.url} target="_blank" rel="noopener">
-          <SourceBadge source={link.source} /> Źródło <Icon name="arrow" size={11} />
+        <a key={i} className="usi-btn sm ghost" href={link.url} target="_blank" rel="noopener" style={{ padding: '4px 8px' }}>
+          <SourceBadge source={link.source} /> <Icon name="arrow" size={11} />
         </a>
       ))}
-      {inv.website && (
-        <a className="usi-btn sm" href={inv.website} target="_blank" rel="noopener">
-          www <Icon name="arrow" size={11} />
-        </a>
-      )}
-      {inv.coords && inv.coords[0] !== 0 && (
-        <a className="usi-btn sm" href={`https://www.google.com/maps/@${inv.coords[0]},${inv.coords[1]},780m/`} target="_blank" rel="noopener">
-          <Icon name="map" size={11} /> Maps
-        </a>
-      )}
     </div>
   );
 }
 
-function HeroBand({ inv, showMap, moduleContext }) {
+function HeroBand({ inv, showMap, moduleContext, detailMode, onModeChange }) {
   const { 
     React, Icon, MiniMap,
     WeightedUsiScore, ModuleWrapper, 
-    ProgressRing, UsiStarScore,
     ocenaLog, ModuleTypes
   } = window;
   const score = ocenaLog(inv);
   const hasMap = showMap && inv.coords && inv.coords[0] !== 0;
 
-  // Specyfikacja dla modułu minimapy (Krok B07)
-  const miniMapSpec = {
-    inputs: {
-      geo: { type: ModuleTypes.GeoPoint, required: true },
-      label: { type: 'String', required: false, from: 'district' },
-      hereUrl: { type: 'String', required: false },
-      hereUrlDark: { type: 'String', required: false }
-    },
-    config: {
-      zoom: 14
-    }
-  };
-
   return (
     <div data-component="HeroBand" className="hero-band" style={{
+      display: 'grid',
       gridTemplateColumns: hasMap ? '1fr auto 280px' : '1fr auto',
+      gap: 24,
+      paddingBottom: 24,
+      borderBottom: '.5px solid var(--usi-border)',
+      marginBottom: 24
     }}>
       <div>
-        <div data-component="HeroBand-TitleRow" className="hero-band-title-row">
-          <h1 data-component="HeroBand-Title" className="usi-h1 hero-band-title">{inv.name}</h1>
-          <span data-component="HeroBand-Developer" className="usi-body hero-band-developer">{inv.developer}</span>
-          <div style={{ flex: 1 }} />
-          <SourceLinks inv={inv} />
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 4 }}>
+          <h1 className="usi-h1" style={{ margin: 0 }}>{inv.name}</h1>
+          <span className="usi-body" style={{ opacity: 0.6 }}>{inv.developer}</span>
         </div>
-        <div data-component="HeroBand-Stats" className="hero-band-stats">
-          {inv.address && <span data-component="Stat-Address">📍 {inv.address}</span>}
-          {inv.units > 0 && <span data-component="Stat-Units" className="usi-mono">{inv.units} mieszk.</span>}
-          {inv.price_avg > 0 && <span data-component="Stat-Price" className="usi-mono">{inv.price_avg.toLocaleString('pl-PL')} zł/m²</span>}
-          <span data-component="Stat-Delivery" className="usi-mono">{inv.delivery}</span>
-          {inv.amenities && inv.amenities.length > 0 && <span data-component="Stat-Amenities">{inv.amenities.length} udogodnień</span>}
+        <div style={{ display: 'flex', gap: 16, color: 'var(--usi-ink-3)', fontSize: 13, marginBottom: 12 }}>
+          {inv.address && <span>📍 {inv.address}</span>}
+          {inv.price_avg > 0 && <span className="usi-mono">{inv.price_avg.toLocaleString('pl-PL')} zł/m²</span>}
+          <span className="usi-mono">{inv.delivery}</span>
+        </div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <SourceLinks inv={inv} />
+            <div style={{ width: 1, height: 16, background: 'var(--usi-border)' }} />
+            <div style={{ display: 'inline-flex', background: 'var(--usi-surface-3)', borderRadius: 8, padding: 2 }}>
+                <button className="usi-btn sm ghost" style={{ background: detailMode === 'A' ? 'var(--usi-surface)' : 'transparent', fontSize: 11 }} onClick={() => onModeChange('A')}>Standard</button>
+                <button className="usi-btn sm ghost" style={{ background: detailMode === 'C' ? 'var(--usi-surface)' : 'transparent', fontSize: 11 }} onClick={() => onModeChange('C')}>Media</button>
+            </div>
         </div>
       </div>
 
-      <div className="hero-band-score-box">
-        <WeightedUsiScore score={score} size={44} />
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <WeightedUsiScore score={score} size={56} />
       </div>
 
       {hasMap && moduleContext && (
-        <ModuleWrapper 
-          component={MiniMap} 
-          moduleSpec={miniMapSpec} 
-          context={moduleContext} 
-          height={70} 
-        />
+        <div style={{ height: 100, borderRadius: 12, overflow: 'hidden', border: '.5px solid var(--usi-border)' }}>
+            <MiniMap coords={inv.coords} height="100%" />
+        </div>
       )}
     </div>
   );
 }
 
-// ─── Tryb C: galeria full-width + sticky pasek ocen na dole ──
-function ModeC({ inv, density = 4, ratingVariant, showMap, marked, onToggleMark, onLightbox,
-    ratings = {}, handleRating, comment = '', handleComment, saved = false, focusedCat = -1, onFocusedCatChange, moduleContext }) {
-  const { React, USI_CATEGORIES, CategoryRating, UsiStarScore, ocenaLog, Icon, SlideShow } = window;
-  const [expanded, setExpanded] = React.useState(false);
+function ModeC({ inv, marked, onToggleMark, onLightbox, ratings, handleRating, comment, handleComment, status, handleStatus, saved, focusedCat, onFocusedCatChange }) {
+  const { React, SlideShow, RatingsPanel } = window;
+  const [showRatings, setShowRatings] = React.useState(false);
 
   return (
-    <div data-component="ModeC" className="mode-c-container">
-      <HeroBand inv={inv} showMap={showMap} moduleContext={moduleContext} />
-      <SlideShow photos={inv.photos || []} marked={marked} onToggleMark={onToggleMark}
-        onLightbox={onLightbox} style={{ marginTop: 16 }} />
-      <div className="mode-c-footer">
-        <div className="mode-c-footer-content">
-          <div className="mode-c-ratings-strip">
-            {USI_CATEGORIES.map((cat, idx) => (
-              <div key={cat.key} onClick={() => onFocusedCatChange && onFocusedCatChange(idx)}
-                className="mode-c-rating-item"
-                style={{
-                  background: idx === focusedCat ? 'var(--usi-surface-2)' : 'transparent',
-                }}>
-                <div className="mode-c-rating-label">
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: cat.color }} />
-                  <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--usi-ink-2)' }}>{cat.key}</span>
-                </div>
-                <CategoryRating category={cat} value={ratings[cat.key] ?? null}
-                  onChange={v => handleRating(cat.key, v)} variant={ratingVariant} size="sm" />
-              </div>
-            ))}
-          </div>
-          <div className="mode-c-score-box">
-            {(() => { const score = ocenaLog({ ratings }); return (<>
-              <ProgressRing value={score ?? 0} max={4} size={32} stroke={3} color="var(--usi-accent)" />
-              <div className="mode-c-score-info">
-                <div style={{ fontSize: 12, fontWeight: 600 }}>
-                  {score !== null ? score.toFixed(2) : '—'}
-                  <span style={{ fontWeight: 400, color: 'var(--usi-ink-3)' }}> / 4</span>
-                </div>
-                <UsiStarScore score={score} />
-                <div className="usi-small mode-c-save-status" style={{ color: saved ? 'var(--usi-success)' : 'var(--usi-ink-4)' }}>
-                  <Icon name="check" size={10} /> {saved ? 'Zapisano' : 'Auto-zapis'}
-                </div>
-              </div>
-            </>); })()}
-
-            <button className="usi-btn sm ghost" onClick={() => setExpanded(e => !e)}>
-              {expanded ? 'Zwiń' : 'Komentarz'}
+    <div data-component="ModeC" style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', margin: '0 -24px -24px' }}>
+      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+        <SlideShow 
+            photos={inv.photos || []} 
+            marked={marked} 
+            onToggleMark={onToggleMark} 
+            onLightbox={onLightbox} 
+            style={{ height: '100%' }}
+        />
+      </div>
+      
+      <div data-component="ModeC-Footer" style={{ 
+        background: 'var(--usi-surface)', 
+        borderTop: '.5px solid var(--usi-border)',
+        padding: showRatings ? '16px 24px' : '8px 24px',
+        maxHeight: showRatings ? '60%' : 'auto',
+        overflow: 'auto',
+        transition: 'all .3s ease'
+      }} className="usi-scroll">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showRatings ? 12 : 0 }}>
+            <div className="usi-tiny" style={{ fontWeight: 700, color: 'var(--usi-accent)' }}>MEDIA & OCENY</div>
+            <button className="usi-btn sm ghost" onClick={() => setShowRatings(!showRatings)}>
+                {showRatings ? 'Ukryj panel' : 'Pokaż panel ocen'}
             </button>
-          </div>
         </div>
-        {expanded && (
-          <textarea className="usi-input usi-textarea" placeholder="Komentarz globalny…"
-            value={comment} onChange={handleComment}
-            style={{ marginTop: 10, minHeight: 64 }} />
+        
+        {showRatings && (
+            <RatingsPanel 
+                inv={inv} ratings={ratings} handleRating={handleRating} 
+                comment={comment} handleComment={handleComment}
+                status={status} handleStatus={handleStatus}
+                saved={saved} focusedCat={focusedCat}
+                onFocusedCatChange={onFocusedCatChange}
+            />
         )}
       </div>
+    </div>
+  );
+}
+
+function DetailsA({ inv, ratings, handleRating, comment, handleComment, status, handleStatus, saved, focusedCat, onFocusedCatChange, metaConfig, moduleContext }) {
+  const { MetadataPanel, RatingsPanel, ModuleWrapper, NearbyInvestmentsModule, ModuleTypes, Gallery } = window;
+  const [marked, setMarked] = React.useState(new Set());
+  const [lightbox, setLightbox] = React.useState(null);
+  
+  return (
+    <div data-component="DetailsA" style={{ display: 'grid', gridTemplateColumns: '1fr 340px 300px', gap: 24, flex: 1, overflow: 'hidden' }}>
+      <div style={{ padding: '0 8px 24px 0', overflow: 'auto' }} className="usi-scroll">
+         <Gallery 
+            inv={inv} 
+            columns={3} 
+            marked={marked} 
+            onToggleMark={(idx) => {
+                const next = new Set(marked);
+                if (next.has(idx)) next.delete(idx); else next.add(idx);
+                setMarked(next);
+            }} 
+            onLightbox={setLightbox} 
+         />
+         <div style={{ height: 24 }} />
+         <MetadataPanel inv={inv} config={metaConfig} />
+      </div>
+
+      <div style={{ borderLeft: '.5px solid var(--usi-border)', padding: '0 18px', overflow: 'auto' }} className="usi-scroll">
+         <RatingsPanel 
+            inv={inv} ratings={ratings} handleRating={handleRating} 
+            comment={comment} handleComment={handleComment}
+            status={status} handleStatus={handleStatus}
+            saved={saved} focusedCat={focusedCat}
+            onFocusedCatChange={onFocusedCatChange}
+         />
+      </div>
+
+      <div style={{ borderLeft: '.5px solid var(--usi-border)', padding: '0 0 0 18px', overflow: 'auto' }} className="usi-scroll">
+         <ModuleWrapper 
+            component={NearbyInvestmentsModule}
+            moduleSpec={{
+              inputs: { items: { type: ModuleTypes.RecordSet, from: 'nearbyInvestments' } }
+            }}
+            context={window.useDataBus().bus}
+            title="W okolicy"
+            icon="map"
+            height={400}
+         />
+      </div>
+      {lightbox !== null && <window.Lightbox inv={inv} index={lightbox} onClose={() => setLightbox(null)} />}
     </div>
   );
 }
@@ -155,45 +171,44 @@ function getDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-// ─── Widok inwestycji: 3 kolumny 50/25/25 ────────────────────
-function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onUpdateInv, onPrev, onNext, density = 5, ratingVariant = 'circles', showMap = true, dark, onToggleTheme }) {
-  const {
-    React, NavMenuButton, Icon, NavDrawer, Gallery, RatingsPanel, MetadataPanel,
-    useRatings, useMetadataConfig, useDataBus, extractModuleContext,
-    avgRating, USI_CATEGORIES, ModuleTypes, ModuleWrapper, Lightbox
-  } = window;
-  const [marked, setMarked] = React.useState(new Set());
-  const [hiddenPhotos, setHiddenPhotos] = React.useState(new Set());
-  const [lightbox, setLightbox] = React.useState(null);
-  const [deleteMsg, setDeleteMsg] = React.useState('');
-  const [navOpen, setNavOpen] = React.useState(false);
+function NearbyInvestmentsModule({ items = [] }) {
+  if (items.length === 0) return <div className="usi-small" style={{ color: 'var(--usi-ink-4)' }}>Brak innych inwestycji w promieniu 5km.</div>;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {items.slice(0, 10).map(i => (
+        <div key={i.slug} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--usi-accent)' }} />
+          <div style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{i.name}</div>
+          <div className="usi-mono" style={{ opacity: 0.6 }}>{i.distance.toFixed(1)}km</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DetailRightPanel({ inv, onBack, onUpdateInv }) {
+  const { React, useDataBus, Icon, useRatings, useMetadataConfig, extractModuleContext } = window;
   const [detailMode, setDetailMode] = React.useState('A');
+  const [marked, setMarked] = React.useState(new Set());
   const [focusedCat, setFocusedCat] = React.useState(-1);
-  const [reloading, setReloading] = React.useState(false);
-  const { ratings, setRatings, comment, setComment, status, setStatus, saved, handleRating, handleComment, handleStatus } = useRatings(inv);
+  
+  const { Lightbox, USI_CATEGORIES } = window;
+  const [lightbox, setLightbox] = React.useState(null);
+
+  const { ratings, handleRating, comment, handleComment, status, handleStatus, saved } = useRatings(inv);
   const metaConfig = useMetadataConfig();
   const { bus, setVariable } = useDataBus();
 
-  // Zgodnie z Krok B04 i B05: generowanie kontekstu dla modułów
   const getModuleContext = React.useCallback(() => {
     return {
       currentInvestment: inv,
       geo: extractModuleContext.extractGeoPoint(inv),
-      rating: avgRating(inv),
-      color: 'var(--usi-accent)',
       district: inv.district,
-      hereUrl: inv.here_map_url,
-      hereUrlDark: inv.here_map_url_dark
     };
-  }, [inv]);
-
-  React.useEffect(() => {
-    console.log("[DetailRightPanel] getModuleContext() generated:", getModuleContext());
-  }, [getModuleContext]);
+  }, [inv, extractModuleContext]);
 
   React.useEffect(() => {
     setVariable('currentInvestment', inv);
-    
     if (inv.coords && inv.coords[0] !== 0) {
       const [lat, lng] = inv.coords;
       const visible = bus.visibleInvestments || [];
@@ -202,54 +217,18 @@ function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onUp
           if (other.slug === inv.slug) return false;
           if (!other.coords || other.coords[0] === 0) return false;
           const dist = getDistance(lat, lng, other.coords[0], other.coords[1]);
-          return dist <= 5; // 5 km radius
+          return dist <= 5;
         })
         .map(other => ({ 
           ...other, 
           distance: getDistance(lat, lng, other.coords[0], other.coords[1]) 
         }))
         .sort((a, b) => a.distance - b.distance);
-      
       setVariable('nearbyInvestments', nearby);
-    } else {
-      setVariable('nearbyInvestments', []);
     }
   }, [inv.slug, bus.visibleInvestments, setVariable]);
 
-  // Global unmount cleanup
-  React.useEffect(() => {
-    return () => {
-      setVariable('currentInvestment', null);
-      setVariable('nearbyInvestments', []);
-    };
-  }, [setVariable]);
-
-  React.useEffect(() => {
-    setMarked(new Set());
-    setHiddenPhotos(new Set());
-    setDeleteMsg('');
-    setFocusedCat(-1);
-    setReloading(false);
-  }, [inv.slug]);
-
-  const handleReload = () => {
-    setReloading(true);
-    fetch(`/api/reload-investment/${inv.developer_slug}/${inv.investment_slug}`, { method: 'POST' })
-      .then(r => r.json())
-      .then(data => {
-        if (data.ok && data.investment) {
-          onUpdateInv && onUpdateInv(data.investment);
-          setDeleteMsg('Dane zaktualizowane');
-          setTimeout(() => setDeleteMsg(''), 3000);
-        } else {
-          alert("Błąd przeładowania: " + (data.error || "Nieznany błąd"));
-        }
-      })
-      .catch(e => alert("Błąd połączenia: " + e.message))
-      .finally(() => setReloading(false));
-  };
-
-  // Keyboard shortcuts for ratings: 1-6 select category, -/= adjust rating
+  // Keyboard shortcuts
   React.useEffect(() => {
     const CATS = USI_CATEGORIES.map(c => c.key);
     const handler = (e) => {
@@ -260,160 +239,67 @@ function DetailRightPanel({ inv, invIndex = 0, invTotal = 1, onBack, onNav, onUp
         e.preventDefault();
         setFocusedCat(parseInt(e.key) - 1);
       } else if ((e.key === '-' || e.key === '_') && focusedCat >= 0) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
         const cat = CATS[focusedCat];
         handleRating(cat, Math.max(0, (ratings[cat] || 0) - 1));
       } else if ((e.key === '=' || e.key === '+') && focusedCat >= 0) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
         const cat = CATS[focusedCat];
         handleRating(cat, Math.min(4, (ratings[cat] || 0) + 1));
       }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [lightbox, focusedCat, ratings]);
-
-  const toggleMark = (i) => {
-    const s = new Set(marked);
-    if (s.has(i)) s.delete(i); else s.add(i);
-    setMarked(s);
-  };
-
-  const handleDeleteMarked = () => {
-    if (marked.size === 0) return;
-    if (!confirm(`Czy na pewno chcesz oznaczyć ${marked.size} zdjęć do usunięcia?`)) return;
-    const slugs = Array.from(marked).map(idx => inv.photos[idx]);
-    fetch(`/api/investment/${inv.developer_slug}/${inv.investment_slug}/delete-photos`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ photos: slugs })
-    })
-    .then(r => r.json())
-    .then(data => {
-      if (data.ok) {
-        setDeleteMsg(`${marked.size} zdjęć oznaczono do usunięcia.`);
-        setMarked(new Set());
-        setTimeout(() => setDeleteMsg(''), 3000);
-      }
-    });
-  };
-
-  const handleNav = (dir) => {
-    if (dir === 'prev') onPrev(); else onNext();
-  };
-
-  const toolbar = (
-    <div className="detail-toolbar">
-      <NavMenuButton onClick={() => setNavOpen(true)} />
-      <button className="usi-btn ghost" onClick={onBack}><Icon name="chevronLeft" /> Powrót</button>
-      <div className="detail-toolbar-center">
-        <div style={{ display: 'inline-flex', background: 'var(--usi-surface-3)', borderRadius: 8, padding: 2 }}>
-            <button className="usi-btn sm ghost" style={{ background: detailMode === 'A' ? 'var(--usi-surface)' : 'transparent', boxShadow: detailMode === 'A' ? 'var(--usi-shadow-sm)' : 'none' }} onClick={() => setDetailMode('A')}>Tryb A</button>
-            <button className="usi-btn sm ghost" style={{ background: detailMode === 'C' ? 'var(--usi-surface)' : 'transparent', boxShadow: detailMode === 'C' ? 'var(--usi-shadow-sm)' : 'none' }} onClick={() => setDetailMode('C')}>Tryb C</button>
-        </div>
-      </div>
-      <div className="detail-toolbar-nav">
-        <button className="usi-btn sm ghost icon" onClick={() => handleNav('prev')} title="Poprzednia (strzałka góra)"><Icon name="chevronLeft" style={{ transform: 'rotate(90deg)' }} /></button>
-        <span className="usi-small usi-mono detail-toolbar-pagination">{invIndex+1} / {invTotal}</span>
-        <button className="usi-btn sm ghost icon" onClick={() => handleNav('next')} title="Następna (strzałka dół)"><Icon name="chevronLeft" style={{ transform: 'rotate(-90deg)' }} /></button>
-      </div>
-      {navOpen && <NavDrawer current="list" onClose={() => setNavOpen(false)} onNav={v => { setNavOpen(false); onNav(v); }} dark={dark} onToggleTheme={onToggleTheme} />}
-    </div>
-  );
-
-  if (detailMode === 'C') {
-    return (
-      <div data-component="DetailRightPanel" className="usi-app detail-right-panel">
-        {toolbar}
-        <ModeC inv={inv} marked={marked} onToggleMark={toggleMark} 
-          onLightbox={idx => setLightbox(idx)}
-          ratings={ratings} handleRating={handleRating}
-          comment={comment} handleComment={handleComment}
-          saved={saved} focusedCat={focusedCat} 
-          onFocusedCatChange={setFocusedCat}
-          moduleContext={getModuleContext()}
-        />
-        {lightbox !== null && <Lightbox inv={inv} index={lightbox} onClose={() => setLightbox(null)} />}
-      </div>
-    );
-  }
+  }, [lightbox, focusedCat, ratings, USI_CATEGORIES, handleRating]);
 
   return (
-    <div data-component="DetailRightPanel" className="usi-app detail-right-panel">
-      {toolbar}
-      
-      <HeroBand inv={inv} showMap={showMap} moduleContext={getModuleContext()} />
+    <div data-component="DetailRightPanel" className="usi-scroll" style={{ height: '100%', overflowY: detailMode === 'C' ? 'hidden' : 'auto', padding: '24px', display: 'flex', flexDirection: 'column' }}>
+      <HeroBand 
+        inv={inv} 
+        showMap={true} 
+        detailMode={detailMode} 
+        onModeChange={setDetailMode} 
+        moduleContext={getModuleContext()}
+      />
 
-      {deleteMsg && (
-        <div className="detail-msg-banner">
-          <Icon name="check" /> {deleteMsg}
-        </div>
+      {detailMode === 'C' ? (
+        <ModeC 
+            inv={inv} 
+            marked={marked} 
+            onToggleMark={(idx) => {
+                const next = new Set(marked);
+                if (next.has(idx)) next.delete(idx); else next.add(idx);
+                setMarked(next);
+            }} 
+            onLightbox={setLightbox}
+            ratings={ratings}
+            handleRating={handleRating}
+            comment={comment}
+            handleComment={handleComment}
+            status={status}
+            handleStatus={handleStatus}
+            saved={saved}
+            focusedCat={focusedCat}
+            onFocusedCatChange={setFocusedCat}
+        />
+      ) : (
+        <DetailsA 
+            inv={inv}
+            ratings={ratings}
+            handleRating={handleRating}
+            comment={comment}
+            handleComment={handleComment}
+            status={status}
+            handleStatus={handleStatus}
+            saved={saved}
+            focusedCat={focusedCat}
+            onFocusedCatChange={setFocusedCat}
+            metaConfig={metaConfig}
+            moduleContext={getModuleContext()}
+        />
       )}
 
-      <div className="detail-grid">
-        <div className="detail-gallery-column usi-scroll">
-          <Gallery inv={inv} marked={marked} onToggleMark={toggleMark} onLightbox={setLightbox} columns={density} />
-        </div>
-
-        <div className="detail-ratings-column">
-          <div className="detail-column-header">
-            <h3 className="usi-h3" style={{ margin: 0 }}>Oceny i Akcje</h3>
-            <div style={{ display: 'flex', gap: 6 }}>
-                <button className="usi-btn sm ghost" onClick={handleReload} disabled={reloading}>{reloading ? '...' : 'Reload'}</button>
-                <button className="usi-btn sm danger" onClick={handleDeleteMarked} disabled={marked.size === 0}>Usuń {marked.size > 0 ? `(${marked.size})` : ''}</button>
-            </div>
-          </div>
-          <div className="detail-column-content usi-scroll">
-            <RatingsPanel inv={inv} ratings={ratings} handleRating={handleRating} 
-              comment={comment} handleComment={handleComment}
-              status={status} handleStatus={handleStatus}
-              saved={saved} focusedCat={focusedCat}
-              onFocusedCatChange={setFocusedCat}
-            />
-          </div>
-        </div>
-
-        <aside className="detail-meta-column">
-          <div className="detail-column-header">
-            <h3 className="usi-h3" style={{ margin: 0 }}>Szczegóły</h3>
-          </div>
-          <div className="detail-column-content usi-scroll">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              <MetadataPanel inv={inv} config={metaConfig} />
-              
-              {inv.coords && (
-                 <ModuleWrapper 
-                   component={NearbyInvestmentsModule}
-                   moduleSpec={{
-                     inputs: { items: { type: ModuleTypes.RecordSet, from: 'nearbyInvestments' } }
-                   }}
-                   context={bus}
-                   title="W okolicy"
-                   icon="map"
-                   height={240}
-                 />
-              )}
-            </div>
-          </div>
-        </aside>
-      </div>
-
       {lightbox !== null && <Lightbox inv={inv} index={lightbox} onClose={() => setLightbox(null)} />}
-    </div>
-  );
-}
-
-function NearbyInvestmentsModule({ items = [] }) {
-  if (items.length === 0) return <div className="usi-small" style={{ color: 'var(--usi-ink-4)' }}>Brak innych inwestycji w promieniu 5km.</div>;
-  return (
-    <div className="nearby-investments-list">
-      {items.slice(0, 10).map(i => (
-        <div key={i.slug} className="nearby-investment-item">
-          <div className="nearby-investment-dot" />
-          <div className="nearby-investment-name">{i.name}</div>
-          <div className="usi-mono nearby-investment-distance">{i.distance.toFixed(1)}km</div>
-        </div>
-      ))}
     </div>
   );
 }

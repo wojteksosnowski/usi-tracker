@@ -45,11 +45,14 @@ function App() {
       DetailRightPanel, DashboardGrid, ViewDownload,
       ReportsList, ReportDetail, DataBusProvider, useDataBus,
       useInvestments, useDevelopers, useConfig,
-      MAIN_CITIES, applyTheme, injectThemeCSS
+      MAIN_CITIES, SOURCES, USI_STATUSES, applyTheme, injectThemeCSS,
+      NavbarShell, NavbarTitle, NavbarCounter, ActionBar, NotificationCenter, StatusMessenger,
+      GlobalSearch, FilterGroup, FilterChip, NavMenuButton, NavDrawer
     } = window;
 
     const rootRef = React.useRef(null);
     const [view, setView] = React.useState('list');
+    const [navOpen, setNavOpen] = React.useState(false);
     const [selectedInv, setSelectedInv] = React.useState(null);
     const [selectedDev, setSelectedDev] = React.useState(null);
     const [selectedReport, setSelectedReport] = React.useState(null);
@@ -60,15 +63,16 @@ function App() {
     const [fetchCount, setFetchCount] = React.useState(0);
     const pollRef = React.useRef(null);
     const [dark, setDark] = React.useState(false);
+    const [mode, setMode] = React.useState('grid');
 
-    // Filter state (lifted from ListGrid)
+    // Filter state
     const [search, setSearch] = React.useState('');
     const [filterDev, setFilterDev] = React.useState('');
     const [filterStatus, setFilterStatus] = React.useState('');
     const [activeSources, setActiveSources] = React.useState(new Set(['RP', 'OTO', 'TO']));
     const [activeCities, setActiveCities] = React.useState(new Set());
 
-    const { setVariable } = useDataBus();
+    const { bus, setVariable } = useDataBus();
 
     const filteredInvestments = React.useMemo(() => {
       return investments.filter(inv => {
@@ -107,228 +111,226 @@ function App() {
       if (rootRef.current) applyTheme(rootRef.current, next, '#E5006D');
     };
 
-    // Keyboard nav in detail view
-    React.useEffect(() => {
-      if (view !== 'detail') return;
-      const handler = (e) => {
-        if (e.key === 'Escape') setView('list');
-        if (e.key === 'ArrowLeft') setSelectedInv(prev => {
-          if (!prev || filteredInvestments.length === 0) return prev;
-          const idx = filteredInvestments.findIndex(i => i.slug === prev.slug);
-          return filteredInvestments[(idx - 1 + filteredInvestments.length) % filteredInvestments.length];
-        });
-        if (e.key === 'ArrowRight') setSelectedInv(prev => {
-          if (!prev || filteredInvestments.length === 0) return prev;
-          const idx = filteredInvestments.findIndex(i => i.slug === prev.slug);
-          return filteredInvestments[(idx + 1) % filteredInvestments.length];
-        });
-      };
-      document.addEventListener('keydown', handler);
-      return () => document.removeEventListener('keydown', handler);
-    }, [view, filteredInvestments]);
-
-    React.useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
-
-    const handleSelectInv = (inv) => {
-      setSelectedInv(inv);
-      setView('detail');
-    };
-
-    const handleSelectDev = (dev) => {
-      setSelectedDev(dev);
-      setView('dev-detail');
-    };
-
     const handleNav = (v) => {
-      if (v === 'list' || v === 'dashboard' || v === 'detail' || v === 'download' || v === 'developers' || v === 'dev-detail' || v === 'reports' || v === 'report-detail') {
-        setView(v);
-        setSelectedInv(null);
-        setSelectedDev(null);
-        setSelectedReport(null);
-      }
+      setView(v);
+      setNavOpen(false);
+      if (v !== 'detail') setSelectedInv(null);
+      if (v !== 'dev-detail') setSelectedDev(null);
+      if (v !== 'report-detail') setSelectedReport(null);
     };
 
-    const handleSelectReport = (report) => {
-      setSelectedReport(report);
-      setView('report-detail');
+    const toggleSource = (id, isShift) => {
+      setActiveSources(prev => {
+        const next = new Set(prev);
+        if (isShift) return new Set([id]);
+        if (next.has(id)) {
+          if (next.size > 1) next.delete(id);
+        } else {
+          next.add(id);
+        }
+        return next;
+      });
     };
 
-    const handleUpdateInv = (updated) => {
-      refetch();
-      setSelectedInv(updated);
+    const toggleCity = (city, isShift) => {
+      setActiveCities(prev => {
+        if (city === null) return new Set();
+        const next = new Set(prev);
+        if (isShift) return new Set([city]);
+        if (next.has(city)) next.delete(city);
+        else next.add(city);
+        return next;
+      });
     };
 
-    const handleFetchSample = () => {
-      setFetching(true);
-      fetch('/api/fetch-sample', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ count: 50 }),
-      })
-        .then(() => {
-          pollRef.current = setInterval(() => {
-            fetch('/api/fetch-status')
-              .then(r => r.json())
-              .then(d => {
-                setFetchCount(d.count);
-                if (d.count > 0) {
-                  clearInterval(pollRef.current);
-                  setFetching(false);
-                  refetch();
-                }
-              })
-              .catch(() => {});
-          }, 3000);
-        })
-        .catch(() => setFetching(false));
+    if (loading) return <div data-component="App" ref={rootRef} className="app-container usi-app"><LoadingScreen /></div>;
+    if (investments.length === 0) return <div data-component="App" ref={rootRef} className="app-container usi-app"><EmptyScreen onFetch={() => {}} fetching={fetching} fetchCount={fetchCount} /></div>;
+
+    const getTitle = () => {
+      if (view === 'list') return "Inwestycje";
+      if (view === 'developers') return "Deweloperzy";
+      if (view === 'dashboard') return "Dashboard";
+      if (view === 'download') return "Pobieranie";
+      if (view === 'reports') return "Raporty";
+      if (view === 'detail') return selectedInv?.name || "Szczegóły";
+      if (view === 'dev-detail') return selectedDev?.name || "Szczegóły dewelopera";
+      return "USI Tracker";
     };
 
-    const invIndex = selectedInv
-      ? filteredInvestments.findIndex(i => i.slug === selectedInv.slug)
-      : 0;
-
-    if (loading) {
-      return (
-        <div data-component="App" ref={rootRef} className="app-container">
-          <LoadingScreen />
-        </div>
-      );
-    }
-
-    if (investments.length === 0) {
-      return (
-        <div data-component="App" ref={rootRef} className="app-container">
-          <EmptyScreen onFetch={handleFetchSample} fetching={fetching} fetchCount={fetchCount} />
-        </div>
-      );
-    }
+    const getSubtitle = () => {
+      if (view === 'list') return `${filteredInvestments.length} widocznych`;
+      if (view === 'developers') return `${developers.length} firm`;
+      return "System monitoringu rynku";
+    };
 
     return (
-      <div data-component="App" ref={rootRef} className="app-container">
-        <div className="app-main-content">
-          {view === 'list' && (
-            <ListGrid
-              investments={investments}
-              filteredInvestments={filteredInvestments}
-              onSelectInv={handleSelectInv}
-              onNav={handleNav}
-              search={search} onSearch={setSearch}
-              filterDev={filterDev} onFilterDev={setFilterDev}
-              filterStatus={filterStatus} onFilterStatus={setFilterStatus}
-              activeSources={activeSources} onSetActiveSources={setActiveSources}
-              activeCities={activeCities} onSetActiveCities={setActiveCities}
-              dark={dark} onToggleTheme={handleToggleTheme}
-            />
-          )}
+      <div data-component="App" ref={rootRef} className="app-container usi-app" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+        <NavbarShell
+          left={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <NavMenuButton onClick={() => setNavOpen(true)} />
+              <NavbarTitle title={getTitle()} subtitle={getSubtitle()} />
+            </div>
+          }
+          center={
+            bus.appStatus 
+              ? <StatusMessenger />
+              : (bus.activeJobs || []).length > 0 
+                ? <NotificationCenter /> 
+                : null
+          }
+          right={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <NavbarCounter />
+                <button className="usi-btn ghost icon sm" onClick={handleToggleTheme} title="Przełącz motyw">
+                    <Icon name={dark ? 'sparkle' : 'star'} size={16} />
+                </button>
+            </div>
+          }
+        />
 
-          {view === 'developers' && (
-            <DeveloperListGrid
-              developers={developers}
-              onSelectDev={handleSelectDev}
-              onNav={handleNav}
-              dark={dark} onToggleTheme={handleToggleTheme}
-            />
-          )}
+        <ActionBar
+          left={
+            view === 'list' || view === 'developers' ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {view === 'list' && (
+                  <div className="mode-toggle">
+                    <button className="usi-btn icon sm" aria-pressed={mode === 'grid'} onClick={() => setMode('grid')}><Icon name="grid" /></button>
+                    <button className="usi-btn icon sm" aria-pressed={mode === 'table'} onClick={() => setMode('table')}><Icon name="list" /></button>
+                  </div>
+                )}
+                <GlobalSearch value={search} onChange={setSearch} placeholder={view === 'list' ? "Szukaj inwestycji..." : "Szukaj dewelopera..."} />
+              </div>
+            ) : <button className="usi-btn ghost sm" onClick={() => handleNav('list')}><Icon name="chevronLeft" /> Powrót do listy</button>
+          }
+          center={
+            (view === 'list' || view === 'developers') && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+                <FilterGroup label="Źródła">
+                  {SOURCES.map(s => (
+                    <FilterChip key={s.id} label={s.label} source={s.id} active={activeSources.has(s.id)} color={s.color} onClick={(isShift) => toggleSource(s.id, isShift)} />
+                  ))}
+                </FilterGroup>
+                <div style={{ width: 1, height: 24, background: 'var(--usi-border)' }} />
+                <FilterGroup label="Miasta">
+                  {MAIN_CITIES.map(city => (
+                    <FilterChip key={city} label={city} active={activeCities.has(city)} onClick={(isShift) => toggleCity(city, isShift)} />
+                  ))}
+                  {activeCities.size > 0 && <button className="usi-btn ghost sm" onClick={() => toggleCity(null, true)}>Reset</button>}
+                </FilterGroup>
+              </div>
+            )
+          }
+          right={
+            view === 'list' ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <select className="usi-input sm" style={{ width: 150, height: 32 }} value={filterDev} onChange={e => setFilterDev(e.target.value)}>
+                  <option value="">Deweloperzy</option>
+                  {developers.map(d => <option key={d.developer_slug} value={d.developer_slug}>{d.name}</option>)}
+                </select>
+                <select className="usi-input sm" style={{ width: 120, height: 32 }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                  <option value="">Statusy</option>
+                  {USI_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            ) : view === 'download' ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button className="usi-btn ghost sm" onClick={() => handleNav('dashboard')}>Dashboard</button>
+                <button className="usi-btn ghost sm" onClick={() => handleNav('reports')}>Raporty</button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="usi-btn ghost sm" onClick={() => handleNav('dashboard')}>Dashboard</button>
+                <button className="usi-btn ghost sm" onClick={() => handleNav('reports')}>Raporty</button>
+              </div>
+            )
+          }
+        />
 
-          {view === 'dev-detail' && selectedDev && (
-            <DeveloperDetail
-              dev_slug={selectedDev.developer_slug}
-              onBack={() => setView('developers')}
-              onNav={handleNav}
-              onSelectInv={handleSelectInv}
-              dark={dark}
-              onToggleTheme={handleToggleTheme}
-            />
-          )}
-          {view === 'detail' && selectedInv && (
-            <DetailRightPanel
-              inv={selectedInv}
-              invIndex={invIndex >= 0 ? invIndex : 0}
-              invTotal={filteredInvestments.length}
-              onBack={() => setView('list')}
-              onNav={handleNav}
-              onUpdateInv={handleUpdateInv}
-              onPrev={() => setSelectedInv(prev => {
-                const idx = filteredInvestments.findIndex(i => i.slug === prev.slug);
-                return filteredInvestments[(idx - 1 + filteredInvestments.length) % filteredInvestments.length];
-              })}
-              onNext={() => setSelectedInv(prev => {
-                const idx = filteredInvestments.findIndex(i => i.slug === prev.slug);
-                return filteredInvestments[(idx + 1) % filteredInvestments.length];
-              })}
-              dark={dark} onToggleTheme={handleToggleTheme}
-            />
-          )}
-          {view === 'dashboard' && (
-            <DashboardGrid 
-              investments={investments} 
-              onNav={handleNav} 
-              dark={dark} 
-              onToggleTheme={handleToggleTheme} 
-              hereApiKey={config ? config.hereApiKey : undefined} 
-            />
-          )}
-          {view === 'download' && (
-            <ModuleErrorBoundary>
-              <ViewDownload 
-                onNav={handleNav}
-                dark={dark}
-                onToggleTheme={handleToggleTheme}
+        <main className="app-main-content usi-scroll" style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
+          <ModuleErrorBoundary fallback={
+            <div style={{ padding: 40, textAlign: 'center' }}>
+              <h2 className="usi-h2">Coś poszło nie tak</h2>
+              <p className="usi-body">Wystąpił błąd podczas renderowania tego widoku.</p>
+              <button className="usi-btn" onClick={() => window.location.reload()}>Odśwież aplikację</button>
+            </div>
+          }>
+            {view === 'list' && (
+              <ListGrid
+                investments={investments}
+                filteredInvestments={filteredInvestments}
+                onSelectInv={(inv) => { setSelectedInv(inv); setView('detail'); }}
+                mode={mode}
               />
-            </ModuleErrorBoundary>
-          )}
-          {view === 'reports' && (
-            <ModuleErrorBoundary>
-              <ReportsList
-                onSelectReport={handleSelectReport}
-                onNav={handleNav}
-                dark={dark}
-                onToggleTheme={handleToggleTheme}
+            )}
+
+            {view === 'developers' && (
+              <DeveloperListGrid
+                developers={developers}
+                onSelectDev={(dev) => { setSelectedDev(dev); setView('dev-detail'); }}
               />
-            </ModuleErrorBoundary>
-          )}
-          {view === 'report-detail' && selectedReport && (
-            <ReportDetail
-              reportId={selectedReport.id}
-              onBack={() => setView('reports')}
-              onNav={handleNav}
-              dark={dark}
-              onToggleTheme={handleToggleTheme}
-            />
-          )}
-        </div>
+            )}
+
+            {view === 'dashboard' && (
+              <DashboardGrid 
+                investments={investments} 
+                hereApiKey={config?.hereApiKey} 
+              />
+            )}
+
+            {view === 'detail' && selectedInv && (
+              <DetailRightPanel
+                inv={selectedInv}
+                onBack={() => setView('list')}
+                onUpdateInv={() => refetch()}
+              />
+            )}
+
+            {view === 'dev-detail' && selectedDev && (
+              <DeveloperDetail
+                dev_slug={selectedDev.developer_slug}
+                onBack={() => setView('developers')}
+                onSelectInv={(inv) => { setSelectedInv(inv); setView('detail'); }}
+              />
+            )}
+
+            {view === 'download' && <ViewDownload />}
+            {view === 'reports' && <ReportsList onSelectReport={(r) => { setSelectedReport(r); setView('report-detail'); }} />}
+            {view === 'report-detail' && selectedReport && <ReportDetail reportId={selectedReport.id} onBack={() => setView('reports')} />}
+          </ModuleErrorBoundary>
+        </main>
+
+        {navOpen && <NavDrawer current={view} onClose={() => setNavOpen(false)} onNav={handleNav} dark={dark} onToggleTheme={handleToggleTheme} />}
       </div>
     );
   } catch (err) {
     console.error("CRITICAL APP RENDER ERROR:", err);
-    return (
-      <div style={{ padding: 40, background: '#fee', color: '#c00', height: '100vh', display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <h1>Błąd renderowania aplikacji</h1>
-        <pre style={{ whiteSpace: 'pre-wrap' }}>{err.stack}</pre>
-        <button onClick={() => window.location.reload()}>Przeładuj stronę</button>
-      </div>
-    );
+    return <div style={{ padding: 40, color: '#c00' }}><h1>Błąd renderowania</h1><pre>{err.stack}</pre></div>;
   }
 }
 
 const renderApp = () => {
-  const required = [
-    'React', 'ReactDOM', 'DataBusProvider', 'useInvestments', 
-    'useDevelopers', 'useConfig', 'ListGrid', 'Spinner'
+  const deps = [
+    'React', 'ReactDOM', 'DataBusProvider', 'Spinner', 'Icon', 'ModuleErrorBoundary',
+    'ListGrid', 'DeveloperListGrid', 'DeveloperDetail', 'DetailRightPanel',
+    'DashboardGrid', 'ViewDownload', 'ReportsList', 'ReportDetail',
+    'useInvestments', 'useDevelopers', 'useConfig', 'MAIN_CITIES', 'SOURCES',
+    'NavbarShell', 'NavbarTitle', 'NavbarCounter', 'ActionBar', 'GlobalSearch'
   ];
-  const missing = required.filter(k => !window[k]);
   
+  const missing = deps.filter(d => window[d] === undefined);
   if (missing.length > 0) {
-    console.warn("Waiting for dependencies: " + missing.join(', '));
+    if (window._renderAttempts > 50) {
+      console.error("Missing UI dependencies after 5s:", missing);
+    }
+    window._renderAttempts = (window._renderAttempts || 0) + 1;
     setTimeout(renderApp, 100);
     return;
   }
-
-  console.log("All dependencies ready. Rendering App.");
+  
+  const { ReactDOM, DataBusProvider } = window;
   ReactDOM.createRoot(document.getElementById('root')).render(
-    <window.DataBusProvider>
-      <App />
-    </window.DataBusProvider>
+    <DataBusProvider><App /></DataBusProvider>
   );
 };
 

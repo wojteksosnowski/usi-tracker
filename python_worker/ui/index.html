@@ -30,9 +30,31 @@
                     '<b>Line:</b> ' + e.lineno + '<br>' +
                     '<b>Stack:</b><br>' + (e.error ? e.error.stack : 'no stack');
     document.body.appendChild(div);
+
+    // Send to server
+    fetch('/api/ui-error', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: e.message,
+        stack: e.error ? e.error.stack : 'no stack',
+        url: window.location.href,
+        file: e.filename,
+        line: e.lineno
+      })
+    }).catch(err => console.error('Failed to report UI error:', err));
   });
   window.addEventListener('unhandledrejection', function(e) {
-  alert('Unhandled Rejection: ' + e.reason);
+    alert('Unhandled Rejection: ' + e.reason);
+    fetch('/api/ui-error', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: 'Unhandled Rejection: ' + e.reason,
+        stack: e.reason && e.reason.stack ? e.reason.stack : 'no stack',
+        url: window.location.href
+      })
+    }).catch(err => console.error('Failed to report rejection:', err));
   });
   console.log("Diagnostic script initialized.");
   const originalBabelTransform = window.Babel?.transformScriptTags;
@@ -59,6 +81,8 @@
 <script type="text/babel" src="view-dev-list.jsx"></script>
 <script type="text/babel" src="view-dev-detail.jsx"></script>
 <script type="text/babel" src="view-reports.jsx"></script>
-<script type="text/babel" src="view-download.jsx"></script><script type="text/babel" src="app.jsx"></script>
+<script type="text/babel" src="view-download.jsx"></script>
+<script type="text/babel" src="view-dashboard.jsx"></script>
+<script type="text/babel" src="app.jsx"></script>
 </body>
 </html>

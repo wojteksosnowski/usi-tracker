@@ -92,7 +92,31 @@ function MetadataPanel({ inv, config }) {
   );
 }
 
+function NavbarCounter() {
+  const { React, useDataBus } = window;
+  const { bus } = useDataBus();
+  const count = bus.visibleInvestments ? bus.visibleInvestments.length : 0;
+  
+  return (
+    <div data-component="NavbarCounter" className="usi-mono" style={{
+      background: 'var(--usi-surface-3)',
+      color: 'var(--usi-ink-2)',
+      padding: '4px 8px',
+      borderRadius: '6px',
+      fontSize: '11px',
+      fontWeight: 700,
+      border: '.5px solid var(--usi-border)',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6
+    }}>
+      <span style={{ opacity: 0.6 }}>REKORDY:</span>
+      <span style={{ color: 'var(--usi-ink)' }}>{count}</span>
+    </div>
+  );
+}
+
 // Global registration
 Object.assign(window, {
-  CategoryAvgRow, ProgressBarAnalytics, MetadataPanel
+  CategoryAvgRow, ProgressBarAnalytics, MetadataPanel, NavbarCounter
 });

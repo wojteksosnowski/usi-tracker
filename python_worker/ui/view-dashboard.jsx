@@ -1,12 +1,11 @@
 // view-dashboard.jsx — dashboard z mapą, wykresami, podsumowaniem
 
-function DashboardGrid({ investments = [], onNav = () => {}, accent, dark, onToggleTheme, hereApiKey }) {
+function DashboardGrid({ investments = [], accent, dark, hereApiKey }) {
   const {
     React, USI_CATEGORIES, ratingStatus, avgRating,
-    NavMenuButton, NavDrawer, CategoryAvgRow,
-    ProgressBarAnalytics, MiniMap
+    CategoryAvgRow, ProgressBarAnalytics, MiniMap
   } = window;
-  const [navOpen, setNavOpen] = React.useState(false);
+
   const total = investments.length;
   const rated = investments.filter(i => ratingStatus(i) === 'done').length;
   const partial = investments.filter(i => ratingStatus(i) === 'partial').length;
@@ -25,15 +24,7 @@ function DashboardGrid({ investments = [], onNav = () => {}, accent, dark, onTog
     : 0;
 
   return (
-    <div data-component="DashboardGrid" className="usi-app dashboard-grid">
-      <div data-component="Dashboard-Toolbar" className="dashboard-toolbar">
-        <NavMenuButton onClick={() => setNavOpen(true)} />
-        <h1 className="usi-h1" style={{ margin: 0 }}>Dashboard</h1>
-        <span className="usi-small" style={{ color: 'var(--usi-ink-4)' }}>Stan bazy danych</span>
-        <div style={{ flex: 1 }} />
-        {navOpen && <NavDrawer current="dashboard" onClose={() => setNavOpen(false)} onNav={v => { setNavOpen(false); onNav(v); }} dark={dark} onToggleTheme={onToggleTheme} />}
-      </div>
-      <div data-component="Dashboard-Content" className="dashboard-content usi-scroll">
+    <div data-component="DashboardGrid" className="dashboard-content usi-scroll" style={{ height: '100%', overflowY: 'auto', padding: '24px' }}>
         <KPI title="Inwestycji" value={total} sub="w bazie" col={3} />
         <KPI title="Ocenione" value={rated} sub={`${partial} częściowo`} col={3} accent="var(--usi-success)" />
         <KPI title="Zdjęć" value={photos.toLocaleString('pl-PL')} sub={`${toDelete} do usunięcia`} col={3} />
@@ -88,7 +79,6 @@ function DashboardGrid({ investments = [], onNav = () => {}, accent, dark, onTog
           <div className="usi-tiny" style={{ marginBottom: 12 }}>Postęp ocen</div>
           <ProgressBarAnalytics rated={rated} partial={partial} total={total} />
         </div>
-      </div>
     </div>
   );
 }
@@ -105,12 +95,27 @@ function KPI({ title, value, sub, col = 3, accent }) {
 }
 
 function DashboardMap({ investments = [], accent, dark, apiKey }) {
-  const withCoords = investments.filter(i => i.coords && i.coords[0] !== 0);
+  const { MiniMap } = window;
   return (
     <div className="dashboard-map-container">
         <MiniMap coords={[52.23, 21.01]} height="100%" />
     </div>
   );
+}
+
+function CategoryDots({ ratings = {}, size = 6 }) {
+    const { USI_CATEGORIES } = window;
+    return (
+        <div style={{ display: 'flex', gap: 3 }}>
+            {USI_CATEGORIES.map(cat => (
+                <div key={cat.key} style={{ 
+                    width: size, height: size, borderRadius: '50%',
+                    background: ratings[cat.key] ? cat.color : 'var(--usi-surface-3)',
+                    opacity: ratings[cat.key] ? 1 : 0.3
+                }} title={cat.key} />
+            ))}
+        </div>
+    );
 }
 
 Object.assign(window, { DashboardGrid });

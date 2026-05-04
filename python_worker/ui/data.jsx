@@ -9,7 +9,9 @@ function DataBusProvider({ children }) {
     visibleInvestments: [],
     currentInvestment: null,
     nearbyInvestments: [],
-    reports: []
+    reports: [],
+    activeJobs: [],
+    appStatus: null // { msg: string, type: 'success'|'error'|'info' }
   });
 
   const setVariable = React.useCallback((name, value) => {

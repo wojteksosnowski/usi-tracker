@@ -33,6 +33,8 @@ function useRatings(inv) {
     setSaved(false);
   }, [inv.slug]);
 
+  const { bus, setVariable } = window.useDataBus();
+
   const persist = (r, c, s) => {
     fetch(`/api/ratings/${inv.developer_slug}/${inv.investment_slug}`, {
       method: 'POST',
@@ -42,9 +44,12 @@ function useRatings(inv) {
       .then(() => {
         _ratingCache.set(inv.slug, { ratings: r, comment: c, status: s });
         setSaved(true);
+        setVariable('appStatus', { type: 'success', msg: 'Ocena zapisana' });
         setTimeout(() => setSaved(false), 2000);
       })
-      .catch(() => {});
+      .catch((err) => {
+        setVariable('appStatus', { type: 'error', msg: 'Błąd zapisu ocen' });
+      });
   };
 
   const handleRating = (key, val) => {
