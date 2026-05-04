@@ -3,28 +3,86 @@
 // Defined at top level but safely using window.React
 const DataBusContext = window.React.createContext();
 
+const MAIN_CITIES = ['Warszawa', 'Kraków', 'Wrocław', 'Łódź', 'Poznań', 'Gdańsk', 'Szczecin', 'Bydgoszcz', 'Lublin', 'Białystok'];
+
 function DataBusProvider({ children }) {
   const { React } = window;
   const [bus, setBus] = React.useState({
+    investments: [],
+    developers: [],
     visibleInvestments: [],
+    loading: true,
     currentInvestment: null,
     nearbyInvestments: [],
     reports: [],
     activeJobs: [],
-    appStatus: null // { msg: string, type: 'success'|'error'|'info' }
+    appStatus: null,
+    
+    // Filter state
+    search: '',
+    filterDev: '',
+    filterStatus: '',
+    activeSources: new Set(['RP', 'OTO', 'TO']),
+    activeCities: new Set()
   });
 
   const setVariable = React.useCallback((name, value) => {
     setBus(prev => {
-      // Avoid unnecessary state updates if value is strictly equal
-      if (prev[name] === value) return prev;
-      return { ...prev, [name]: value };
+      const nextValue = typeof value === 'function' ? value(prev[name]) : value;
+      if (prev[name] === nextValue) return prev;
+      return { ...prev, [name]: nextValue };
     });
   }, []);
 
-  const getVariable = React.useCallback((name) => bus[name], [bus]);
+  const refetch = React.useCallback(async (type = 'investments') => {
+    setVariable('loading', true);
+    try {
+      const r = await fetch(`/api/${type}`);
+      const data = await r.json();
+      setVariable(type, Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error(`Failed to refetch ${type}`, e);
+    } finally {
+      setVariable('loading', false);
+    }
+  }, [setVariable]);
 
-  const value = React.useMemo(() => ({ bus, setVariable, getVariable }), [bus, setVariable, getVariable]);
+  // Automatic filtering
+  const visibleInvestments = React.useMemo(() => {
+    const { investments, search, filterDev, filterStatus, activeSources, activeCities } = bus;
+    return investments.filter(inv => {
+      if (search) {
+        const s = search.toLowerCase();
+        const match = (inv.name?.toLowerCase().includes(s) ||
+                     inv.developer?.toLowerCase().includes(s) ||
+                     inv.district?.toLowerCase().includes(s) ||
+                     inv.address?.toLowerCase().includes(s));
+        if (!match) return false;
+      }
+      if (filterDev && inv.developer_slug !== filterDev && inv.developer !== filterDev) return false;
+      if (filterStatus && inv.status !== filterStatus) return false;
+      if (activeSources.size > 0 && inv.source && !activeSources.has(inv.source.toUpperCase())) return false;
+      if (activeCities.size > 0) {
+        const addr = (inv.address || '').toLowerCase();
+        const foundCity = MAIN_CITIES.find(c => addr.includes(c.toLowerCase()));
+        if (!foundCity || !activeCities.has(foundCity)) return false;
+      }
+      return true;
+    });
+  }, [bus.investments, bus.search, bus.filterDev, bus.filterStatus, bus.activeSources, bus.activeCities]);
+
+  // Sync visibleInvestments back to bus (using a ref to avoid infinite loops if needed, 
+  // but here we just pass it in value)
+  const value = React.useMemo(() => ({ 
+    bus: { ...bus, visibleInvestments }, 
+    setVariable, 
+    refetch 
+  }), [bus, visibleInvestments, setVariable, refetch]);
+
+  React.useEffect(() => {
+    refetch('investments');
+    refetch('developers');
+  }, []);
 
   return (
     <DataBusContext.Provider value={value}>
@@ -32,55 +90,38 @@ function DataBusProvider({ children }) {
     </DataBusContext.Provider>
   );
 }
+window.usiRegister('DataBusProvider', DataBusProvider);
 
 function useDataBus() {
   const { React } = window;
   const context = React.useContext(DataBusContext);
   if (!context) {
     // Fallback for components rendered outside provider (e.g. during initial loads)
-    return { bus: {}, setVariable: () => {}, getVariable: () => {} };
+    return { bus: {}, setVariable: () => {}, getVariable: () => {}, refetch: () => {} };
   }
   return context;
 }
+window.usiRegister('useDataBus', useDataBus);
 
 function useInvestments() {
-  const { React } = window;
-// ... existing useInvestments ...
-  const [investments, setInvestments] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
-  // ...
-
-  const load = React.useCallback(() => {
-    setLoading(true);
-    fetch('/api/investments')
-      .then(r => r.json())
-      .then(data => { setInvestments(Array.isArray(data) ? data : []); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, []);
-
-  React.useEffect(() => { load(); }, [load]);
-
-  return { investments, loading, refetch: load };
+  const { bus, refetch } = useDataBus();
+  return { 
+    investments: bus.investments, 
+    loading: bus.loading, 
+    refetch: () => refetch('investments') 
+  };
 }
+window.usiRegister('useInvestments', useInvestments);
 
 function useDevelopers() {
-  const { React } = window;
-  const [developers, setDevelopers] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
-  // ...
-
-  const load = React.useCallback(() => {
-    setLoading(true);
-    fetch('/api/developers')
-      .then(r => r.json())
-      .then(data => { setDevelopers(Array.isArray(data) ? data : []); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, []);
-
-  React.useEffect(() => { load(); }, [load]);
-
-  return { developers, loading, refetch: load };
+  const { bus, refetch } = useDataBus();
+  return { 
+    developers: bus.developers, 
+    loading: bus.loading, 
+    refetch: () => refetch('developers') 
+  };
 }
+window.usiRegister('useDevelopers', useDevelopers);
 
 function useConfig() {
   const { React } = window;
@@ -96,6 +137,7 @@ function useConfig() {
   }, [React]);
   return config;
 }
+window.usiRegister('useConfig', useConfig);
 
 function useMetadataConfig() {
   const { React } = window;
@@ -111,6 +153,7 @@ function useMetadataConfig() {
   }, [React]);
   return meta;
 }
+window.usiRegister('useMetadataConfig', useMetadataConfig);
 
 const _CATS = ['Balkony', 'Fasady', 'Wnętrza', 'Teren', 'Mieszkania', 'Udogodnienia'];
 
@@ -121,6 +164,7 @@ const avgRating = (inv) => {
   const vals = _CATS.map(k => ((inv.ratings || {})[k] ?? null)).filter(v => v !== null);
   return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
 };
+window.usiRegister('avgRating', avgRating);
 
 const ratingStatus = (inv) => {
   const c = ratedCount(inv);
@@ -128,6 +172,7 @@ const ratingStatus = (inv) => {
   if (c < 6) return 'partial';
   return 'done';
 };
+window.usiRegister('ratingStatus', ratingStatus);
 
 const ocenaLog = (inv) => {
   const vals = _CATS.map(k => ((inv.ratings || {})[k] ?? null)).filter(v => v !== null);
@@ -135,6 +180,8 @@ const ocenaLog = (inv) => {
   const sum = vals.reduce((acc, v) => acc + Math.exp(v), 0);
   return Math.log(sum) - Math.log(vals.length);
 };
+window.usiRegister('ocenaLog', ocenaLog);
+
 
 // ─── Ekstraktory Danych dla Modułów (Krok B05) ─────────────────
 const extractModuleContext = {

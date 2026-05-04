@@ -48,9 +48,10 @@ function ReportsList({ onSelectReport }) {
 }
 
 function ReportDetail({ reportId, onBack }) {
-  const { React, Spinner, Icon } = window;
+  const { React, Spinner, Icon, DataGrid, SourceBadge } = window;
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
+  const [sort, setSort] = React.useState({ key: 'name', dir: 'asc' });
 
   React.useEffect(() => {
     setLoading(true);
@@ -63,21 +64,69 @@ function ReportDetail({ reportId, onBack }) {
       .catch(() => setLoading(false));
   }, [reportId]);
 
+  const handleSort = (key) => {
+    setSort(prev => ({
+      key,
+      dir: prev.key === key && prev.dir === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
   if (loading) return <div className="usi-app-loading" style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>;
   if (!data) return <div className="usi-app-empty" style={{ padding: 40 }}>Błąd ładowania raportu.</div>;
 
   const { definition, data: investments } = data;
 
+  const sortedData = [...investments].sort((a, b) => {
+    const va = a[sort.key] || '';
+    const vb = b[sort.key] || '';
+    if (va < vb) return sort.dir === 'asc' ? -1 : 1;
+    if (va > vb) return sort.dir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const columns = [
+    { 
+      key: 'name', 
+      label: 'Inwestycja', 
+      sortable: true,
+      render: (val, row) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <SourceBadge source={row.source} />
+          <span style={{ fontWeight: 600 }}>{val}</span>
+        </div>
+      )
+    },
+    { key: 'developer', label: 'Deweloper', sortable: true },
+    { key: 'district', label: 'Dzielnica', sortable: true },
+    { 
+      key: 'status', 
+      label: 'Status', 
+      sortable: true,
+      render: (val) => <span className={`usi-pill ${val === 'Ukończona' ? 'success' : 'info'}`}>{val}</span>
+    }
+  ];
+
   return (
-    <div data-component="ReportDetail" className="report-detail-content usi-scroll" style={{ height: '100%', overflowY: 'auto', padding: '24px' }}>
-        <div style={{ marginBottom: 24 }}>
-          <h1 className="usi-h1" style={{ margin: 0, fontSize: 24 }}>{definition.title}</h1>
-          <div className="usi-body" style={{ color: 'var(--usi-ink-3)', marginTop: 4 }}>{investments.length} inwestycji spełnia kryteria</div>
+    <div data-component="ReportDetail" className="report-detail-content usi-scroll" style={{ height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '24px 24px 16px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <button className="usi-btn icon-only" onClick={onBack}><Icon name="arrow" style={{ transform: 'rotate(180deg)' }} /></button>
+            <h1 className="usi-h1" style={{ margin: 0, fontSize: 24 }}>{definition.title}</h1>
+          </div>
+          <div className="usi-body" style={{ color: 'var(--usi-ink-3)' }}>{investments.length} inwestycji spełnia kryteria</div>
         </div>
         
-        {/* Tu można wstawić moduły raportowe */}
-        <div className="usi-card" style={{ padding: '20px' }}>
-            <div className="usi-small">Tabela wyników raportu zostanie wyświetlona tutaj.</div>
+        <div style={{ flex: 1, minHeight: 0, padding: '0 24px 24px' }}>
+          <div className="usi-card" style={{ height: '100%', overflow: 'hidden' }}>
+              <DataGrid 
+                data={sortedData} 
+                columns={columns}
+                sortKey={sort.key}
+                sortDir={sort.dir}
+                onSort={handleSort}
+                onRowClick={(row) => console.log("Clicked row:", row)}
+              />
+          </div>
         </div>
     </div>
   );

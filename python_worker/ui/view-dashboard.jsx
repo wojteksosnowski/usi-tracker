@@ -1,10 +1,13 @@
 // view-dashboard.jsx — dashboard z mapą, wykresami, podsumowaniem
 
-function DashboardGrid({ investments = [], accent, dark, hereApiKey }) {
+function DashboardGrid({ accent, dark, hereApiKey }) {
   const {
     React, USI_CATEGORIES, ratingStatus, avgRating,
-    CategoryAvgRow, ProgressBarAnalytics, MiniMap
+    CategoryAvgRow, ProgressBarAnalytics, MiniMap, useDataBus
   } = window;
+
+  const { bus } = useDataBus();
+  const investments = bus.visibleInvestments || [];
 
   const total = investments.length;
   const rated = investments.filter(i => ratingStatus(i) === 'done').length;
@@ -47,30 +50,57 @@ function DashboardGrid({ investments = [], accent, dark, hereApiKey }) {
           <DashboardMap investments={investments} accent={accent} dark={dark} apiKey={hereApiKey} />
         </div>
 
-        <div data-component="Dashboard-TopInvestments" className="usi-card dashboard-card-half">
-          <div className="usi-tiny" style={{ marginBottom: 12 }}>Top inwestycje wg średniej</div>
+        <div data-component="Dashboard-TopInvestments" className="usi-card dashboard-card-half" style={{ display: 'flex', flexDirection: 'column' }}>
+          <div className="usi-tiny" style={{ padding: '16px 16px 8px' }}>Top inwestycje wg średniej</div>
           {ranked.length === 0 ? (
-            <div className="usi-small" style={{ color: 'var(--usi-ink-4)' }}>Brak ocenionych inwestycji</div>
+            <div className="usi-small" style={{ padding: 16, color: 'var(--usi-ink-4)' }}>Brak ocenionych inwestycji</div>
           ) : (
-            <div className="dashboard-top-investments-list">
-              {ranked.slice(0, 5).map((inv, i) => {
-                const thumb = inv.photos && inv.photos.length > 0 ? inv.photos[0] : null;
-                return (
-                  <div key={inv.slug} data-component="TopInvestment-Row" className="dashboard-top-investment-row">
-                    <span className="usi-mono dashboard-top-investment-rank">{i+1}</span>
-                    {thumb
-                      ? <img src={thumb} alt="" className="dashboard-top-investment-thumb" />
-                      : <div className="dashboard-top-investment-thumb-empty" />
+            <div style={{ flex: 1, minHeight: 300 }}>
+              <DataGrid 
+                data={ranked.slice(0, 10)} 
+                rowHeight={60}
+                columns={[
+                  { 
+                    key: 'rank', 
+                    label: '#', 
+                    width: 30, 
+                    align: 'center',
+                    render: (_, row) => <span className="usi-mono" style={{ fontSize: 11, opacity: 0.5 }}>{ranked.indexOf(row) + 1}</span>
+                  },
+                  {
+                    key: 'name',
+                    label: 'Inwestycja',
+                    render: (val, row) => {
+                      const thumb = row.photos && row.photos.length > 0 ? row.photos[0] : null;
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          {thumb
+                            ? <img src={thumb} alt="" className="dashboard-top-investment-thumb" />
+                            : <div className="dashboard-top-investment-thumb-empty" />
+                          }
+                          <div className="dashboard-top-investment-info">
+                            <div className="dashboard-top-investment-name">{val}</div>
+                            <div className="usi-small" style={{ fontSize: 11 }}>{row.developer}</div>
+                          </div>
+                        </div>
+                      );
                     }
-                    <div className="dashboard-top-investment-info">
-                      <div className="dashboard-top-investment-name">{inv.name}</div>
-                      <div className="usi-small">{inv.developer}</div>
-                    </div>
-                    <CategoryDots ratings={inv.ratings || {}} size={6} />
-                    <span className="usi-mono dashboard-top-investment-avg">★ {avgRating(inv).toFixed(2)}</span>
-                  </div>
-                );
-              })}
+                  },
+                  {
+                    key: 'ratings',
+                    label: 'Kategorie',
+                    align: 'center',
+                    render: (val) => <CategoryDots ratings={val || {}} size={6} />
+                  },
+                  {
+                    key: 'avg',
+                    label: '★',
+                    width: 60,
+                    align: 'right',
+                    render: (_, row) => <span className="usi-mono" style={{ fontWeight: 600 }}>{avgRating(row).toFixed(2)}</span>
+                  }
+                ]}
+              />
             </div>
           )}
         </div>
@@ -101,21 +131,6 @@ function DashboardMap({ investments = [], accent, dark, apiKey }) {
         <MiniMap coords={[52.23, 21.01]} height="100%" />
     </div>
   );
-}
-
-function CategoryDots({ ratings = {}, size = 6 }) {
-    const { USI_CATEGORIES } = window;
-    return (
-        <div style={{ display: 'flex', gap: 3 }}>
-            {USI_CATEGORIES.map(cat => (
-                <div key={cat.key} style={{ 
-                    width: size, height: size, borderRadius: '50%',
-                    background: ratings[cat.key] ? cat.color : 'var(--usi-surface-3)',
-                    opacity: ratings[cat.key] ? 1 : 0.3
-                }} title={cat.key} />
-            ))}
-        </div>
-    );
 }
 
 Object.assign(window, { DashboardGrid });

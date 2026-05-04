@@ -16,42 +16,10 @@ function useDarkMode() {
   }, [React]);
   return dark;
 }
-
-class ModuleErrorBoundary extends window.React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-  static getDerivedStateFromError(error) { return { hasError: true, error }; }
-  componentDidCatch(error, errorInfo) {
-    console.error("Module Error:", error, errorInfo);
-    fetch('/api/ui-error', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: 'Module Error: ' + (error?.message || 'Unknown'),
-        stack: error?.stack || 'no stack',
-        componentStack: errorInfo?.componentStack,
-        url: window.location.href
-      })
-    }).catch(err => console.log('Failed to report module error:', err));
-  }
-  render() {
-    if (this.state.hasError) {
-      if (this.props.fallback) return this.props.fallback;
-      return (
-        <div style={{ padding: 16, border: '1px dashed var(--usi-danger)', borderRadius: 12, backgroundColor: 'var(--usi-surface-2)', color: 'var(--usi-danger)', fontSize: 13, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <strong>Moduł niedostępny</strong>
-          <span style={{ fontSize: 11, opacity: 0.8, fontFamily: 'monospace' }}>{this.state.error?.message || 'Błąd renderowania'}</span>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
+window.usiRegister('useDarkMode', useDarkMode);
 
 function BaseModule({ title, icon, children, errorFallback, style }) {
-  const { React, Icon } = window;
+  const { React, Icon, ModuleErrorBoundary } = window;
   const containerRef = React.useRef(null);
   const [containerWidth, setContainerWidth] = React.useState(0);
 
@@ -91,6 +59,7 @@ function BaseModule({ title, icon, children, errorFallback, style }) {
     </div>
   );
 }
+window.usiRegister('BaseModule', BaseModule);
 
 const ModuleTypes = {
   RecordSet: 'RecordSet',
@@ -99,6 +68,7 @@ const ModuleTypes = {
   Color: 'Color',
   Number: 'Number',
 };
+window.usiRegister('ModuleTypes', ModuleTypes);
 
 class ModuleSchemaValidator {
   static validate(schema, data) {
@@ -121,8 +91,10 @@ class ModuleSchemaValidator {
     return result;
   }
 }
+window.usiRegister('ModuleSchemaValidator', ModuleSchemaValidator);
 
 function ModuleWrapper({ component: Component, moduleSpec, context, title, icon, height }) {
+  const { ModuleSchemaValidator, BaseModule } = window;
   const validation = ModuleSchemaValidator.validate(moduleSpec.inputs, context);
   if (!validation.valid) {
     return (
@@ -139,8 +111,10 @@ function ModuleWrapper({ component: Component, moduleSpec, context, title, icon,
     </BaseModule>
   );
 }
+window.usiRegister('ModuleWrapper', ModuleWrapper);
 
 function MiniMap({ geo, label, height = 140, points = [], hereUrl = '', hereUrlDark = '', coords, containerWidth }) {
+  const { React, useDarkMode } = window;
   const mapCoords = geo ? [geo.lat, geo.lng] : coords;
   React.useEffect(() => {
     if (containerWidth > 0) { console.log(`[MiniMap] containerWidth: ${Math.round(containerWidth)}px`); }
@@ -177,8 +151,26 @@ function MiniMap({ geo, label, height = 140, points = [], hereUrl = '', hereUrlD
     </a>
   );
 }
+window.usiRegister('MiniMap', MiniMap);
+
+function NearbyInvestmentsModule({ items = [] }) {
+  if (items.length === 0) return <div className="usi-small" style={{ color: 'var(--usi-ink-4)' }}>Brak innych inwestycji w promieniu 5km.</div>;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {items.slice(0, 10).map(i => (
+        <div key={i.slug} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--usi-accent)' }} />
+          <div style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{i.name}</div>
+          <div className="usi-mono" style={{ opacity: 0.6 }}>{i.distance.toFixed(1)}km</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+window.usiRegister('NearbyInvestmentsModule', NearbyInvestmentsModule);
 
 function SkeletonModule({ shouldThrow = false }) {
+  const { BaseModule } = window;
   if (shouldThrow) throw new Error("Sztuczny błąd");
   return (
     <BaseModule title="Skeleton Test" icon="box">
@@ -187,8 +179,6 @@ function SkeletonModule({ shouldThrow = false }) {
     </BaseModule>
   );
 }
+window.usiRegister('SkeletonModule', SkeletonModule);
 
-// Global registration
-Object.assign(window, {
-  useDarkMode, ModuleErrorBoundary, BaseModule, ModuleTypes, ModuleSchemaValidator, ModuleWrapper, MiniMap, SkeletonModule
-});
+

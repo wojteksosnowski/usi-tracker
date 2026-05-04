@@ -89,7 +89,12 @@
       "Bash(python3 -c \"import sys, json; data = json.load\\(sys.stdin\\); print\\('Top-level keys:'\\); [print\\(f'  {k}'\\) for k in sorted\\(data.keys\\(\\)\\)]\")",
       "Bash(grep -v \"/[^/]*$\")",
       "Bash(grep -E \"[a-z].*[a-z]$\")",
-      "Bash(grep -v \"^/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata$\")"
+      "Bash(grep -v \"^/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata$\")",
+      "Bash(grep -E \"\\\\.\\(sh|bash|py\\)$\")",
+      "Bash(grep -E \"\\\\.py$\")",
+      "Bash(xargs -I {} sh -c 'echo \"=== {} ===\" && head -30 {}')",
+      "Bash(xargs -I {} basename {})",
+      "Bash(grep \"\\\\.sh$\")"
     ]
   }
 }

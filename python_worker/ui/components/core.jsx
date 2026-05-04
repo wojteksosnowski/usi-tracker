@@ -1,13 +1,5 @@
 // core.jsx — UI primitives for USI
 
-function Spinner({ size = 40, stroke = 3 }) {
-  return (
-    <div data-component="Spinner">
-      <div className="usi-spinner" style={{ width: size, height: size, borderWidth: stroke }} />
-    </div>
-  );
-}
-
 function USIStarLogo({ size = 24, color }) {
   return (
     <svg data-component="USIStarLogo" width={size} height={size} viewBox="0 0 48 48" fill="none">
@@ -15,11 +7,12 @@ function USIStarLogo({ size = 24, color }) {
     </svg>
   );
 }
+window.usiRegister('USIStarLogo', USIStarLogo);
 
 function SourceBadge({ source, url }) {
   const cls = source === 'OTO' || source === 'oto' || source === 'otodom' ? 'oto' : (source === 'RP' || source === 'rp' ? 'rp' : 'to');
   const label = (source === 'otodom' ? 'OTO' : source ? source.toUpperCase() : '??');
-  
+
   if (url) {
     return (
       <a 
@@ -37,6 +30,7 @@ function SourceBadge({ source, url }) {
   }
   return <span data-component="SourceBadge" className={`usi-source ${cls}`}>{label}</span>;
 }
+window.usiRegister('SourceBadge', SourceBadge);
 
 function FilterChip({ label, active, onClick, color, source }) {
   return (
@@ -63,6 +57,7 @@ function FilterChip({ label, active, onClick, color, source }) {
     </button>
   );
 }
+window.usiRegister('FilterChip', FilterChip);
 
 function StandardCard({ 
   image, 
@@ -101,7 +96,7 @@ function StandardCard({
           {badges}
         </div>
         {overlay && (
-          <div style={{ 
+          <div style={{
             position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', 
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: '#fff', fontWeight: 800, fontSize: 14, backdropFilter: 'blur(2px)',
@@ -125,6 +120,7 @@ function StandardCard({
     </article>
   );
 }
+window.usiRegister('StandardCard', StandardCard);
 
 function ProgressRing({ value, max, size = 32, stroke = 3, color }) {
   const r = (size - stroke) / 2;
@@ -141,41 +137,7 @@ function ProgressRing({ value, max, size = 32, stroke = 3, color }) {
     </svg>
   );
 }
-
-function Icon({ name, size = 16, stroke = 1.6 }) {
-  const paths = {
-    search: <><circle cx="7" cy="7" r="5"/><path d="M11 11l4 4"/></>,
-    filter: <path d="M2 4h12M4 8h8M6 12h4"/>,
-    grid: <><rect x="2" y="2" width="5" height="5"/><rect x="9" y="2" width="5" height="5"/><rect x="2" y="9" width="5" height="5"/><rect x="9" y="9" width="5" height="5"/></>,
-    list: <><path d="M2 4h12M2 8h12M2 12h12"/></>,
-    chevron: <path d="M5 3l4 4-4 4"/>,
-    chevronDown: <path d="M3 5l4 4 4-4"/>,
-    chevronLeft: <path d="M11 13L5 7l6-6"/>,
-    arrow: <><path d="M3 8h10M9 4l4 4-4 4"/></>,
-    trash: <><path d="M3 4h10M5 4V2h6v2M4 4l1 10h6l1-10"/></>,
-    eye: <><path d="M2 8s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z"/><circle cx="8" cy="8" r="2"/></>,
-    check: <path d="M3 8l3 3 7-7"/>,
-    close: <path d="M3 3l10 10M13 3L3 13"/>,
-    star: <path d="M8 2l1.8 4 4.2.4-3.2 2.8 1 4.4L8 11.4 4.2 13.6l1-4.4L2 6.4l4.2-.4z"/>,
-    map: <><path d="M2 4l4-2 4 2 4-2v10l-4 2-4-2-4 2z"/><path d="M6 2v10M10 4v10"/></>,
-    plus: <path d="M8 3v10M3 8h10"/>,
-    sparkle: <><path d="M8 1v3M8 12v3M1 8h3M12 8h3M3 3l2 2M11 11l2 2M3 13l2-2M11 5l2-2"/></>,
-    grip: <><circle cx="6" cy="4" r="1"/><circle cx="10" cy="4" r="1"/><circle cx="6" cy="8" r="1"/><circle cx="10" cy="8" r="1"/><circle cx="6" cy="12" r="1"/><circle cx="10" cy="12" r="1"/></>,
-    sort: <><path d="M5 3v10M3 11l2 2 2-2"/><path d="M11 13V3M9 5l2-2 2 2"/></>,
-    undo: <><path d="M3 7h7a3 3 0 010 6H6"/><path d="M5 4L2 7l3 3"/></>,
-    info: <><circle cx="8" cy="8" r="6"/><path d="M8 7v4M8 5h.01"/></>,
-    menu: <><path d="M2 4h12M2 8h12M2 12h12"/></>,
-    download: <><path d="M8 2v10M4 8l4 4 4-4"/></>,
-    building: <path d="M2 14V2h8v12M10 6h4v8M5 5h1M5 8h1M5 11h1" />,
-  };
-  const path = paths[name] || <circle cx="8" cy="8" r="6" opacity="0.3" />;
-  return (
-    <svg data-component="Icon" width={size} height={size} viewBox="0 0 16 16" fill="none"
-      stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
-      {path}
-    </svg>
-  );
-}
+window.usiRegister('ProgressRing', ProgressRing);
 
 function NavbarShell({ left, center, right, style = {} }) {
   return (
@@ -186,14 +148,17 @@ function NavbarShell({ left, center, right, style = {} }) {
     </header>
   );
 }
+window.usiRegister('NavbarShell', NavbarShell);
 
 function NavMenuButton({ onClick, label = 'Menu' }) {
+  const { Icon } = window;
   return (
     <button data-component="NavMenuButton" className="usi-btn ghost icon" onClick={onClick} title={label} aria-label={label}>
       <Icon name="menu" size={18} />
     </button>
   );
 }
+window.usiRegister('NavMenuButton', NavMenuButton);
 
 function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
   const { React, Icon } = window;
@@ -204,7 +169,7 @@ function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
     { id: 'dashboard', label: 'Dashboard', icon: 'sparkle', desc: 'Podsumowania i wykresy' },
     { id: 'download', label: 'Pobieranie', icon: 'download', desc: 'Pobierz nowe inwestycje' },
   ];
-  
+
   React.useEffect(() => {
     const k = (e) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', k);
@@ -246,7 +211,7 @@ function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
             );
           })}
         </nav>
-        
+
         <div style={{ padding: '12px', borderTop: '.5px solid var(--usi-border)', background: 'var(--usi-surface-2)', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <button
             data-component="ThemeToggle"
@@ -280,18 +245,19 @@ function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
     </>
   );
 }
+window.usiRegister('NavDrawer', NavDrawer);
 
 function NotificationCenter() {
   const { React, useDataBus } = window;
   const { bus } = useDataBus();
   const jobs = bus.activeJobs || [];
-  
+
   if (jobs.length === 0) return null;
-  
+
   // Pokazujemy tylko pierwsze aktywne zadanie dla uproszczenia w Navbarze
   const job = jobs[0];
   const progress = job.progress || 0;
-  
+
   return (
     <div data-component="NotificationCenter" style={{ 
       width: '100%', maxWidth: 400, display: 'flex', flexDirection: 'column', gap: 4,
@@ -318,6 +284,7 @@ function NotificationCenter() {
     </div>
   );
 }
+window.usiRegister('NotificationCenter', NotificationCenter);
 
 function ActionBar({ left, center, right, style = {} }) {
   return (
@@ -328,6 +295,7 @@ function ActionBar({ left, center, right, style = {} }) {
     </footer>
   );
 }
+window.usiRegister('ActionBar', ActionBar);
 
 function GlobalSearch({ value, onChange, placeholder = 'Szukaj...' }) {
   const { Icon } = window;
@@ -349,6 +317,7 @@ function GlobalSearch({ value, onChange, placeholder = 'Szukaj...' }) {
     </div>
   );
 }
+window.usiRegister('GlobalSearch', GlobalSearch);
 
 function FilterGroup({ label, children }) {
   return (
@@ -360,12 +329,13 @@ function FilterGroup({ label, children }) {
     </div>
   );
 }
+window.usiRegister('FilterGroup', FilterGroup);
 
 function StatusMessenger() {
   const { React, useDataBus, Icon } = window;
   const { bus, setVariable } = useDataBus();
   const status = bus.appStatus;
-  
+
   React.useEffect(() => {
     if (status && status.type !== 'error') {
       const timer = setTimeout(() => {
@@ -382,7 +352,7 @@ function StatusMessenger() {
     error: { icon: 'close', color: 'var(--usi-error)', bg: 'rgba(239, 68, 68, 0.1)' },
     info: { icon: 'info', color: 'var(--usi-accent)', bg: 'rgba(229, 0, 109, 0.1)' },
   };
-  
+
   const theme = config[status.type] || config.info;
 
   return (
@@ -405,6 +375,7 @@ function StatusMessenger() {
     </div>
   );
 }
+window.usiRegister('StatusMessenger', StatusMessenger);
 
 function NavbarTitle({ title, subtitle }) {
   return (
@@ -414,10 +385,4 @@ function NavbarTitle({ title, subtitle }) {
     </div>
   );
 }
-
-// Global registration
-Object.assign(window, {
-  Spinner, USIStarLogo, SourceBadge, FilterChip, StandardCard,
-  ProgressRing, Icon, NavMenuButton, NavDrawer, NavbarShell, NavbarTitle, NotificationCenter, ActionBar,
-  GlobalSearch, FilterGroup, StatusMessenger
-});
+window.usiRegister('NavbarTitle', NavbarTitle);
