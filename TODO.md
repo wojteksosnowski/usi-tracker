@@ -1,6 +1,71 @@
 # TODO
 
-## Bieżący kamień milowy: Front sklepu: Atomizacja komponentów i "Window Registry"
+## Bieżący kamień milowy: Pobieranie
+### Krok B01: Refaktoryzacja UI strony Pobieranie
+Uproszczenie układu strony, naprawa interakcji i integracja z Design Systemem.
+- [ ] Naprawa pola URL i przycisku szukaj.
+- [ ] Implementacja selektora portali jako `FilterGroup`.
+- [ ] Refaktoryzacja `ActionBar` (przeniesienie filtrów i akcji).
+- [ ] Test: Weryfikacja działania przycisków skanowania/pobierania i układu ActionBar.
+
+### Krok B02: Integracja z Design Systemem
+Spójność wizualna modułów pobierania.
+- [ ] Dostosowanie stylów komponentów na stronie Pobieranie.
+- [ ] Test: Weryfikacja spójności z innymi widokami.
+
+## Następny kamień milowy: Zaplecze
+Separacja warstw (API / Business Logic / Infrastructure)
+  Obecnie ui_server.py jest "sercem i mózgiem" interfejsu, co utrudnia
+  testowanie i utrzymanie.
+   * Extract JobManager: Wydziel JobManager do python_worker/jobs.py. Jest to
+     generyczna infrastruktura, która nie powinna "zaśmiecać" definicji tras
+     HTTP.
+   * Flask Blueprints: Podziel API na moduły:
+       * /api/investments/* -> python_worker/api/investments.py
+       * /api/jobs/* -> python_worker/api/jobs.py
+       * /api/reports/* -> python_worker/api/reports.py
+   * Modular Adapters: Podziel adapters.py na katalog python_worker/adapters/
+     z plikami rp.py, otodom.py, to.py oraz base.py. Umożliwi to łatwiejsze
+     dodawanie nowych źródeł danych bez ryzyka regresji w istniejących.
+
+## Przyszłe kamienie milowe
+
+- **Frontend:** - Atomizacja komponentów i "Window Registry"
+  Architektura Babel Standalone powoduje, że komponenty są "wstrzykiwane" do
+  window. Jest to podatne na race-conditions (co odnotowano w MEMORY.md).
+   * Split core.jsx: Rozbij na atomowe komponenty w katalogu
+     ui/components/core/ (np. Badge.jsx, Spinner.jsx).
+   * Formalized Registry: Zamiast ręcznego przypisywania window.MyComp = ...,
+     wprowadź prosty helper registerComponent('MyComp', MyComp), który mógłby
+     np. logować ostrzeżenia przy próbie nadpisania lub brakujących
+     zależnościach.
+   * Extract Logic from Views: Pliki takie jak view-detail.jsx (12KB) powinny
+     wydzielać swoje sekcje (np. DetailAmenities, DetailHistory) do mniejszych
+     plików w ui/components/detail/.
+
+- **Remanent:** - Stabilizacja i Design System
+   * Dynamic CSS Extraction: Komponenty takie jak DesignCanvas wstrzykują
+     style JS-em. Przy tej skali warto przenieść to do dedykowanych plików
+     .css w ui/styles/, aby uniknąć problemów z Content Security Policy (CSP)
+     i czytelnością kodu JSX.
+   * SafeRender Pattern: Rozszerz wzorzec safeRender (z Twojej pamięci
+     projektowej) o scentralizowany DataBoundary dla danych z API, który
+     automatycznie waliduje typy przed przekazaniem ich do komponentów widoku.
+
+- **Scoped Namespaces:** - Use namespaces in variables to prevent key collisions and better organize the state.
+- **Introduce Asynchronous Dispatchers:** - Extend `setVariable` to handle async reducers to allow dynamic fetch-and-set operations.
+- **DevTools Compatibility:** - Log state updates to debug data flow easily.
+- **Dynamic Module Registry:** - Register modules dynamically with a registry for runtime extensibility.
+- **Encapsulate Module Context Logic:** - Replace repetitive validation logic with a shared `useModuleContext` hook.
+- **Support Chained Modules:** - Enable modules to provide context for child modules, e.g., hierarchical visualizations.
+- **Standardize Module Specs:** - Define a JSON-based module specification to manage inputs and outputs systematically.
+- **Raspbery:** - Przygotowanie środowiska i testy wydajnościowe na docelowej architekturze ARM (Raspberry Pi).
+- **Crawler:** — Powolne zaciąganie inwestycji w tle.
+- **Wikipednia:** — Dodawanie kontekstu do rekordów inwestycji.
+
+## Zakończone kamienie milowe
+
+### Front sklepu: Atomizacja komponentów i "Window Registry"
 
 - **Goal:** Split core components, implement a formal registry helper, and extract logic from large view files to prevent race-conditions and improve maintainability.
 
@@ -26,48 +91,6 @@ Rozbicie `core.jsx` i `modules.jsx` na mniejsze, dedykowane pliki (np. `Icon.jsx
 **Podsumowanie:** Zweryfikowano poprawność renderowania oraz przejść między widokami A (DetailsViewA) i C (DetailsViewC). Architektura rejestru komponentów działa stabilnie dla widoku szczegółowego.
 
 **Podsumowanie:** Dekompozycja widoku szczegółów zakończona sukcesem; komponenty `DetailsA` (jako `DetailsViewA`) oraz `ModeC` (jako `DetailsViewC`) zostały wydzielone do `components/views/` i zarejestrowane. `view-detail.jsx` pełni teraz rolę lekkiego orchestratora.
-
-## Następny kamień milowy: Pobieranie
-
-Nalezy przejsc prze elementy strony Pobieranie. Pole wklejania url jest za duze. Przycisk szukaj nie działa. Element "<select class="usi-input" style="width: 140px; height: 36px; border-radius: 18px; background: var(--usi-surface-2);"><option value="rp">RynekPierwotny</option><option value="oto">Otodom</option><option value="to">TabelaOfert</option></select>" powinien dzialac tak jak element "FilterGroup". "Powrot do list, dashboard, raporty" sa zbedne w ActionBar. Do ActionBar przeniest filtry i przyciski. Przetestowac dzialanie przyciskow skanowania i pobierania.
-
-## Przyszłe kamienie milowe
-
-- **Zaplecze:** - Separacja warstw (API / Business Logic / Infrastructure)
-  Obecnie ui_server.py jest "sercem i mózgiem" interfejsu, co utrudnia
-  testowanie i utrzymanie.
-   * Extract JobManager: Wydziel JobManager do python_worker/jobs.py. Jest to
-     generyczna infrastruktura, która nie powinna "zaśmiecać" definicji tras
-     HTTP.
-   * Flask Blueprints: Podziel API na moduły:
-       * /api/investments/* -> python_worker/api/investments.py
-       * /api/jobs/* -> python_worker/api/jobs.py
-       * /api/reports/* -> python_worker/api/reports.py
-   * Modular Adapters: Podziel adapters.py na katalog python_worker/adapters/
-     z plikami rp.py, otodom.py, to.py oraz base.py. Umożliwi to łatwiejsze
-     dodawanie nowych źródeł danych bez ryzyka regresji w istniejących.
-
-- **Remanent:** - Stabilizacja i Design System
-   * Dynamic CSS Extraction: Komponenty takie jak DesignCanvas wstrzykują
-     style JS-em. Przy tej skali warto przenieść to do dedykowanych plików
-     .css w ui/styles/, aby uniknąć problemów z Content Security Policy (CSP)
-     i czytelnością kodu JSX.
-   * SafeRender Pattern: Rozszerz wzorzec safeRender (z Twojej pamięci
-     projektowej) o scentralizowany DataBoundary dla danych z API, który
-     automatycznie waliduje typy przed przekazaniem ich do komponentów widoku.
-
-- **Scoped Namespaces:** - Use namespaces in variables to prevent key collisions and better organize the state.
-- **Introduce Asynchronous Dispatchers:** - Extend `setVariable` to handle async reducers to allow dynamic fetch-and-set operations.
-- **DevTools Compatibility:** - Log state updates to debug data flow easily.
-- **Dynamic Module Registry:** - Register modules dynamically with a registry for runtime extensibility.
-- **Encapsulate Module Context Logic:** - Replace repetitive validation logic with a shared `useModuleContext` hook.
-- **Support Chained Modules:** - Enable modules to provide context for child modules, e.g., hierarchical visualizations.
-- **Standardize Module Specs:** - Define a JSON-based module specification to manage inputs and outputs systematically.
-- **Raspbery:** - Przygotowanie środowiska i testy wydajnościowe na docelowej architekturze ARM (Raspberry Pi).
-- **Crawler:** — Powolne zaciąganie inwestycji w tle.
-- **Wikipednia:** — Dodawanie kontekstu do rekordów inwestycji.
-
-## Zakończone kamienie milowe
 
 ### Improve DataBus Readership
 

@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Front sklepu: Atomizacja komponentów i "Window Registry" — 2026-05-04
+
+- Ukończono dekompozycję widoku szczegółowego na niezależne komponenty (DetailsViewA, DetailsViewC).
+- Zintegrowano wszystkie kluczowe widoki i komponenty z systemem `usiRegister`.
+- Uproszczono `view-detail.jsx` do roli lekkiego orchestratora.
+- Zlikwidowano race-conditions w środowisku Babel Standalone poprzez rejestr komponentów.
+
 ## Sprzatanie — 2026-05-04
 
 - Naprawiono regresje funkcjonalne po wdrożeniu Shell Layout: przywrócono widok parametrów (Mode A) oraz system oceniania w widoku szczegółów.
@@ -90,5 +97,3 @@
 - Wprowadzono system oceniania inwestycji w kategoriach oraz automatyczne obliczanie oceny złożonej.
 - Zaimplementowano audyt zmian (created_at/updated_at) oraz mechanizm rozdzielania rekordów dualnych (RP+OTO).
 - Zoptymalizowano strukturę danych i schematy JSON oraz usprawniono proces importu z CSV (USImaster).
-
-
