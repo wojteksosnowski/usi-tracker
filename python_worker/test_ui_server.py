@@ -5,7 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from python_worker.ui_server import _valid_filename, _valid_slug, app
+from python_worker.ui_server import app
+from python_worker.api.utils import _valid_filename, _valid_slug
 
 
 # ── _valid_filename ────────────────────────────────────────────────────────────
@@ -107,7 +108,7 @@ class TestServeImage:
         img_dir.mkdir(parents=True)
         (img_dir / "photo-01.jpg").write_bytes(b"\xff\xd8\xff")
 
-        with patch("python_worker.ui_server.PUBLIC_USI_DIR", str(tmp_path)):
+        with patch("python_worker.config.PUBLIC_USI_DIR", Path(tmp_path)):
             resp = client.get("/api/image/dev/inv/photo-01.jpg")
             assert resp.status_code == 200
 
@@ -117,7 +118,7 @@ class TestServeImage:
         fname = "eyJmb.yc31izt-d83q.jpg"
         (img_dir / fname).write_bytes(b"\xff\xd8\xff")
 
-        with patch("python_worker.ui_server.PUBLIC_USI_DIR", str(tmp_path)):
+        with patch("python_worker.config.PUBLIC_USI_DIR", Path(tmp_path)):
             resp = client.get(f"/api/image/dev/inv/{fname}")
             # Should NOT be 400 (validation failure) — 200 or 404 are both acceptable
             assert resp.status_code != 400
@@ -128,7 +129,7 @@ class TestServeImage:
         assert resp.status_code in (400, 404)
 
     def test_missing_file_returns_404(self, client, tmp_path):
-        with patch("python_worker.ui_server.PUBLIC_USI_DIR", str(tmp_path)):
+        with patch("python_worker.config.PUBLIC_USI_DIR", Path(tmp_path)):
             resp = client.get("/api/image/dev/inv/nonexistent.jpg")
             assert resp.status_code == 404
 
@@ -173,8 +174,10 @@ def _make_inv_dir(tmp_path, dev="dev", inv="inv"):
 class TestSaveRatings:
     def test_save_ratings_returns_ok(self, client, tmp_path):
         _make_inv_dir(tmp_path)
-        with patch("python_worker.ui_server.USI_DATA_DIR", str(tmp_path)), \
-             patch("python_worker.ui_server.PUBLIC_USI_DIR", str(tmp_path / "usi")):
+        with patch("python_worker.config.USI_DATA_DIR", Path(tmp_path)), \
+             patch("python_worker.config.PUBLIC_USI_DIR", Path(tmp_path / "usi")), \
+             patch("python_worker.api.blueprints.investments.investment_service.data_dir", Path(tmp_path)), \
+             patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")):
             resp = client.post("/api/ratings/dev/inv",
                                json={"Balkony": 3, "Fasady": 2, "komentarz": "", "status": "Brak"})
         assert resp.status_code == 200
@@ -182,8 +185,10 @@ class TestSaveRatings:
 
     def test_save_ratings_persists_to_file(self, client, tmp_path):
         inv_dir = _make_inv_dir(tmp_path)
-        with patch("python_worker.ui_server.USI_DATA_DIR", str(tmp_path)), \
-             patch("python_worker.ui_server.PUBLIC_USI_DIR", str(tmp_path / "usi")):
+        with patch("python_worker.config.USI_DATA_DIR", Path(tmp_path)), \
+             patch("python_worker.config.PUBLIC_USI_DIR", Path(tmp_path / "usi")), \
+             patch("python_worker.api.blueprints.investments.investment_service.data_dir", Path(tmp_path)), \
+             patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")):
             client.post("/api/ratings/dev/inv",
                         json={"Balkony": 4, "Fasady": 1, "komentarz": "ok", "status": "Wstępna"})
         saved = json.loads((inv_dir / "meta_inv_ratings.json").read_text())
@@ -194,8 +199,10 @@ class TestSaveRatings:
 
     def test_ratings_visible_in_investment_data(self, client, tmp_path):
         _make_inv_dir(tmp_path)
-        with patch("python_worker.ui_server.USI_DATA_DIR", str(tmp_path)), \
-             patch("python_worker.ui_server.PUBLIC_USI_DIR", str(tmp_path / "usi")):
+        with patch("python_worker.config.USI_DATA_DIR", Path(tmp_path)), \
+             patch("python_worker.config.PUBLIC_USI_DIR", Path(tmp_path / "usi")), \
+             patch("python_worker.api.blueprints.investments.investment_service.data_dir", Path(tmp_path)), \
+             patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")):
             client.post("/api/ratings/dev/inv",
                         json={"Balkony": 3, "Wnętrza": 2, "komentarz": "test", "status": "AI"})
             resp = client.get("/api/data/dev/inv")
@@ -207,8 +214,10 @@ class TestSaveRatings:
 
     def test_ratings_visible_in_investments_list(self, client, tmp_path):
         _make_inv_dir(tmp_path)
-        with patch("python_worker.ui_server.USI_DATA_DIR", str(tmp_path)), \
-             patch("python_worker.ui_server.PUBLIC_USI_DIR", str(tmp_path / "usi")):
+        with patch("python_worker.config.USI_DATA_DIR", Path(tmp_path)), \
+             patch("python_worker.config.PUBLIC_USI_DIR", Path(tmp_path / "usi")), \
+             patch("python_worker.api.blueprints.investments.investment_service.data_dir", Path(tmp_path)), \
+             patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")):
             client.post("/api/ratings/dev/inv",
                         json={"Fasady": 4, "komentarz": "", "status": "Pełna"})
             resp = client.get("/api/investments")
@@ -220,23 +229,29 @@ class TestSaveRatings:
 
     def test_save_ratings_invalid_value_returns_400(self, client, tmp_path):
         _make_inv_dir(tmp_path)
-        with patch("python_worker.ui_server.USI_DATA_DIR", str(tmp_path)), \
-             patch("python_worker.ui_server.PUBLIC_USI_DIR", str(tmp_path / "usi")):
+        with patch("python_worker.config.USI_DATA_DIR", Path(tmp_path)), \
+             patch("python_worker.config.PUBLIC_USI_DIR", Path(tmp_path / "usi")), \
+             patch("python_worker.api.blueprints.investments.investment_service.data_dir", Path(tmp_path)), \
+             patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")):
             resp = client.post("/api/ratings/dev/inv",
                                json={"Balkony": 5, "status": "Brak", "komentarz": ""})
         assert resp.status_code == 400
 
     def test_save_ratings_invalid_status_returns_400(self, client, tmp_path):
         _make_inv_dir(tmp_path)
-        with patch("python_worker.ui_server.USI_DATA_DIR", str(tmp_path)), \
-             patch("python_worker.ui_server.PUBLIC_USI_DIR", str(tmp_path / "usi")):
+        with patch("python_worker.config.USI_DATA_DIR", Path(tmp_path)), \
+             patch("python_worker.config.PUBLIC_USI_DIR", Path(tmp_path / "usi")), \
+             patch("python_worker.api.blueprints.investments.investment_service.data_dir", Path(tmp_path)), \
+             patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")):
             resp = client.post("/api/ratings/dev/inv",
                                json={"status": "Nieznany", "komentarz": ""})
         assert resp.status_code == 400
 
     def test_save_ratings_missing_investment_returns_404(self, client, tmp_path):
-        with patch("python_worker.ui_server.USI_DATA_DIR", str(tmp_path)), \
-             patch("python_worker.ui_server.PUBLIC_USI_DIR", str(tmp_path / "usi")):
+        with patch("python_worker.config.USI_DATA_DIR", Path(tmp_path)), \
+             patch("python_worker.config.PUBLIC_USI_DIR", Path(tmp_path / "usi")), \
+             patch("python_worker.api.blueprints.investments.investment_service.data_dir", Path(tmp_path)), \
+             patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")):
             resp = client.post("/api/ratings/dev/nonexistent",
                                json={"status": "Brak", "komentarz": ""})
         assert resp.status_code == 404
@@ -248,8 +263,10 @@ class TestMarkDelete:
     def test_mark_delete_returns_ok_and_count(self, client, tmp_path):
         _make_inv_dir(tmp_path)
         paths = ["/api/image/dev/inv/a.jpg", "/api/image/dev/inv/b.jpg"]
-        with patch("python_worker.ui_server.USI_DATA_DIR", str(tmp_path)), \
-             patch("python_worker.ui_server.PUBLIC_USI_DIR", str(tmp_path / "usi")):
+        with patch("python_worker.config.USI_DATA_DIR", Path(tmp_path)), \
+             patch("python_worker.config.PUBLIC_USI_DIR", Path(tmp_path / "usi")), \
+             patch("python_worker.api.blueprints.investments.investment_service.data_dir", Path(tmp_path)), \
+             patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")):
             resp = client.post("/api/mark-delete/dev/inv", json={"paths": paths})
         body = resp.get_json()
         assert resp.status_code == 200
@@ -259,8 +276,10 @@ class TestMarkDelete:
     def test_mark_delete_creates_deletion_list(self, client, tmp_path):
         inv_dir = _make_inv_dir(tmp_path)
         paths = ["/api/image/dev/inv/photo.jpg"]
-        with patch("python_worker.ui_server.USI_DATA_DIR", str(tmp_path)), \
-             patch("python_worker.ui_server.PUBLIC_USI_DIR", str(tmp_path / "usi")):
+        with patch("python_worker.config.USI_DATA_DIR", Path(tmp_path)), \
+             patch("python_worker.config.PUBLIC_USI_DIR", Path(tmp_path / "usi")), \
+             patch("python_worker.api.blueprints.investments.investment_service.data_dir", Path(tmp_path)), \
+             patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")):
             client.post("/api/mark-delete/dev/inv", json={"paths": paths})
         saved = json.loads((inv_dir / "deletion_list.json").read_text())
         assert saved["paths"] == paths
@@ -269,15 +288,19 @@ class TestMarkDelete:
     def test_photos_to_delete_count_in_investment_data(self, client, tmp_path):
         _make_inv_dir(tmp_path)
         paths = ["/api/image/dev/inv/a.jpg", "/api/image/dev/inv/b.jpg"]
-        with patch("python_worker.ui_server.USI_DATA_DIR", str(tmp_path)), \
-             patch("python_worker.ui_server.PUBLIC_USI_DIR", str(tmp_path / "usi")):
+        with patch("python_worker.config.USI_DATA_DIR", Path(tmp_path)), \
+             patch("python_worker.config.PUBLIC_USI_DIR", Path(tmp_path / "usi")), \
+             patch("python_worker.api.blueprints.investments.investment_service.data_dir", Path(tmp_path)), \
+             patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")):
             client.post("/api/mark-delete/dev/inv", json={"paths": paths})
             resp = client.get("/api/data/dev/inv")
         assert resp.get_json()["photos_to_delete"] == 2
 
     def test_mark_delete_missing_investment_returns_404(self, client, tmp_path):
-        with patch("python_worker.ui_server.USI_DATA_DIR", str(tmp_path)), \
-             patch("python_worker.ui_server.PUBLIC_USI_DIR", str(tmp_path / "usi")):
+        with patch("python_worker.config.USI_DATA_DIR", Path(tmp_path)), \
+             patch("python_worker.config.PUBLIC_USI_DIR", Path(tmp_path / "usi")), \
+             patch("python_worker.api.blueprints.investments.investment_service.data_dir", Path(tmp_path)), \
+             patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")):
             resp = client.post("/api/mark-delete/dev/nonexistent", json={"paths": []})
         assert resp.status_code == 404
 

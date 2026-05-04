@@ -1,44 +1,19 @@
 # TODO
 
-## Bieżący kamień milowy: Zaplecze
-Separacja warstw (API / Business Logic / Infrastructure). Celem jest odchudzenie `ui_server.py` i stworzenie modularnej architektury backendowej.
+## Bieżący kamień milowy: Remanent
+Stabilizacja i Design System. Cel: Wydzielenie stylów CSS i wzmocnienie odporności renderowania.
 
-### Krok Z01: Ekstrakcja JobManagera i Infrastruktury
-Wydzielenie logiki zarządzania zadaniami do dedykowanego modułu.
-- [ ] Stworzenie `python_worker/jobs.py` i przeniesienie tam klasy `JobManager`.
-- [ ] Refaktoryzacja `ui_server.py` na użycie zewnętrznego modułu jobs.
-- [ ] Przeniesienie generycznych pomocników (np. `log_ui_error`, `get_config`) do `python_worker/api/common.py`.
-- [ ] Test: Weryfikacja działania paska postępu w UI po zmianach strukturalnych.
+### Krok B01: Ekstrakcja stylów z JS
+Przeniesienie wstrzykiwanych stylów (DesignCanvas, etc.) do plików `.css`.
+**Plan:** 2026-05-06
 
-### Krok Z02: Modularne API (Flask Blueprints)
-Podział monitu `ui_server.py` na mniejsze, tematyczne kontrolery.
-- [ ] Implementacja Blueprinta `/api/investments` (obsługa listy, detali, rejestracji).
-- [ ] Implementacja Blueprinta `/api/jobs` (statusy i progres zadań).
-- [ ] Implementacja Blueprinta `/api/reports` (generowanie i odczyt raportów).
-- [ ] Implementacja Blueprinta `/api/discovery` (skanowanie portali).
-- [ ] Test: Pełny audyt endpointów i weryfikacja komunikacji z frontendem.
-
-### Krok Z03: Refaktoryzacja Adapterów (Adapter Package)
-Przekształcenie `adapters.py` w nowoczesny pakiet z jasną strukturą.
-- [ ] Stworzenie katalogu `python_worker/adapters/` z plikiem `__init__.py`.
-- [ ] Implementacja `BaseAdapter` definiującego kontrakt (schema validation).
-- [ ] Wydzielenie adapterów `rp.py`, `otodom.py`, `to.py` do osobnych plików.
-- [ ] Implementacja automatycznej rejestracji adapterów (Factory Pattern).
-- [ ] Test: Weryfikacja unifikacji danych dla każdego z portali przy użyciu nowych adapterów.
-
-### Krok Z04: Separacja logiki biznesowej (Service Layer)
-Wydzielenie "mózgu" operacyjnego z kontrolerów Flask do warstwy serwisowej.
-- [ ] Stworzenie `python_worker/services/investment_service.py` (logika rejestracji, aktualizacji, unifikacji).
-- [ ] Stworzenie `python_worker/services/discovery_service.py` (logika skanowania i filtrowania).
-- [ ] Test: Weryfikacja czy kontrolery API are teraz wyłącznie "cienkim" pośrednikiem (routing + walidacja).
+### Krok B02: DataBoundary & SafeRender
+Wdrożenie scentralizowanego DataBoundary dla ochrony komponentów przed błędami danych z API.
+**Plan:** 2026-05-06
 
 ---
 
 ## Przyszłe kamienie milowe
-
-- **Remanent:** - Stabilizacja i Design System
-   * Dynamic CSS Extraction: Komponenty takie jak DesignCanvas wstrzykują style JS-em. Przy tej skali warto przenieść to do dedykowanych plików .css w ui/styles/.
-   * SafeRender Pattern: Rozszerz wzorzec safeRender o scentralizowany DataBoundary dla danych z API.
 
 - **Raspbery:** - Przygotowanie środowiska i testy wydajnościowe na docelowej architekturze ARM (Raspberry Pi).
 - **Crawler:** — Powolne zaciąganie inwestycji w tle.
@@ -47,6 +22,12 @@ Wydzielenie "mózgu" operacyjnego z kontrolerów Flask do warstwy serwisowej.
 ---
 
 ## Zakończone kamienie milowe
+
+### [DONE] Kamień milowy: Zaplecze
+- [x] Z01: Ekstrakcja JobManagera i Infrastruktury.
+- [x] Z02: Modularne API (Flask Blueprints).
+- [x] Z03: Refaktoryzacja Adapterów (Adapter Package).
+- [x] Z04: Separacja logiki biznesowej (Service Layer).
 
 ### [DONE] Kamień milowy: Pobieranie (Expert UI & Smart Ingestion)
 - **Goal:** Ukończenie migracji do Shell Layout, wprowadzenie asynchronicznych zadań (JobManager), automatyczne mapowanie deweloperów oraz responsywny grid o wysokiej gęstości.

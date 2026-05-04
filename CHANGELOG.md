@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Zaplecze — 2026-05-05
+- Pełna dekompozycja `ui_server.py` na modułowe Blueprinty Flask (`jobs`, `investments`, `discovery`, `reports`).
+- Ekstrakcja logiki zarządzania zadaniami do dedykowanego modułu `python_worker/jobs.py` (JobManager).
+- Wdrożenie warstwy serwisowej (`InvestmentService`, `DiscoveryService`) separującej logikę biznesową od API.
+- Refaktoryzacja adapterów do nowoczesnego pakietu `python_worker/adapters/` z wykorzystaniem wzorca Factory.
+- Centralizacja pomocników i unifikacja logiczna między interfejsem CLI a webowym.
+
 ## Front sklepu: Atomizacja komponentów i "Window Registry" — 2026-05-04
 
 - Ukończono dekompozycję widoku szczegółowego na niezależne komponenty (DetailsViewA, DetailsViewC).

@@ -65,3 +65,4 @@ FETCH_DELAYS = {
 
 # Other constants
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
+VISIBLE_METADATA_FILE = Path(__file__).parent / "data" / "visible_metadata.json"
