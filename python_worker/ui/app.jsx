@@ -119,6 +119,19 @@
         });
       };
 
+      const toggleDownloadPortal = (id, isShift) => {
+        setVariable('activeDownloadPortals', prev => {
+          const next = new Set(prev);
+          if (isShift) return new Set([id]);
+          if (next.has(id)) {
+            if (next.size > 1) next.delete(id);
+          } else {
+            next.add(id);
+          }
+          return next;
+        });
+      };
+
       if (loading && investments.length === 0) return <div data-component="App" ref={rootRef} className="app-container usi-app"><LoadingScreen /></div>;
       if (!loading && investments.length === 0) return <div data-component="App" ref={rootRef} className="app-container usi-app"><EmptyScreen onFetch={() => {}} fetching={fetching} fetchCount={fetchCount} /></div>;
 
@@ -177,10 +190,25 @@
                   )}
                   <GlobalSearch value={search} onChange={v => setVariable('search', v)} placeholder={view === 'list' ? "Szukaj inwestycji..." : "Szukaj dewelopera..."} />
                 </div>
-              ) : <button className="usi-btn ghost sm" onClick={() => handleNav('list')}><Icon name="chevronLeft" /> Powrót do listy</button>
+              ) : view === 'download' ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div className="mode-toggle">
+                    <button className="usi-btn icon sm" aria-pressed={bus.downloadMode === 'grid'} onClick={() => setVariable('downloadMode', 'grid')}><Icon name="grid" /></button>
+                    <button className="usi-btn icon sm" aria-pressed={bus.downloadMode === 'table'} onClick={() => setVariable('downloadMode', 'table')}><Icon name="list" /></button>
+                  </div>
+                  <GlobalSearch 
+                    value={bus.downloadSearch || ''} 
+                    onChange={v => setVariable('downloadSearch', v)} 
+                    placeholder="Wklej URL inwestycji..." 
+                    onKeyDown={e => e.key === 'Enter' && window.usiHandleSearch && window.usiHandleSearch()}
+                  />
+                </div>
+              ) : (view !== 'download') ? (
+                <button className="usi-btn ghost sm" onClick={() => handleNav('list')}><Icon name="chevronLeft" /> Powrót do listy</button>
+              ) : null
             }
             center={
-              (view === 'list' || view === 'developers') && (
+              (view === 'list' || view === 'developers') ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
                   <FilterGroup label="Źródła">
                     {SOURCES.map(s => (
@@ -195,7 +223,14 @@
                     {activeCities.size > 0 && <button className="usi-btn ghost sm" onClick={() => toggleCity(null)}>Reset</button>}
                   </FilterGroup>
                 </div>
-              )
+              ) : view === 'download' ? (
+                <FilterGroup label="Opcje">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+                    <input type="checkbox" checked={bus.downloadOnlyNew || false} onChange={e => setVariable('downloadOnlyNew', e.target.checked)} />
+                    Tylko nowe
+                  </label>
+                </FilterGroup>
+              ) : null
             }
             right={
               view === 'list' ? (
@@ -210,9 +245,25 @@
                   </select>
                 </div>
               ) : view === 'download' ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <button className="usi-btn ghost sm" onClick={() => handleNav('dashboard')}>Dashboard</button>
-                  <button className="usi-btn ghost sm" onClick={() => handleNav('reports')}>Raporty</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <FilterGroup label="Portal">
+                    {[
+                      { id: 'rp', label: 'RynekPierwotny' },
+                      { id: 'oto', label: 'Otodom' },
+                      { id: 'to', label: 'TabelaOfert' }
+                    ].map(p => (
+                      <FilterChip 
+                        key={p.id} 
+                        label={p.label} 
+                        active={(bus.activeDownloadPortals || new Set()).has(p.id)} 
+                        onClick={(isShift) => toggleDownloadPortal(p.id, isShift)} 
+                      />
+                    ))}
+                  </FilterGroup>
+                  <div style={{ width: 1, height: 24, background: 'var(--usi-border)' }} />
+                  <button className="usi-btn ghost sm" onClick={() => window.usiTriggerScan && window.usiTriggerScan()}>
+                    <Icon name="zap" size={14} style={{ marginRight: 4 }} /> Skanuj
+                  </button>
                 </div>
               ) : (
                 <div style={{ display: 'flex', gap: 8 }}>

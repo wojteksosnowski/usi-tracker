@@ -202,6 +202,8 @@ def _parse_rp_results(results: list) -> list[dict]:
                         "id": s_id,
                         "name": s_name,
                         "slug": s_slug,
+                        "developer": s_vendor_val.get("name"),
+                        "vendor_slug": s_vendor_slug,
                         "url": f"https://rynekpierwotny.pl/oferty/{s_vendor_slug}/{s_slug}-{s_id}/?show_sold_stage=true&stage={s_id_internal}",
                         "image": s_img,
                         "is_stage": True,
@@ -211,6 +213,7 @@ def _parse_rp_results(results: list) -> list[dict]:
             # Single-stage investment
             v_data = get_val(item, "vendor") or {}
             v_slug = v_data.get("slug")
+            v_name = v_data.get("name")
             o_id = str(item.get("id"))
             o_slug = item.get("slug")
             
@@ -218,6 +221,8 @@ def _parse_rp_results(results: list) -> list[dict]:
                 "id": o_id,
                 "name": parent_name,
                 "slug": o_slug,
+                "developer": v_name,
+                "vendor_slug": v_slug,
                 "url": f"https://rynekpierwotny.pl/oferty/{v_slug}/{o_slug}-{o_id}/",
                 "image": parent_img,
                 "is_stage": False
@@ -235,7 +240,17 @@ def scrape_rynek_pierwotny(offer_id: str, developer_slug: str, investment_slug: 
         return {"error": "Could not fetch details"}
         
     # Fetch gallery
-    gallery_urls = fetch_rp_gallery(offer_id)
+    gallery_data = fetch_json(f"https://rynekpierwotny.pl/api/v2/offers/offer/{offer_id}/?s=offer-detail-gallery")
+    if gallery_data:
+        details["_raw_gallery"] = gallery_data
+        
+    gallery_urls = []
+    if gallery_data:
+        gallery = gallery_data.get("gallery", [])
+        for item in gallery:
+            img_url = item.get("image", {}).get("g_img_1500")
+            if img_url:
+                gallery_urls.append(img_url)
     
     # Add main image to gallery if present
     main_image = details.get("main_image", {}).get("m_img_500")
@@ -251,14 +266,13 @@ def scrape_rynek_pierwotny(offer_id: str, developer_slug: str, investment_slug: 
             return val["value"]
         return val
 
-    # Try to extract actual developer slug from vendor data
+    # Try to extract actual developer slug from vendor data (LOG ONLY, DO NOT OVERWRITE)
     vendor_data = get_val(details, "vendor")
     vendor_slug = get_val(vendor_data, "slug") if vendor_data else None
     offer_slug = details.get("slug", "")
 
     if vendor_slug:
-        developer_slug = vendor_slug.strip()
-        logger.info(f"Extracted developer slug from RynekPierwotny: {developer_slug}")
+        logger.info(f"RynekPierwotny vendor slug: {vendor_slug} (local: {developer_slug})")
 
     if not url and vendor_slug and offer_slug:
         url = f"https://rynekpierwotny.pl/oferty/{vendor_slug}/{offer_slug}-{offer_id}/"

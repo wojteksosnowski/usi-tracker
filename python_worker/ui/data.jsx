@@ -23,7 +23,14 @@ function DataBusProvider({ children }) {
     filterDev: '',
     filterStatus: '',
     activeSources: new Set(['RP', 'OTO', 'TO']),
-    activeCities: new Set()
+    activeCities: new Set(),
+    
+    // Discovery / Download state
+    activeDownloadPortals: new Set(['rp']),
+    downloadMode: 'grid',
+    downloadSearch: '',
+    downloadOnlyNew: false,
+    downloadSelectedDev: ''
   });
 
   const setVariable = React.useCallback((name, value) => {
@@ -83,6 +90,16 @@ function DataBusProvider({ children }) {
     refetch('investments');
     refetch('developers');
   }, []);
+
+  // Polling for active jobs
+  React.useEffect(() => {
+    let poll;
+    const activeCount = (bus.activeJobs || []).length;
+    if (activeCount > 0) {
+      poll = setInterval(() => refetch('jobs'), 1500);
+    }
+    return () => { if (poll) clearInterval(poll); };
+  }, [bus.activeJobs, refetch]);
 
   return (
     <DataBusContext.Provider value={value}>

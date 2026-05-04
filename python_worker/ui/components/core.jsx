@@ -297,11 +297,11 @@ function ActionBar({ left, center, right, style = {} }) {
 }
 window.usiRegister('ActionBar', ActionBar);
 
-function GlobalSearch({ value, onChange, placeholder = 'Szukaj...' }) {
+function GlobalSearch({ value, onChange, placeholder = 'Szukaj...', onKeyDown }) {
   const { Icon } = window;
   return (
-    <div data-component="GlobalSearch" style={{ 
-      position: 'relative', flex: 1, maxWidth: 400, display: 'flex', alignItems: 'center' 
+    <div data-component="GlobalSearch" style={{
+      position: 'relative', flex: 1, maxWidth: 400, display: 'flex', alignItems: 'center'
     }}>
       <span style={{ position: 'absolute', left: 12, color: 'var(--usi-ink-4)', display: 'flex' }}>
         <Icon name="search" size={14} />
@@ -313,11 +313,11 @@ function GlobalSearch({ value, onChange, placeholder = 'Szukaj...' }) {
         placeholder={placeholder}
         value={value}
         onChange={e => onChange(e.target.value)}
+        onKeyDown={onKeyDown}
       />
     </div>
   );
-}
-window.usiRegister('GlobalSearch', GlobalSearch);
+}window.usiRegister('GlobalSearch', GlobalSearch);
 
 function FilterGroup({ label, children }) {
   return (

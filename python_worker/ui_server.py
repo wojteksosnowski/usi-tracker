@@ -616,15 +616,38 @@ def discovery(portal):
 @app.route("/api/register", methods=["POST"])
 def register():
     payload = request.get_json()
-    portal = payload.get("portal")
-    dev_slug = payload.get("dev_slug")
+    portal_raw = payload.get("portal", "")
+    
+    # Normalize portal string to shortcodes used in USI schema
+    if "rynekpierwotny" in portal_raw or portal_raw == "rp":
+        portal = "rp"
+    elif "otodom" in portal_raw or portal_raw == "oto":
+        portal = "oto"
+    elif "tabelaofert" in portal_raw or portal_raw == "to":
+        portal = "to"
+    else:
+        portal = portal_raw
+
+    developer_name = payload.get("developer_name", "Nieznany Deweloper")
     inv_slug = payload.get("inv_slug")
     name = payload.get("name")
     item_id = payload.get("id")
     url = payload.get("url")
 
-    if not all([portal, dev_slug, inv_slug, name]):
+    if not all([portal, developer_name, inv_slug, name]):
         return jsonify({"error": "Missing parameters"}), 400
+
+    from python_worker.csv_importer import slugify
+    from python_worker.developer_manager import DeveloperManager
+    
+    dev_slug = slugify(developer_name)
+    dm = DeveloperManager(USI_DATA_DIR)
+    
+    # Auto-create developer profile if it doesn't exist
+    dev_path = dm.dev_dir / f"usi_dev_{dev_slug}.json"
+    if not dev_path.exists():
+        logger.info(f"Auto-creating developer profile for: {developer_name} ({dev_slug})")
+        dm.create_developer_file({"developer_slug": dev_slug, "name": developer_name})
 
     inv_dir = Path(USI_DATA_DIR) / dev_slug / inv_slug
     usi_path = inv_dir / f"usi_{inv_slug}.json"
@@ -654,18 +677,28 @@ def register():
     try:
         with open(usi_path, "w", encoding="utf-8") as f:
             json.dump(skeleton, f, indent=2, ensure_ascii=False)
-        
+
         log_to_processing_log(dev_slug, inv_slug, f"Registered from discovery ({portal})")
-        
-        # Trigger immediate update to fetch all data
-        # We pass slugs to ensure scraper knows where to save
-        success = update_investment(dev_slug, inv_slug)
-        
-        return jsonify({"ok": True, "updated": success})
+
+        # Asynchronous background job for data ingestion
+        def run_register_job(job_id, d_slug, i_slug, inv_name):
+            job_manager.update_progress(job_id, 10, f"Rozpoczęto pobieranie: {inv_name}")
+            try:
+                # Synchronous update call within background thread
+                success = update_investment(d_slug, i_slug)
+                if success:
+                    job_manager.update_progress(job_id, 100, f"Pobrano pomyślnie: {inv_name}")
+                else:
+                    raise Exception("Zwrócono błąd podczas pobierania danych")
+            except Exception as e:
+                logger.error(f"Błąd rejestracji/pobierania {i_slug}: {e}")
+                raise e
+
+        job_id = job_manager.start_job(f"Rejestracja: {name}", run_register_job, dev_slug, inv_slug, name)
+        return jsonify({"ok": True, "job_id": job_id})
     except Exception as e:
         logger.error(f"Registration error: {e}")
         return jsonify({"error": str(e)}), 500
-
 
 @app.route("/api/reports")
 def list_reports():

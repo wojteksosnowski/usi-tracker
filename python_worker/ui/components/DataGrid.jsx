@@ -33,7 +33,20 @@ function DataGrid({
 
   const isGrid = mode === 'grid';
   const effectiveRowHeight = isGrid ? gridConfig.cardHeight : rowHeight;
-  const itemsPerRow = isGrid ? gridConfig.itemsPerRow : 1;
+  
+  // Dynamic calculation for responsive grid keeping virtualization sync
+  let itemsPerRow = 1;
+  if (isGrid) {
+    if (gridConfig.minCardWidth && dimensions.width > 0) {
+      const gap = gridConfig.gap !== undefined ? gridConfig.gap : 16;
+      const horizontalPadding = 32; // padding grida to 16px (16 z lewej, 16 z prawej)
+      const availableWidth = dimensions.width - horizontalPadding;
+      itemsPerRow = Math.max(1, Math.floor((availableWidth + gap) / (gridConfig.minCardWidth + gap)));
+    } else {
+      itemsPerRow = gridConfig.itemsPerRow || 1;
+    }
+  }
+
   const totalRows = Math.ceil(data.length / itemsPerRow);
   
   const overscan = 5;
@@ -65,7 +78,7 @@ function DataGrid({
         <div style={{ 
           display: 'grid', 
           gridTemplateColumns: `repeat(${itemsPerRow}, 1fr)`,
-          gap: 16,
+          gap: gridConfig.gap !== undefined ? gridConfig.gap : 16,
           padding: 16
         }}>
           {visibleItems.map((item, idx) => (
