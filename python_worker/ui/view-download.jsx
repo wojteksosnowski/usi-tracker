@@ -5,9 +5,10 @@ window.usiRegister('ViewDownload', function ViewDownload() {
   } = window;
 
   const { bus, setVariable, refetch } = useDataBus();
-  const activePortals = Array.from(bus.activeDownloadPortals || ['rp']);
-  const identifier = bus.downloadSearch || '';
-  const showOnlyNew = bus.downloadOnlyNew || false;
+  const { download } = bus;
+  const activePortals = Array.from(download.activePortals || ['rp']);
+  const identifier = download.search || '';
+  const showOnlyNew = download.onlyNew || false;
 
   const [loading, setLoading] = React.useState(false);
   const [results, setResults] = React.useState([]);
@@ -180,7 +181,7 @@ window.usiRegister('ViewDownload', function ViewDownload() {
           <DataGrid 
             data={visibleResults}
             columns={columns}
-            mode={bus.downloadMode || 'grid'}
+            mode={download.mode || 'grid'}
             gridConfig={{ minCardWidth: 180, itemsPerRow: 4, cardHeight: 340 }}
             renderCard={renderCard}
             emptyMessage={loading ? "Przeszukiwanie wybranych portali..." : "Brak wyników dopasowania"}

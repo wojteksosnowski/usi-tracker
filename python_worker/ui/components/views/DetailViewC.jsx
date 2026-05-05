@@ -7,8 +7,8 @@
     const [showRatings, setShowRatings] = React.useState(false);
 
     return (
-      <div data-component="ModeC" style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', margin: '0 -24px -24px' }}>
-        <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+      <div data-component="ModeC" className="mode-c-container">
+        <div className="mode-c-main">
           <SlideShow 
               photos={inv.photos || []} 
               marked={marked} 
@@ -18,16 +18,9 @@
           />
         </div>
         
-        <div data-component="ModeC-Footer" style={{ 
-          background: 'var(--usi-surface)', 
-          borderTop: '.5px solid var(--usi-border)',
-          padding: showRatings ? '16px 24px' : '8px 24px',
-          maxHeight: showRatings ? '60%' : 'auto',
-          overflow: 'auto',
-          transition: 'all .3s ease'
-        }} className="usi-scroll">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showRatings ? 12 : 0 }}>
-              <div className="usi-tiny" style={{ fontWeight: 700, color: 'var(--usi-accent)' }}>MEDIA & OCENY</div>
+        <div data-component="ModeC-Footer" className="mode-c-footer-panel usi-scroll">
+          <div className="mode-c-footer-header">
+              <div className="usi-tiny accent">MEDIA & OCENY</div>
               <button className="usi-btn sm ghost" onClick={() => setShowRatings(!showRatings)}>
                   {showRatings ? 'Ukryj panel' : 'Pokaż panel ocen'}
               </button>

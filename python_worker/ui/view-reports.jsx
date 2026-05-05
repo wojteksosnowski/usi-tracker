@@ -21,22 +21,21 @@ function ReportsList({ onSelectReport }) {
   }, []);
 
   return (
-    <div data-component="ReportsList" className="reports-list-content usi-scroll" style={{ height: '100%', overflowY: 'auto', padding: '24px' }}>
+    <div data-component="ReportsList" className="reports-list-content usi-scroll">
         {loading ? (
-          <div className="usi-app-loading" style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
+          <div className="usi-app-loading"><Spinner /></div>
         ) : reports.length === 0 ? (
-          <div className="usi-app-empty" style={{ textAlign: 'center', padding: 40 }}>Brak definicji raportów w Public/USIdata/reports/</div>
+          <div className="usi-app-empty">Brak definicji raportów w Public/USIdata/reports/</div>
         ) : (
-          <div className="reports-grid-layout" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+          <div className="reports-grid-layout">
             {reports.map(report => (
               <div key={report.id} 
                 data-component="ReportCard"
                 className="usi-card report-card" 
-                style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer' }}
                 onClick={() => onSelectReport(report)}>
-                <h2 className="usi-h2" style={{ margin: 0 }}>{report.title}</h2>
-                <p className="usi-small" style={{ color: 'var(--usi-ink-2)', flex: 1 }}>{report.description}</p>
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <h2 className="usi-h2">{report.title}</h2>
+                <p className="usi-small">{report.description}</p>
+                <div className="report-card-footer">
                   <button className="usi-btn sm">Otwórz <Icon name="arrow" size={12} /></button>
                 </div>
               </div>
@@ -47,22 +46,9 @@ function ReportsList({ onSelectReport }) {
   );
 }
 
-function ReportDetail({ reportId, onBack }) {
-  const { React, Spinner, Icon, DataGrid, SourceBadge } = window;
-  const [data, setData] = React.useState(null);
-  const [loading, setLoading] = React.useState(true);
+function DataGridModule({ data: investments, ...props }) {
+  const { React, DataGrid, SourceBadge } = window;
   const [sort, setSort] = React.useState({ key: 'name', dir: 'asc' });
-
-  React.useEffect(() => {
-    setLoading(true);
-    fetch(`/api/report/${reportId}/data`)
-      .then(r => r.json())
-      .then(d => {
-        setData(d);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [reportId]);
 
   const handleSort = (key) => {
     setSort(prev => ({
@@ -71,18 +57,15 @@ function ReportDetail({ reportId, onBack }) {
     }));
   };
 
-  if (loading) return <div className="usi-app-loading" style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>;
-  if (!data) return <div className="usi-app-empty" style={{ padding: 40 }}>Błąd ładowania raportu.</div>;
-
-  const { definition, data: investments } = data;
-
-  const sortedData = [...investments].sort((a, b) => {
-    const va = a[sort.key] || '';
-    const vb = b[sort.key] || '';
-    if (va < vb) return sort.dir === 'asc' ? -1 : 1;
-    if (va > vb) return sort.dir === 'asc' ? 1 : -1;
-    return 0;
-  });
+  const sortedData = React.useMemo(() => {
+    return [...investments].sort((a, b) => {
+      const va = a[sort.key] || '';
+      const vb = b[sort.key] || '';
+      if (va < vb) return sort.dir === 'asc' ? -1 : 1;
+      if (va > vb) return sort.dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [investments, sort]);
 
   const columns = [
     { 
@@ -90,9 +73,9 @@ function ReportDetail({ reportId, onBack }) {
       label: 'Inwestycja', 
       sortable: true,
       render: (val, row) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="datagrid-cell-name">
           <SourceBadge source={row.source} />
-          <span style={{ fontWeight: 600 }}>{val}</span>
+          <span className="usi-weight-600">{val}</span>
         </div>
       )
     },
@@ -107,26 +90,69 @@ function ReportDetail({ reportId, onBack }) {
   ];
 
   return (
-    <div data-component="ReportDetail" className="report-detail-content usi-scroll" style={{ height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '24px 24px 16px', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-            <button className="usi-btn icon-only" onClick={onBack}><Icon name="arrow" style={{ transform: 'rotate(180deg)' }} /></button>
-            <h1 className="usi-h1" style={{ margin: 0, fontSize: 24 }}>{definition.title}</h1>
+    <div className="usi-card datagrid-module-container">
+        <DataGrid 
+          data={sortedData} 
+          columns={columns}
+          sortKey={sort.key}
+          sortDir={sort.dir}
+          onSort={handleSort}
+          onRowClick={(row) => console.log("Clicked row:", row)}
+        />
+    </div>
+  );
+}
+window.ModuleRegistry.register('DataGridModule', DataGridModule);
+
+function ReportDetail({ reportId, onBack }) {
+  const { React, Spinner, Icon, ModuleRegistry, ModuleErrorBoundary } = window;
+  const [data, setData] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    setLoading(true);
+    fetch(`/api/report/${reportId}/data`)
+      .then(r => r.json())
+      .then(d => {
+        setData(d);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [reportId]);
+
+  if (loading) return <div className="usi-app-loading"><Spinner /></div>;
+  if (!data) return <div className="usi-app-empty">Błąd ładowania raportu.</div>;
+
+  const { definition, data: investments } = data;
+  const modulesToRender = definition.modules || [{ type: 'DataGridModule' }];
+
+  return (
+    <div data-component="ReportDetail" className="report-detail-content usi-scroll">
+        <div className="report-detail-header">
+          <div className="report-detail-header-row">
+            <button className="usi-btn icon-only" onClick={onBack}><Icon name="arrow" className="icon-rotated-180" /></button>
+            <h1 className="usi-h1">{definition.title}</h1>
           </div>
-          <div className="usi-body" style={{ color: 'var(--usi-ink-3)' }}>{investments.length} inwestycji spełnia kryteria</div>
+          <div className="usi-body secondary">{investments.length} inwestycji spełnia kryteria</div>
         </div>
         
-        <div style={{ flex: 1, minHeight: 0, padding: '0 24px 24px' }}>
-          <div className="usi-card" style={{ height: '100%', overflow: 'hidden' }}>
-              <DataGrid 
-                data={sortedData} 
-                columns={columns}
-                sortKey={sort.key}
-                sortDir={sort.dir}
-                onSort={handleSort}
-                onRowClick={(row) => console.log("Clicked row:", row)}
-              />
-          </div>
+        <div className="report-modules-stack">
+          {modulesToRender.map((mod, idx) => {
+             const { validateModuleSpec } = window;
+             const ModComponent = ModuleRegistry.get(mod.type);
+             if (!ModComponent) return <div key={idx} className="usi-pill error">Nieznany moduł: {mod.type}</div>;
+             
+             const val = validateModuleSpec(ModComponent, mod);
+             if (!val.valid) {
+               return <div key={idx} className="usi-pill error">Błąd konfiguracji {mod.type}: {val.errors.join(', ')}</div>;
+             }
+
+             return (
+               <ModuleErrorBoundary key={idx}>
+                 <ModComponent data={investments} definition={definition} {...(mod.props || {})} modules={mod.modules} />
+               </ModuleErrorBoundary>
+             );
+          })}
         </div>
     </div>
   );

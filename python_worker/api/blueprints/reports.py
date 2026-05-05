@@ -75,9 +75,8 @@ def get_report_data(report_id):
                         investments.append(inv)
         
         return jsonify({
-            "report_id": report_id,
-            "title": report_def.get("title"),
-            "investments": investments
+            "definition": report_def,
+            "data": investments
         })
     except Exception as e:
         logger.error(f"Error processing report {report_id}: {e}")

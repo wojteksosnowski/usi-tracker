@@ -72,9 +72,9 @@
       const { bus, setVariable } = useDataBus();
       const { 
         investments, developers, loading,
-        search, filterDev, filterStatus, activeSources, activeCities,
-        visibleInvestments
+        filters, download, visibleInvestments
       } = bus;
+      const { search, dev: filterDev, status: filterStatus, sources: activeSources, cities: activeCities } = filters;
 
       React.useEffect(() => {
         injectThemeCSS();
@@ -96,7 +96,7 @@
       };
 
       const toggleSource = (id, isShift) => {
-        setVariable('activeSources', prev => {
+        setVariable('filters.sources', prev => {
           const next = new Set(prev);
           if (isShift) return new Set([id]);
           if (next.has(id)) {
@@ -109,7 +109,7 @@
       };
 
       const toggleCity = (city, isShift) => {
-        setVariable('activeCities', prev => {
+        setVariable('filters.cities', prev => {
           if (city === null) return new Set();
           const next = new Set(prev);
           if (isShift) return new Set([city]);
@@ -120,7 +120,7 @@
       };
 
       const toggleDownloadPortal = (id, isShift) => {
-        setVariable('activeDownloadPortals', prev => {
+        setVariable('download.activePortals', prev => {
           const next = new Set(prev);
           if (isShift) return new Set([id]);
           if (next.has(id)) {
@@ -188,17 +188,17 @@
                       <button className="usi-btn icon sm" aria-pressed={mode === 'table'} onClick={() => setMode('table')}><Icon name="list" /></button>
                     </div>
                   )}
-                  <GlobalSearch value={search} onChange={v => setVariable('search', v)} placeholder={view === 'list' ? "Szukaj inwestycji..." : "Szukaj dewelopera..."} />
+                  <GlobalSearch value={search} onChange={v => setVariable('filters.search', v)} placeholder={view === 'list' ? "Szukaj inwestycji..." : "Szukaj dewelopera..."} />
                 </div>
               ) : view === 'download' ? (
                 <div className="usi-action-bar-group">
                   <div className="mode-toggle">
-                    <button className="usi-btn icon sm" aria-pressed={bus.downloadMode === 'grid'} onClick={() => setVariable('downloadMode', 'grid')}><Icon name="grid" /></button>
-                    <button className="usi-btn icon sm" aria-pressed={bus.downloadMode === 'table'} onClick={() => setVariable('downloadMode', 'table')}><Icon name="list" /></button>
+                    <button className="usi-btn icon sm" aria-pressed={download.mode === 'grid'} onClick={() => setVariable('download.mode', 'grid')}><Icon name="grid" /></button>
+                    <button className="usi-btn icon sm" aria-pressed={download.mode === 'table'} onClick={() => setVariable('download.mode', 'table')}><Icon name="list" /></button>
                   </div>
                   <GlobalSearch 
-                    value={bus.downloadSearch || ''} 
-                    onChange={v => setVariable('downloadSearch', v)} 
+                    value={download.search || ''} 
+                    onChange={v => setVariable('download.search', v)} 
                     placeholder="Filtruj wyniki..." 
                   />
                 </div>
@@ -225,7 +225,7 @@
               ) : view === 'download' ? (
                 <FilterGroup label="Opcje">
                   <label className="usi-label-clickable">
-                    <input type="checkbox" checked={bus.downloadOnlyNew || false} onChange={e => setVariable('downloadOnlyNew', e.target.checked)} />
+                    <input type="checkbox" checked={download.onlyNew || false} onChange={e => setVariable('download.onlyNew', e.target.checked)} />
                     Tylko nowe
                   </label>
                 </FilterGroup>
@@ -234,11 +234,11 @@
             right={
               view === 'list' ? (
                 <div className="usi-flex-row usi-gap-8">
-                  <select className="usi-input sm usi-w-150" value={filterDev} onChange={e => setVariable('filterDev', e.target.value)}>
+                  <select className="usi-input sm usi-w-150" value={filterDev} onChange={e => setVariable('filters.dev', e.target.value)}>
                     <option value="">Deweloperzy</option>
                     {developers.map(d => <option key={d.developer_slug} value={d.developer_slug}>{d.name}</option>)}
                   </select>
-                  <select className="usi-input sm usi-w-120" value={filterStatus} onChange={e => setVariable('filterStatus', e.target.value)}>
+                  <select className="usi-input sm usi-w-120" value={filterStatus} onChange={e => setVariable('filters.status', e.target.value)}>
                     <option value="">Statusy</option>
                     {USI_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
@@ -254,7 +254,7 @@
                       <FilterChip 
                         key={p.id} 
                         label={p.label} 
-                        active={(bus.activeDownloadPortals || new Set()).has(p.id)} 
+                        active={(download.activePortals || new Set()).has(p.id)} 
                         onClick={(isShift) => toggleDownloadPortal(p.id, isShift)} 
                       />
                     ))}

@@ -1,7 +1,7 @@
 // view-detail.jsx — widok inwestycji (orchestrator)
 
 (function() {
-  const { React, usiRegister, useDataBus, useRatings, useMetadataConfig, extractModuleContext } = window;
+  const { React, usiRegister, useDataBus, useRatings, useMetadataConfig } = window;
 
   function getDistance(lat1, lon1, lat2, lon2) {
     const R = 6371; // km
@@ -73,20 +73,14 @@
     return (
       <DataBoundary data={inv}>
         {(validInv) => {
-          const context = {
-            currentInvestment: validInv,
-            geo: extractModuleContext.extractGeoPoint(validInv),
-            district: validInv.district,
-          };
-
+          const containerClass = `detail-right-panel usi-scroll usi-p-24 ${detailMode === 'C' ? 'usi-overflow-hidden' : 'usi-overflow-auto'}`;
           return (
-            <div data-component="DetailRightPanel" className="usi-scroll" style={{ height: '100%', overflowY: detailMode === 'C' ? 'hidden' : 'auto', padding: '24px', display: 'flex', flexDirection: 'column' }}>
-              <HeroBand 
-                inv={validInv} 
-                showMap={true} 
-                detailMode={detailMode} 
-                onModeChange={setDetailMode} 
-                moduleContext={context}
+            <div data-component="DetailRightPanel" className={containerClass}>
+              <HeroBand
+                inv={validInv}
+                showMap={true}
+                detailMode={detailMode}
+                onModeChange={setDetailMode}
               />
 
               {detailMode === 'C' ? (
@@ -122,7 +116,6 @@
                     focusedCat={focusedCat}
                     onFocusedCatChange={setFocusedCat}
                     metaConfig={metaConfig}
-                    moduleContext={context}
                 />
               )}
 

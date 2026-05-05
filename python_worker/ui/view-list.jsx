@@ -25,15 +25,15 @@
         render: (val, inv) => {
           const { SourceBadge } = window;
           return (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="datagrid-cell-name">
               <SourceBadge source={inv.source} />
-              <span style={{ fontWeight: 600 }}>{val}</span>
+              <span className="usi-weight-600">{val}</span>
             </div>
           );
         }
       },
       { key: 'developer', label: 'Deweloper', sortable: true },
-      { key: 'district', label: 'Dzielnica', sortable: true, render: val => <span style={{ color: 'var(--usi-ink-3)' }}>{val}</span> },
+      { key: 'district', label: 'Dzielnica', sortable: true, render: val => <span className="usi-text-secondary">{val}</span> },
       { 
         key: 'score', 
         label: 'Ocena', 
@@ -48,7 +48,7 @@
     ];
 
     return (
-      <div data-component="ViewList" style={{ height: '100%', overflow: 'hidden' }}>
+      <div data-component="ViewList" className="usi-h-full usi-overflow-hidden">
         <DataGrid 
           data={investments}
           mode={mode}

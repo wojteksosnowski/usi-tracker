@@ -3,7 +3,7 @@
 (function() {
   const { React, usiRegister, MetadataPanel, RatingsPanel, ModuleWrapper, NearbyInvestmentsModule, ModuleTypes, Gallery, Lightbox } = window;
 
-  const DetailsA = ({ inv, ratings, handleRating, comment, handleComment, status, handleStatus, saved, focusedCat, onFocusedCatChange, metaConfig, moduleContext }) => {
+  const DetailsA = ({ inv, ratings, handleRating, comment, handleComment, status, handleStatus, saved, focusedCat, onFocusedCatChange, metaConfig }) => {
     const [marked, setMarked] = React.useState(new Set());
     const [lightbox, setLightbox] = React.useState(null);
     
@@ -21,7 +21,7 @@
               }} 
               onLightbox={setLightbox} 
            />
-           <div style={{ height: 24 }} />
+           <div className="usi-h-24" />
            <MetadataPanel inv={inv} config={metaConfig} />
         </div>
 

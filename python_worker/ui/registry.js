@@ -32,4 +32,27 @@
     return Object.keys(registry);
   };
 
+  // ─── Module Registry (Krok B04) ──────────────────────────────────────────
+  win.ModuleRegistry = {
+    _modules: {},
+    register(name, definition, spec = null) {
+      if (this._modules[name]) {
+        console.warn(`[ModuleRegistry] Overwriting module: ${name}`);
+      }
+      if (spec) definition.__spec = spec;
+      this._modules[name] = definition;
+      return definition;
+    },
+    get(name) {
+      if (!this._modules[name]) {
+        console.warn(`[ModuleRegistry] Module not found: ${name}`);
+        return null;
+      }
+      return this._modules[name];
+    },
+    list() {
+      return Object.keys(this._modules);
+    }
+  };
+
 })(window);

@@ -93,6 +93,50 @@ class ModuleSchemaValidator {
 }
 window.usiRegister('ModuleSchemaValidator', ModuleSchemaValidator);
 
+function validateModuleSpec(component, modConfig) {
+  const spec = component?.__spec;
+  const result = { valid: true, errors: [] };
+  if (!spec || !spec.props) return result;
+  
+  const props = modConfig.props || {};
+  for (const [key, propSpec] of Object.entries(spec.props)) {
+    if (propSpec.required && props[key] === undefined) {
+      result.valid = false;
+      result.errors.push(`Brak wymaganego parametru: ${propSpec.label || key}`);
+    }
+  }
+  return result;
+}
+window.usiRegister('validateModuleSpec', validateModuleSpec);
+
+const PropEditors = {
+  String: ({ value, onChange }) => <input type="text" className="usi-input sm" value={value || ''} onChange={e => onChange(e.target.value)} />,
+  Number: ({ value, onChange }) => <input type="number" className="usi-input sm" value={value || 0} onChange={e => onChange(Number(e.target.value))} />,
+  Boolean: ({ value, onChange }) => <input type="checkbox" checked={value || false} onChange={e => onChange(e.target.checked)} />,
+  Color: ({ value, onChange }) => <input type="color" value={value || '#000000'} style={{ height: 24, padding: 0, border: 'none', background: 'none', cursor: 'pointer' }} onChange={e => onChange(e.target.value)} />
+};
+
+function ModuleKnobs({ spec, props, onChange }) {
+  if (!spec || !spec.props) return null;
+  return (
+    <div className="usi-flex-column usi-gap-12" style={{ padding: 16, background: 'var(--usi-surface-3)', border: '1px solid var(--usi-border)', borderRadius: 10 }}>
+      <div className="usi-small" style={{ fontWeight: 600, textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.05em', opacity: 0.7 }}>Konfiguracja modułu</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        {Object.entries(spec.props).map(([key, propSpec]) => {
+          const Editor = PropEditors[propSpec.type] || PropEditors.String;
+          return (
+            <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span className="usi-small" style={{ fontSize: 10, color: 'var(--usi-ink-3)' }}>{propSpec.label || key}</span>
+              <Editor value={props[key] !== undefined ? props[key] : propSpec.default} onChange={val => onChange(key, val)} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+window.usiRegister('ModuleKnobs', ModuleKnobs);
+
 function ModuleWrapper({ component: Component, moduleSpec, context, title, icon, height }) {
   const { ModuleSchemaValidator, BaseModule } = window;
   const validation = ModuleSchemaValidator.validate(moduleSpec.inputs, context);
@@ -114,8 +158,10 @@ function ModuleWrapper({ component: Component, moduleSpec, context, title, icon,
 window.usiRegister('ModuleWrapper', ModuleWrapper);
 
 function MiniMap({ geo, label, height = 140, points = [], hereUrl = '', hereUrlDark = '', coords, containerWidth }) {
-  const { React, useDarkMode } = window;
-  const mapCoords = geo ? [geo.lat, geo.lng] : coords;
+  const { React, useDarkMode, useModuleContext } = window;
+  const ctx = useModuleContext();
+  const mapCoords = geo ? [geo.lat, geo.lng] : (coords || (ctx.geoPoint ? [ctx.geoPoint.lat, ctx.geoPoint.lng] : null));
+  
   React.useEffect(() => {
     if (containerWidth > 0) { console.log(`[MiniMap] containerWidth: ${Math.round(containerWidth)}px`); }
   }, [containerWidth]);
@@ -179,5 +225,46 @@ function SkeletonModule({ shouldThrow = false }) {
   );
 }
 window.usiRegister('SkeletonModule', SkeletonModule);
+
+
+function ContainerModule({ data, modules = [], filter, title, icon }) {
+  const { React, ModuleRegistry, ModuleErrorBoundary, LocalModuleContext, BaseModule } = window;
+  
+  const filteredData = React.useMemo(() => {
+    if (!filter || !Array.isArray(data)) return data;
+    return data.filter(inv => {
+      for (const [k, v] of Object.entries(filter)) {
+        if (inv[k] !== v) return false;
+      }
+      return true;
+    });
+  }, [data, filter]);
+
+  return (
+    <BaseModule title={title} icon={icon} style={{ background: 'var(--usi-surface-2)', border: '1px solid var(--usi-border)' }}>
+      <LocalModuleContext.Provider value={filteredData}>
+        <div className="usi-flex-column usi-gap-24" style={{ padding: '4px 0' }}>
+          {modules.map((mod, idx) => {
+             const ModComponent = ModuleRegistry.get(mod.type);
+             if (!ModComponent) return <div key={idx} className="usi-pill error">Nieznany moduł: {mod.type}</div>;
+             
+             const val = validateModuleSpec(ModComponent, mod);
+             if (!val.valid) {
+               return <div key={idx} className="usi-pill error">Błąd konfiguracji {mod.type}: {val.errors.join(', ')}</div>;
+             }
+
+             return (
+               <ModuleErrorBoundary key={idx}>
+                 <ModComponent data={filteredData} {...(mod.props || {})} modules={mod.modules} />
+               </ModuleErrorBoundary>
+             );
+          })}
+        </div>
+      </LocalModuleContext.Provider>
+    </BaseModule>
+  );
+}
+window.ModuleRegistry.register('ContainerModule', ContainerModule);
+window.usiRegister('ContainerModule', ContainerModule);
 
 
