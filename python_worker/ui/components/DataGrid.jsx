@@ -134,4 +134,5 @@ function DataGrid({
     </div>
   );
 }
-window.usiRegister('DataGrid', DataGrid);
+const MemoizedDataGrid = window.React.memo(DataGrid, (prev, next) => window.shallowCompare(prev, next));
+window.usiRegister('DataGrid', MemoizedDataGrid);

@@ -1,7 +1,21 @@
 // data.jsx — async hook for loading investments from server
 
+const shallowCompare = (a, b) => {
+  if (a === b) return true;
+  if (typeof a !== 'object' || a === null || typeof b !== 'object' || b === null) return false;
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  for (let key of keysA) {
+    if (!Object.prototype.hasOwnProperty.call(b, key) || a[key] !== b[key]) return false;
+  }
+  return true;
+};
+window.usiRegister('shallowCompare', shallowCompare);
+
 // Defined at top level but safely using window.React
-const DataBusContext = window.React.createContext();
+const DataBusStateContext = window.React.createContext();
+const DataBusDispatchContext = window.React.createContext();
 const LocalModuleContext = window.React.createContext(null);
 
 const MAIN_CITIES = ['Warszawa', 'Kraków', 'Wrocław', 'Łódź', 'Poznań', 'Gdańsk', 'Szczecin', 'Bydgoszcz', 'Lublin', 'Białystok'];
@@ -13,7 +27,6 @@ function DataBusProvider({ children }) {
   const [bus, setBus] = React.useState({
     investments: [],
     developers: [],
-    visibleInvestments: [],
     loading: true,
     isDispatching: false,
     currentInvestment: null,
@@ -42,6 +55,18 @@ function DataBusProvider({ children }) {
   const busRef = React.useRef(bus);
   busRef.current = bus;
 
+  // External store for useSyncExternalStore
+  const listeners = React.useRef(new Set());
+  const subscribe = React.useCallback((listener) => {
+    listeners.current.add(listener);
+    return () => listeners.current.delete(listener);
+  }, []);
+  const getSnapshot = React.useCallback(() => busRef.current, []);
+
+  const notify = React.useCallback(() => {
+    listeners.current.forEach(l => l());
+  }, []);
+
   const setVariable = React.useCallback((path, value) => {
     // 1. Handle direct Promise
     if (value && typeof value.then === 'function') {
@@ -68,37 +93,36 @@ function DataBusProvider({ children }) {
           .catch(err => console.error(`Async reducer failed for ${path}:`, err))
           .finally(() => setBus(prev => ({ ...prev, isDispatching: false })));
       }
-      // If it was sync, we already have the result, but we'll re-evaluate in setBus 
-      // to ensure atomicity against React's concurrent state updates.
     }
 
     // 3. Synchronous Update (standard logic)
-    setBus(prev => {
-      const keys = path.split('.');
-      let nextState = prev;
+    const prev = busRef.current;
+    const keys = path.split('.');
+    let nextState = prev;
 
-      if (!path.includes('.')) {
-        const nextValue = typeof value === 'function' ? value(prev[path]) : value;
-        if (prev[path] === nextValue) return prev;
-        nextState = { ...prev, [path]: nextValue };
-      } else {
-        const updateLevel = (obj, depth) => {
-          const key = keys[depth];
-          if (depth === keys.length - 1) {
-            const currentVal = obj[key];
-            const nextVal = typeof value === 'function' ? value(currentVal) : value;
-            if (currentVal === nextVal) return obj;
-            return { ...obj, [key]: nextVal };
-          }
-          const child = obj[key] || {};
-          const newChild = updateLevel(child, depth + 1);
-          if (newChild === child) return obj;
-          return { ...obj, [key]: newChild };
-        };
-        nextState = updateLevel(prev, 0);
-      }
+    if (!path.includes('.')) {
+      const nextValue = typeof value === 'function' ? value(prev[path]) : value;
+      if (prev[path] === nextValue) return;
+      nextState = { ...prev, [path]: nextValue };
+    } else {
+      const updateLevel = (obj, depth) => {
+        const key = keys[depth];
+        if (depth === keys.length - 1) {
+          const currentVal = obj[key];
+          const nextVal = typeof value === 'function' ? value(currentVal) : value;
+          if (currentVal === nextVal) return obj;
+          return { ...obj, [key]: nextVal };
+        }
+        const child = obj[key] || {};
+        const newChild = updateLevel(child, depth + 1);
+        if (newChild === child) return obj;
+        return { ...obj, [key]: newChild };
+      };
+      nextState = updateLevel(prev, 0);
+    }
 
-      if (isDebug && nextState !== prev) {
+    if (nextState !== prev) {
+      if (isDebug) {
         const oldVal = path.split('.').reduce((o, i) => (o || {})[i], prev);
         const newVal = path.split('.').reduce((o, i) => (o || {})[i], nextState);
         console.groupCollapsed(`[DataBus] UPDATE: ${path}`);
@@ -106,10 +130,11 @@ function DataBusProvider({ children }) {
         console.log('Next:', newVal);
         console.groupEnd();
       }
-
-      return nextState;
-    });
-  }, [isDebug]);
+      busRef.current = nextState;
+      setBus(nextState);
+      notify();
+    }
+  }, [isDebug, notify]);
 
   const refetch = React.useCallback((type = 'investments') => {
     setVariable('loading', true);
@@ -139,10 +164,6 @@ function DataBusProvider({ children }) {
     };
   }, [isDebug]);
 
-  React.useEffect(() => {
-    if (isDebug) window.__USI_BUS__ = bus;
-  }, [bus, isDebug]);
-
   // Automatic filtering
   const visibleInvestments = React.useMemo(() => {
     const { investments, filters } = bus;
@@ -168,13 +189,19 @@ function DataBusProvider({ children }) {
     });
   }, [bus.investments, bus.filters]);
 
-  // Sync visibleInvestments back to bus (using a ref to avoid infinite loops if needed, 
-  // but here we just pass it in value)
-  const value = React.useMemo(() => ({ 
-    bus: { ...bus, visibleInvestments }, 
+  // Add visibleInvestments to the bus object for selectors
+  busRef.current = { ...bus, visibleInvestments };
+
+  const dispatchValue = React.useMemo(() => ({ 
     setVariable, 
     refetch 
-  }), [bus, visibleInvestments, setVariable, refetch]);
+  }), [setVariable, refetch]);
+
+  const stateValue = React.useMemo(() => ({
+    bus: busRef.current,
+    subscribe,
+    getSnapshot
+  }), [bus, visibleInvestments, subscribe, getSnapshot]);
 
   React.useEffect(() => {
     refetch('investments');
@@ -192,23 +219,41 @@ function DataBusProvider({ children }) {
   }, [bus.activeJobs, refetch]);
 
   return (
-    <DataBusContext.Provider value={value}>
-      {children}
-    </DataBusContext.Provider>
+    <DataBusDispatchContext.Provider value={dispatchValue}>
+      <DataBusStateContext.Provider value={stateValue}>
+        {children}
+      </DataBusStateContext.Provider>
+    </DataBusDispatchContext.Provider>
   );
 }
 window.usiRegister('DataBusProvider', DataBusProvider);
 
 function useDataBus() {
   const { React } = window;
-  const context = React.useContext(DataBusContext);
-  if (!context) {
-    // Fallback for components rendered outside provider (e.g. during initial loads)
+  const state = React.useContext(DataBusStateContext);
+  const dispatch = React.useContext(DataBusDispatchContext);
+  if (!state || !dispatch) {
     return { bus: {}, setVariable: () => {}, getVariable: () => {}, refetch: () => {} };
   }
-  return context;
+  return { ...state, ...dispatch };
 }
 window.usiRegister('useDataBus', useDataBus);
+
+function useDataBusSelector(selector, compare = (a, b) => a === b) {
+  const { React } = window;
+  const { subscribe, getSnapshot } = React.useContext(DataBusStateContext) || {};
+  
+  if (!subscribe) return selector({});
+
+  const slice = React.useSyncExternalStore(
+    subscribe,
+    () => selector(getSnapshot()),
+    () => selector({})
+  );
+
+  return slice;
+}
+window.usiRegister('useDataBusSelector', useDataBusSelector);
 
 function useInvestments() {
   const { bus, refetch } = useDataBus();

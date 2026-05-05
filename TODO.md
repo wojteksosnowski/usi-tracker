@@ -16,14 +16,17 @@ Wdrożenie hooka `useApi` — centralizacja zapytań HTTP i prosta warstwa cache
 ### Krok B02
 Unifikacja logiki ocen — eliminacja redundancji między widokami a serwisem.
 **Plan:** 2026-05-06
-- [ ] Przenieść funkcje obliczeniowe (ocenaLog) i pomocnicze do python_worker/ui/modules/modules-ui.jsx.
-- [ ] Zunifikować obsługę handleRating, zapewniając spójność z DataBus.
-- [ ] Zaktualizować RatingsPanel.jsx i widoki szczegółowe, aby korzystały ze wspólnych funkcji.
-- [ ] Upewnić się, że aktualizacja ocen poprawnie wywołuje backend przez nową infrastrukturę (useApi).
-- [ ] Test: Weryfikacja spójności obliczeń ocen po zmianach w różnych częściach interfejsu.
+- [x] Przenieść funkcje obliczeniowe (ocenaLog) i pomocnicze do python_worker/ui/modules/modules-ui.jsx.
+- [x] Zunifikować obsługę handleRating, zapewniając spójność z DataBus.
+- [x] Zaktualizować RatingsPanel.jsx i widoki szczegółowe, aby korzystały ze wspólnych funkcji.
+- [x] Upewnić się, że aktualizacja ocen poprawnie wywołuje backend przez nową infrastrukturę (useApi).
+- [x] Test: Weryfikacja spójności obliczeń ocen po zmianach w różnych częściach interfejsu.
+
+**Podsumowanie:** Logika ocen (`ocenaLog`, `avgRating`, `ratedCount`, `ratingStatus`, `_CATS`) oraz hook `useRatings` wraz z cache'em zostały przeniesione do `modules-ui.jsx`. Zapewniono globalną dostępność funkcji poprzez `usiRegister`. `RatingsPanel.jsx` oraz `data.jsx` zostały oczyszczone z nadmiarowego kodu. Weryfikacja potwierdziła poprawne działanie wyliczeń i zapisu ocen w nowej strukturze.
 
 ### Krok B03
 Optymalizacja subskrypcji DataBus — selektory ograniczające rerendery.
+**Plan:** 2026-05-06
 - [ ] Implementacja shallowCompare w python_worker/ui/data.jsx do porównywania obiektów filtrów.
 - [ ] Rozdzielenie DataBusContext na kontekst stanu (danych) i kontekst sterowania (akcji), aby uniknąć zbędnych rerenderów.
 - [ ] Wprowadzenie useDataBusSelector(selector), aby komponenty mogły subskrybować tylko fragmenty stanu.
