@@ -262,32 +262,6 @@ window.usiRegister('useMetadataConfig', useMetadataConfig);
 
 const _CATS = ['Balkony', 'Fasady', 'Wnętrza', 'Teren', 'Mieszkania', 'Udogodnienia'];
 
-const ratedCount = (inv) =>
-  _CATS.filter(k => ((inv.ratings || {})[k] ?? null) !== null).length;
-
-const avgRating = (inv) => {
-  const vals = _CATS.map(k => ((inv.ratings || {})[k] ?? null)).filter(v => v !== null);
-  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-};
-window.usiRegister('avgRating', avgRating);
-
-const ratingStatus = (inv) => {
-  const c = ratedCount(inv);
-  if (c === 0) return 'none';
-  if (c < 6) return 'partial';
-  return 'done';
-};
-window.usiRegister('ratingStatus', ratingStatus);
-
-const ocenaLog = (inv) => {
-  const vals = _CATS.map(k => ((inv.ratings || {})[k] ?? null)).filter(v => v !== null);
-  if (vals.length === 0) return null;
-  const sum = vals.reduce((acc, v) => acc + Math.exp(v), 0);
-  return Math.log(sum) - Math.log(vals.length);
-};
-window.usiRegister('ocenaLog', ocenaLog);
-
-
 function useModuleContext(localData) {
   const { React, useDataBus, ratedCount, avgRating, LocalModuleContext } = window;
   const { bus } = useDataBus();
@@ -334,5 +308,5 @@ function useModuleContext(localData) {
 }
 window.usiRegister('useModuleContext', useModuleContext);
 
-Object.assign(window, { useInvestments, useDevelopers, useConfig, useMetadataConfig, ratedCount, avgRating, ratingStatus, ocenaLog, DataBusProvider, useDataBus, useModuleContext, LocalModuleContext });
+Object.assign(window, { useInvestments, useDevelopers, useConfig, useMetadataConfig, DataBusProvider, useDataBus, useModuleContext, LocalModuleContext });
 

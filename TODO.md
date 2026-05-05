@@ -15,6 +15,7 @@ Wdrożenie hooka `useApi` — centralizacja zapytań HTTP i prosta warstwa cache
 
 ### Krok B02
 Unifikacja logiki ocen — eliminacja redundancji między widokami a serwisem.
+**Plan:** 2026-05-06
 - [ ] Przenieść funkcje obliczeniowe (ocenaLog) i pomocnicze do python_worker/ui/modules/modules-ui.jsx.
 - [ ] Zunifikować obsługę handleRating, zapewniając spójność z DataBus.
 - [ ] Zaktualizować RatingsPanel.jsx i widoki szczegółowe, aby korzystały ze wspólnych funkcji.
