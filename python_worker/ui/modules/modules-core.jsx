@@ -20,6 +20,62 @@
   }
   usiRegister('useDarkMode', useDarkMode);
 
+  const globalApiCache = new Map();
+
+  function useApi() {
+    const { React } = window;
+    const [loading, setLoading] = React.useState(false);
+    const [error, setError] = React.useState(null);
+
+    const request = React.useCallback(async (url, options = {}) => {
+      setLoading(true);
+      setError(null);
+
+      const isGet = !options.method || options.method.toUpperCase() === 'GET';
+      const useCache = isGet && !options.noCache;
+
+      if (useCache && globalApiCache.has(url)) {
+        setLoading(false);
+        return globalApiCache.get(url);
+      }
+
+      try {
+        const res = await fetch(url, options);
+        if (!res.ok) {
+          throw new Error(`Błąd API: ${res.status} ${res.statusText}`);
+        }
+        const data = await res.json();
+
+        if (useCache) {
+          globalApiCache.set(url, data);
+        }
+        return data;
+      } catch (err) {
+        setError(err.message);
+        // Safely try to notify via DataBus if available
+        if (window.useDataBus) {
+          try {
+            const { setVariable } = window.useDataBus();
+            if (setVariable) {
+              setVariable('appStatus', { type: 'error', msg: err.message });
+            }
+          } catch(e) {}
+        }
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    }, []);
+
+    const clearCache = React.useCallback((url) => {
+      if (url) globalApiCache.delete(url);
+      else globalApiCache.clear();
+    }, []);
+
+    return { request, loading, error, clearCache };
+  }
+  usiRegister('useApi', useApi);
+
   function BaseModule({ title, icon, children, errorFallback, style }) {
     const { Icon, ModuleErrorBoundary } = window;
     const containerRef = React.useRef(null);

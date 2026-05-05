@@ -1,24 +1,24 @@
 // view-reports.jsx — Widok raportów USI
 
 function ReportsList({ onSelectReport }) {
-  const { React, Spinner, Icon } = window;
+  const { React, Spinner, Icon, useApi } = window;
   const [reports, setReports] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  const { request } = useApi();
 
-  const fetchReports = () => {
+  const fetchReports = React.useCallback(() => {
     setLoading(true);
-    fetch('/api/reports')
-      .then(r => r.json())
+    request('/api/reports')
       .then(data => {
         setReports(data);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  };
+  }, [request]);
 
   React.useEffect(() => {
     fetchReports();
-  }, []);
+  }, [fetchReports]);
 
   return (
     <div data-component="ReportsList" className="reports-list-content usi-scroll">
@@ -118,20 +118,20 @@ window.ModuleRegistry.registerPreset('LocationAnalysis', [
 
 
 function ReportDetail({ reportId, onBack }) {
-  const { React, Spinner, Icon, ModuleRegistry, ModuleErrorBoundary } = window;
+  const { React, Spinner, Icon, ModuleRegistry, ModuleErrorBoundary, useApi } = window;
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
+  const { request } = useApi();
 
   React.useEffect(() => {
     setLoading(true);
-    fetch(`/api/report/${reportId}/data`)
-      .then(r => r.json())
+    request(`/api/report/${reportId}/data`)
       .then(d => {
         setData(d);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [reportId]);
+  }, [reportId, request]);
 
   if (loading) return <div className="usi-app-loading"><Spinner /></div>;
   if (!data) return <div className="usi-app-empty">Błąd ładowania raportu.</div>;

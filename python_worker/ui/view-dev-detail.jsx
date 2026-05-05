@@ -1,8 +1,9 @@
 // view-dev-detail.jsx — widok szczegółowy dewelopera
 
 function useJobStatus(jobId, onFinished) {
-  const { React } = window;
+  const { React, useApi } = window;
   const [job, setJob] = React.useState(null);
+  const { request } = useApi();
   
   React.useEffect(() => {
     if (!jobId) {
@@ -11,8 +12,7 @@ function useJobStatus(jobId, onFinished) {
     }
     
     const poll = setInterval(() => {
-      fetch(`/api/jobs/${jobId}`)
-        .then(r => r.json())
+      request(`/api/jobs/${jobId}`, { noCache: true })
         .then(data => {
           setJob(data);
           if (data.status === 'completed' || data.status === 'failed') {
@@ -24,7 +24,7 @@ function useJobStatus(jobId, onFinished) {
     }, 1000);
     
     return () => clearInterval(poll);
-  }, [jobId]);
+  }, [jobId, request]);
   
   return job;
 }
@@ -40,18 +40,19 @@ function DeveloperDetail({
   const {
     React, Spinner, NavMenuButton, Icon,
     NavDrawer, StandardCard, SourceBadge, MetadataPanel,
-    MAIN_CITIES
+    MAIN_CITIES, useApi
   } = window;
   const [developer, setDeveloper] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [navOpen, setNavOpen] = React.useState(false);
   const [activeJobId, setActiveJobId] = React.useState(null);
   const [filterCity, setFilterCity] = React.useState(null);
+  
+  const { request } = useApi();
 
   const load = React.useCallback(() => {
     setLoading(true);
-    fetch(`/api/developer/${dev_slug}`)
-      .then(r => r.json())
+    request(`/api/developer/${dev_slug}`)
       .then(data => {
         setDeveloper(data);
         setLoading(false);
@@ -60,7 +61,7 @@ function DeveloperDetail({
         console.error("Failed to load developer", err);
         setLoading(false);
       });
-  }, [dev_slug]);
+  }, [dev_slug, request]);
 
   React.useEffect(() => {
     load();
@@ -75,8 +76,7 @@ function DeveloperDetail({
 
   const handleUpdate = () => {
     if (activeJobId) return;
-    fetch(`/api/developer/${dev_slug}/discover`, { method: 'POST' })
-      .then(r => r.json())
+    request(`/api/developer/${dev_slug}/discover`, { method: 'POST' })
       .then(data => {
         if (data.job_id) setActiveJobId(data.job_id);
       });
@@ -84,12 +84,11 @@ function DeveloperDetail({
 
   const handleMerge = (source_slug) => {
     if (!confirm(`Czy na pewno chcesz połączyć dewelopera '${source_slug}' z bieżącym? Wszystkie inwestycje zostaną przeniesione.`)) return;
-    fetch(`/api/developer/${dev_slug}/merge`, {
+    request(`/api/developer/${dev_slug}/merge`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source_slug })
     })
-    .then(r => r.json())
     .then(data => {
       if (data.ok) load();
       else alert("Błąd połączenia rekordów.");
@@ -97,12 +96,11 @@ function DeveloperDetail({
   };
 
   const handleDismiss = (usi_dev_id) => {
-    fetch(`/api/developer/${dev_slug}/dismiss-suggestion`, {
+    request(`/api/developer/${dev_slug}/dismiss-suggestion`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ usi_dev_id })
     })
-    .then(r => r.json())
     .then(data => {
       if (data.ok) load();
     });

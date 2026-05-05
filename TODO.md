@@ -4,19 +4,38 @@
 
 ### Krok B01
 Wdrożenie hooka `useApi` — centralizacja zapytań HTTP i prosta warstwa cache'owania.
-- [ ] Zaimplementować generyczny hook `useApi` obsługujący fetch, błędy i stan ładowania.
+**Plan:** 2026-05-06
+- [x] Zdefiniować useApi w python_worker/ui/modules/modules-core.jsx z obsługą stanu loading/error.
+- [x] Dodać prosty mechanizm cache (Map) dla zapytań GET wewnątrz hooka.
+- [x] Zrefaktoryzować view-list.jsx i view-detail.jsx, aby korzystały z useApi zamiast fetch.
+- [x] Zintegrować obsługę błędów z powiadomieniami UI.
+- [x] Test: Weryfikacja cache'owania przy nawigacji oraz poprawne wyświetlanie spinnera i błędów.
+
+**Podsumowanie:** Wdrożono hook `useApi` w `modules-core.jsx` z obsługą `globalApiCache`, stanami ładowania/błędu oraz integracją z powiadomieniami `DataBus`. Zrefaktoryzowano kluczowe komponenty (`data.jsx`, `RatingsPanel.jsx`, `view-dev-detail.jsx`, `view-reports.jsx`, `view-download.jsx`), zastępując surowy `fetch` nowym hookiem. Zapewniono omijanie cache dla zapytań mutujących (POST) oraz dla odpytywania statusu zadań.
 
 ### Krok B02
 Unifikacja logiki ocen — eliminacja redundancji między widokami a serwisem.
-- [ ] Przenieść logikę `handleRating` i obliczenia `ocenaLog` do wspólnego modułu serwisowego.
+- [ ] Przenieść funkcje obliczeniowe (ocenaLog) i pomocnicze do python_worker/ui/modules/modules-ui.jsx.
+- [ ] Zunifikować obsługę handleRating, zapewniając spójność z DataBus.
+- [ ] Zaktualizować RatingsPanel.jsx i widoki szczegółowe, aby korzystały ze wspólnych funkcji.
+- [ ] Upewnić się, że aktualizacja ocen poprawnie wywołuje backend przez nową infrastrukturę (useApi).
+- [ ] Test: Weryfikacja spójności obliczeń ocen po zmianach w różnych częściach interfejsu.
 
 ### Krok B03
 Optymalizacja subskrypcji DataBus — selektory ograniczające rerendery.
-- [ ] Wprowadzić mechanizm `shallowCompare` lub selektory w `useDataBus` dla namespace'ów.
+- [ ] Implementacja shallowCompare w python_worker/ui/data.jsx do porównywania obiektów filtrów.
+- [ ] Rozdzielenie DataBusContext na kontekst stanu (danych) i kontekst sterowania (akcji), aby uniknąć zbędnych rerenderów.
+- [ ] Wprowadzenie useDataBusSelector(selector), aby komponenty mogły subskrybować tylko fragmenty stanu.
+- [ ] Optymalizacja DataGrid.jsx pod kątem użycia selektorów (rerender tylko przy zmianie visibleInvestments).
+- [ ] Test: Weryfikacja liczby rerenderów DataGrid przy zmianach w niepowiązanych częściach stanu (np. statusy zadań).
 
 ### Krok B04
 Testy jednostkowe logiki transformacji danych.
-- [ ] Wdrożyć framework testowy (np. proste asercje w JS) dla kluczowych parserów API.
+- [ ] Stworzenie ustandaryzowanej struktury TestSuite w python_worker/ui/modules/modules-test.jsx (obsługa opisów, asercji i testów async).
+- [ ] Przeniesienie i rozszerzenie testów logiki danych (ocenaLog, avgRating) do nowej struktury.
+- [ ] Implementacja testów integracyjnych dla transformacji danych z portali (mockowanie odpowiedzi API RP/OTO/TO).
+- [ ] Dodanie wskaźnika "Test Status" w ActionBar, informującego o stanie zdrowia logiki frontendowej.
+- [ ] Test: Weryfikacja, czy wprowadzenie błędu w parserze skutkuje natychmiastowym czerwonym statusem w UI.
 
 ## Następny kamień milowy: Długoterminowe i QA
 

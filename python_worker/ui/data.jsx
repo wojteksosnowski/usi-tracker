@@ -231,33 +231,31 @@ function useDevelopers() {
 window.usiRegister('useDevelopers', useDevelopers);
 
 function useConfig() {
-  const { React } = window;
+  const { React, useApi } = window;
   const [config, setConfig] = React.useState(null);
+  const { request } = useApi();
+
   React.useEffect(() => {
-    fetch('/api/config')
-      .then(r => r.json())
+    request('/api/config')
       .then(data => setConfig(data))
-      .catch(e => {
-        console.error("Failed to load config", e);
-        setConfig({});
-      });
-  }, [React]);
+      .catch(() => setConfig({}));
+  }, [request]);
+
   return config;
 }
 window.usiRegister('useConfig', useConfig);
 
 function useMetadataConfig() {
-  const { React } = window;
+  const { React, useApi } = window;
   const [meta, setMeta] = React.useState(null);
+  const { request } = useApi();
+
   React.useEffect(() => {
-    fetch('/api/metadata-config')
-      .then(r => r.json())
+    request('/api/metadata-config')
       .then(data => setMeta(data))
-      .catch(e => {
-        console.error("Failed to load metadata config", e);
-        setMeta([]);
-      });
-  }, [React]);
+      .catch(() => setMeta([]));
+  }, [request]);
+
   return meta;
 }
 window.usiRegister('useMetadataConfig', useMetadataConfig);

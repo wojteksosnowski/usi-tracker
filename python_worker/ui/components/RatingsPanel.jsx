@@ -7,6 +7,8 @@
   const _ratingCache = new Map(); // slug → { ratings, comment, status }
 
   const useRatings = (inv) => {
+    const { useApi } = window;
+    const { request } = useApi();
     const CATS = ['Balkony', 'Fasady', 'Wnętrza', 'Teren', 'Mieszkania', 'Udogodnienia'];
     const init = () => {
       const cached = _ratingCache.get(inv.slug);
@@ -38,7 +40,7 @@
     const { setVariable } = useDataBus();
 
     const persist = (r, c, s) => {
-      fetch(`/api/ratings/${inv.developer_slug}/${inv.investment_slug}`, {
+      request(`/api/ratings/${inv.developer_slug}/${inv.investment_slug}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...r, komentarz: c, status: s }),
@@ -49,8 +51,8 @@
           setVariable('appStatus', { type: 'success', msg: 'Ocena zapisana' });
           setTimeout(() => setSaved(false), 2000);
         })
-        .catch((err) => {
-          setVariable('appStatus', { type: 'error', msg: 'Błąd zapisu ocen' });
+        .catch(() => {
+          // Error notification handled by useApi
         });
     };
 

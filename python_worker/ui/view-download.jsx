@@ -1,11 +1,12 @@
 window.usiRegister('ViewDownload', function ViewDownload() {
   const {
     React, Icon, Spinner, useDevelopers, useDataBus,
-    FilterGroup, DataGrid, ListCard, SourceBadge
+    FilterGroup, DataGrid, ListCard, SourceBadge, useApi
   } = window;
 
   const { bus, setVariable, refetch } = useDataBus();
   const { download } = bus;
+  const { request } = useApi();
   const activePortals = Array.from(download.activePortals || ['rp']);
   const identifier = download.search || '';
   const showOnlyNew = download.onlyNew || false;
@@ -24,9 +25,8 @@ window.usiRegister('ViewDownload', function ViewDownload() {
     try {
       for (const p of activePortals) {
         try {
-          const response = await fetch(`/api/discovery/${p}`);
-          const data = await response.json();
-          if (response.ok && Array.isArray(data)) {
+          const data = await request(`/api/discovery/${p}`);
+          if (Array.isArray(data)) {
             allResults = [...allResults, ...data.map(r => ({ ...r, source: p }))];
           }
         } catch (e) {
@@ -40,7 +40,7 @@ window.usiRegister('ViewDownload', function ViewDownload() {
     } finally {
       setLoading(false);
     }
-  }, [activePortals]);
+  }, [activePortals, request]);
 
   // Expose trigger to global scope for App ActionBar
   React.useEffect(() => {
@@ -53,7 +53,7 @@ window.usiRegister('ViewDownload', function ViewDownload() {
   const handleRegister = async (res) => {
     setRegistering(prev => ({ ...prev, [res.url]: true }));
     try {
-      const response = await fetch('/api/register', {
+      const data = await request('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -65,19 +65,16 @@ window.usiRegister('ViewDownload', function ViewDownload() {
           portal: res.source
         })
       });
-      const data = await response.json();
-      if (response.ok) {
+      if (data) {
         setResults(prev => prev.map(r => r.url === res.url ? { ...r, registered: true } : r));
         // Refresh jobs and main investments list
         if (refetch) {
           refetch('jobs');
           refetch('investments');
         }
-      } else {
-        alert(data.error || 'Błąd rejestracji');
       }
     } catch (err) {
-      alert('Błąd połączenia');
+      // Error handled by useApi
     } finally {
       setRegistering(prev => ({ ...prev, [res.url]: false }));
     }
