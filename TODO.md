@@ -1,78 +1,46 @@
 # TODO
 
-## Bieżący kamień milowy: System Modułów: Rozszerzenia
+## Bieżący kamień milowy: Optymalizacja Logiki Frontendowej
 
 ### Krok B01
-Implementacja modułu `PriceTrendModule` (Chart.js) — wizualizacja historii cen i trendów rynkowych dla wybranych rekordów.
-**Plan:** 2026-05-06.
-- [x] Implementacja komponentu PriceTrendModule w python_worker/ui/components/modules.jsx (integracja Chart.js).
-- [x] Dodanie specyfikacji __spec (typy: Color, Number) dla parametrów trendu.
-- [x] Rejestracja modułu w ModuleRegistry.
-- [x] **Test**: Weryfikacja renderowania wykresu w view-reports.jsx przy użyciu runModuleRegistryTest.
-
-**Podsumowanie:** Zaimplementowano moduł `PriceTrendModule` zintegrowany z Chart.js, wykorzystujący dane agregowane po kwartałach z `useModuleContext`. Moduł został zarejestrowany w `ModuleRegistry` wraz ze specyfikacją parametrów wizualnych. Testy regresyjne potwierdziły poprawność rejestracji.
-
-### Krok B02
-Rozbudowa `MapModule` o interaktywne klastrowanie i synchronizację z filtrami DataBus.
-**Plan:** 2026-05-06.
-- [x] Zaktualizować logikę HERE Maps o obsługę klastrów punktów dla dużych zbiorów danych.
-- [x] Dodać dwukierunkową synchronizację: kliknięcie na mapie aktualizuje `currentInvestment` w DataBus.
-- [x] **Test**: Zweryfikować, czy filtrowanie na liście automatycznie odświeża punkty na mapie modułu.
-
-**Podsumowanie:** Wdrożono interaktywny moduł `MapModule` integrujący HERE Maps JS API z obsługą klastrowania (Clustering). Moduł automatycznie centruje się na danych i wspiera synchronizację z DataBus — kliknięcie w marker aktualizuje `currentInvestment`. Dodano specyfikację parametrów i zarejestrowano moduł w `ModuleRegistry`.
-
-### Krok B03
-System szablonów (Presets) w `ModuleRegistry` — predefiniowane układy modułów dla typowych raportów.
-**Plan:** 2026-05-06.
-- [x] Dodać obsługę `presets` do `ModuleRegistry` (grupy modułów z domyślną konfiguracją).
-- [x] Stworzyć szablon "Przegląd Dewelopera" i "Analiza Okolicy".
-- [x] **Test**: Wywołać renderowanie szablonu na podstawie identyfikatora w JSON raportu.
-
-**Podsumowanie:** Rozszerzono `ModuleRegistry` o system szablonów (Presets), umożliwiając definiowanie złożonych układów modułów pod jedną nazwą. Wdrożono mechanizm rozwiązywania presetów w `ReportDetail` oraz zarejestrowano dwa startowe szablony: `DeveloperOverview` i `LocationAnalysis`. Zweryfikowano działanie nową funkcją testową `runModuleRegistryPresetsTest`.
-
-### Krok B04
-Zaawansowane `ModuleKnobs` — obsługa list rozwijanych, walidacja zakresów i podgląd "na żywo".
-**Plan:** 2026-05-06.
-- [x] Rozszerzyć `PropEditors` o typy `Select` (Enums) i `Range`.
-- [x] Wdrożyć natychmiastowe odświeżanie parametrów w podglądzie raportu po zmianie w Knobach.
-- [x] **Test**: Zmienić kolor wykresu przez Knoby i potwierdzić natychmiastową aktualizację.
-
-**Podsumowanie:** Rozbudowano system `ModuleKnobs` o zaawansowane edytory parametrów: `Select` (listy rozwijane) oraz `Range` (suwaki z podglądem wartości). Zaktualizowano `PropEditors`, aby obsługiwały dodatkowe metadane ze specyfikacji (`options`, `min`, `max`, `step`), co pozwala na budowanie bogatych paneli konfiguracyjnych dla modułów.
-
-### Krok B05
-Testy stabilności i wydajności — weryfikacja pamięci i stabilności rejestru.
-**Plan:** 2026-05-06.
-- [x] Przeprowadzić stress-test dynamicznego przełączania między 10 różnymi raportami.
-- [x] Zweryfikować brak wycieków pamięci przy wielokrotnym montowaniu modułów z Chart.js/Maps.
-- [x] **Test**: Uruchomić `runModuleRegistryTest` z zestawem 50 dynamicznych rejestracji.
-
-**Podsumowanie:** Przeprowadzono testy stabilności i wydajności systemu modułów. Wdrożono funkcję `runStressTest`, która weryfikuje wydajność rejestracji (100 modułów poniżej 50ms) oraz szczelność cykli życia (20 cykli mount/unmount komponentów Chart.js poniżej 1s). Potwierdzono stabilność rejestru przy dużych zbiorach danych (1000 rekordów).
-
-## Następny kamień milowy: Optymalizacja Logiki Frontendowej
-
-### Krok N01
 Wdrożenie hooka `useApi` — centralizacja zapytań HTTP i prosta warstwa cache'owania.
 - [ ] Zaimplementować generyczny hook `useApi` obsługujący fetch, błędy i stan ładowania.
 
-### Krok N02
+### Krok B02
 Unifikacja logiki ocen — eliminacja redundancji między widokami a serwisem.
 - [ ] Przenieść logikę `handleRating` i obliczenia `ocenaLog` do wspólnego modułu serwisowego.
 
-### Krok N03
+### Krok B03
 Optymalizacja subskrypcji DataBus — selektory ograniczające rerendery.
 - [ ] Wprowadzić mechanizm `shallowCompare` lub selektory w `useDataBus` dla namespace'ów.
 
-### Krok N04
+### Krok B04
 Testy jednostkowe logiki transformacji danych.
 - [ ] Wdrożyć framework testowy (np. proste asercje w JS) dla kluczowych parserów API.
 
-## Przyszłe kamienie milowe
+## Następny kamień milowy: Długoterminowe i QA
 
-- **Długoterminowe i QA:** - 
-       * DataBus Subscriptions: Brak mechanizmu subskrypcji zdarzeń
-         (reagowanie tylko na zmiany konkretnych kluczy).
-       * Storybook / Testy izolacji: W strukturze plików nie widać narzędzi do
-         testowania izolowanych modułów UI.
+### Krok N01
+Analiza i projekt systemu subskrypcji w `DataBus` — określenie sposobu powiadamiania komponentów o zmianach tylko wybranych fragmentów stanu (selektory).
+- [ ] Zdefiniować interfejs subskrypcji w DataBusProvider.
+
+### Krok N02
+Implementacja `useDataBusSelector` — stworzenie hooka pozwalającego komponentom na subskrypcję konkretnych ścieżek (np. `filters.search`) bez rerenderingu przy zmianie innych danych.
+- [ ] Wdrożyć mechanizm shallowCompare dla selektorów.
+
+### Krok N03
+Wdrożenie mechanizmu `USI Storyboard` — lekkie narzędzie wewnątrz aplikacji do izolowanego testowania komponentów `atomic` i `modules` z mockowanymi danymi.
+- [ ] Stworzyć widok 'storyboard' w App.jsx.
+
+### Krok N04
+Dekompozycja i testy izolacji dla komponentów `DataGrid` i `MapModule` — migracja do nowego systemu Storyboard i weryfikacja stabilności w izolacji.
+- [ ] Przygotować zestawy danych testowych (fixtures) dla modułów.
+
+### Krok N05
+Testy regresji wydajnościowej — porównanie liczby rerenderingów przed i po wdrożeniu selektorów w widoku `ViewList`.
+- [ ] Wykonać pomiary wydajności w konsoli przy użyciu React Profiler.
+
+## Przyszłe kamienie milowe
 
 - **Scoped Namespaces:** - Use namespaces in variables to prevent key collisions and better organize the state.
 - **Introduce Asynchronous Dispatchers:** - Extend `setVariable` to handle async reducers to allow dynamic fetch-and-set operations.
