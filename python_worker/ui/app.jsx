@@ -141,6 +141,7 @@
         if (view === 'dashboard') return "Dashboard";
         if (view === 'download') return "Pobieranie";
         if (view === 'reports') return "Raporty";
+        if (view === 'library') return "Biblioteka Modułów";
         if (view === 'detail') return selectedInv?.name || "Szczegóły";
         if (view === 'dev-detail') return selectedDev?.name || "Szczegóły dewelopera";
         return "USI Tracker";
@@ -149,6 +150,7 @@
       const getSubtitle = () => {
         if (view === 'list') return `${visibleInvestments.length} widocznych`;
         if (view === 'developers') return `${developers.length} firm`;
+        if (view === 'library') return "Przegląd komponentów systemowych";
         return "System monitoringu rynku";
       };
 
@@ -318,6 +320,7 @@
               )}
 
               {view === 'download' && <ViewDownload />}
+              {view === 'library' && <ViewLibrary />}
               {view === 'reports' && <ReportsList onSelectReport={(r) => { setSelectedReport(r); setView('report-detail'); }} />}
               {view === 'report-detail' && selectedReport && <ReportDetail reportId={selectedReport.id} onBack={() => setView('reports')} />}
             </ModuleErrorBoundary>

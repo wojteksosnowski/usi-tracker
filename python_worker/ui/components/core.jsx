@@ -255,6 +255,7 @@ function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
     { id: 'reports', label: 'Raporty', icon: 'list', desc: 'Analizy i zestawienia' },
     { id: 'dashboard', label: 'Dashboard', icon: 'sparkle', desc: 'Podsumowania i wykresy' },
     { id: 'download', label: 'Pobieranie', icon: 'download', desc: 'Pobierz nowe inwestycje' },
+    { id: 'library', label: 'Biblioteka', icon: 'box', desc: 'Przegląd komponentów systemowych' },
   ];
 
   React.useEffect(() => {
