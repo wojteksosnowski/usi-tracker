@@ -24,9 +24,11 @@ Rozbudowa `MapModule` o interaktywne klastrowanie i synchronizację z filtrami D
 ### Krok B03
 System szablonów (Presets) w `ModuleRegistry` — predefiniowane układy modułów dla typowych raportów.
 **Plan:** 2026-05-06.
-- [ ] Dodać obsługę `presets` do `ModuleRegistry` (grupy modułów z domyślną konfiguracją).
-- [ ] Stworzyć szablon "Przegląd Dewelopera" i "Analiza Okolicy".
-- [ ] **Test**: Wywołać renderowanie szablonu na podstawie identyfikatora w JSON raportu.
+- [x] Dodać obsługę `presets` do `ModuleRegistry` (grupy modułów z domyślną konfiguracją).
+- [x] Stworzyć szablon "Przegląd Dewelopera" i "Analiza Okolicy".
+- [x] **Test**: Wywołać renderowanie szablonu na podstawie identyfikatora w JSON raportu.
+
+**Podsumowanie:** Rozszerzono `ModuleRegistry` o system szablonów (Presets), umożliwiając definiowanie złożonych układów modułów pod jedną nazwą. Wdrożono mechanizm rozwiązywania presetów w `ReportDetail` oraz zarejestrowano dwa startowe szablony: `DeveloperOverview` i `LocationAnalysis`. Zweryfikowano działanie nową funkcją testową `runModuleRegistryPresetsTest`.
 
 ### Krok B04
 Zaawansowane `ModuleKnobs` — obsługa list rozwijanych, walidacja zakresów i podgląd "na żywo".

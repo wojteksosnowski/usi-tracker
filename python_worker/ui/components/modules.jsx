@@ -113,7 +113,18 @@ const PropEditors = {
   String: ({ value, onChange }) => <input type="text" className="usi-input sm" value={value || ''} onChange={e => onChange(e.target.value)} />,
   Number: ({ value, onChange }) => <input type="number" className="usi-input sm" value={value || 0} onChange={e => onChange(Number(e.target.value))} />,
   Boolean: ({ value, onChange }) => <input type="checkbox" checked={value || false} onChange={e => onChange(e.target.checked)} />,
-  Color: ({ value, onChange }) => <input type="color" value={value || '#000000'} style={{ height: 24, padding: 0, border: 'none', background: 'none', cursor: 'pointer' }} onChange={e => onChange(e.target.value)} />
+  Color: ({ value, onChange }) => <input type="color" value={value || '#000000'} style={{ height: 24, padding: 0, border: 'none', background: 'none', cursor: 'pointer' }} onChange={e => onChange(e.target.value)} />,
+  Select: ({ value, onChange, options = [] }) => (
+    <select className="usi-input sm" value={value || ''} onChange={e => onChange(e.target.value)}>
+      {options.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+    </select>
+  ),
+  Range: ({ value, onChange, min = 0, max = 100, step = 1 }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <input type="range" min={min} max={max} step={step} value={value || min} onChange={e => onChange(Number(e.target.value))} style={{ flex: 1 }} />
+      <span className="usi-mono" style={{ fontSize: 10, width: 24 }}>{value}</span>
+    </div>
+  )
 };
 
 function ModuleKnobs({ spec, props, onChange }) {
@@ -124,10 +135,18 @@ function ModuleKnobs({ spec, props, onChange }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         {Object.entries(spec.props).map(([key, propSpec]) => {
           const Editor = PropEditors[propSpec.type] || PropEditors.String;
+          const val = props[key] !== undefined ? props[key] : propSpec.default;
           return (
             <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <span className="usi-small" style={{ fontSize: 10, color: 'var(--usi-ink-3)' }}>{propSpec.label || key}</span>
-              <Editor value={props[key] !== undefined ? props[key] : propSpec.default} onChange={val => onChange(key, val)} />
+              <Editor 
+                value={val} 
+                onChange={v => onChange(key, v)} 
+                options={propSpec.options}
+                min={propSpec.min}
+                max={propSpec.max}
+                step={propSpec.step}
+              />
             </div>
           );
         })}
