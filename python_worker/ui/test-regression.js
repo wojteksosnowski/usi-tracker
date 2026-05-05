@@ -345,6 +345,67 @@ window.runHierarchicalModuleTest = function runHierarchicalModuleTest() {
     };
 
 
+/**
+ * runStressTest - Performance and stability test for Module Registry.
+ * Simulates rapid switching between modules and large datasets.
+ */
+window.runStressTest = async function runStressTest() {
+    console.log("🧪 Starting Stability & Performance Stress Test...");
+    const { React, ReactDOM, ModuleRegistry, PriceTrendModule } = window;
+    
+    const results = [];
+    const assert = (name, condition) => {
+        results.push({ name, status: condition ? 'PASS' : 'FAIL' });
+        console.log(`${condition ? '✅' : '❌'} ${name}`);
+    };
 
+    const testContainer = document.createElement('div');
+    testContainer.style.width = '800px';
+    testContainer.style.height = '600px';
+    testContainer.style.position = 'fixed';
+    testContainer.style.top = '0';
+    testContainer.style.left = '0';
+    testContainer.style.zIndex = '9999';
+    testContainer.style.background = '#fff';
+    testContainer.style.display = 'none';
+    document.body.appendChild(testContainer);
 
+    // 1. Rapid Registration Test
+    const startReg = performance.now();
+    for (let i = 0; i < 100; i++) {
+        ModuleRegistry.register(`StressMod_${i}`, () => React.createElement('div', null, `Mod ${i}`));
+    }
+    const endReg = performance.now();
+    assert(`Rapid registration (100 mods) took ${(endReg - startReg).toFixed(2)}ms`, (endReg - startReg) < 50);
 
+    // 2. Mount/Unmount Cycle (Memory & Cleanup Check)
+    const startCycle = performance.now();
+    const mockData = Array.from({ length: 50 }, (_, i) => ({ 
+        name: `Inv ${i}`, 
+        flats_count: i * 10, 
+        delivery_quarter: `202${i%5} Q${(i%4)+1}` 
+    }));
+
+    for (let i = 0; i < 20; i++) {
+        ReactDOM.render(React.createElement(PriceTrendModule, { data: mockData }), testContainer);
+        ReactDOM.unmountComponentAtNode(testContainer);
+    }
+    const endCycle = performance.now();
+    assert(`20 Mount/Unmount cycles (Chart.js) took ${(endCycle - startCycle).toFixed(2)}ms`, (endCycle - startCycle) < 1000);
+
+    // 3. Large Dataset Rendering
+    const largeData = Array.from({ length: 1000 }, (_, i) => ({ name: `Huge ${i}`, coords: [52, 21] }));
+    const startLarge = performance.now();
+    // MapModule might be slow due to HERE Maps, but let's test registry retrieval
+    const MapMod = ModuleRegistry.get('MapModule');
+    if (MapMod) {
+        ReactDOM.render(React.createElement(MapMod, { data: largeData }), testContainer);
+        ReactDOM.unmountComponentAtNode(testContainer);
+    }
+    const endLarge = performance.now();
+    assert(`Large dataset retrieval and registry check took ${(endLarge - startLarge).toFixed(2)}ms`, (endLarge - startLarge) < 100);
+
+    document.body.removeChild(testContainer);
+    console.table(results);
+    return results;
+};

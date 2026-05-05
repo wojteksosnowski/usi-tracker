@@ -33,9 +33,11 @@ System szablonów (Presets) w `ModuleRegistry` — predefiniowane układy moduł
 ### Krok B04
 Zaawansowane `ModuleKnobs` — obsługa list rozwijanych, walidacja zakresów i podgląd "na żywo".
 **Plan:** 2026-05-06.
-- [ ] Rozszerzyć `PropEditors` o typy `Select` (Enums) i `Range`.
-- [ ] Wdrożyć natychmiastowe odświeżanie parametrów w podglądzie raportu po zmianie w Knobach.
-- [ ] **Test**: Zmienić kolor wykresu przez Knoby i potwierdzić natychmiastową aktualizację.
+- [x] Rozszerzyć `PropEditors` o typy `Select` (Enums) i `Range`.
+- [x] Wdrożyć natychmiastowe odświeżanie parametrów w podglądzie raportu po zmianie w Knobach.
+- [x] **Test**: Zmienić kolor wykresu przez Knoby i potwierdzić natychmiastową aktualizację.
+
+**Podsumowanie:** Rozbudowano system `ModuleKnobs` o zaawansowane edytory parametrów: `Select` (listy rozwijane) oraz `Range` (suwaki z podglądem wartości). Zaktualizowano `PropEditors`, aby obsługiwały dodatkowe metadane ze specyfikacji (`options`, `min`, `max`, `step`), co pozwala na budowanie bogatych paneli konfiguracyjnych dla modułów.
 
 ### Krok B05
 Testy stabilności i wydajności — weryfikacja pamięci i stabilności rejestru.
