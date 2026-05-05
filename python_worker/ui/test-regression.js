@@ -74,3 +74,66 @@ window.runVisualRegressionTest = async function runVisualRegressionTest(baseline
         console.error("❌ Test failed:", err);
     }
 };
+
+/**
+ * runDataIntegrityTest - Stress tests components with broken/empty data.
+ */
+window.runDataIntegrityTest = function runDataIntegrityTest() {
+    const { React, ReactDOM, ListCard, HeroBand } = window;
+    console.log("🧪 Starting Data Integrity Stress Test...");
+
+    const testContainer = document.createElement('div');
+    testContainer.style.display = 'none';
+    document.body.appendChild(testContainer);
+
+    const testCases = [
+        { name: "ListCard with empty object", component: ListCard, props: { inv: {} } },
+        { name: "ListCard with null inv", component: ListCard, props: { inv: null } },
+        { name: "HeroBand with broken numbers", component: HeroBand, props: { inv: { price_avg: "BŁĄD", coords: [] } } },
+        { 
+          name: "DataBoundary Sanitization", 
+          component: function TestDB() {
+            const { DataBoundary } = window;
+            return React.createElement(DataBoundary, { data: { name: 123, photos: null } }, (valid) => {
+                if (typeof valid.name !== 'string' || valid.name !== '123') throw new Error("Name not converted to string");
+                if (!Array.isArray(valid.photos)) throw new Error("Photos not converted to array");
+                return React.createElement('div', null, "OK");
+            });
+          }, 
+          props: {} 
+        },
+        {
+          name: "Deep Nesting (Ratings)",
+          component: function TestRatings() {
+            const { DataBoundary } = window;
+            return React.createElement(DataBoundary, { data: { ratings: null } }, (valid) => {
+                if (typeof valid.ratings !== 'object' || valid.ratings === null) throw new Error("Ratings not converted to object");
+                return React.createElement('div', null, "OK");
+            });
+          },
+          props: {}
+        }
+    ];
+
+    const results = [];
+
+    testCases.forEach(tc => {
+        try {
+            // Using a new root or rendering into a detached node to catch React errors
+            ReactDOM.render(React.createElement(tc.component, tc.props), testContainer);
+            results.push({ name: tc.name, status: 'PASS' });
+            console.log(`✅ ${tc.name}: PASS`);
+        } catch (err) {
+            results.push({ name: tc.name, status: 'FAIL', error: err.message });
+            console.error(`❌ ${tc.name}: FAIL`, err);
+        }
+    });
+
+    // Cleanup
+    ReactDOM.unmountComponentAtNode(testContainer);
+    document.body.removeChild(testContainer);
+
+    console.table(results);
+    return results;
+};
+

@@ -1,5 +1,97 @@
 // core.jsx — UI primitives for USI
 
+/**
+ * safeRender - Validates value type before rendering.
+ * Prevents "Objects are not valid as a React child" and other rendering crashes.
+ */
+function safeRender(val, expectedType = 'string', fallback = '—') {
+  if (val === null || val === undefined) return fallback;
+  
+  // Handle React elements (already rendered)
+  if (typeof val === 'object' && val.$$typeof) return val;
+
+  const actualType = Array.isArray(val) ? 'array' : typeof val;
+  
+  // Special case: currency formatting
+  if (expectedType === 'currency') {
+    if (actualType === 'number') return `${val.toLocaleString('pl-PL')} zł/m²`;
+    if (actualType === 'string' && !isNaN(val) && val !== '') return `${Number(val).toLocaleString('pl-PL')} zł/m²`;
+    return fallback;
+  }
+
+  if (actualType === expectedType) {
+    if (expectedType === 'string' && val.trim() === '') return fallback;
+    return val;
+  }
+  
+  // Special case: numbers can often be rendered as strings
+  if (expectedType === 'string' && actualType === 'number') return String(val);
+
+  return fallback;
+}
+window.safeRender = safeRender;
+window.usiRegister('safeRender', safeRender);
+
+/**
+ * USI_INVESTMENT_SCHEMA - Central definition for investment data validation.
+ */
+const USI_INVESTMENT_SCHEMA = {
+  name: { type: 'string', fallback: 'Bez nazwy' },
+  developer: { type: 'string', fallback: 'Nieznany deweloper' },
+  district: { type: 'string', fallback: 'Brak lokalizacji' },
+  address: { type: 'string', fallback: '—' },
+  price_avg: { type: 'number', fallback: 0 },
+  delivery: { type: 'string', fallback: '—' },
+  coords: { type: 'array', fallback: [0, 0] },
+  photos: { type: 'array', fallback: [] },
+  ratings: { type: 'object', fallback: {} },
+  source: { type: 'string', fallback: '?' },
+  source_url: { type: 'string', fallback: '' },
+  source_links: { type: 'array', fallback: [] }
+};
+window.USI_INVESTMENT_SCHEMA = USI_INVESTMENT_SCHEMA;
+
+/**
+ * validateData - Transforms raw data into a schema-compliant object.
+ */
+function validateData(data, schema = USI_INVESTMENT_SCHEMA) {
+  const result = {};
+  const raw = data || {};
+  
+  Object.keys(schema).forEach(key => {
+    const spec = schema[key];
+    const val = raw[key];
+    result[key] = safeRender(val, spec.type, spec.fallback);
+    
+    // Debug warning for type mismatches (excluding null/undefined)
+    if (val !== undefined && val !== null) {
+      const actualType = Array.isArray(val) ? 'array' : typeof val;
+      if (actualType !== spec.type && !(spec.type === 'string' && actualType === 'number')) {
+        console.warn(`[DataBoundary] Type mismatch for key "${key}": expected ${spec.type}, got ${actualType}.`, { val });
+      }
+    }
+  });
+  
+  // Preserve keys not in schema (e.g., slug, source_url)
+  return { ...raw, ...result };
+}
+window.validateData = validateData;
+
+/**
+ * DataBoundary - A component that ensures data integrity for its children.
+ * Usage: <DataBoundary data={inv} schema={...}>{(validInv) => <MyComp inv={validInv} />}</DataBoundary>
+ */
+function DataBoundary({ data, schema = USI_INVESTMENT_SCHEMA, children }) {
+  const validData = React.useMemo(() => validateData(data, schema), [data, schema]);
+  
+  if (typeof children === 'function') {
+    return children(validData);
+  }
+  
+  return children;
+}
+window.usiRegister('DataBoundary', DataBoundary);
+
 function USIStarLogo({ size = 24, color }) {
   return (
     <svg data-component="USIStarLogo" width={size} height={size} viewBox="0 0 48 48" fill="none">
@@ -72,6 +164,10 @@ function StandardCard({
   overlay = null,
   style = {}
 }) {
+  const safeTitle = safeRender(title, 'string', 'Brak tytułu');
+  const safeSubtitle = safeRender(subtitle, 'string', '');
+  const safeImage = safeRender(image, 'object', null); // Returns object if it's a React element
+
   return (
     <article 
       data-component="StandardCard" 
@@ -88,29 +184,20 @@ function StandardCard({
     >
       <div style={{ position: 'relative', height: 160, background: 'var(--usi-surface-3)', overflow: 'hidden' }}>
         {image ? (
-          typeof image === 'string' ? <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : image
+          typeof image === 'string' ? <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : safeImage
         ) : (
           <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--usi-ink-4)', fontSize: 32 }}>📷</div>
         )}
         <div style={{ position: 'absolute', top: 10, left: 10, display: 'flex', gap: 6 }}>
           {badges}
         </div>
-        {overlay && (
-          <div style={{
-            position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', 
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontWeight: 800, fontSize: 14, backdropFilter: 'blur(2px)',
-            zIndex: 2
-          }}>
-            {overlay}
-          </div>
-        )}
+...
       </div>
       <div style={{ padding: '12px 14px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
         <div>
-          <h3 className="usi-h3" style={{ margin: 0, marginBottom: 2, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</h3>
-          <div className="usi-small" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subtitle}</div>
-          {extra && <div className="usi-tiny" style={{ marginTop: 4, opacity: 0.7 }}>{extra}</div>}
+          <h3 className="usi-h3" style={{ margin: 0, marginBottom: 2, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{safeTitle}</h3>
+          <div className="usi-small" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{safeSubtitle}</div>
+          {extra && <div className="usi-tiny" style={{ marginTop: 4, opacity: 0.7 }}>{safeRender(extra)}</div>}
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <div>{footerLeft}</div>

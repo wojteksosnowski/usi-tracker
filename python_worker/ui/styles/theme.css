@@ -1,15 +1,11 @@
-/* _variables.scss — CSS Variables & Design Tokens */
+/* theme.css — Theme-specific overrides and root classes */
 
 :root {
-  /* USI Categories */
-  --usi-cat-bal: #E5006D;
-  --usi-cat-fas: #7DB951;
-  --usi-cat-wnt: #F39200;
-  --usi-cat-ter: #3989C6;
-  --usi-cat-msz: #FC0;
-  --usi-cat-udg: #7E7B7B;
+  --usi-bg-input: var(--usi-surface);
+}
 
-  /* Theme Light (Default) */
+/* Light Theme (Default) */
+[data-dark=""] {
   --usi-bg:            #F5F2EC;
   --usi-surface:       #FFF;
   --usi-surface-2:     #FAF8F3;
@@ -27,30 +23,11 @@
   --usi-success:       #1F8A4C;
   --usi-warn:          #F39200;
   --usi-danger:        #C0392B;
-  --usi-star-empty:    #E0E0E0;
-  --usi-star-half:     linear-gradient(90deg, currentcolor 50%, rgb(31 28 22 / 14%) 50%);
-  --usi-accent: #E5006D;
-  --usi-accent-hover: #C4005D;
-  
-  /* Spacing */
-  --usi-space-1: 8px;
-  --usi-space-2: 16px;
-  --usi-space-3: 24px;
-  --usi-space-4: 32px;
-  
-  /* Radius */
-  --usi-radius-sm: 8px;
-  --usi-radius-md: 14px;
-  --usi-radius-lg: 20px;
-
-  /* Animations */
-  --usi-anim-fast: 0.12s;
-  --usi-anim-md: 0.2s;
-  --usi-anim-slow: 0.4s;
-  --usi-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --usi-star-empty:    rgb(31 28 22 / 14%);
 }
 
-.usi-theme-dark {
+/* Dark Theme Overrides */
+[data-dark="1"] {
   --usi-bg:            #16140F;
   --usi-surface:       #1F1C16;
   --usi-surface-2:     #26221B;
@@ -68,6 +45,12 @@
   --usi-success:       #4ED38A;
   --usi-warn:          #F39200;
   --usi-danger:        #FF6B5C;
-  --usi-star-empty:    #3A3834;
-  --usi-star-half:     linear-gradient(90deg, currentcolor 50%, rgb(245 241 232 / 16%) 50%);
+  --usi-star-empty:    rgb(245 241 232 / 16%);
+}
+
+/* Dynamic Star Half Gradient — uses currentColor */
+.usi-star-half {
+  background: linear-gradient(90deg, currentcolor 50%, var(--usi-star-empty) 50%);
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }

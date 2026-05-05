@@ -174,8 +174,7 @@ function SkeletonModule({ shouldThrow = false }) {
   if (shouldThrow) throw new Error("Sztuczny błąd");
   return (
     <BaseModule title="Skeleton Test" icon="box">
-      <div style={{ flex: 1, backgroundColor: 'var(--usi-surface-3)', borderRadius: 8, animation: 'pulse 1.5s infinite ease-in-out' }} />
-      <style>{`@keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 0.8; } 100% { opacity: 0.5; } }`}</style>
+      <div className="usi-skeleton-bar usi-pulse" />
     </BaseModule>
   );
 }

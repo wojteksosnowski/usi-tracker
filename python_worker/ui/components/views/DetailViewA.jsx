@@ -8,8 +8,8 @@
     const [lightbox, setLightbox] = React.useState(null);
     
     return (
-      <div data-component="DetailsA" style={{ display: 'grid', gridTemplateColumns: '1fr 340px 300px', gap: 24, flex: 1, overflow: 'hidden' }}>
-        <div style={{ padding: '0 8px 24px 0', overflow: 'auto' }} className="usi-scroll">
+      <div data-component="DetailsA" className="detail-grid">
+        <div className="detail-gallery-column usi-scroll">
            <Gallery 
               inv={inv} 
               columns={3} 
@@ -25,7 +25,7 @@
            <MetadataPanel inv={inv} config={metaConfig} />
         </div>
 
-        <div style={{ borderLeft: '.5px solid var(--usi-border)', padding: '0 18px', overflow: 'auto' }} className="usi-scroll">
+        <div className="detail-ratings-column usi-scroll usi-p-16">
            <RatingsPanel 
               inv={inv} ratings={ratings} handleRating={handleRating} 
               comment={comment} handleComment={handleComment}
@@ -35,7 +35,7 @@
            />
         </div>
 
-        <div style={{ borderLeft: '.5px solid var(--usi-border)', padding: '0 0 0 18px', overflow: 'auto' }} className="usi-scroll">
+        <div className="detail-meta-column usi-scroll usi-p-16">
            <ModuleWrapper 
               component={NearbyInvestmentsModule}
               moduleSpec={{

@@ -72,6 +72,23 @@ class RPAdapter(BaseAdapter):
             if main_image and main_image not in image_urls:
                 image_urls.insert(0, main_image)
 
+        # Location extraction from region object
+        region = raw_data.get("region", {})
+        city = None
+        district = None
+        if isinstance(region, dict):
+            # Try to get city from region stats or name
+            city_data = region.get("stats", {}).get("region_type_city")
+            if city_data:
+                city = city_data.get("name")
+            
+            # Try to get district from region stats or name
+            district_data = region.get("stats", {}).get("region_type_district")
+            if district_data:
+                district = district_data.get("name")
+            elif not city and region.get("type") == 6: # RP type 6 is often a district
+                district = region.get("name")
+
         return {
             "investment_slug": investment_slug,
             "developer_slug": developer_slug,
@@ -88,8 +105,8 @@ class RPAdapter(BaseAdapter):
             "location": {
                 "coords": lat_lng,
                 "address": get_val(raw_data, "address"),
-                "city": None,
-                "district": get_val(raw_data, "district")
+                "city": city,
+                "district": district
             },
             "specifications": {
                 "units_count": get_val(raw_data, "properties"),
@@ -107,6 +124,6 @@ class RPAdapter(BaseAdapter):
                 "raw_codes": get_val(raw_data, "facilities", [])
             },
             "images_count": get_val(raw_data, "images_count", len(image_urls)),
-            "image_paths": get_val(raw_data, "image_paths", []),
+            "image_paths": raw_data.get("image_paths", []),
             "image_urls": image_urls
         }

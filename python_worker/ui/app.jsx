@@ -153,10 +153,10 @@
       };
 
       return (
-        <div data-component="App" ref={rootRef} className="app-container usi-app" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+        <div data-component="App" ref={rootRef} className="usi-app-container usi-app">
           <NavbarShell
             left={
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div className="usi-flex-row usi-gap-12">
                 <NavMenuButton onClick={() => setNavOpen(true)} />
                 <NavbarTitle title={getTitle()} subtitle={getSubtitle()} />
               </div>
@@ -169,7 +169,7 @@
                   : null
             }
             right={
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div className="usi-flex-row usi-gap-12">
                   <NavbarCounter />
                   <button className="usi-btn ghost icon sm" onClick={handleToggleTheme} title="Przełącz motyw">
                       <Icon name={dark ? 'sparkle' : 'star'} size={16} />
@@ -181,7 +181,7 @@
           <ActionBar
             left={
               view === 'list' || view === 'developers' ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div className="usi-action-bar-group">
                   {view === 'list' && (
                     <div className="mode-toggle">
                       <button className="usi-btn icon sm" aria-pressed={mode === 'grid'} onClick={() => setMode('grid')}><Icon name="grid" /></button>
@@ -191,7 +191,7 @@
                   <GlobalSearch value={search} onChange={v => setVariable('search', v)} placeholder={view === 'list' ? "Szukaj inwestycji..." : "Szukaj dewelopera..."} />
                 </div>
               ) : view === 'download' ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div className="usi-action-bar-group">
                   <div className="mode-toggle">
                     <button className="usi-btn icon sm" aria-pressed={bus.downloadMode === 'grid'} onClick={() => setVariable('downloadMode', 'grid')}><Icon name="grid" /></button>
                     <button className="usi-btn icon sm" aria-pressed={bus.downloadMode === 'table'} onClick={() => setVariable('downloadMode', 'table')}><Icon name="list" /></button>
@@ -199,8 +199,7 @@
                   <GlobalSearch 
                     value={bus.downloadSearch || ''} 
                     onChange={v => setVariable('downloadSearch', v)} 
-                    placeholder="Wklej URL inwestycji..." 
-                    onKeyDown={e => e.key === 'Enter' && window.usiHandleSearch && window.usiHandleSearch()}
+                    placeholder="Filtruj wyniki..." 
                   />
                 </div>
               ) : (view !== 'download') ? (
@@ -209,13 +208,13 @@
             }
             center={
               (view === 'list' || view === 'developers') ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+                <div className="usi-flex-row usi-gap-24">
                   <FilterGroup label="Źródła">
                     {SOURCES.map(s => (
                       <FilterChip key={s.id} label={s.label} source={s.id} active={activeSources.has(s.id)} color={s.color} onClick={(isShift) => toggleSource(s.id, isShift)} />
                     ))}
                   </FilterGroup>
-                  <div style={{ width: 1, height: 24, background: 'var(--usi-border)' }} />
+                  <div className="usi-divider-v" />
                   <FilterGroup label="Miasta">
                     {MAIN_CITIES.map(city => (
                       <FilterChip key={city} label={city} active={activeCities.has(city)} onClick={(isShift) => toggleCity(city, isShift)} />
@@ -225,7 +224,7 @@
                 </div>
               ) : view === 'download' ? (
                 <FilterGroup label="Opcje">
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+                  <label className="usi-label-clickable">
                     <input type="checkbox" checked={bus.downloadOnlyNew || false} onChange={e => setVariable('downloadOnlyNew', e.target.checked)} />
                     Tylko nowe
                   </label>
@@ -234,18 +233,18 @@
             }
             right={
               view === 'list' ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <select className="usi-input sm" style={{ width: 150, height: 32 }} value={filterDev} onChange={e => setVariable('filterDev', e.target.value)}>
+                <div className="usi-flex-row usi-gap-8">
+                  <select className="usi-input sm usi-w-150" value={filterDev} onChange={e => setVariable('filterDev', e.target.value)}>
                     <option value="">Deweloperzy</option>
                     {developers.map(d => <option key={d.developer_slug} value={d.developer_slug}>{d.name}</option>)}
                   </select>
-                  <select className="usi-input sm" style={{ width: 120, height: 32 }} value={filterStatus} onChange={e => setVariable('filterStatus', e.target.value)}>
+                  <select className="usi-input sm usi-w-120" value={filterStatus} onChange={e => setVariable('filterStatus', e.target.value)}>
                     <option value="">Statusy</option>
                     {USI_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
               ) : view === 'download' ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div className="usi-flex-row usi-gap-16">
                   <FilterGroup label="Portal">
                     {[
                       { id: 'rp', label: 'RynekPierwotny' },
@@ -260,13 +259,13 @@
                       />
                     ))}
                   </FilterGroup>
-                  <div style={{ width: 1, height: 24, background: 'var(--usi-border)' }} />
+                  <div className="usi-divider-v" />
                   <button className="usi-btn ghost sm" onClick={() => window.usiTriggerScan && window.usiTriggerScan()}>
                     <Icon name="zap" size={14} style={{ marginRight: 4 }} /> Skanuj
                   </button>
                 </div>
               ) : (
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div className="usi-flex-row usi-gap-8">
                   <button className="usi-btn ghost sm" onClick={() => handleNav('dashboard')}>Dashboard</button>
                   <button className="usi-btn ghost sm" onClick={() => handleNav('reports')}>Raporty</button>
                 </div>
@@ -274,9 +273,9 @@
             }
           />
 
-          <main className="app-main-content usi-scroll" style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
+          <main className="usi-app-main usi-scroll">
             <ModuleErrorBoundary fallback={
-              <div style={{ padding: 40, textAlign: 'center' }}>
+              <div className="usi-p-24" style={{ textAlign: 'center' }}>
                 <h2 className="usi-h2">Coś poszło nie tak</h2>
                 <p className="usi-body">Wystąpił błąd podczas renderowania tego widoku.</p>
                 <button className="usi-btn" onClick={() => window.location.reload()}>Odśwież aplikację</button>

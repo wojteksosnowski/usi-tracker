@@ -19,7 +19,7 @@
 
   const HeroBand = ({ inv, showMap, moduleContext, detailMode, onModeChange }) => {
     const score = ocenaLog(inv);
-    const hasMap = showMap && inv.coords && inv.coords[0] !== 0;
+    const hasMap = showMap && inv.coords[0] !== 0;
 
     return (
       <div data-component="HeroBand" className="hero-band" style={{

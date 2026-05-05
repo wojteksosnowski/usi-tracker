@@ -6,10 +6,12 @@ USI Tracker is a specialized system for monitoring real-estate investments in Po
 
 - **Purpose**: Automate the collection of investment data (prices, delivery dates, amenities, photos) and unify them into a canonical JSON format (`usi_*.json`).
 - **Core Architecture**:
-  - **Scrapers**: Specialized modules for each portal using direct API access (RP) or ScraperAPI/Impersonation (Otodom/TO).
-  - **Adapters**: Transforms raw vendor-specific JSON into a unified USI schema.
+  - **Scrapers**: Specialized modules for each portal.
+  - **Adapters**: Transforms raw vendor-specific JSON into a unified USI schema. Located in `python_worker/adapters/` (Factory pattern).
+  - **Service Layer**: Business logic encapsulated in `python_worker/services/` (`InvestmentService`, `DiscoveryService`).
   - **Data Store**: A file-based structure under `Public/USIdata/` organized by `{developer_slug}/{investment_slug}/`.
-  - **UI**: A local Flask-served React application for high-density visualization and manual rating/annotation.
+  - **UI API**: Modular Flask Blueprints in `python_worker/api/blueprints/`.
+  - **UI**: A local Flask-served React application for high-density visualization.
 - **Integrations**: Syncs with Coda.io and Dropbox for distributed data access.
 
 ## 🛠 Building and Running
@@ -37,9 +39,11 @@ pip install -r python_worker/requirements.txt
 ## 📂 Directory Structure
 
 - `python_worker/`: Main Python package.
+  - `api/`: Flask API layer and Blueprints.
+  - `adapters/`: Unified data transformation package.
+  - `services/`: Core business logic layer.
+  - `jobs.py`: Background task management (`JobManager`).
   - `ui/`: React frontend (Babel standalone).
-  - `adapters.py`: Transformation logic (Unification).
-  - `fetcher.py`: Abstraction for HTTP requests (Impersonation/ScraperAPI).
 - `Public/USIdata/`: Canonical JSON records and metadata.
 - `Public/USI/`: Downloaded investment images.
 - `reference-data/`: Static snapshots and CSV source files.
@@ -58,9 +62,17 @@ pip install -r python_worker/requirements.txt
 ### UI Development (React 18)
 - **No Bundler**: Files in `python_worker/ui/` are loaded directly in `index.html`.
 - **Global Scope**: Components and hooks are shared via the global `window` object. Load order in `index.html` is critical for dependencies.
+- **Babel Standalone Race Conditions**: Extraction of variables from `window` (destructuring) MUST occur inside the component function (render-time), not at the module level.
+- **Defensive Rendering**: Always use `safeRender` (validation `typeof === 'string' || 'number'`) when rendering API data to prevent "Objects are not valid as a React child" errors.
 - **Shell Layout Pattern**: Centralize all view-specific controls (Search, Filters, Mode-Toggles, Actions) in the global `ActionBar`. Use the `DataBus` to manage shared state across navigation. Individual views should focus on data presentation only.
 - **Expert UI (Density)**: UIs should prioritize information density. Use `DataGrid` with `minCardWidth` to achieve 7-9 columns on wide screens. Virtualization logic must dynamically sync with responsive column counts.
 - **Asynchronous Operations**: Any task longer than 1s (e.g., registration, updates) must use the `JobManager` backend. The UI must poll `/api/jobs` to provide progress feedback via `NotificationCenter`.
+- **Error Boundaries**: Wrap key views and modules in `ModuleErrorBoundary` to isolate failures.
+- **UI Error Logging**: Critical errors are captured and sent to `/api/ui-error`, logged in `logs/ui_errors.log`.
+- **Dependency Guarding**: Before `ReactDOM.render`, verify all critical dependencies (React, DataBus, etc.) are present in `window`. Use recursive `setTimeout` if necessary.
+- **Diagnostic Overlays**: Use global error listeners to display full-screen overlays for React "White Screen" errors.
+- **Icon Fallbacks**: The `Icon` component must render a placeholder for missing keys to avoid rendering crashes.
+- **Scroll Management**: Use `overflow-y: hidden` on parent containers when activating full-screen media modes to prevent double scrollbars.
 
 ### Data Ingestion & Scrapers
 - **Portal Normalization**: Always normalize portal identifiers to `rp`, `oto`, or `to` in the API layer before routing or saving.
@@ -73,6 +85,8 @@ pip install -r python_worker/requirements.txt
 - Mock all network calls using `requests-mock` or `curl_cffi` mocks.
 - Test files mirror module names (e.g., `test_scraper_rp.py`).
 
-## ⚠️ Known Constraints
+## ⚠️ Known Constraints & Technical Debt
 - **Otodom ID Instability**: Otodom frequently changes IDs; always rely on `USIfolder` (investment slug) as the stable key.
-- **Coordinate Order**: RP API uses `[longitude, latitude]`. Internal USI schema uses `[latitude, longitude]`. Be careful during conversion.
+- **Coordinate Order**: RP API uses `[longitude, latitude]`. Internal USI schema uses `[latitude, longitude]`.
+- **Legacy Fallbacks**: `csv_importer.py` and `USImaster.csv` are legacy mechanisms for Coda.io data and will be removed once the transition to the new scraping architecture is complete.
+- **Removed Modules**: `bus.py` (watchdog) has been removed; its functionality is handled by `main.py` and `ui_server.py`.

@@ -177,6 +177,7 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path = None, public
         "name": usi.get("name", inv_slug.title()),
         "developer": usi.get("developer", dev_slug.title()),
         "address": address,
+        "city": loc.get("city"),
         "district": district,
         "source": source,
         "source_url": source_url,

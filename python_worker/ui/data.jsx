@@ -204,7 +204,10 @@ window.usiRegister('ocenaLog', ocenaLog);
 const extractModuleContext = {
   sumApartments: (records) => {
     if (!Array.isArray(records)) return 0;
-    return records.reduce((sum, inv) => sum + (parseInt(inv.flats_count) || parseInt(inv.units_count) || 0), 0);
+    return records.reduce((sum, inv) => {
+      const flats = parseInt(inv.flats_count) || parseInt(inv.units_count) || 0;
+      return sum + flats;
+    }, 0);
   },
   avgListRating: (records) => {
     if (!Array.isArray(records) || records.length === 0) return 0;
@@ -213,11 +216,12 @@ const extractModuleContext = {
     return rated.reduce((sum, inv) => sum + avgRating(inv), 0) / rated.length;
   },
   aggregateByQuarter: (records) => {
+    const { safeRender } = window;
     if (!Array.isArray(records)) return [];
     const quarters = {};
     records.forEach(inv => {
-      // Usi schema stores delivery_quarter, sometimes delivery_date
-      const q = inv.delivery_quarter || inv.delivery_date || 'Nieznany';
+      // Use safeRender for delivery/quarter
+      const q = safeRender(inv.delivery_quarter || inv.delivery_date, 'string', 'Nieznany');
       if (!quarters[q]) quarters[q] = { flats: 0, ratingSum: 0, ratedCount: 0 };
       quarters[q].flats += (parseInt(inv.flats_count) || parseInt(inv.units_count) || 0);
       const r = avgRating(inv);
@@ -235,7 +239,8 @@ const extractModuleContext = {
       .sort((a, b) => a.quarter.localeCompare(b.quarter));
   },
   extractGeoPoint: (inv) => {
-    return inv?.coords && inv.coords[0] !== 0 ? { lat: inv.coords[0], lng: inv.coords[1] } : null;
+    const coords = inv?.coords || [];
+    return coords[0] && coords[0] !== 0 ? { lat: coords[0], lng: coords[1] } : null;
   }
 };
 

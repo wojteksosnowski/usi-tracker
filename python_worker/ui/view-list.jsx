@@ -5,6 +5,7 @@
 
   function ViewList({ onSelectInv, mode = 'grid' }) {
     const { bus } = useDataBus();
+    const { DataBoundary } = window;
     const investments = bus.visibleInvestments || [];
     
     const columns = [
@@ -55,7 +56,11 @@
           rowHeight={56}
           gridConfig={{ itemsPerRow: 4, cardHeight: 340 }}
           onRowClick={onSelectInv}
-          renderCard={(inv) => <ListCard inv={inv} onSelect={() => onSelectInv(inv)} />}
+          renderCard={(inv) => (
+            <DataBoundary data={inv}>
+              {(validInv) => <ListCard inv={validInv} onSelect={() => onSelectInv(validInv)} />}
+            </DataBoundary>
+          )}
           emptyMessage="Brak wyników dla podanych filtrów"
         />
       </div>

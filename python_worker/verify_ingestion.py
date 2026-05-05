@@ -1,114 +1,158 @@
-
-import csv
-import json
-import os
 import sys
+import logging
+import json
+import shutil
+import tempfile
 from pathlib import Path
+from unittest.mock import patch
+from python_worker.main import scrape_rynek_pierwotny, scrape_otodom, scrape_tabelaofert
+from python_worker.adapters.rp import RPAdapter
+from python_worker.adapters.otodom import OtodomAdapter
+from python_worker.adapters.to import TOAdapter
+from python_worker.csv_importer import slugify
 
-# Dodajemy bieżący katalog do ścieżki, aby importy działały
-sys.path.append(os.getcwd())
+# Configure logging to be concise
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logger = logging.getLogger("IngestionCheck")
 
-from python_worker.csv_importer import extract_developer_slug, slugify, extract_native_slugs
+# Configuration of "Gold Standard" URLs for testing
+TEST_CASES = {
+    "rp": {
+        "name": "RynekPierwotny",
+        "url": "https://rynekpierwotny.pl/oferty/ekopark/forma-otwarta-etap-c-krakow-pradnik-bialy-20322/",
+        "id": "20322",
+        "dev_slug": "ekopark",
+        "inv_slug": "forma-otwarta-etap-c-krakow-pradnik-bialy",
+        "adapter": RPAdapter
+    },
+    "oto": {
+        "name": "Otodom",
+        "url": "https://www.otodom.pl/pl/inwestycja/poczatek-polnocy-ID4mYvY",
+        "id": "ID4mYvY",
+        "dev_slug": "yit-development",
+        "inv_slug": "poczatek-polnocy",
+        "adapter": OtodomAdapter
+    },
+    "to": {
+        "name": "TabelaOfert",
+        "url": "https://tabelaofert.pl/inwestycja/nowe-kolibki,i7332",
+        "id": "7332",
+        "dev_slug": "invest-komfort",
+        "inv_slug": "nowe-kolibki",
+        "adapter": TOAdapter
+    }
+}
 
-USI_DATA_DIR = Path("Public/USIdata")
-CSV_PATH = Path("reference-data/coda/USImaster.csv")
+def check_portal(portal_key, temp_data_dir, temp_assets_dir):
+    test = TEST_CASES.get(portal_key)
+    if not test:
+        logger.error(f"Unknown portal: {portal_key}")
+        return False
 
-def verify_deep():
-    if not CSV_PATH.exists():
-        print(f"Błąd: Nie znaleziono pliku {CSV_PATH}")
-        return
+    logger.info(f"--- Testing {test['name']} (ISOLATED) ---")
+    logger.info(f"URL: {test['url']}")
 
-    existing_jsons = {}
-    print("Skanowanie bazy JSON (Public/USIdata)...")
-    for root, dirs, files in os.walk(USI_DATA_DIR):
-        for file in files:
-            if file.startswith("usi_") or file.endswith("app_result_imported.json"):
-                path = Path(root) / file
-                # Wyciągamy dev/inv z bazy na podstawie struktury folderów
-                # Public/USIdata/{dev_slug}/{inv_slug}/...
-                parts = path.parts
-                try:
-                    usi_idx = parts.index("USIdata")
-                    dev_slug = parts[usi_idx + 1]
-                    inv_slug = parts[usi_idx + 2]
-                    existing_jsons[f"{dev_slug}/{inv_slug}"] = path.parent
-                except (ValueError, IndexError):
-                    continue
+    # Patch the config and its local imports to use temporary directories
+    with patch("python_worker.config.USI_DATA_DIR", str(temp_data_dir)), \
+         patch("python_worker.config.PUBLIC_USI_DIR", str(temp_assets_dir)), \
+         patch("python_worker.image_saver.PUBLIC_USI_DIR", temp_assets_dir), \
+         patch("python_worker.scraper_rp.USI_DATA_DIR", temp_data_dir):
+        
+        try:
+            # 1. Scrape (Network + Raw Save to TEMP)
+            if portal_key == "rp":
+                res = scrape_rynek_pierwotny(test["id"], test["dev_slug"], test["inv_slug"], url=test["url"])
+            elif portal_key == "oto":
+                res = scrape_otodom(test["id"], test["dev_slug"], test["inv_slug"], url=test["url"])
+            elif portal_key == "to":
+                res = scrape_tabelaofert(test["id"], test["dev_slug"], test["inv_slug"], url=test["url"])
 
-    csv_records = 0
-    found_in_json = 0
-    missing_in_json = []
-    data_mismatches = []
-    dual_ok = 0
-    dual_fail = 0
+            if not res or "error" in res:
+                logger.error(f"Scrape failed: {res.get('error') if res else 'Empty response'}")
+                return False
 
-    print(f"Analiza {CSV_PATH}...")
-    with open(CSV_PATH, encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            csv_records += 1
-            dev_slug = extract_developer_slug(row)
-            inv_name = row.get("Inwestycja", "Unknown")
+            raw_details = res.get("raw_details")
+            if not raw_details:
+                logger.error("No raw_details in scrape result")
+                return False
+
+            # 2. Adapt (Data Transformation)
+            unified = test["adapter"].transform(raw_details, test["inv_slug"], test["dev_slug"])
             
-            has_rp = row.get("rpJSON", "").strip().startswith("{")
-            has_oto = row.get("otoJSON", "").strip().startswith("{")
+            # 3. Validate Critical Fields
+            errors = []
             
-            rp_native, oto_native = extract_native_slugs(row)
-
-            # 1. Weryfikacja RP (jeśli obecne)
-            if has_rp:
-                key = f"{dev_slug}/{rp_native}"
-                if key in existing_jsons:
-                    found_in_json += 1
-                    # Sprawdzamy czy deweloper w JSON zgadza się z CSV (źródło prawdy)
-                    # Uwaga: sprawdzamy plik app_result_imported.json lub usi_{slug}.json
-                    res_path = existing_jsons[key] / "app_result_imported.json"
-                    if not res_path.exists():
-                        res_path = existing_jsons[key] / f"usi_{rp_native}.json"
-                    
-                    if res_path.exists():
-                        try:
-                            with open(res_path, 'r', encoding='utf-8') as jf:
-                                data = json.load(jf)
-                                if slugify(data.get('developer', '')) != dev_slug:
-                                    data_mismatches.append(f"{key}: Dev mismatch (JSON: {data.get('developer')} vs CSV Slug: {dev_slug})")
-                        except: pass
-                    
-                    # Jeśli to był rekord dualny, sprawdzamy czy OTO też jest
-                    if has_oto:
-                        oto_key = f"{dev_slug}/{oto_native}"
-                        if oto_key in existing_jsons:
-                            dual_ok += 1
-                            found_in_json += 1
-                        else:
-                            dual_fail += 1
-                            missing_in_json.append({"name": f"{inv_name} (OTO-part)", "key": oto_key})
-                else:
-                    missing_in_json.append({"name": f"{inv_name} (RP-part)", "key": key})
+            # Identity
+            if unified.get("investment_slug") != test["inv_slug"]:
+                errors.append(f"Slug mismatch: expected {test['inv_slug']}, got {unified.get('investment_slug')}")
             
-            # 2. Weryfikacja tylko OTO (jeśli nie było RP)
-            elif has_oto:
-                key = f"{dev_slug}/{oto_native}"
-                if key in existing_jsons:
-                    found_in_json += 1
-                else:
-                    missing_in_json.append({"name": f"{inv_name} (OTO-only)", "key": key})
+            if not unified.get("name"):
+                errors.append("Missing investment name")
+                
+            if not unified.get("developer") or slugify(unified.get("developer")) == "nieznany-deweloper":
+                errors.append(f"Invalid developer: {unified.get('developer')}")
 
-    print("\n" + "="*50)
-    print("      RAPORT GŁĘBOKIEJ WERYFIKACJI (ZADANIE 37) - NATIVE SLUGS")
-    print("="*50)
-    print(f"Wierszy w CSV:                 {csv_records}")
-    print(f"Prawidłowo znalezione w JSON:  {found_in_json}")
-    print(f"Braki (zgodnie z CSV):         {len(missing_in_json)}")
-    print(f"Błędy dewelopera (Mismatch):   {len(data_mismatches)}")
-    print("-" * 50)
-    print(f"Dualne rekordy (Split Check):  OK: {dual_ok} | FAIL: {dual_fail}")
-    print("="*50)
-    
-    if missing_in_json:
-        print(f"\nPRZYKŁADOWE BRAKI ({len(missing_in_json)}):")
-        for m in missing_in_json[:10]:
-            print(f"  - {m['name']} ({m['key']})")
+            # Location
+            loc = unified.get("location", {})
+            coords = loc.get("coords", [])
+            if not coords or len(coords) < 2 or not all(coords):
+                errors.append(f"Missing or invalid coordinates: {coords}")
+            
+            if not loc.get("city"):
+                errors.append("Missing city")
+                
+            if not loc.get("address"):
+                errors.append("Missing address")
+
+            # Media - Check if files actually exist in TEMP directory
+            img_dir = temp_assets_dir / test["dev_slug"] / test["inv_slug"]
+            if not img_dir.exists() or len(list(img_dir.glob("*.jpg"))) == 0:
+                errors.append(f"Images not found in temp directory: {img_dir}")
+
+            if not unified.get("image_urls") or len(unified.get("image_urls")) == 0:
+                errors.append("No source image URLs found in adapted data")
+
+            if errors:
+                for err in errors:
+                    logger.error(f"FAIL: {err}")
+                return False
+
+            logger.info(f"✅ {test['name']} Ingestion OK (Verified in isolation)")
+            logger.info(f"   Name: {unified.get('name')}")
+            logger.info(f"   Dev:  {unified.get('developer')}")
+            logger.info(f"   Loc:  {loc.get('city')}, {loc.get('district') or 'N/A'}")
+            logger.info(f"   Img:  {len(list(img_dir.glob('*.jpg')))} files found in TEMP")
+            return True
+
+        except Exception as e:
+            logger.exception(f"Critical error testing {test['name']}: {e}")
+            return False
 
 if __name__ == "__main__":
-    verify_deep()
+    portals = sys.argv[1:] if len(sys.argv) > 1 else ["rp", "oto", "to"]
+    
+    # Setup temporary environment
+    temp_root = Path(tempfile.mkdtemp(prefix="usi_test_"))
+    temp_data = temp_root / "USIdata"
+    temp_assets = temp_root / "USI"
+    temp_data.mkdir()
+    temp_assets.mkdir()
+    
+    logger.info(f"🚀 Starting isolated ingestion tests in: {temp_root}")
+    
+    try:
+        overall_success = True
+        for p in portals:
+            if not check_portal(p, temp_data, temp_assets):
+                overall_success = False
+                
+        if not overall_success:
+            logger.error("❌ Some ingestion tests FAILED")
+            sys.exit(1)
+        else:
+            logger.info("🎉 ALL INGESTION TESTS PASSED IN ISOLATION")
+            sys.exit(0)
+    finally:
+        # Cleanup
+        shutil.rmtree(temp_root)
+        logger.info(f"🧹 Cleaned up temporary directory: {temp_root}")

@@ -70,30 +70,9 @@ class DiscoveryService:
         return found_total
 
     def discovery_by_portal(self, portal, identifier=None):
-        if not identifier and portal not in ("rp", "oto", "to"):
-            raise ValueError("Missing 'id' parameter")
-
-        if identifier and identifier.startswith("http"):
-            parsed = parse_url(identifier)
-            if parsed["type"] == "unknown":
-                raise ValueError("Unknown or unsupported URL")
-
-            if parsed["kind"] == "investment":
-                return [{
-                    "id": parsed.get("offer_id") or parsed.get("to_id"),
-                    "name": f"Wykryto inwestycję: {parsed.get('investment_slug', 'bez nazwy')}",
-                    "slug": parsed.get("investment_slug"),
-                    "url": parsed.get("url"),
-                    "kind": "single"
-                }]
-
-            if parsed["type"] == "rynekpierwotny":
-                identifier = parsed["developer_slug"]
-            elif parsed["type"] == "otodom":
-                identifier = parsed["agency_id"]
-            elif parsed["type"] == "tabelaofert":
-                identifier = parsed["developer_slug"]
-
+        """
+        Discovers new investments on a portal.
+        """
         if portal == "rp":
             results = discover_rp_investments(identifier if identifier else None)
             return filter_new_investments(results, "rp")

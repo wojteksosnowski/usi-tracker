@@ -14,34 +14,6 @@ window.usiRegister('ViewDownload', function ViewDownload() {
   const [errorMsg, setErrorMsg] = React.useState(null);
   const [registering, setRegistering] = React.useState({});
 
-  const handleSearch = React.useCallback(async () => {
-    if (!identifier) return;
-    setLoading(true);
-    setErrorMsg(null);
-    setResults([]);
-    
-    let allResults = [];
-    try {
-      for (const portal of activePortals) {
-        try {
-          const response = await fetch(`/api/discovery/${portal}?id=${encodeURIComponent(identifier)}`);
-          const data = await response.json();
-          if (response.ok && Array.isArray(data)) {
-            allResults = [...allResults, ...data.map(r => ({ ...r, source: portal }))];
-          }
-        } catch (e) {
-          console.error(`Błąd wyszukiwania na ${portal}:`, e);
-        }
-      }
-      setResults(allResults);
-      if (allResults.length === 0) setErrorMsg('Nie znaleziono inwestycji spełniającej kryteria.');
-    } catch (err) {
-      setErrorMsg('Błąd połączenia podczas wyszukiwania');
-    } finally {
-      setLoading(false);
-    }
-  }, [activePortals, identifier]);
-
   const handleGlobalScan = React.useCallback(async () => {
     setLoading(true);
     setErrorMsg(null);
@@ -69,15 +41,13 @@ window.usiRegister('ViewDownload', function ViewDownload() {
     }
   }, [activePortals]);
 
-  // Expose triggers to global scope for App ActionBar
+  // Expose trigger to global scope for App ActionBar
   React.useEffect(() => {
     window.usiTriggerScan = handleGlobalScan;
-    window.usiHandleSearch = handleSearch;
     return () => { 
       delete window.usiTriggerScan; 
-      delete window.usiHandleSearch;
     };
-  }, [handleGlobalScan, handleSearch]);
+  }, [handleGlobalScan]);
 
   const handleRegister = async (res) => {
     setRegistering(prev => ({ ...prev, [res.url]: true }));
@@ -86,7 +56,7 @@ window.usiRegister('ViewDownload', function ViewDownload() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          developer_name: res.developer || res.agency_name || res.agency || "Nieznany Deweloper",
+          developer_name: res.developer || res.agency_name || res.agency || res.vendor_slug || "Nieznany Deweloper",
           inv_slug: res.slug || String(res.id),
           name: res.name || String(res.id),
           id: res.id,
@@ -112,7 +82,18 @@ window.usiRegister('ViewDownload', function ViewDownload() {
     }
   };
 
-  const visibleResults = results.filter(r => r && (!showOnlyNew || r.is_new));
+  const visibleResults = results.filter(r => {
+    if (!r) return false;
+    if (showOnlyNew && !r.is_new) return false;
+    if (identifier) {
+        const query = identifier.toLowerCase();
+        const matchesName = r.name?.toLowerCase().includes(query);
+        const matchesDev = r.developer?.toLowerCase().includes(query);
+        const matchesId = String(r.id).includes(query);
+        if (!matchesName && !matchesDev && !matchesId) return false;
+    }
+    return true;
+  });
 
   const renderCard = (res) => (
     <ListCard
@@ -192,8 +173,8 @@ window.usiRegister('ViewDownload', function ViewDownload() {
         
         {visibleResults.length === 0 && !loading && !errorMsg ? (
             <div className="usi-app-empty" style={{ height: '70%', display: 'flex', flexDirection: 'column', justifyContent: 'center', opacity: 0.5 }}>
-                <Icon name="sparkle" size={48} style={{ marginBottom: 16 }} />
-                <div className="usi-body" style={{ fontSize: '1.2rem' }}>Wklej URL inwestycji w pasku u góry i naciśnij Enter</div>
+                <Icon name="zap" size={48} style={{ marginBottom: 16 }} />
+                <div className="usi-body" style={{ fontSize: '1.2rem' }}>Kliknij "Skanuj", aby wyszukać nowe inwestycje</div>
             </div>
         ) : (
           <DataGrid 
@@ -202,7 +183,7 @@ window.usiRegister('ViewDownload', function ViewDownload() {
             mode={bus.downloadMode || 'grid'}
             gridConfig={{ minCardWidth: 180, itemsPerRow: 4, cardHeight: 340 }}
             renderCard={renderCard}
-            emptyMessage={loading ? "Przeszukiwanie wybranych portali..." : "Brak wyników"}
+            emptyMessage={loading ? "Przeszukiwanie wybranych portali..." : "Brak wyników dopasowania"}
           />
         )}
 

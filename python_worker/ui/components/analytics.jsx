@@ -58,17 +58,11 @@
   usiRegister('ProgressBarAnalytics', ProgressBarAnalytics);
 
   const MetadataPanel = ({ inv, config }) => {
+    const { safeRender } = window;
     if (!config) return <div className="usi-tiny">Ładowanie metadanych...</div>;
 
     const getValue = (obj, path) => {
       return path.split('.').reduce((acc, part) => acc && acc[part], obj);
-    };
-
-    const renderValue = (val, type) => {
-      if (val === null || val === undefined || val === '') return '—';
-      if (type === 'currency' && typeof val === 'number') return `${val.toLocaleString('pl-PL')} zł/m²`;
-      if (Array.isArray(val)) return val.length;
-      return val;
     };
 
     const Row = ({ k, v, mono }) => (
@@ -84,7 +78,11 @@
         <div data-component="Metadata-Grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
           {config.map(field => {
             const val = getValue(inv, field.path);
-            return <Row key={field.key} k={field.label} v={renderValue(val, field.type)} mono={field.type === 'currency' || field.type === 'count'} />;
+            const rendered = field.type === 'count' 
+              ? safeRender(Array.isArray(val) ? val.length : val, 'number')
+              : safeRender(val, field.type === 'currency' ? 'currency' : 'string');
+
+            return <Row key={field.key} k={field.label} v={rendered} mono={field.type === 'currency' || field.type === 'count'} />;
           })}
           {inv.folder_path && (
             <div data-component="Metadata-FolderPath" style={{ gridColumn: 'span 2', marginTop: 8 }}>

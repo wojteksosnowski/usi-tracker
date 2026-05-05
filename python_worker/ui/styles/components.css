@@ -3,8 +3,8 @@
 /* --- Variables (Fallback) --- */
 :root {
   --usi-bg: #f0eee9;
-  --usi-surface: #ffffff;
-  --usi-border: rgba(0, 0, 0, 0.08);
+  --usi-surface: #fff;
+  --usi-border: rgb(0 0 0 / 8%);
 }
 
 /* Navbar-Top */
@@ -22,7 +22,7 @@
   flex-shrink: 0;
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .usi-navbar-top {
     height: 56px;
     padding: 0 12px;
@@ -46,7 +46,7 @@
   min-width: 0;
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .usi-navbar-center {
     display: none;
   }
@@ -74,13 +74,13 @@
   flex-shrink: 0;
 }
 
-@media (max-width: 1024px) {
+@media (width <= 1024px) {
   .usi-action-center {
     display: none;
   }
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .usi-navbar-bottom {
     height: 48px;
     padding: 0 8px;
@@ -110,12 +110,50 @@
   flex: 1;
 }
 
+.usi-action-bar-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 /* Spinner */
 .usi-spinner {
   border: 3px solid var(--usi-border);
   border-top-color: var(--usi-accent);
   border-radius: 50%;
   animation: usi-spin 0.8s linear infinite;
+}
+
+/* Screens */
+.app-loading-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+  color: var(--usi-ink-3);
+}
+
+.app-empty-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 40px;
+  text-align: center;
+}
+
+.empty-screen-icon {
+  margin-bottom: 24px;
+  color: var(--usi-ink-4);
+}
+
+.empty-screen-text {
+  max-width: 400px;
+  margin: 12px 0 32px;
+  color: var(--usi-ink-2);
 }
 
 /* NavDrawer */
@@ -129,12 +167,12 @@
   border-bottom: .5px solid var(--usi-border);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+  box-shadow: 0 12px 24px rgb(0 0 0 / 8%);
   z-index: 860;
   max-height: calc(100vh - 60px);
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .usi-nav-drawer {
     top: 56px;
   }
@@ -144,7 +182,7 @@
   position: fixed;
   inset: 0;
   z-index: 850;
-  background: rgba(0,0,0,0.1);
+  background: rgb(0 0 0 / 10%);
 }
 
 .usi-nav-item {
@@ -193,7 +231,7 @@
 
 .usi-card:not(.flat):hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(0,0,0,0.08);
+  box-shadow: 0 8px 16px rgb(0 0 0 / 8%);
 }
 
 /* Module Cards */
@@ -209,6 +247,13 @@
   gap: 8px;
 }
 
+.module-header-title {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--usi-ink-2);
+}
+
 .module-content {
   flex: 1;
   padding: 16px;
@@ -216,3 +261,69 @@
   flex-direction: column;
   position: relative;
 }
+
+/* MiniMap */
+.usi-mini-map {
+  display: block;
+  position: relative;
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  text-decoration: none;
+  background: var(--usi-surface-3);
+  border: .5px solid var(--usi-border);
+}
+
+.usi-mini-map-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.usi-mini-map-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Skeleton */
+.usi-skeleton-bar {
+  flex: 1;
+  background-color: var(--usi-surface-3);
+  border-radius: 8px;
+  min-height: 20px;
+}
+
+/* Distance Dot */
+.usi-distance-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.usi-distance-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.usi-distance-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--usi-accent);
+}
+
+.usi-distance-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.usi-distance-km {
+  opacity: 0.6;
+}
+

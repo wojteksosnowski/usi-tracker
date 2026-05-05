@@ -15,7 +15,7 @@
   }
 
   function DetailRightPanel({ inv, onBack, onUpdateInv }) {
-    const { HeroBand, ModeC, DetailsA, Lightbox } = window;
+    const { HeroBand, ModeC, DetailsA, Lightbox, DataBoundary } = window;
     const [detailMode, setDetailMode] = React.useState('A');
     const [marked, setMarked] = React.useState(new Set());
     const [focusedCat, setFocusedCat] = React.useState(-1);
@@ -24,14 +24,6 @@
     const { ratings, handleRating, comment, handleComment, status, handleStatus, saved } = useRatings(inv);
     const metaConfig = useMetadataConfig();
     const { bus, setVariable } = useDataBus();
-
-    const getModuleContext = React.useCallback(() => {
-      return {
-        currentInvestment: inv,
-        geo: extractModuleContext.extractGeoPoint(inv),
-        district: inv.district,
-      };
-    }, [inv, extractModuleContext]);
 
     React.useEffect(() => {
       setVariable('currentInvestment', inv);
@@ -79,54 +71,66 @@
     }, [lightbox, focusedCat, ratings, window.USI_CATEGORIES, handleRating]);
 
     return (
-      <div data-component="DetailRightPanel" className="usi-scroll" style={{ height: '100%', overflowY: detailMode === 'C' ? 'hidden' : 'auto', padding: '24px', display: 'flex', flexDirection: 'column' }}>
-        <HeroBand 
-          inv={inv} 
-          showMap={true} 
-          detailMode={detailMode} 
-          onModeChange={setDetailMode} 
-          moduleContext={getModuleContext()}
-        />
+      <DataBoundary data={inv}>
+        {(validInv) => {
+          const context = {
+            currentInvestment: validInv,
+            geo: extractModuleContext.extractGeoPoint(validInv),
+            district: validInv.district,
+          };
 
-        {detailMode === 'C' ? (
-          <ModeC 
-              inv={inv} 
-              marked={marked} 
-              onToggleMark={(idx) => {
-                  const next = new Set(marked);
-                  if (next.has(idx)) next.delete(idx); else next.add(idx);
-                  setMarked(next);
-              }} 
-              onLightbox={setLightbox}
-              ratings={ratings}
-              handleRating={handleRating}
-              comment={comment}
-              handleComment={handleComment}
-              status={status}
-              handleStatus={handleStatus}
-              saved={saved}
-              focusedCat={focusedCat}
-              onFocusedCatChange={setFocusedCat}
-          />
-        ) : (
-          <DetailsA 
-              inv={inv}
-              ratings={ratings}
-              handleRating={handleRating}
-              comment={comment}
-              handleComment={handleComment}
-              status={status}
-              handleStatus={handleStatus}
-              saved={saved}
-              focusedCat={focusedCat}
-              onFocusedCatChange={setFocusedCat}
-              metaConfig={metaConfig}
-              moduleContext={getModuleContext()}
-          />
-        )}
+          return (
+            <div data-component="DetailRightPanel" className="usi-scroll" style={{ height: '100%', overflowY: detailMode === 'C' ? 'hidden' : 'auto', padding: '24px', display: 'flex', flexDirection: 'column' }}>
+              <HeroBand 
+                inv={validInv} 
+                showMap={true} 
+                detailMode={detailMode} 
+                onModeChange={setDetailMode} 
+                moduleContext={context}
+              />
 
-        {lightbox !== null && <Lightbox inv={inv} index={lightbox} onClose={() => setLightbox(null)} />}
-      </div>
+              {detailMode === 'C' ? (
+                <ModeC 
+                    inv={validInv} 
+                    marked={marked} 
+                    onToggleMark={(idx) => {
+                        const next = new Set(marked);
+                        if (next.has(idx)) next.delete(idx); else next.add(idx);
+                        setMarked(next);
+                    }} 
+                    onLightbox={setLightbox}
+                    ratings={ratings}
+                    handleRating={handleRating}
+                    comment={comment}
+                    handleComment={handleComment}
+                    status={status}
+                    handleStatus={handleStatus}
+                    saved={saved}
+                    focusedCat={focusedCat}
+                    onFocusedCatChange={setFocusedCat}
+                />
+              ) : (
+                <DetailsA 
+                    inv={validInv}
+                    ratings={ratings}
+                    handleRating={handleRating}
+                    comment={comment}
+                    handleComment={handleComment}
+                    status={status}
+                    handleStatus={handleStatus}
+                    saved={saved}
+                    focusedCat={focusedCat}
+                    onFocusedCatChange={setFocusedCat}
+                    metaConfig={metaConfig}
+                    moduleContext={context}
+                />
+              )}
+
+              {lightbox !== null && <Lightbox inv={validInv} index={lightbox} onClose={() => setLightbox(null)} />}
+            </div>
+          );
+        }}
+      </DataBoundary>
     );
   }
 

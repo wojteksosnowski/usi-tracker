@@ -22,7 +22,11 @@ class InvestmentService:
     def register_investment(self, portal, developer_name, inv_slug, name, item_id=None, url=None):
         from python_worker.csv_importer import slugify
         from python_worker.developer_manager import DeveloperManager
-        
+
+        if not developer_name or slugify(developer_name) == "nieznany-deweloper":
+            logger.error(f"Attempted to register investment with missing or invalid developer: {developer_name}")
+            raise ValueError("Registration failed: Real developer identity is required. Cannot use 'Nieznany Deweloper'.")
+
         dev_slug = slugify(developer_name)
         dm = DeveloperManager(self.data_dir)
         
