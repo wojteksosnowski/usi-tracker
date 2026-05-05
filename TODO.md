@@ -27,11 +27,13 @@ Unifikacja logiki ocen — eliminacja redundancji między widokami a serwisem.
 ### Krok B03
 Optymalizacja subskrypcji DataBus — selektory ograniczające rerendery.
 **Plan:** 2026-05-06
-- [ ] Implementacja shallowCompare w python_worker/ui/data.jsx do porównywania obiektów filtrów.
-- [ ] Rozdzielenie DataBusContext na kontekst stanu (danych) i kontekst sterowania (akcji), aby uniknąć zbędnych rerenderów.
-- [ ] Wprowadzenie useDataBusSelector(selector), aby komponenty mogły subskrybować tylko fragmenty stanu.
-- [ ] Optymalizacja DataGrid.jsx pod kątem użycia selektorów (rerender tylko przy zmianie visibleInvestments).
-- [ ] Test: Weryfikacja liczby rerenderów DataGrid przy zmianach w niepowiązanych częściach stanu (np. statusy zadań).
+- [x] Implementacja shallowCompare w python_worker/ui/data.jsx do porównywania obiektów filtrów.
+- [x] Rozdzielenie DataBusContext na kontekst stanu (danych) i kontekst sterowania (akcji), aby uniknąć zbędnych rerenderów.
+- [x] Wprowadzenie useDataBusSelector(selector), aby komponenty mogły subskrybować tylko fragmenty stanu.
+- [x] Optymalizacja DataGrid.jsx pod kątem użycia selektorów (rerender tylko przy zmianie visibleInvestments).
+- [x] Test: Weryfikacja liczby rerenderów DataGrid przy zmianach w niepowiązanych częściach stanu (np. statusy zadań).
+
+**Podsumowanie:** Zoptymalizowano `DataBus` poprzez rozdzielenie kontekstów oraz wprowadzenie `useDataBusSelector` opartego na `useSyncExternalStore`. Dodano funkcję `shallowCompare` do optymalizacji porównań. Zaktualizowano `ViewList` i `DataGrid` (poprzez `React.memo`), co znacząco ograniczyło liczbę zbędnych rerenderów głównej listy przy zmianach innych części stanu.
 
 ### Krok B04
 Testy jednostkowe logiki transformacji danych.

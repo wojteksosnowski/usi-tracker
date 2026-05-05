@@ -132,6 +132,13 @@
         });
       };
 
+      React.useEffect(() => {
+        const { TestSuite } = window;
+        if (TestSuite) {
+          setTimeout(() => TestSuite.run(), 2000);
+        }
+      }, []);
+
       if (loading && investments.length === 0) return <div data-component="App" ref={rootRef} className="app-container usi-app"><LoadingScreen /></div>;
       if (!loading && investments.length === 0) return <div data-component="App" ref={rootRef} className="app-container usi-app"><EmptyScreen onFetch={() => {}} fetching={fetching} fetchCount={fetchCount} /></div>;
 
@@ -172,6 +179,23 @@
             }
             right={
               <div className="usi-flex-row usi-gap-12">
+                  {(() => {
+                    const { useDataBusSelector, TestSuite } = window;
+                    const results = useDataBusSelector(state => state.testResults);
+                    const hasFailures = results && results.some(s => s.tests.some(t => t.status === 'fail'));
+                    const statusColor = !results ? 'var(--usi-ink-4)' : hasFailures ? 'var(--usi-danger)' : 'var(--usi-success)';
+                    
+                    return (
+                      <button 
+                        className="usi-btn ghost icon sm" 
+                        onClick={() => TestSuite && TestSuite.run()} 
+                        title="Uruchom testy jednostkowe JS"
+                        style={{ color: statusColor }}
+                      >
+                        <Icon name="zap" size={16} />
+                      </button>
+                    );
+                  })()}
                   <NavbarCounter />
                   <button className="usi-btn ghost icon sm" onClick={handleToggleTheme} title="Przełącz motyw">
                       <Icon name={dark ? 'sparkle' : 'star'} size={16} />
