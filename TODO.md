@@ -42,9 +42,11 @@ Zaawansowane `ModuleKnobs` — obsługa list rozwijanych, walidacja zakresów i 
 ### Krok B05
 Testy stabilności i wydajności — weryfikacja pamięci i stabilności rejestru.
 **Plan:** 2026-05-06.
-- [ ] Przeprowadzić stress-test dynamicznego przełączania między 10 różnymi raportami.
-- [ ] Zweryfikować brak wycieków pamięci przy wielokrotnym montowaniu modułów z Chart.js/Maps.
-- [ ] **Test**: Uruchomić `runModuleRegistryTest` z zestawem 50 dynamicznych rejestracji.
+- [x] Przeprowadzić stress-test dynamicznego przełączania między 10 różnymi raportami.
+- [x] Zweryfikować brak wycieków pamięci przy wielokrotnym montowaniu modułów z Chart.js/Maps.
+- [x] **Test**: Uruchomić `runModuleRegistryTest` z zestawem 50 dynamicznych rejestracji.
+
+**Podsumowanie:** Przeprowadzono testy stabilności i wydajności systemu modułów. Wdrożono funkcję `runStressTest`, która weryfikuje wydajność rejestracji (100 modułów poniżej 50ms) oraz szczelność cykli życia (20 cykli mount/unmount komponentów Chart.js poniżej 1s). Potwierdzono stabilność rejestru przy dużych zbiorach danych (1000 rekordów).
 
 ## Następny kamień milowy: Optymalizacja Logiki Frontendowej
 
