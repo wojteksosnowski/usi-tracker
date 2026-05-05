@@ -311,6 +311,148 @@ window.ModuleRegistry.register('PriceTrendModule', PriceTrendModule, PriceTrendM
 window.usiRegister('PriceTrendModule', PriceTrendModule);
 
 
+function MapModule({ data: localData, height = 400, title = "Mapa Inwestycji" }) {
+  const { React, useModuleContext, BaseModule, useDataBus } = window;
+  const mapRef = React.useRef(null);
+  const containerRef = React.useRef(null);
+  const { bus, setVariable } = useDataBus();
+  const [mapLoaded, setMapLoaded] = React.useState(!!window.H);
+  const ctx = useModuleContext(localData);
+
+  React.useEffect(() => {
+    if (window.H) {
+      setMapLoaded(true);
+      return;
+    }
+    const loadScript = (src) => new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = false;
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+
+    const initHereMaps = async () => {
+      try {
+        await loadScript('https://js.api.here.com/v3/3.1/mapsjs-core.js');
+        await loadScript('https://js.api.here.com/v3/3.1/mapsjs-service.js');
+        await loadScript('https://js.api.here.com/v3/3.1/mapsjs-ui.js');
+        await loadScript('https://js.api.here.com/v3/3.1/mapsjs-mapevents.js');
+        await loadScript('https://js.api.here.com/v3/3.1/mapsjs-clustering.js');
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.type = 'text/css';
+        link.href = 'https://js.api.here.com/v3/3.1/mapsjs-ui.css';
+        document.head.appendChild(link);
+        setMapLoaded(true);
+      } catch (err) {
+        console.error("Failed to load HERE Maps API", err);
+      }
+    };
+    initHereMaps();
+  }, []);
+
+  React.useEffect(() => {
+    if (!mapLoaded || !containerRef.current) return;
+    const H = window.H;
+
+    const platform = new H.service.Platform({
+      apikey: window.usiConfig?.hereApiKey || 'BDske2zxCqqwwBGMf4IBKA49FRvRZLe4TnfBtYTor9c' // Fallback
+    });
+    const defaultLayers = platform.createDefaultLayers();
+    
+    // Check if map already exists
+    if (mapRef.current) {
+      mapRef.current.dispose();
+      containerRef.current.innerHTML = '';
+    }
+
+    const map = new H.Map(
+      containerRef.current,
+      defaultLayers.vector.normal.map,
+      {
+        center: { lat: 52.23, lng: 21.01 }, // Default Warsaw
+        zoom: 10,
+        pixelRatio: window.devicePixelRatio || 1
+      }
+    );
+
+    window.addEventListener('resize', () => map.getViewPort().resize());
+
+    const behavior = new H.mapevents.Behavior(new H.mapevents.MapEvents(map));
+    const ui = H.ui.UI.createDefault(map, defaultLayers);
+
+    // Add Clustering
+    const data = Array.isArray(localData) ? localData : (ctx.bus?.visibleInvestments || []);
+    const dataPoints = data.map(inv => {
+      const coords = inv.coords || [];
+      if (coords[0] && coords[1]) {
+        return new H.clustering.DataPoint(coords[0], coords[1], null, inv);
+      }
+      return null;
+    }).filter(Boolean);
+
+    if (dataPoints.length > 0) {
+      const clusteredDataProvider = new H.clustering.Provider(dataPoints, {
+        clusteringOptions: { eps: 32, minWeight: 2 }
+      });
+      const clusteringLayer = new H.map.layer.ObjectLayer(clusteredDataProvider);
+      map.addLayer(clusteringLayer);
+
+      clusteredDataProvider.addEventListener('tap', (e) => {
+        const target = e.target;
+        if (target instanceof H.map.Marker && target.getData) {
+          const inv = target.getData();
+          if (!inv.isCluster) {
+             setVariable('currentInvestment', inv);
+          } else {
+             // Zoom to cluster
+             const bounds = target.getBoundingBox();
+             map.getViewModel().setLookAtData({bounds: bounds});
+          }
+        }
+      });
+
+      // Center map on markers
+      try {
+        const boundingBox = H.geo.Rect.coverPoints(dataPoints.map(p => new H.geo.Point(p.lat, p.lng)));
+        if (boundingBox) {
+           map.getViewModel().setLookAtData({bounds: boundingBox});
+        }
+      } catch(e) {}
+    }
+
+    mapRef.current = map;
+
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.dispose();
+      }
+    };
+  }, [mapLoaded, localData, ctx.bus?.visibleInvestments, setVariable]);
+
+  return (
+    <BaseModule title={title} icon="map">
+      {!mapLoaded ? (
+        <div className="usi-app-loading" style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          Ładowanie mapy...
+        </div>
+      ) : (
+        <div ref={containerRef} style={{ width: '100%', height }} />
+      )}
+    </BaseModule>
+  );
+}
+MapModule.__spec = {
+  props: {
+    title: { type: 'String', label: 'Tytuł modułu', default: 'Mapa Inwestycji' },
+    height: { type: 'Number', label: 'Wysokość (px)', default: 400 }
+  }
+};
+window.ModuleRegistry.register('MapModule', MapModule, MapModule.__spec);
+window.usiRegister('MapModule', MapModule);
+
 function ContainerModule({ data, modules = [], filter, title, icon }) {
   const { React, ModuleRegistry, ModuleErrorBoundary, LocalModuleContext, BaseModule } = window;
   

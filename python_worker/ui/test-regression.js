@@ -239,6 +239,7 @@ window.runModuleRegistryTest = function runModuleRegistryTest() {
     // 1. Check built-in modules
     assert("DataGridModule registered", !!ModuleRegistry.get('DataGridModule'));
     assert("PriceTrendModule registered", !!ModuleRegistry.get('PriceTrendModule'));
+    assert("MapModule registered", !!ModuleRegistry.get('MapModule'));
 
     // 2. Register dynamic mock module
     const MockChartModule = ({ data = [] }) => {

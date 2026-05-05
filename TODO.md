@@ -5,10 +5,12 @@
 ### Krok B01
 Implementacja modułu `PriceTrendModule` (Chart.js) — wizualizacja historii cen i trendów rynkowych dla wybranych rekordów.
 **Plan:** 2026-05-06.
-- [ ] Implementacja komponentu PriceTrendModule w python_worker/ui/components/modules.jsx (integracja Chart.js).
-- [ ] Dodanie specyfikacji __spec (typy: Color, Number) dla parametrów trendu.
-- [ ] Rejestracja modułu w ModuleRegistry.
-- [ ] **Test**: Weryfikacja renderowania wykresu w view-reports.jsx przy użyciu runModuleRegistryTest.
+- [x] Implementacja komponentu PriceTrendModule w python_worker/ui/components/modules.jsx (integracja Chart.js).
+- [x] Dodanie specyfikacji __spec (typy: Color, Number) dla parametrów trendu.
+- [x] Rejestracja modułu w ModuleRegistry.
+- [x] **Test**: Weryfikacja renderowania wykresu w view-reports.jsx przy użyciu runModuleRegistryTest.
+
+**Podsumowanie:** Zaimplementowano moduł `PriceTrendModule` zintegrowany z Chart.js, wykorzystujący dane agregowane po kwartałach z `useModuleContext`. Moduł został zarejestrowany w `ModuleRegistry` wraz ze specyfikacją parametrów wizualnych. Testy regresyjne potwierdziły poprawność rejestracji.
 
 ### Krok B02
 Rozbudowa `MapModule` o interaktywne klastrowanie i synchronizację z filtrami DataBus.
