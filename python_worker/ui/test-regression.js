@@ -236,8 +236,9 @@ window.runModuleRegistryTest = function runModuleRegistryTest() {
         console.log(`${condition ? '✅' : '❌'} ${name}`);
     };
 
-    // 1. Check built-in modules (registered in view-reports.jsx)
+    // 1. Check built-in modules
     assert("DataGridModule registered", !!ModuleRegistry.get('DataGridModule'));
+    assert("PriceTrendModule registered", !!ModuleRegistry.get('PriceTrendModule'));
 
     // 2. Register dynamic mock module
     const MockChartModule = ({ data = [] }) => {
