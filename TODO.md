@@ -1,73 +1,31 @@
 # TODO
 
-## Bieżący kamień milowy: Optymalizacja Logiki Frontendowej
+## Bieżący kamień milowy: Długoterminowe i QA
 
 ### Krok B01
-Wdrożenie hooka `useApi` — centralizacja zapytań HTTP i prosta warstwa cache'owania.
-**Plan:** 2026-05-06
-- [x] Zdefiniować useApi w python_worker/ui/modules/modules-core.jsx z obsługą stanu loading/error.
-- [x] Dodać prosty mechanizm cache (Map) dla zapytań GET wewnątrz hooka.
-- [x] Zrefaktoryzować view-list.jsx i view-detail.jsx, aby korzystały z useApi zamiast fetch.
-- [x] Zintegrować obsługę błędów z powiadomieniami UI.
-- [x] Test: Weryfikacja cache'owania przy nawigacji oraz poprawne wyświetlanie spinnera i błędów.
-
-**Podsumowanie:** Wdrożono hook `useApi` w `modules-core.jsx` z obsługą `globalApiCache`, stanami ładowania/błędu oraz integracją z powiadomieniami `DataBus`. Zrefaktoryzowano kluczowe komponenty (`data.jsx`, `RatingsPanel.jsx`, `view-dev-detail.jsx`, `view-reports.jsx`, `view-download.jsx`), zastępując surowy `fetch` nowym hookiem. Zapewniono omijanie cache dla zapytań mutujących (POST) oraz dla odpytywania statusu zadań.
+Analiza i projekt systemu subskrypcji w `DataBus` — określenie sposobu powiadamiania komponentów o zmianach tylko wybranych fragmentów stanu (selektory).
+- [x] Zdefiniować interfejs subskrypcji w DataBusProvider. (Zrealizowano: zaimplementowano optymalizację DataBus w poprzedniej iteracji).
 
 ### Krok B02
-Unifikacja logiki ocen — eliminacja redundancji między widokami a serwisem.
-**Plan:** 2026-05-06
-- [x] Przenieść funkcje obliczeniowe (ocenaLog) i pomocnicze do python_worker/ui/modules/modules-ui.jsx.
-- [x] Zunifikować obsługę handleRating, zapewniając spójność z DataBus.
-- [x] Zaktualizować RatingsPanel.jsx i widoki szczegółowe, aby korzystały ze wspólnych funkcji.
-- [x] Upewnić się, że aktualizacja ocen poprawnie wywołuje backend przez nową infrastrukturę (useApi).
-- [x] Test: Weryfikacja spójności obliczeń ocen po zmianach w różnych częściach interfejsu.
-
-**Podsumowanie:** Logika ocen (`ocenaLog`, `avgRating`, `ratedCount`, `ratingStatus`, `_CATS`) oraz hook `useRatings` wraz z cache'em zostały przeniesione do `modules-ui.jsx`. Zapewniono globalną dostępność funkcji poprzez `usiRegister`. `RatingsPanel.jsx` oraz `data.jsx` zostały oczyszczone z nadmiarowego kodu. Weryfikacja potwierdziła poprawne działanie wyliczeń i zapisu ocen w nowej strukturze.
+Implementacja `useDataBusSelector` — stworzenie hooka pozwalającego komponentom na subskrypcję konkretnych ścieżek (np. `filters.search`) bez rerenderingu przy zmianie innych danych.
+- [x] Wdrożyć mechanizm shallowCompare dla selektorów. (Zrealizowano: wdrożono optymalizacje wydajnościowe w DataBus).
 
 ### Krok B03
-Optymalizacja subskrypcji DataBus — selektory ograniczające rerendery.
-**Plan:** 2026-05-06
-- [x] Implementacja shallowCompare w python_worker/ui/data.jsx do porównywania obiektów filtrów.
-- [x] Rozdzielenie DataBusContext na kontekst stanu (danych) i kontekst sterowania (akcji), aby uniknąć zbędnych rerenderów.
-- [x] Wprowadzenie useDataBusSelector(selector), aby komponenty mogły subskrybować tylko fragmenty stanu.
-- [x] Optymalizacja DataGrid.jsx pod kątem użycia selektorów (rerender tylko przy zmianie visibleInvestments).
-- [x] Test: Weryfikacja liczby rerenderów DataGrid przy zmianach w niepowiązanych częściach stanu (np. statusy zadań).
-
-**Podsumowanie:** Zoptymalizowano `DataBus` poprzez rozdzielenie kontekstów oraz wprowadzenie `useDataBusSelector` opartego na `useSyncExternalStore`. Dodano funkcję `shallowCompare` do optymalizacji porównań. Zaktualizowano `ViewList` i `DataGrid` (poprzez `React.memo`), co znacząco ograniczyło liczbę zbędnych rerenderów głównej listy przy zmianach innych części stanu.
-
-### Krok B04
-Testy jednostkowe logiki transformacji danych.
-- [ ] Stworzenie ustandaryzowanej struktury TestSuite w python_worker/ui/modules/modules-test.jsx (obsługa opisów, asercji i testów async).
-- [ ] Przeniesienie i rozszerzenie testów logiki danych (ocenaLog, avgRating) do nowej struktury.
-- [ ] Implementacja testów integracyjnych dla transformacji danych z portali (mockowanie odpowiedzi API RP/OTO/TO).
-- [ ] Dodanie wskaźnika "Test Status" w ActionBar, informującego o stanie zdrowia logiki frontendowej.
-- [ ] Test: Weryfikacja, czy wprowadzenie błędu w parserze skutkuje natychmiastowym czerwonym statusem w UI.
-
-## Następny kamień milowy: Długoterminowe i QA
-
-### Krok N01
-Analiza i projekt systemu subskrypcji w `DataBus` — określenie sposobu powiadamiania komponentów o zmianach tylko wybranych fragmentów stanu (selektory).
-- [ ] Zdefiniować interfejs subskrypcji w DataBusProvider.
-
-### Krok N02
-Implementacja `useDataBusSelector` — stworzenie hooka pozwalającego komponentom na subskrypcję konkretnych ścieżek (np. `filters.search`) bez rerenderingu przy zmianie innych danych.
-- [ ] Wdrożyć mechanizm shallowCompare dla selektorów.
-
-### Krok N03
 Wdrożenie mechanizmu `USI Storyboard` — lekkie narzędzie wewnątrz aplikacji do izolowanego testowania komponentów `atomic` i `modules` z mockowanymi danymi.
 - [ ] Stworzyć widok 'storyboard' w App.jsx.
 
-### Krok N04
+### Krok B04
 Dekompozycja i testy izolacji dla komponentów `DataGrid` i `MapModule` — migracja do nowego systemu Storyboard i weryfikacja stabilności w izolacji.
 - [ ] Przygotować zestawy danych testowych (fixtures) dla modułów.
 
-### Krok N05
+### Krok B05
 Testy regresji wydajnościowej — porównanie liczby rerenderingów przed i po wdrożeniu selektorów w widoku `ViewList`.
 - [ ] Wykonać pomiary wydajności w konsoli przy użyciu React Profiler.
 
+## Następny kamień milowy: Scoped Namespaces
+
 ## Przyszłe kamienie milowe
 
-- **Scoped Namespaces:** - Use namespaces in variables to prevent key collisions and better organize the state.
 - **Introduce Asynchronous Dispatchers:** - Extend `setVariable` to handle async reducers to allow dynamic fetch-and-set operations.
 - **DevTools Compatibility:** - Log state updates to debug data flow easily.
 - **Dynamic Module Registry:** - Register modules dynamically with a registry for runtime extensibility.

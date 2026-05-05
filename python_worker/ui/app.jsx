@@ -53,7 +53,7 @@
         MAIN_CITIES, SOURCES, USI_STATUSES, applyTheme, injectThemeCSS,
         NavbarShell, NavbarTitle, NavbarCounter, ActionBar, NotificationCenter, StatusMessenger,
         GlobalSearch, FilterGroup, FilterChip, NavMenuButton, NavDrawer,
-        LoadingScreen, EmptyScreen
+        LoadingScreen, EmptyScreen, useDataBusSelector, TestSuite
       } = window;
 
       const rootRef = React.useRef(null);
@@ -68,6 +68,8 @@
       const [fetchCount] = React.useState(0);
       const [dark, setDark] = React.useState(false);
       const [mode, setMode] = React.useState('grid');
+
+      const testResults = useDataBusSelector(state => state.testResults);
 
       const { bus, setVariable } = useDataBus();
       const { 
@@ -180,10 +182,8 @@
             right={
               <div className="usi-flex-row usi-gap-12">
                   {(() => {
-                    const { useDataBusSelector, TestSuite } = window;
-                    const results = useDataBusSelector(state => state.testResults);
-                    const hasFailures = results && results.some(s => s.tests.some(t => t.status === 'fail'));
-                    const statusColor = !results ? 'var(--usi-ink-4)' : hasFailures ? 'var(--usi-danger)' : 'var(--usi-success)';
+                    const hasFailures = testResults && testResults.some(s => s.tests.some(t => t.status === 'fail'));
+                    const statusColor = !testResults ? 'var(--usi-ink-4)' : hasFailures ? 'var(--usi-danger)' : 'var(--usi-success)';
                     
                     return (
                       <button 

@@ -1,3 +1,10 @@
+## Optymalizacja Logiki Frontendowej — 2026-05-06
+- Wdrożono hook `useApi` z centralnym cache i obsługą błędów.
+- Zunifikowano logikę ocen (`ocenaLog`, `avgRating`) w dedykowanym module `modules-ui.jsx`.
+- Zoptymalizowano `DataBus` wprowadzając selektory (`useDataBusSelector`) i `shallowCompare`.
+- Wdrożono framework testów jednostkowych JS (`TestSuite`) z integracją w interfejsie.
+- Zredukowano liczbę zbędnych re-renderów w `DataGrid` i widokach głównych.
+
 ## System Modułów: Rozszerzenia — 2026-05-06
 - **Rozbudowa Systemu Modułów**: Wdrożono zaawansowane moduły analityczne i wizualne, w tym `PriceTrendModule` (wykresy trendów cenowych Chart.js) oraz interaktywny `MapModule` z klastrowaniem punktów (HERE Maps API).
 - **System Szablonów (Presets)**: Wprowadzono mechanizm `presets` w `ModuleRegistry`, pozwalający na definiowanie złożonych układów raportów (np. "Przegląd Dewelopera") za pomocą jednego identyfikatora.

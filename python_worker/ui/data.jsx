@@ -241,9 +241,11 @@ window.usiRegister('useDataBus', useDataBus);
 
 function useDataBusSelector(selector, compare = (a, b) => a === b) {
   const { React } = window;
-  const { subscribe, getSnapshot } = React.useContext(DataBusStateContext) || {};
+  const context = React.useContext(DataBusStateContext) || {};
   
-  if (!subscribe) return selector({});
+  // Safe defaults to ensure unconditional hook execution
+  const subscribe = context.subscribe || (() => () => {});
+  const getSnapshot = context.getSnapshot || (() => ({}));
 
   const slice = React.useSyncExternalStore(
     subscribe,
