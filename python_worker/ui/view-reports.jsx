@@ -104,6 +104,19 @@ function DataGridModule({ data: investments, ...props }) {
 }
 window.ModuleRegistry.register('DataGridModule', DataGridModule);
 
+// ─── Presets Registration (Krok B03) ───────────────────────────────────
+window.ModuleRegistry.registerPreset('DeveloperOverview', [
+  { type: 'PriceTrendModule', props: { title: 'Trend Inwestycji Dewelopera' } },
+  { type: 'MapModule', props: { title: 'Lokalizacje Inwestycji', height: 300 } },
+  { type: 'DataGridModule' }
+]);
+
+window.ModuleRegistry.registerPreset('LocationAnalysis', [
+  { type: 'MapModule', props: { title: 'Mapa Analizy Okolicy', height: 500 } },
+  { type: 'DataGridModule' }
+]);
+
+
 function ReportDetail({ reportId, onBack }) {
   const { React, Spinner, Icon, ModuleRegistry, ModuleErrorBoundary } = window;
   const [data, setData] = React.useState(null);
@@ -124,7 +137,22 @@ function ReportDetail({ reportId, onBack }) {
   if (!data) return <div className="usi-app-empty">Błąd ładowania raportu.</div>;
 
   const { definition, data: investments } = data;
-  const modulesToRender = definition.modules || [{ type: 'DataGridModule' }];
+  
+  // Resolve modules (supporting presets)
+  const modulesToRender = React.useMemo(() => {
+    const raw = definition.modules || [{ type: 'DataGridModule' }];
+    const resolved = [];
+    raw.forEach(m => {
+      if (m.type === 'preset') {
+        const p = ModuleRegistry.getPreset(m.name);
+        if (p) resolved.push(...p);
+        else resolved.push({ type: 'error', message: `Nieznany preset: ${m.name}` });
+      } else {
+        resolved.push(m);
+      }
+    });
+    return resolved;
+  }, [definition.modules, ModuleRegistry]);
 
   return (
     <div data-component="ReportDetail" className="report-detail-content usi-scroll">
@@ -138,6 +166,8 @@ function ReportDetail({ reportId, onBack }) {
         
         <div className="report-modules-stack">
           {modulesToRender.map((mod, idx) => {
+             if (mod.type === 'error') return <div key={idx} className="usi-pill error">{mod.message}</div>;
+
              const { validateModuleSpec } = window;
              const ModComponent = ModuleRegistry.get(mod.type);
              if (!ModComponent) return <div key={idx} className="usi-pill error">Nieznany moduł: {mod.type}</div>;

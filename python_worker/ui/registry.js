@@ -32,9 +32,10 @@
     return Object.keys(registry);
   };
 
-  // ─── Module Registry (Krok B04) ──────────────────────────────────────────
+  // ─── Module Registry (Krok B03/B04) ─────────────────────────────────────
   win.ModuleRegistry = {
     _modules: {},
+    _presets: {},
     register(name, definition, spec = null) {
       if (this._modules[name]) {
         console.warn(`[ModuleRegistry] Overwriting module: ${name}`);
@@ -52,6 +53,13 @@
     },
     list() {
       return Object.keys(this._modules);
+    },
+    registerPreset(name, config) {
+      this._presets[name] = config;
+      return config;
+    },
+    getPreset(name) {
+      return this._presets[name] || null;
     }
   };
 

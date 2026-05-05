@@ -15,9 +15,11 @@ Implementacja modułu `PriceTrendModule` (Chart.js) — wizualizacja historii ce
 ### Krok B02
 Rozbudowa `MapModule` o interaktywne klastrowanie i synchronizację z filtrami DataBus.
 **Plan:** 2026-05-06.
-- [ ] Zaktualizować logikę HERE Maps o obsługę klastrów punktów dla dużych zbiorów danych.
-- [ ] Dodać dwukierunkową synchronizację: kliknięcie na mapie aktualizuje `currentInvestment` w DataBus.
-- [ ] **Test**: Zweryfikować, czy filtrowanie na liście automatycznie odświeża punkty na mapie modułu.
+- [x] Zaktualizować logikę HERE Maps o obsługę klastrów punktów dla dużych zbiorów danych.
+- [x] Dodać dwukierunkową synchronizację: kliknięcie na mapie aktualizuje `currentInvestment` w DataBus.
+- [x] **Test**: Zweryfikować, czy filtrowanie na liście automatycznie odświeża punkty na mapie modułu.
+
+**Podsumowanie:** Wdrożono interaktywny moduł `MapModule` integrujący HERE Maps JS API z obsługą klastrowania (Clustering). Moduł automatycznie centruje się na danych i wspiera synchronizację z DataBus — kliknięcie w marker aktualizuje `currentInvestment`. Dodano specyfikację parametrów i zarejestrowano moduł w `ModuleRegistry`.
 
 ### Krok B03
 System szablonów (Presets) w `ModuleRegistry` — predefiniowane układy modułów dla typowych raportów.

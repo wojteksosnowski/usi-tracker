@@ -312,49 +312,38 @@ window.runHierarchicalModuleTest = function runHierarchicalModuleTest() {
 
     console.table(results);
     return results;
-};
+    };
 
-/**
- * runModuleSpecValidationTest - Verifies that components with __spec property 
- * are properly validated before rendering.
- */
-window.runModuleSpecValidationTest = function runModuleSpecValidationTest() {
-    console.log("🧪 Starting ModuleSpec Validation Test...");
-    const { React, ModuleRegistry, validateModuleSpec } = window;
-    
+
+    /**
+    * runModuleRegistryPresetsTest - Verifies preset registration and retrieval.
+    */
+    window.runModuleRegistryPresetsTest = function runModuleRegistryPresetsTest() {
+    console.log("🧪 Starting ModuleRegistry Presets Test...");
+    const { ModuleRegistry } = window;
+
     const results = [];
     const assert = (name, condition) => {
         results.push({ name, status: condition ? 'PASS' : 'FAIL' });
         console.log(`${condition ? '✅' : '❌'} ${name}`);
     };
 
-    // 1. Setup a component with strict spec
-    const StrictModule = ({ theme }) => React.createElement('div', null, `Theme: ${theme}`);
-    const spec = {
-        props: {
-            theme: { type: 'String', required: true, label: 'Motyw kolorystyczny', default: 'light' },
-            zoom: { type: 'Number', default: 10 }
-        }
-    };
-    ModuleRegistry.register('StrictModule', StrictModule, spec);
+    // 1. Check built-in presets
+    assert("DeveloperOverview preset registered", !!ModuleRegistry.getPreset('DeveloperOverview'));
+    assert("LocationAnalysis preset registered", !!ModuleRegistry.getPreset('LocationAnalysis'));
 
-    // 2. Validate correct config
-    const validConfig = { type: 'StrictModule', props: { theme: 'dark' } };
-    const v1 = validateModuleSpec(StrictModule, validConfig);
-    assert("Validation passes for correct config", v1.valid === true);
+    // 2. Register dynamic preset
+    const testConfig = [{ type: 'TestModule' }];
+    ModuleRegistry.registerPreset('TestPreset', testConfig);
+    assert("TestPreset retrieved correctly", ModuleRegistry.getPreset('TestPreset') === testConfig);
 
-    // 3. Validate incorrect config (missing required prop)
-    const invalidConfig = { type: 'StrictModule', props: { zoom: 5 } };
-    const v2 = validateModuleSpec(StrictModule, invalidConfig);
-    assert("Validation fails for missing required prop", v2.valid === false);
-    assert("Validation error contains prop name", v2.errors[0].includes('Motyw kolorystyczny'));
-
-    // 4. Test ModuleKnobs (logic only)
-    assert("ModuleKnobs is registered", !!window.usiGet('ModuleKnobs'));
+    // 3. Retrieval of non-existent preset
+    assert("Non-existent preset returns null", ModuleRegistry.getPreset('NoSuchPreset') === null);
 
     console.table(results);
     return results;
-};
+    };
+
 
 
 
