@@ -47,7 +47,7 @@
       const {
         Spinner, Icon, ModuleErrorBoundary,
         ViewList, DeveloperListGrid, DeveloperDetail,
-        DetailRightPanel, DashboardGrid, ViewDownload,
+        DetailRightPanel, DashboardGrid, ViewDownload, ViewLibrary, UIStoryboard,
         ReportsList, ReportDetail, DataBusProvider, useDataBus,
         useInvestments, useDevelopers, useConfig,
         MAIN_CITIES, SOURCES, USI_STATUSES, applyTheme, injectThemeCSS,
@@ -148,7 +148,7 @@
         if (view === 'list') return "Inwestycje";
         if (view === 'developers') return "Deweloperzy";
         if (view === 'dashboard') return "Dashboard";
-        if (view === 'download') return "Pobieranie";
+        if (view === 'storyboard') return "Storyboard";
         if (view === 'reports') return "Raporty";
         if (view === 'library') return "Biblioteka Modułów";
         if (view === 'detail') return selectedInv?.name || "Szczegóły";
@@ -345,6 +345,7 @@
 
               {view === 'download' && <ViewDownload />}
               {view === 'library' && <ViewLibrary />}
+              {view === 'storyboard' && <UIStoryboard />}
               {view === 'reports' && <ReportsList onSelectReport={(r) => { setSelectedReport(r); setView('report-detail'); }} />}
               {view === 'report-detail' && selectedReport && <ReportDetail reportId={selectedReport.id} onBack={() => setView('reports')} />}
             </ModuleErrorBoundary>
