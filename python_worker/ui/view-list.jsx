@@ -4,7 +4,9 @@
   const { React, usiRegister, useDataBus, DataGrid, ListCard, ocenaLog } = window;
 
   function ViewList({ onSelectInv, mode = 'grid' }) {
-    const { useDataBusSelector, DataBoundary } = window;
+    const { useDataBusSelector, DataBoundary, useRenderTracker } = window;
+    if (useRenderTracker) useRenderTracker('ViewList');
+    
     const investments = useDataBusSelector(state => state.visibleInvestments || []);
     
     const columns = [

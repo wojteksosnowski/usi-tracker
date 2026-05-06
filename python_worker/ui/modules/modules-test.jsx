@@ -73,6 +73,24 @@
 
   usiRegister('TestSuite', TestSuite);
 
+  /**
+   * useRenderTracker - Hook for quantifying component renders during development.
+   * Logs only when localStorage.getItem('USI_DEBUG_RENDER') === 'true'.
+   */
+  function useRenderTracker(name) {
+    const { React } = window;
+    const renderCount = React.useRef(0);
+    renderCount.current++;
+
+    React.useEffect(() => {
+      if (localStorage.getItem('USI_DEBUG_RENDER') === 'true') {
+        console.log(`[RenderTracker] ${name} render #${renderCount.current}`);
+      }
+    });
+  }
+  window.useRenderTracker = useRenderTracker;
+  usiRegister('useRenderTracker', useRenderTracker);
+
   // ─── Initial Tests ───
   TestSuite.describe('Logika ocen', () => {
     const { ocenaLog, avgRating, ratedCount } = window;

@@ -242,6 +242,7 @@ window.usiRegister('useDataBus', useDataBus);
 function useDataBusSelector(selector, compare = (a, b) => a === b) {
   const { React } = window;
   const context = React.useContext(DataBusStateContext) || {};
+  const isDebug = localStorage.getItem('USI_DEBUG_BUS') === 'true';
   
   // Safe defaults to ensure unconditional hook execution
   const subscribe = context.subscribe || (() => () => {});
@@ -249,7 +250,13 @@ function useDataBusSelector(selector, compare = (a, b) => a === b) {
 
   const slice = React.useSyncExternalStore(
     subscribe,
-    () => selector(getSnapshot()),
+    () => {
+      const val = selector(getSnapshot());
+      if (isDebug && localStorage.getItem('USI_DEBUG_RENDER') === 'true') {
+        console.log(`[useDataBusSelector] snapshot update triggered`);
+      }
+      return val;
+    },
     () => selector({})
   );
 
