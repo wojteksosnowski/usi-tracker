@@ -6,7 +6,7 @@
    */
   const ListCard = ({ inv, onSelect, footerRight: CustomFooterRight }) => {
     const avg = avgRating ? avgRating(inv) : 0;
-    const thumb = inv.photos[0] || inv.image || null;
+    const thumb = (inv.photos && inv.photos.length > 0) ? inv.photos[0] : (inv.image || null);
 
     // Default footer right is the star rating
     const DefaultFooterRight = (

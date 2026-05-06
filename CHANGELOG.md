@@ -1,4 +1,9 @@
+## Długoterminowe i QA — 2026-05-06
+- Zdefiniowano interfejs subskrypcji w DataBusProvider w ramach optymalizacji szyny danych.
+- Wdrożono mechanizm `useDataBusSelector` oraz `shallowCompare` dla selektorów, redukując liczbę rerenderów.
+
 ## Optymalizacja Logiki Frontendowej — 2026-05-06
+
 - Wdrożono hook `useApi` z centralnym cache i obsługą błędów.
 - Zunifikowano logikę ocen (`ocenaLog`, `avgRating`) w dedykowanym module `modules-ui.jsx`.
 - Zoptymalizowano `DataBus` wprowadzając selektory (`useDataBusSelector`) i `shallowCompare`.

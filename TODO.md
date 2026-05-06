@@ -2,30 +2,33 @@
 
 ## Bieżący kamień milowy: Długoterminowe i QA
 
-### Krok B01
+### Krok N01
 Analiza i projekt systemu subskrypcji w `DataBus` — określenie sposobu powiadamiania komponentów o zmianach tylko wybranych fragmentów stanu (selektory).
-- [x] Zdefiniować interfejs subskrypcji w DataBusProvider. (Zrealizowano: zaimplementowano optymalizację DataBus w poprzedniej iteracji).
+- [ ] Zdefiniować interfejs subskrypcji w DataBusProvider.
 
-### Krok B02
+### Krok N02
 Implementacja `useDataBusSelector` — stworzenie hooka pozwalającego komponentom na subskrypcję konkretnych ścieżek (np. `filters.search`) bez rerenderingu przy zmianie innych danych.
-- [x] Wdrożyć mechanizm shallowCompare dla selektorów. (Zrealizowano: wdrożono optymalizacje wydajnościowe w DataBus).
+- [ ] Wdrożyć mechanizm shallowCompare dla selektorów.
 
-### Krok B03
+### Krok N03
 Wdrożenie mechanizmu `USI Storyboard` — lekkie narzędzie wewnątrz aplikacji do izolowanego testowania komponentów `atomic` i `modules` z mockowanymi danymi.
 - [ ] Stworzyć widok 'storyboard' w App.jsx.
 
-### Krok B04
+### Krok N04
 Dekompozycja i testy izolacji dla komponentów `DataGrid` i `MapModule` — migracja do nowego systemu Storyboard i weryfikacja stabilności w izolacji.
 - [ ] Przygotować zestawy danych testowych (fixtures) dla modułów.
 
-### Krok B05
+### Krok N05
 Testy regresji wydajnościowej — porównanie liczby rerenderingów przed i po wdrożeniu selektorów w widoku `ViewList`.
 - [ ] Wykonać pomiary wydajności w konsoli przy użyciu React Profiler.
 
 ## Następny kamień milowy: Scoped Namespaces
 
+Use namespaces in variables to prevent key collisions and better organize the state.
+
 ## Przyszłe kamienie milowe
 
+- **Scoped Namespaces:** - Use namespaces in variables to prevent key collisions and better organize the state.
 - **Introduce Asynchronous Dispatchers:** - Extend `setVariable` to handle async reducers to allow dynamic fetch-and-set operations.
 - **DevTools Compatibility:** - Log state updates to debug data flow easily.
 - **Dynamic Module Registry:** - Register modules dynamically with a registry for runtime extensibility.
