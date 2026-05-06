@@ -3,6 +3,54 @@
 (function() {
   const { React, usiRegister } = window;
 
+  const MOCK_INVESTMENTS = [
+    { 
+      slug: 'test-1', 
+      name: 'Osiedle Słoneczne', 
+      developer: 'Green House', 
+      district: 'Mokotów', 
+      address: 'ul. Wołoska 12, Warszawa',
+      price_avg: 15400, 
+      delivery: '2025-12-31',
+      delivery_quarter: 'Q4 2025',
+      coords: [52.19, 21.01],
+      photos: ['https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=400&h=250'],
+      ratings: { USI: 4.8, Balkony: 5, Fasady: 4, Wnętrza: 5, Teren: 5, Mieszkania: 5, Udogodnienia: 4 },
+      source: 'RP',
+      status: 'W budowie'
+    },
+    { 
+      slug: 'test-2', 
+      name: 'Apartamenty Centrum', 
+      developer: 'Skyline', 
+      district: 'Śródmieście', 
+      address: 'al. Jana Pawła II 22, Warszawa',
+      price_avg: 22000, 
+      delivery: '2024-06-30',
+      delivery_quarter: 'Q2 2024',
+      coords: [52.23, 21.01],
+      photos: ['https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=400&h=250'],
+      ratings: { USI: 4.2, Balkony: 4, Fasady: 5, Wnętrza: 4, Teren: 3, Mieszkania: 5, Udogodnienia: 5 },
+      source: 'OTO',
+      status: 'Ukończona'
+    },
+    { 
+      slug: 'test-3', 
+      name: 'Parkowy Zakątek', 
+      developer: 'Eco Living', 
+      district: 'Białołęka', 
+      address: 'ul. Modlińska 100, Warszawa',
+      price_avg: 11000, 
+      delivery: '2026-03-20',
+      delivery_quarter: 'Q1 2026',
+      coords: [52.32, 21.03],
+      photos: [],
+      ratings: { USI: 3.9, Balkony: 3, Fasady: 3, Wnętrza: 4, Teren: 5, Mieszkania: 4, Udogodnienia: 4 },
+      source: 'TO',
+      status: 'Planowana'
+    }
+  ];
+
   const STORIES = {
     'Atomic/Icon': {
       component: 'Icon',
@@ -15,20 +63,34 @@
     'Views/ListCard': {
       component: 'ListCard',
       props: {
-        inv: { 
-          name: 'Osiedle Testowe', 
-          developer: 'Test Dev', 
-          district: 'Warszawa', 
-          price_avg: 12500, 
-          photos: [],
-          image: null,
-          ratings: { USI: 4.5 }
-        }
+        inv: MOCK_INVESTMENTS[0]
       }
     },
     'Atomic/ProgressRing': {
       component: 'ProgressRing',
       props: { value: 75, max: 100, size: 64, stroke: 6 }
+    },
+    'Components/DataGrid': {
+      component: 'DataGrid',
+      props: {
+        data: MOCK_INVESTMENTS,
+        columns: [
+          { key: 'name', label: 'Nazwa', width: '40%' },
+          { key: 'developer', label: 'Deweloper', width: '30%' },
+          { key: 'price_avg', label: 'Cena/m²', width: '30%' }
+        ],
+        mode: 'table',
+        gridConfig: { minCardWidth: 280, gap: 16, cardHeight: 340 }
+      }
+    },
+    'Modules/MapModule': {
+      component: 'MapModule',
+      props: {
+        data: MOCK_INVESTMENTS,
+        height: 400,
+        title: 'Mapa Testowa',
+        hereApiKey: 'BDske2zxCqqwwBGMf4IBKA49FRvRZLe4TnfBtYTor9c'
+      }
     }
   };
 
@@ -95,16 +157,30 @@
           <div 
             style={{ 
               padding: 40, background: 'var(--usi-surface)', borderRadius: 12, border: '1px dashed var(--usi-border-strong)',
-              boxShadow: 'var(--usi-shadow-sm)', maxWidth: '100%', minWidth: 200, display: 'flex', justifyContent: 'center' 
+              boxShadow: 'var(--usi-shadow-sm)', maxWidth: '100%', minWidth: 200, display: 'flex', justifyContent: 'center',
+              width: '100%', flex: 1
             }}
           >
             <ModuleErrorBoundary>
-              {TargetComp ? <TargetComp {...currentProps} /> : <div>Component <b>{story.component}</b> not found in registry.</div>}
+              {TargetComp ? (
+                story.component === 'DataGrid' ? (
+                  <div style={{ width: '100%', height: '100%', background: 'var(--usi-surface)', borderRadius: 8, overflow: 'hidden' }}>
+                    <TargetComp {...currentProps} renderCard={(inv) => {
+                      const { ListCard } = window;
+                      return <ListCard inv={inv} />;
+                    }} />
+                  </div>
+                ) : (
+                  <TargetComp {...currentProps} />
+                )
+              ) : (
+                <div>Component <b>{story.component}</b> not found in registry.</div>
+              )}
             </ModuleErrorBoundary>
           </div>
           
-          <div style={{ marginTop: 40, width: '100%', maxWidth: 600, display: 'flex', gap: 20 }}>
-             <div style={{ flex: 1 }}>
+          <div style={{ marginTop: 20, width: '100%', display: 'flex', gap: 20, height: 200 }}>
+             <div style={{ flex: 1, overflow: 'auto' }} className="usi-scroll">
                <h4 className="usi-tiny" style={{ fontWeight: 700, opacity: 0.6, marginBottom: 8 }}>KNOBS</h4>
                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                  {Object.keys(currentProps).map(key => {
@@ -112,14 +188,27 @@
                    if (typeof val === 'string' || typeof val === 'number') {
                      return (
                        <div key={key} className="usi-flex-row usi-gap-8" style={{ alignItems: 'center' }}>
-                         <span className="usi-small usi-w-100" style={{ fontWeight: 600 }}>{key}</span>
+                         <span className="usi-small usi-w-100" style={{ fontWeight: 600, fontSize: 11 }}>{key}</span>
                          <input 
                            className="usi-input sm" 
                            value={val} 
                            onChange={e => updateProp(key, typeof val === 'number' ? Number(e.target.value) : e.target.value)} 
+                           style={{ fontSize: 11 }}
                          />
                        </div>
                      );
+                   }
+                   if (typeof val === 'boolean') {
+                      return (
+                        <div key={key} className="usi-flex-row usi-gap-8" style={{ alignItems: 'center' }}>
+                          <span className="usi-small usi-w-100" style={{ fontWeight: 600, fontSize: 11 }}>{key}</span>
+                          <input 
+                            type="checkbox"
+                            checked={val} 
+                            onChange={e => updateProp(key, e.target.checked)} 
+                          />
+                        </div>
+                      );
                    }
                    return null;
                  })}
@@ -129,7 +218,7 @@
                 <h4 className="usi-tiny" style={{ fontWeight: 700, opacity: 0.6, marginBottom: 8 }}>RAW PROPS</h4>
                 <pre style={{ 
                   padding: 16, background: 'var(--usi-surface-2)', borderRadius: 8, fontSize: 10, border: '.5px solid var(--usi-border)',
-                  color: 'var(--usi-ink-3)', overflow: 'auto', maxHeight: 200
+                  color: 'var(--usi-ink-3)', overflow: 'auto', height: 160, margin: 0
                 }}>
                   {JSON.stringify(currentProps, null, 2)}
                 </pre>

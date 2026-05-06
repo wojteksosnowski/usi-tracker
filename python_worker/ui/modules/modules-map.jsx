@@ -46,7 +46,7 @@
   }
   usiRegister('MiniMap', MiniMap);
 
-  function MapModule({ data: localData, height = 400, title = "Mapa Inwestycji" }) {
+  function MapModule({ data: localData, height = 400, title = "Mapa Inwestycji", hereApiKey }) {
     const mapRef = React.useRef(null);
     const containerRef = React.useRef(null);
     const { bus, setVariable } = useDataBus();
@@ -92,7 +92,7 @@
       const H = window.H;
 
       const platform = new H.service.Platform({
-        apikey: window.usiConfig?.hereApiKey || 'BDske2zxCqqwwBGMf4IBKA49FRvRZLe4TnfBtYTor9c'
+        apikey: hereApiKey || window.usiConfig?.hereApiKey || 'BDske2zxCqqwwBGMf4IBKA49FRvRZLe4TnfBtYTor9c'
       });
       const defaultLayers = platform.createDefaultLayers();
       
@@ -171,7 +171,8 @@
   MapModule.__spec = {
     props: {
       title: { type: 'String', label: 'Tytuł modułu', default: 'Mapa Inwestycji' },
-      height: { type: 'Number', label: 'Wysokość (px)', default: 400 }
+      height: { type: 'Number', label: 'Wysokość (px)', default: 400 },
+      hereApiKey: { type: 'String', label: 'HERE API Key', default: '' }
     }
   };
   window.ModuleRegistry.register('MapModule', MapModule, MapModule.__spec);
