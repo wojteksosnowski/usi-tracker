@@ -40,10 +40,29 @@
       ...registeredComps 
     } = window;
 
-    const [activeStory, setActiveStory] = React.useState(STORY_KEYS[0]);
-    const story = STORIES[activeStory];
+    const [activeStoryKey, setActiveStoryKey] = React.useState(STORY_KEYS[0]);
+    const [currentProps, setCurrentProps] = React.useState(STORIES[STORY_KEYS[0]].props);
 
+    React.useEffect(() => {
+      setCurrentProps(STORIES[activeStoryKey].props);
+    }, [activeStoryKey]);
+
+    const story = STORIES[activeStoryKey];
     const TargetComp = registeredComps[story.component];
+
+    const updateProp = (path, val) => {
+      setCurrentProps(prev => {
+        const next = { ...prev };
+        const keys = path.split('.');
+        let cur = next;
+        for (let i = 0; i < keys.length - 1; i++) {
+          cur[keys[i]] = { ...cur[keys[i]] };
+          cur = cur[keys[i]];
+        }
+        cur[keys[keys.length - 1]] = val;
+        return next;
+      });
+    };
 
     return (
       <div data-component="ViewStoryboard" className="usi-flex-row" style={{ height: 'calc(100vh - 120px)' }}>
@@ -53,14 +72,14 @@
           {STORY_KEYS.map(key => (
             <button
               key={key}
-              onClick={() => setActiveStory(key)}
+              onClick={() => setActiveStoryKey(key)}
               style={{
-                width: '100%', padding: '10px 16px', border: 'none', background: key === activeStory ? 'var(--usi-accent-10)' : 'transparent',
-                color: key === activeStory ? 'var(--usi-accent)' : 'var(--usi-ink)', textAlign: 'left', cursor: 'pointer',
-                fontSize: 13, fontWeight: key === activeStory ? 700 : 500, display: 'flex', alignItems: 'center', gap: 10
+                width: '100%', padding: '10px 16px', border: 'none', background: key === activeStoryKey ? 'var(--usi-accent-10)' : 'transparent',
+                color: key === activeStoryKey ? 'var(--usi-accent)' : 'var(--usi-ink)', textAlign: 'left', cursor: 'pointer',
+                fontSize: 13, fontWeight: key === activeStoryKey ? 700 : 500, display: 'flex', alignItems: 'center', gap: 10
               }}
             >
-              <div style={{ width: 4, height: 4, borderRadius: '50%', background: key === activeStory ? 'var(--usi-accent)' : 'var(--usi-border-strong)' }} />
+              <div style={{ width: 4, height: 4, borderRadius: '50%', background: key === activeStoryKey ? 'var(--usi-accent)' : 'var(--usi-border-strong)' }} />
               {key}
             </button>
           ))}
@@ -69,7 +88,7 @@
         {/* Content panel */}
         <main style={{ flex: 1, padding: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--usi-surface-3)', overflowY: 'auto', position: 'relative' }}>
           <div style={{ position: 'absolute', top: 20, right: 20, textAlign: 'right' }}>
-            <h2 className="usi-h2" style={{ margin: 0 }}>{activeStory}</h2>
+            <h2 className="usi-h2" style={{ margin: 0 }}>{activeStoryKey}</h2>
             <div className="usi-tiny" style={{ opacity: 0.6 }}>Isolated Mode (Mock Data)</div>
           </div>
 
@@ -80,18 +99,41 @@
             }}
           >
             <ModuleErrorBoundary>
-              {TargetComp ? <TargetComp {...story.props} /> : <div>Component <b>{story.component}</b> not found in registry.</div>}
+              {TargetComp ? <TargetComp {...currentProps} /> : <div>Component <b>{story.component}</b> not found in registry.</div>}
             </ModuleErrorBoundary>
           </div>
           
-          <div style={{ marginTop: 40, width: '100%', maxWidth: 600 }}>
-             <h4 className="usi-tiny" style={{ fontWeight: 700, opacity: 0.6, marginBottom: 8 }}>MOCK PROPS (JSON)</h4>
-             <pre style={{ 
-               padding: 16, background: 'var(--usi-surface-2)', borderRadius: 8, fontSize: 11, border: '.5px solid var(--usi-border)',
-               color: 'var(--usi-ink-2)', overflow: 'auto'
-             }}>
-               {JSON.stringify(story.props, null, 2)}
-             </pre>
+          <div style={{ marginTop: 40, width: '100%', maxWidth: 600, display: 'flex', gap: 20 }}>
+             <div style={{ flex: 1 }}>
+               <h4 className="usi-tiny" style={{ fontWeight: 700, opacity: 0.6, marginBottom: 8 }}>KNOBS</h4>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                 {Object.keys(currentProps).map(key => {
+                   const val = currentProps[key];
+                   if (typeof val === 'string' || typeof val === 'number') {
+                     return (
+                       <div key={key} className="usi-flex-row usi-gap-8" style={{ alignItems: 'center' }}>
+                         <span className="usi-small usi-w-100" style={{ fontWeight: 600 }}>{key}</span>
+                         <input 
+                           className="usi-input sm" 
+                           value={val} 
+                           onChange={e => updateProp(key, typeof val === 'number' ? Number(e.target.value) : e.target.value)} 
+                         />
+                       </div>
+                     );
+                   }
+                   return null;
+                 })}
+               </div>
+             </div>
+             <div style={{ flex: 1 }}>
+                <h4 className="usi-tiny" style={{ fontWeight: 700, opacity: 0.6, marginBottom: 8 }}>RAW PROPS</h4>
+                <pre style={{ 
+                  padding: 16, background: 'var(--usi-surface-2)', borderRadius: 8, fontSize: 10, border: '.5px solid var(--usi-border)',
+                  color: 'var(--usi-ink-3)', overflow: 'auto', maxHeight: 200
+                }}>
+                  {JSON.stringify(currentProps, null, 2)}
+                </pre>
+             </div>
           </div>
         </main>
       </div>
