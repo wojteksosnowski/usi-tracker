@@ -1,6 +1,10 @@
 ## Długoterminowe i QA — 2026-05-06
-- Zdefiniowano interfejs subskrypcji w DataBusProvider w ramach optymalizacji szyny danych.
-- Wdrożono mechanizm `useDataBusSelector` oraz `shallowCompare` dla selektorów, redukując liczbę rerenderów.
+- Zaimplementowano mechanizm USI Storyboard do izolowanego testowania komponentów UI w czasie rzeczywistym.
+- Wdrożono interaktywny panel Knobs w Storyboardzie, umożliwiający dynamiczną zmianę właściwości komponentów (mock data).
+- Przeprowadzono dekompozycję i izolację kluczowych komponentów: DataGrid oraz MapModule (refaktoryzacja pod kątem wstrzykiwania zależności).
+- Zaimplementowano system fixtures i mocków dla inwestycji, ułatwiający rozwój interfejsu bez połączenia z API.
+- Wprowadzono instrumentację wydajnościową (useRenderTracker) do weryfikacji optymalizacji selektorów DataBus.
+
 
 ## Optymalizacja Logiki Frontendowej — 2026-05-06
 

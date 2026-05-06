@@ -1,35 +1,53 @@
 # TODO
 
-## Bieżący kamień milowy: Długoterminowe i QA
+## Zrealizowany kamień milowy: Długoterminowe i QA
 
-### Krok N01
+### Krok B01
 Analiza i projekt systemu subskrypcji w `DataBus` — określenie sposobu powiadamiania komponentów o zmianach tylko wybranych fragmentów stanu (selektory).
-- [ ] Zdefiniować interfejs subskrypcji w DataBusProvider.
+- [x] Zdefiniować interfejs subskrypcji w DataBusProvider.
 
-### Krok N02
+### Krok B02
 Implementacja `useDataBusSelector` — stworzenie hooka pozwalającego komponentom na subskrypcję konkretnych ścieżek (np. `filters.search`) bez rerenderingu przy zmianie innych danych.
-- [ ] Wdrożyć mechanizm shallowCompare dla selektorów.
+- [x] Wdrożyć mechanizm shallowCompare dla selektorów.
 
-### Krok N03
+### Krok B03
 Wdrożenie mechanizmu `USI Storyboard` — lekkie narzędzie wewnątrz aplikacji do izolowanego testowania komponentów `atomic` i `modules` z mockowanymi danymi.
-- [ ] Stworzyć widok 'storyboard' w App.jsx.
+- [x] Stworzyć plik `view-storyboard.jsx` z podstawową architekturą rejestru "stories" i nawigacją.
+- [x] Zintegrować widok `ViewStoryboard` w `app.jsx` (stan, NavDrawer, renderowanie).
+- [x] Dodać początkowe "opowieści" (stories) dla komponentów `Icon`, `Loading` i `ListCard` z mockami.
+- [x] Zaimplementować panel "Knobs" do dynamicznej zmiany propsów w Storyboardzie.
+- [x] Zweryfikować działanie izolacji i obsługę błędów w nowym widoku.
 
-### Krok N04
+### Krok B04
 Dekompozycja i testy izolacji dla komponentów `DataGrid` i `MapModule` — migracja do nowego systemu Storyboard i weryfikacja stabilności w izolacji.
-- [ ] Przygotować zestawy danych testowych (fixtures) dla modułów.
+- [x] Przygotować zestawy danych testowych (fixtures) dla `DataGrid` oraz `MapModule`.
+- [x] Zarejestrować "opowieść" dla `DataGrid` w Storyboardzie z listą mockowanych inwestycji.
+- [x] Zarejestrować "opowieść" dla `MapModule` z danymi o lokalizacji i weryfikacją API HERE.
+- [x] Zrefaktoryzować komponenty pod kątem lepszej izolacji (wstrzykiwanie zależności przez propsy).
+- [x] Zweryfikować poprawność renderowania i reakcję na zmiany "Knobs" dla obu modułów.
 
-### Krok N05
+### Krok B05
 Testy regresji wydajnościowej — porównanie liczby rerenderingów przed i po wdrożeniu selektorów w widoku `ViewList`.
-- [ ] Wykonać pomiary wydajności w konsoli przy użyciu React Profiler.
+- [x] Wykonać pomiary wydajności w konsoli przy użyciu React Profiler.
 
-## Następny kamień milowy: Scoped Namespaces
+## Bieżący kamień milowy: Scoped Namespaces
 
-Use namespaces in variables to prevent key collisions and better organize the state.
+### Krok B01
+Audyt obecnych zmiennych w DataBus — identyfikacja konfliktów i mapowanie płaskiej struktury na logiczne przestrzenie nazw (np. `ui.*`, `data.*`, `auth.*`).
+
+### Krok B02
+Migracja stanu globalnego na system zagnieżdżony — refaktoryzacja `DataBusProvider` i `setVariable` dla pełnej obsługi głębokich ścieżek we wszystkich widokach.
+
+### Krok B03
+Implementacja `useNamespace` hooka — narzędzie do tworzenia lokalnych aliasów dla fragmentów szyny danych, upraszczające dostęp wewnątrz dużych modułów.
+
+### Krok B04
+Testy integralności i migracja widoków — weryfikacja czy wszystkie komponenty poprawnie korzystają z nowych ścieżek po reorganizacji stanu.
+
+## Następny kamień milowy: Asynchronous Dispatchers
 
 ## Przyszłe kamienie milowe
 
-- **Scoped Namespaces:** - Use namespaces in variables to prevent key collisions and better organize the state.
-- **Introduce Asynchronous Dispatchers:** - Extend `setVariable` to handle async reducers to allow dynamic fetch-and-set operations.
 - **DevTools Compatibility:** - Log state updates to debug data flow easily.
 - **Dynamic Module Registry:** - Register modules dynamically with a registry for runtime extensibility.
 - **Encapsulate Module Context Logic:** - Replace repetitive validation logic with a shared `useModuleContext` hook.
