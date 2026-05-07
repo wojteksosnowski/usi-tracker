@@ -18,8 +18,8 @@
     };
 
     return (
-      <div data-component="ModuleGalleryItem" className="usi-card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, background: 'var(--usi-surface-2)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderBottom: '0.5px solid var(--usi-border)', paddingBottom: 12 }}>
+      <div data-component="ModuleGalleryItem" className="usi-card usi-p-24 usi-flex-col usi-gap-24" style={{ background: 'var(--usi-surface-2)' }}>
+        <div className="usi-flex-row" style={{ justifyContent: 'space-between', alignItems: 'baseline', borderBottom: '0.5px solid var(--usi-border)', paddingBottom: 12 }}>
           <div>
             <h3 className="usi-h3" style={{ margin: 0, color: 'var(--usi-accent)' }}>{name}</h3>
             <div className="usi-tiny" style={{ opacity: 0.6 }}>ModuleRegistry Component</div>
@@ -67,11 +67,11 @@
     const filtered = modules.filter(m => m.toLowerCase().includes(filter.toLowerCase()));
 
     return (
-      <div data-component="ViewLibrary" className="usi-scroll" style={{ height: '100%', overflowY: 'auto', padding: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
+      <div data-component="ViewLibrary" className="usi-scroll usi-h-full usi-overflow-auto usi-p-24">
+        <div className="usi-flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
           <div>
             <h1 className="usi-h1" style={{ margin: 0 }}>Biblioteka Modułów</h1>
-            <p className="usi-body" style={{ color: 'var(--usi-ink-3)', marginTop: 4 }}>
+            <p className="usi-body usi-text-secondary" style={{ marginTop: 4 }}>
               Podgląd i testowanie wszystkich komponentów zarejestrowanych w systemie USI Module Registry.
             </p>
           </div>

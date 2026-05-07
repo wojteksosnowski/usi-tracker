@@ -23,9 +23,10 @@
   const globalApiCache = new Map();
 
   function useApi() {
-    const { React } = window;
+    const { React, useDataBus } = window;
     const [loading, setLoading] = React.useState(false);
     const [error, setError] = React.useState(null);
+    const { setVariable } = useDataBus ? useDataBus() : { setVariable: null };
 
     const request = React.useCallback(async (url, options = {}) => {
       setLoading(true);
@@ -52,20 +53,15 @@
         return data;
       } catch (err) {
         setError(err.message);
-        // Safely try to notify via DataBus if available
-        if (window.useDataBus) {
-          try {
-            const { setVariable } = window.useDataBus();
-            if (setVariable) {
-              setVariable('appStatus', { type: 'error', msg: err.message });
-            }
-          } catch(e) {}
+        // Use setVariable from the outer scope (safely captured when hook was initialized)
+        if (setVariable) {
+          setVariable('appStatus', { type: 'error', msg: err.message });
         }
         throw err;
       } finally {
         setLoading(false);
       }
-    }, []);
+    }, [setVariable]);
 
     const clearCache = React.useCallback((url) => {
       if (url) globalApiCache.delete(url);
@@ -106,7 +102,7 @@
         {title && (
           <div className="module-header">
             {icon && <Icon name={icon} size={16} color="var(--usi-ink-3)" />}
-            <span className="usi-h3" style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--usi-ink-2)' }}>{title}</span>
+            <span className="usi-h3 usi-base-module-title">{title}</span>
           </div>
         )}
         <div className="module-content">
@@ -171,16 +167,16 @@
     String: ({ value, onChange }) => <input type="text" className="usi-input sm" value={value || ''} onChange={e => onChange(e.target.value)} />,
     Number: ({ value, onChange }) => <input type="number" className="usi-input sm" value={value || 0} onChange={e => onChange(Number(e.target.value))} />,
     Boolean: ({ value, onChange }) => <input type="checkbox" checked={value || false} onChange={e => onChange(e.target.checked)} />,
-    Color: ({ value, onChange }) => <input type="color" value={value || '#000000'} style={{ height: 24, padding: 0, border: 'none', background: 'none', cursor: 'pointer' }} onChange={e => onChange(e.target.value)} />,
+    Color: ({ value, onChange }) => <input type="color" value={value || '#000000'} className="usi-prop-editor-color" onChange={e => onChange(e.target.value)} />,
     Select: ({ value, onChange, options = [] }) => (
       <select className="usi-input sm" value={value || ''} onChange={e => onChange(e.target.value)}>
         {options.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
       </select>
     ),
     Range: ({ value, onChange, min = 0, max = 100, step = 1 }) => (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <input type="range" min={min} max={max} step={step} value={value || min} onChange={e => onChange(Number(e.target.value))} style={{ flex: 1 }} />
-        <span className="usi-mono" style={{ fontSize: 10, width: 24 }}>{value}</span>
+      <div className="usi-prop-editor-range-container">
+        <input type="range" min={min} max={max} step={step} value={value || min} onChange={e => onChange(Number(e.target.value))} className="usi-prop-editor-range-input" />
+        <span className="usi-mono usi-prop-editor-range-value">{value}</span>
       </div>
     )
   };
@@ -188,15 +184,15 @@
   function ModuleKnobs({ spec, props, onChange }) {
     if (!spec || !spec.props) return null;
     return (
-      <div className="usi-flex-column usi-gap-12" style={{ padding: 16, background: 'var(--usi-surface-3)', border: '1px solid var(--usi-border)', borderRadius: 10 }}>
-        <div className="usi-small" style={{ fontWeight: 600, textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.05em', opacity: 0.7 }}>Konfiguracja modułu</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div className="usi-flex-column usi-gap-12 usi-module-knobs-container">
+        <div className="usi-small usi-module-knobs-header">Konfiguracja modułu</div>
+        <div className="usi-module-knobs-grid">
           {Object.entries(spec.props).map(([key, propSpec]) => {
             const Editor = PropEditors[propSpec.type] || PropEditors.String;
             const val = props[key] !== undefined ? props[key] : propSpec.default;
             return (
-              <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span className="usi-small" style={{ fontSize: 10, color: 'var(--usi-ink-3)' }}>{propSpec.label || key}</span>
+              <div key={key} className="usi-module-knobs-item">
+                <span className="usi-small usi-module-knobs-label">{propSpec.label || key}</span>
                 <Editor 
                   value={val} 
                   onChange={v => onChange(key, v)} 
@@ -220,7 +216,7 @@
     if (!validation.valid) {
       return (
         <BaseModule title={title} icon={icon}>
-          <div style={{ color: 'var(--usi-danger)', fontSize: 12 }}>
+          <div className="usi-module-wrapper-error">
             {validation.errors.map((err, i) => <div key={i}>{err}</div>)}
           </div>
         </BaseModule>

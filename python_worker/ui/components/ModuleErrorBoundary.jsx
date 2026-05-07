@@ -23,9 +23,9 @@ class ModuleErrorBoundary extends window.React.Component {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback;
       return (
-        <div style={{ padding: 16, border: '1px dashed var(--usi-danger)', borderRadius: 12, backgroundColor: 'var(--usi-surface-2)', color: 'var(--usi-danger)', fontSize: 13, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="usi-module-error-boundary">
           <strong>Moduł niedostępny</strong>
-          <span style={{ fontSize: 11, opacity: 0.8, fontFamily: 'monospace' }}>{this.state.error?.message || 'Błąd renderowania'}</span>
+          <span className="usi-module-error-msg">{this.state.error?.message || 'Błąd renderowania'}</span>
         </div>
       );
     }

@@ -80,44 +80,66 @@ body,
 }
 
 /* Grid Helpers */
-.usi-p-8 {
-  padding: var(--usi-space-1);
+.usi-p-0 { padding: 0 !important; }
+.usi-p-8 { padding: var(--usi-space-1) !important; }
+.usi-p-16 { padding: var(--usi-space-2) !important; }
+.usi-p-24 { padding: var(--usi-space-3) !important; }
+
+.usi-m-8 { margin: var(--usi-space-1) !important; }
+.usi-m-16 { margin: var(--usi-space-2) !important; }
+
+/* Spacing & Utilities */
+.usi-m-b-1 { margin-bottom: 1px !important; }
+.usi-m-b-2 { margin-bottom: 2px !important; }
+.usi-m-b-4 { margin-bottom: 4px !important; }
+.usi-m-b-6 { margin-bottom: 6px !important; }
+.usi-m-b-8 { margin-bottom: 8px !important; }
+.usi-m-b-12 { margin-bottom: 12px !important; }
+.usi-m-b-16 { margin-bottom: 16px !important; }
+.usi-m-b-24 { margin-bottom: 24px !important; }
+.usi-m-b-32 { margin-bottom: 32px !important; }
+
+.usi-gap-4 { gap: 4px !important; }
+.usi-gap-6 { gap: 6px !important; }
+.usi-gap-8 { gap: var(--usi-space-1) !important; }
+.usi-gap-10 { gap: 10px !important; }
+.usi-gap-12 { gap: 12px !important; }
+.usi-gap-16 { gap: var(--usi-space-2) !important; }
+.usi-gap-24 { gap: var(--usi-space-3) !important; }
+
+/* Flex Helpers */
+.usi-flex-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
 }
 
-.usi-p-16 {
-  padding: var(--usi-space-2);
+.usi-flex-col {
+  display: flex !important;
+  flex-direction: column !important;
 }
 
-.usi-p-24 {
-  padding: var(--usi-space-3);
+.usi-flex-1 {
+  flex: 1 !important;
 }
 
-.usi-m-8 {
-  margin: var(--usi-space-1);
+.usi-flex-center {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
-.usi-m-16 {
-  margin: var(--usi-space-2);
+.usi-flex-end {
+  display: flex !important;
+  justify-content: flex-end !important;
 }
 
-.usi-gap-4 {
-  gap: 4px;
+.usi-align-center {
+  align-items: center !important;
 }
 
-.usi-gap-8 {
-  gap: var(--usi-space-1);
-}
-
-.usi-gap-12 {
-  gap: 12px;
-}
-
-.usi-gap-16 {
-  gap: var(--usi-space-2);
-}
-
-.usi-gap-24 {
-  gap: var(--usi-space-3);
+.usi-justify-between {
+  justify-content: space-between !important;
 }
 
 /* Buttons */
@@ -225,6 +247,7 @@ body,
   letter-spacing: 0.06em;
   background: var(--usi-ink);
   color: var(--usi-bg);
+  text-decoration: none;
 }
 
 .usi-source.oto {
@@ -322,30 +345,6 @@ body,
   position: relative;
 }
 
-/* Flex Helpers */
-.usi-flex-row {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-}
-
-.usi-flex-col {
-  display: flex;
-  flex-direction: column;
-}
-
-.usi-flex-1 {
-  flex: 1;
-}
-
-.usi-flex-center {
-  justify-content: center;
-}
-
-.usi-flex-end {
-  justify-content: flex-end;
-}
-
 /* Misc Helpers */
 .usi-divider-v {
   width: 1px;
@@ -369,3 +368,32 @@ body,
   font-size: 13px;
   font-weight: 500;
 }
+
+.usi-opacity-30 { opacity: 0.3 !important; }
+.usi-opacity-40 { opacity: 0.4 !important; }
+.usi-opacity-50 { opacity: 0.5 !important; }
+.usi-opacity-60 { opacity: 0.6 !important; }
+.usi-opacity-70 { opacity: 0.7 !important; }
+.usi-opacity-80 { opacity: 0.8 !important; }
+
+.usi-weight-400 { font-weight: 400 !important; }
+.usi-weight-500 { font-weight: 500 !important; }
+.usi-weight-600 { font-weight: 600 !important; }
+.usi-weight-700 { font-weight: 700 !important; }
+.usi-weight-800 { font-weight: 800 !important; }
+
+.usi-h-full { height: 100% !important; }
+.usi-w-full { width: 100% !important; }
+
+.usi-h-24 { height: 24px !important; }
+.usi-h-48 { height: 48px !important; }
+
+.usi-flex-center { display: flex !important; align-items: center !important; justify-content: center !important; }
+.usi-flex-col { display: flex !important; flex-direction: column !important; }
+.usi-flex-row { display: flex !important; flex-direction: row !important; align-items: center !important; }
+.usi-flex-1 { flex: 1 !important; }
+
+.usi-text-secondary { color: var(--usi-ink-3) !important; }
+.usi-text-uppercase { text-transform: uppercase !important; }
+.usi-overflow-hidden { overflow: hidden !important; }
+.usi-overflow-auto { overflow: auto !important; }

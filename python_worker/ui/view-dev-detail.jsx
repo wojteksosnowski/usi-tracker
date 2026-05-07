@@ -131,7 +131,7 @@ function DeveloperDetail({
     <div className="developer-detail-toolbar">
       <NavMenuButton onClick={() => setNavOpen(true)} />
       <button className="usi-btn ghost" onClick={onBack}><Icon name="chevronLeft" /> Powrót</button>
-      <div style={{ flex: 1 }} />
+      <div className="usi-flex-1" />
       <button className="usi-btn ghost sm" onClick={handleUpdate} disabled={!!activeJobId}>
         {activeJobId ? <Spinner size={12} stroke={1.5} /> : <Icon name="sparkle" size={12} />}
         {activeJobId ? ' Zadanie w tle...' : ' Sprawdź nowe inwestycje'}
@@ -236,7 +236,7 @@ function DeveloperStats({ dev, onCityClick, activeCity }) {
   }, [investments]);
 
   return (
-    <div className="usi-card" style={{ padding: 16 }}>
+    <div className="usi-card usi-p-16">
       <h3 className="usi-h3" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 16, color: 'var(--usi-ink-4)' }}>Zasięg inwestycji</h3>
       <div className="stats-list">
         {cityStats.map(s => (
@@ -247,8 +247,8 @@ function DeveloperStats({ dev, onCityClick, activeCity }) {
             className="stats-item"
           >
             <div>
-                <div style={{ fontWeight: 600, fontSize: 13 }}>{s.name}</div>
-                <div className="usi-tiny" style={{ opacity: 0.6 }}>{s.count} inw. · {s.units} mieszk.</div>
+                <div className="usi-weight-600 usi-body">{s.name}</div>
+                <div className="usi-tiny usi-text-secondary">{s.count} inw. · {s.units} mieszk.</div>
             </div>
             {s.avgScore && <div className="usi-pill success sm usi-mono">{s.avgScore.toFixed(2)}</div>}
           </div>
@@ -268,13 +268,13 @@ function DeveloperHeroBand({ dev }) {
         <div data-component="Developer-Avatar" className="developer-avatar">
           🏢
         </div>
-        <div style={{ flex: 1 }}>
+        <div className="usi-flex-1">
           <div data-component="Developer-TitleRow" className="developer-title-row">
             <h1 data-component="Developer-Name" className="usi-h1" style={{ margin: 0 }}>{dev.name}</h1>
             <span data-component="Developer-ID" className="usi-pill outline usi-mono">{dev.usi_dev_id}</span>
           </div>
-          <div data-component="Developer-Slug" className="usi-body" style={{ color: 'var(--usi-ink-3)', marginBottom: 12 }}>{dev.developer_slug}</div>
-          <div style={{ display: 'flex', gap: 16 }}>
+          <div data-component="Developer-Slug" className="usi-body usi-text-secondary" style={{ marginBottom: 12 }}>{dev.developer_slug}</div>
+          <div className="usi-flex-row usi-gap-16">
             {dev.website && (
               <a href={dev.website} target="_blank" rel="noopener" className="usi-btn sm ghost">
                 <Icon name="search" size={12} /> Strona www
@@ -294,7 +294,7 @@ function DeveloperHeroBand({ dev }) {
             />
         </div>
       ) : (
-        <div style={{ height: 120, borderRadius: 12, background: 'var(--usi-surface-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--usi-ink-4)', fontSize: 11 }}>
+        <div className="usi-m-12 usi-flex-center usi-text-secondary usi-tiny" style={{ height: 120, borderRadius: 12, background: 'var(--usi-surface-3)' }}>
             Brak współrzędnych
         </div>
       )}
@@ -305,8 +305,8 @@ function DeveloperHeroBand({ dev }) {
 function PropertyRow({ label, value, mono }) {
   return (
     <div className="property-row">
-      <div className="usi-tiny" style={{ color: 'var(--usi-ink-4)', marginBottom: 2 }}>{label}</div>
-      <div style={{ fontWeight: 500, fontSize: 13 }} className={mono ? 'usi-mono' : ''}>{value || '—'}</div>
+      <div className="usi-tiny usi-m-8" style={{ color: 'var(--usi-ink-4)', marginLeft: 0 }}>{label}</div>
+      <div className={`usi-body usi-weight-600 ${mono ? 'usi-mono' : ''}`}>{value || '—'}</div>
     </div>
   );
 }
@@ -314,7 +314,7 @@ function PropertyRow({ label, value, mono }) {
 function DeveloperMetadata({ dev }) {
   const meta = dev.metadata || {};
   return (
-    <div className="usi-card" style={{ padding: 16 }}>
+    <div className="usi-card usi-p-16">
       <h3 className="usi-h3" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 16, color: 'var(--usi-ink-4)' }}>Dane Firmy</h3>
       <PropertyRow label="Adres siedziby" value={meta.address} />
       <PropertyRow label="NIP" value={meta.nip} mono />
@@ -328,28 +328,28 @@ function DeveloperMetadata({ dev }) {
 function DeveloperPortals({ dev }) {
   const mapping = dev.portal_mapping || {};
   return (
-    <div className="usi-card" style={{ padding: 16 }}>
+    <div className="usi-card usi-p-16">
       <h3 className="usi-h3" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 16, color: 'var(--usi-ink-4)' }}>Mapowanie Portali</h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="usi-flex-col usi-gap-12">
         {mapping.rp && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="usi-flex-row" style={{ justifyContent: 'space-between' }}>
             <SourceBadge source="rp" />
-            <span className="usi-mono" style={{ fontSize: 11 }}>{mapping.rp.id || mapping.rp.slug}</span>
+            <span className="usi-mono usi-tiny">{mapping.rp.id || mapping.rp.slug}</span>
           </div>
         )}
         {mapping.oto && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="usi-flex-row" style={{ justifyContent: 'space-between' }}>
             <SourceBadge source="oto" />
-            <div style={{ textAlign: 'right' }}>
-               <div className="usi-mono" style={{ fontSize: 11 }}>{mapping.oto.agency_id}</div>
-               {mapping.oto.url && <a href={mapping.oto.url} target="_blank" rel="noopener" className="usi-tiny" style={{ display: 'block' }}>Profil Otodom</a>}
+            <div className="usi-card-footer-right">
+               <div className="usi-mono usi-tiny">{mapping.oto.agency_id}</div>
+               {mapping.oto.url && <a href={mapping.oto.url} target="_blank" rel="noopener" className="usi-tiny usi-flex-end">Profil Otodom</a>}
             </div>
           </div>
         )}
         {mapping.to && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="usi-flex-row" style={{ justifyContent: 'space-between' }}>
             <SourceBadge source="to" />
-            <span className="usi-mono" style={{ fontSize: 11 }}>{mapping.to.slug}</span>
+            <span className="usi-mono usi-tiny">{mapping.to.slug}</span>
           </div>
         )}
         {!mapping.rp && !mapping.oto && !mapping.to && <div className="usi-tiny">Brak powiązań portalowych</div>}
@@ -362,17 +362,17 @@ function DeveloperSuggestions({ dev, onMerge, onDismiss }) {
   if (!dev.suggestions || dev.suggestions.length === 0) return null;
 
   return (
-    <div className="usi-card" style={{ padding: 16, border: '1px solid var(--usi-accent)', background: 'var(--usi-surface-2)' }}>
+    <div className="usi-card usi-p-16 suggestions-card">
       <h3 className="usi-h3" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12, color: 'var(--usi-accent)' }}>
         <Icon name="sparkle" size={12} /> Sugerowane Powiązania
       </h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="usi-flex-col usi-gap-12">
         {dev.suggestions.map(s => (
-          <div key={s.usi_dev_id} style={{ background: 'var(--usi-surface)', padding: 10, borderRadius: 8, border: '.5px solid var(--usi-border)' }}>
-            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2 }}>{s.developer_slug}</div>
-            <div className="usi-tiny" style={{ color: 'var(--usi-ink-4)', marginBottom: 8 }}>{s.reason}</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="usi-btn sm" style={{ flex: 1 }} onClick={() => onMerge(s.developer_slug)}>Połącz</button>
+          <div key={s.usi_dev_id} className="suggestion-item">
+            <div className="usi-body usi-weight-600" style={{ marginBottom: 2 }}>{s.developer_slug}</div>
+            <div className="usi-tiny usi-text-secondary" style={{ marginBottom: 8 }}>{s.reason}</div>
+            <div className="usi-flex-row usi-gap-8">
+              <button className="usi-btn sm usi-flex-1" onClick={() => onMerge(s.developer_slug)}>Połącz</button>
               <button className="usi-btn sm ghost" onClick={() => onDismiss(s.usi_dev_id)}>Ignoruj</button>
             </div>
           </div>

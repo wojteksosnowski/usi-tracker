@@ -59,8 +59,8 @@ function DataGrid({
 
   if (data.length === 0) {
     return (
-      <div className="usi-empty-state" style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--usi-ink-4)' }}>
-        <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
+      <div className="usi-empty-state usi-datagrid-empty">
+        <div className="usi-datagrid-empty-icon">🔍</div>
         <div className="usi-small">{emptyMessage}</div>
       </div>
     );
@@ -70,27 +70,25 @@ function DataGrid({
     <div data-component="DataGrid" 
          ref={containerRef} 
          onScroll={handleScroll} 
-         className="usi-scroll" 
-         style={{ height: '100%', overflowY: 'auto', position: 'relative' }}>
+         className="usi-scroll usi-datagrid-container">
       <div style={{ height: paddingTop }} />
       
       {isGrid ? (
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: `repeat(${itemsPerRow}, 1fr)`,
-          gap: gridConfig.gap !== undefined ? gridConfig.gap : 16,
-          padding: 16
-        }}>
+        <div className="usi-datagrid-grid" 
+             style={{ 
+               gridTemplateColumns: `repeat(${itemsPerRow}, 1fr)`,
+               gap: gridConfig.gap !== undefined ? gridConfig.gap : 16
+             }}>
           {visibleItems.map((item, idx) => (
             <div key={item.slug || item.id || idx} onClick={() => onRowClick(item)}>
-              {renderCard ? renderCard(item) : <pre style={{ fontSize: 10 }}>{JSON.stringify(item, null, 2)}</pre>}
+              {renderCard ? renderCard(item) : <pre className="usi-datagrid-pre-debug">{JSON.stringify(item, null, 2)}</pre>}
             </div>
           ))}
         </div>
       ) : (
-        <div className="usi-card" style={{ margin: 0, border: 'none', borderRadius: 0, background: 'transparent' }}>
+        <div className="usi-card usi-datagrid-table-card">
           <table className="list-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead className="list-table-head" style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+            <thead className="list-table-head usi-datagrid-table-head">
               <tr>
                 {columns.map(col => (
                   <th 
@@ -105,8 +103,9 @@ function DataGrid({
                     }}
                     onClick={() => col.sortable && onSort(col.key)}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: col.align === 'right' ? 'flex-end' : 'flex-start' }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{col.label}</span>
+                    <div className="usi-datagrid-th-content" 
+                         style={{ justifyContent: col.align === 'right' ? 'flex-end' : 'flex-start' }}>
+                      <span className="usi-datagrid-th-label">{col.label}</span>
                       {col.sortable && sortKey === col.key && (
                         <Icon name={sortDir === 'asc' ? 'chevronDown' : 'chevronUp'} size={12} />
                       )}

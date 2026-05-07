@@ -14,7 +14,7 @@
               marked={marked} 
               onToggleMark={onToggleMark} 
               onLightbox={onLightbox} 
-              style={{ height: '100%' }}
+              className="usi-h-full"
           />
         </div>
         

@@ -6,19 +6,17 @@
   const CategoryAvgRow = ({ label, avg, count, color }) => {
     const StarRating = window.StarRating;
     return (
-      <div data-component="CategoryAvg-Row" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ width: 100, fontSize: 13, fontWeight: 500 }}>{label}</div>
-        <div style={{ flex: 1, height: 20, background: 'var(--usi-surface-3)', borderRadius: 4, position: 'relative' }}>
-          <div style={{
-            height: '100%', width: `${(avg / 5) * 100}%`,
-            background: color, borderRadius: 4, transition: 'width .4s',
-          }} />
-          <span className="usi-mono" style={{
-            position: 'absolute', right: 8, top: 1, fontSize: 11, fontWeight: 600,
-            color: avg > 2.5 ? '#fff' : 'var(--usi-ink)',
-          }}>{count > 0 ? avg.toFixed(2) : '—'}</span>
+      <div data-component="CategoryAvg-Row" className="usi-analytics-avg-row">
+        <div className="usi-analytics-avg-label">{label}</div>
+        <div className="usi-analytics-avg-bar-bg">
+          <div className="usi-analytics-avg-bar-fill" 
+            style={{ width: `${(avg / 5) * 100}%`, background: color }} />
+          <span className="usi-mono usi-analytics-avg-value" 
+            style={{ color: avg > 2.5 ? '#fff' : 'var(--usi-ink)' }}>
+            {count > 0 ? avg.toFixed(2) : '—'}
+          </span>
         </div>
-        <div style={{ width: 36, textAlign: 'right' }} className="usi-small">n={count}</div>
+        <div className="usi-small usi-analytics-avg-count">n={count}</div>
         {StarRating && <StarRating value={avg} readonly size={14} color={color} />}
       </div>
     );
@@ -30,26 +28,29 @@
     
     return (
       <>
-        <div data-component="Progress-Bar" style={{ display: 'flex', height: 36, borderRadius: 6, overflow: 'hidden' }}>
-          <div style={{ width: `${rated/total*100}%`, background: 'var(--usi-success)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 600 }}>
+        <div data-component="Progress-Bar" className="usi-analytics-progress-bar">
+          <div className="usi-analytics-progress-segment" 
+            style={{ width: `${rated/total*100}%`, background: 'var(--usi-success)' }}>
             {rated > 0 ? rated : ''}
           </div>
-          <div style={{ width: `${partial/total*100}%`, background: 'var(--usi-warn)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 600 }}>
+          <div className="usi-analytics-progress-segment" 
+            style={{ width: `${partial/total*100}%`, background: 'var(--usi-warn)' }}>
             {partial > 0 ? partial : ''}
           </div>
-          <div style={{ flex: 1, background: 'var(--usi-surface-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--usi-ink-3)', fontSize: 12, fontWeight: 600 }}>
+          <div className="usi-analytics-progress-segment" 
+            style={{ flex: 1, background: 'var(--usi-surface-3)', color: 'var(--usi-ink-3)' }}>
             {total - rated - partial > 0 ? total - rated - partial : ''}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 14, marginTop: 12, flexWrap: 'wrap' }}>
-          <div data-component="Legend" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--usi-success)' }} /> Pełne
+        <div className="usi-analytics-legend-container">
+          <div data-component="Legend" className="usi-analytics-legend-item">
+            <span className="usi-analytics-legend-dot" style={{ background: 'var(--usi-success)' }} /> Pełne
           </div>
-          <div data-component="Legend" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--usi-warn)' }} /> Częściowe
+          <div data-component="Legend" className="usi-analytics-legend-item">
+            <span className="usi-analytics-legend-dot" style={{ background: 'var(--usi-warn)' }} /> Częściowe
           </div>
-          <div data-component="Legend" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--usi-surface-3)' }} /> Nieocenione
+          <div data-component="Legend" className="usi-analytics-legend-item">
+            <span className="usi-analytics-legend-dot" style={{ background: 'var(--usi-surface-3)' }} /> Nieocenione
           </div>
         </div>
       </>
@@ -67,15 +68,15 @@
 
     const Row = ({ k, v, mono }) => (
       <div data-component="Metadata-Row">
-        <div className="usi-small" style={{ marginBottom: 1 }}>{k}</div>
-        <div className={mono ? 'usi-mono' : ''} style={{ fontWeight: 500, fontSize: 13 }}>{v}</div>
+        <div className="usi-small usi-m-b-1">{k}</div>
+        <div className={`${mono ? 'usi-mono' : ''} usi-body usi-weight-500`}>{v}</div>
       </div>
     );
 
     return (
       <div data-component="MetadataPanel">
-        <div className="usi-tiny" style={{ marginBottom: 8 }}>Metadane</div>
-        <div data-component="Metadata-Grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
+        <div className="usi-tiny usi-m-b-8">Metadane</div>
+        <div data-component="Metadata-Grid" className="usi-metadata-grid">
           {config.map(field => {
             const val = getValue(inv, field.path);
             const rendered = field.type === 'count' 
@@ -85,9 +86,9 @@
             return <Row key={field.key} k={field.label} v={rendered} mono={field.type === 'currency' || field.type === 'count'} />;
           })}
           {inv.folder_path && (
-            <div data-component="Metadata-FolderPath" style={{ gridColumn: 'span 2', marginTop: 8 }}>
+            <div data-component="Metadata-FolderPath" className="usi-metadata-folder-path">
               <div className="usi-small" style={{ marginBottom: 1 }}>Ścieżka folderu</div>
-              <div className="usi-mono" style={{ fontSize: 11, wordBreak: 'break-all', opacity: 0.8 }}>{inv.folder_path}</div>
+              <div className="usi-mono usi-metadata-folder-text">{inv.folder_path}</div>
             </div>
           )}
         </div>
@@ -101,20 +102,9 @@
     const count = bus.visibleInvestments ? bus.visibleInvestments.length : 0;
     
     return (
-      <div data-component="NavbarCounter" className="usi-mono" style={{
-        background: 'var(--usi-surface-3)',
-        color: 'var(--usi-ink-2)',
-        padding: '4px 8px',
-        borderRadius: '6px',
-        fontSize: '11px',
-        fontWeight: 700,
-        border: '.5px solid var(--usi-border)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6
-      }}>
-        <span style={{ opacity: 0.6 }}>REKORDY:</span>
-        <span style={{ color: 'var(--usi-ink)' }}>{count}</span>
+      <div data-component="NavbarCounter" className="usi-mono usi-navbar-counter">
+        <span className="usi-opacity-60">REKORDY:</span>
+        <span className="usi-ink">{count}</span>
       </div>
     );
   };

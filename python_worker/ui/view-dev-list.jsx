@@ -7,7 +7,7 @@ function DeveloperListGrid({
   const { React, DataGrid, DeveloperCard } = window;
   
   return (
-    <div data-component="DeveloperListGrid" style={{ height: '100%', overflow: 'hidden' }}>
+    <div data-component="DeveloperListGrid" className="usi-h-full usi-overflow-hidden">
       <DataGrid 
         data={developers}
         mode="grid"
@@ -21,11 +21,11 @@ function DeveloperListGrid({
 }
 
 function DeveloperCard({ dev, onSelect }) {
+  const { React, StandardCard, SourceBadge } = window;
   const portals = dev.portal_mapping || {};
   const hasRp = !!portals.rp;
   const hasOto = !!portals.oto;
   const hasTo = !!portals.to;
-  const { StandardCard, SourceBadge } = window;
 
   return (
     <StandardCard
@@ -42,15 +42,15 @@ function DeveloperCard({ dev, onSelect }) {
       }
       footerLeft={
         <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--usi-ink)' }}>
+          <div className="usi-body usi-weight-600">
             {dev.investments_count || 0} 
-            <small style={{ fontWeight: 400, opacity: 0.6 }}> inwestycji</small>
+            <small className="usi-text-secondary" style={{ fontWeight: 400 }}> inwestycji</small>
           </div>
-          {dev.website && <div className="usi-tiny" style={{ opacity: 0.6, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis' }}>{dev.website}</div>}
+          {dev.website && <div className="usi-tiny usi-text-secondary" style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis' }}>{dev.website}</div>}
         </div>
       }
       footerRight={dev.suggestions && dev.suggestions.length > 0 && (
-        <div className="usi-pill outline usi-mono" style={{ fontSize: 10, borderColor: 'var(--usi-accent)', color: 'var(--usi-accent)' }}>
+        <div className="usi-pill outline usi-mono usi-tiny" style={{ borderColor: 'var(--usi-accent)', color: 'var(--usi-accent)' }}>
           Sugestie: {dev.suggestions.length}
         </div>
       )}

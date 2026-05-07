@@ -8,27 +8,22 @@
     
     const currentInv = { ratings };
     return (
-      <div data-component="RatingsPanel" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div data-component="RatingsPanel" className="usi-ratings-panel">
         <div data-component="RatingsPanel-Categories">
-          <div className="usi-tiny" style={{ marginBottom: 8 }}>Ocena USI</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div className="usi-tiny usi-ratings-panel-cat-header">Ocena USI</div>
+          <div className="usi-ratings-panel-cat-list">
             {USI_CATEGORIES.map((cat, idx) => (
               <div key={cat.key}
                 data-component="CategoryRating-Row"
                 onClick={() => onFocusedCatChange && onFocusedCatChange(idx)}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-                  background: idx === focusedCat ? 'var(--usi-surface-2)' : 'transparent',
-                  borderRadius: 6, padding: '4px 8px', margin: '0 -8px',
-                  cursor: 'default', transition: 'background .12s',
-                }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 110 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: cat.color, flexShrink: 0 }} />
+                className={`usi-ratings-panel-cat-row ${idx === focusedCat ? 'active' : ''}`}>
+                <div className="usi-ratings-panel-cat-info">
+                  <span className="usi-ratings-panel-cat-dot" style={{ background: cat.color }} />
                   <span className="usi-body" style={{ fontWeight: 500 }}>{cat.key}</span>
                   {cat.key === 'Udogodnienia'
                     && inv.suggested_udogodnienia != null
                     && (ratings['Udogodnienia'] == null) && (
-                    <span style={{ fontSize: 10, color: 'var(--usi-ink-4)', marginLeft: 2 }}>
+                    <span className="usi-ratings-panel-cat-suggested">
                       sugest.&nbsp;{inv.suggested_udogodnienia}
                     </span>
                   )}
@@ -41,11 +36,11 @@
         </div>
 
         {(inv.amenities && inv.amenities.length > 0) || (inv.amenities_score > 0) ? (
-          <div data-component="RatingsPanel-Amenities" style={{ padding: '8px 0', borderTop: '.5px solid var(--usi-border)', borderBottom: '.5px solid var(--usi-border)', margin: '8px 0' }}>
+          <div data-component="RatingsPanel-Amenities" className="usi-ratings-panel-amenities-section">
             {inv.amenities && inv.amenities.length > 0 && (
               <>
                 <div className="usi-tiny" style={{ marginBottom: 6 }}>Udogodnienia</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 12 }}>
+                <div className="usi-ratings-panel-amenities-list" style={{ marginBottom: 12 }}>
                   {inv.amenities.map(a => <span key={a} className="usi-pill">{a}</span>)}
                 </div>
               </>
@@ -53,7 +48,7 @@
             {inv.amenities_score > 0 && (
               <>
                 <div className="usi-tiny" style={{ marginBottom: 4 }}>Wyróżniki</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                <div className="usi-ratings-panel-amenities-list">
                   {(inv.amenities_matched || []).map(m => (
                     <span key={m.label} className="usi-pill"
                       style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -62,7 +57,7 @@
                     </span>
                   ))}
                 </div>
-                <div style={{ marginTop: 6, fontSize: 11, color: 'var(--usi-ink-3)' }}>
+                <div className="usi-ratings-panel-amenities-score">
                   Suma: <strong>{inv.amenities_score} pkt</strong>
                   {inv.suggested_udogodnienia != null && (
                     <> → sugestia: <strong style={{ color: 'var(--usi-ink)' }}>{inv.suggested_udogodnienia}</strong></>
@@ -75,24 +70,23 @@
 
         <div data-component="RatingsPanel-Status">
           <div className="usi-tiny" style={{ marginBottom: 6 }}>Status</div>
-          <select className="usi-input" value={status} onChange={e => handleStatus(e.target.value)}
-            style={{ width: '100%', fontSize: 13, height: 32, padding: '0 8px' }}>
+          <select className="usi-input usi-ratings-panel-status-select" value={status} onChange={e => handleStatus(e.target.value)}>
             {USI_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
-        <textarea data-component="RatingsPanel-Comment" className="usi-input usi-textarea" placeholder="Komentarz globalny…"
-          value={comment} onChange={handleComment} style={{ minHeight: 72 }} />
-        <div data-component="RatingsPanel-Footer" style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <textarea data-component="RatingsPanel-Comment" className="usi-input usi-textarea usi-ratings-panel-comment" placeholder="Komentarz globalny…"
+          value={comment} onChange={handleComment} />
+        <div data-component="RatingsPanel-Footer" className="usi-ratings-panel-footer">
+          <div className="usi-ratings-panel-score-box">
             {(() => { const score = ocenaLog(currentInv); return (<>
               <UsiStarScore score={score} />
-              <span style={{ fontSize: 13, fontWeight: 600 }}>
+              <span className="usi-ratings-panel-score-value">
                 {score !== null ? score.toFixed(2) : '—'}
-                <span style={{ fontWeight: 400, color: 'var(--usi-ink-3)' }}> / 4</span>
+                <span className="usi-ratings-panel-score-max"> / 4</span>
               </span>
             </>); })()}
           </div>
-          <div className="usi-small" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: saved ? 'var(--usi-success)' : 'var(--usi-ink-4)', transition: 'color .3s' }}>
+          <div className="usi-small usi-ratings-panel-save-status" style={{ color: saved ? 'var(--usi-success)' : 'var(--usi-ink-4)' }}>
             <Icon name="check" size={11} /> {saved ? 'Zapisano' : 'Auto-zapis'}
           </div>
         </div>

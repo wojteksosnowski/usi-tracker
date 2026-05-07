@@ -9,7 +9,8 @@
     const c = color || 'var(--usi-accent, #1F1C16)';
     return (
       <div data-component="StarRating" role="radiogroup" aria-label={label}
-        style={{ display: 'inline-flex', gap: 2, color: c, cursor: readonly ? 'default' : 'pointer' }}
+        className="usi-starrating-container"
+        style={{ color: c, cursor: readonly ? 'default' : 'pointer' }}
         onMouseLeave={() => setHover(0)}>
         {Array.from({ length: max }).map((_, i) => {
           const idx = i + 1;
@@ -20,14 +21,13 @@
               aria-checked={value === idx} role="radio"
               onMouseEnter={() => !readonly && setHover(idx)}
               onClick={() => !readonly && onChange && onChange(value === idx ? 0 : idx)}
+              className="usi-starrating-btn"
               style={{
-                border: 'none', background: 'transparent', padding: 0,
                 cursor: readonly ? 'default' : 'pointer',
-                width: size, height: size, lineHeight: 0,
+                width: size, height: size,
                 transform: hover === idx ? 'scale(1.1)' : 'scale(1)',
-                transition: 'transform .12s',
               }}>
-              <svg width={size} height={size} viewBox="0 0 48 48" style={{ display: 'block' }}>
+              <svg width={size} height={size} viewBox="0 0 48 48" className="usi-starrating-svg">
                 <defs>
                   <linearGradient id={`half-${i}-${size}`} x1="0" x2="1" y1="0" y2="0">
                     <stop offset="50%" stopColor={c} />
@@ -50,28 +50,21 @@
     const sz = size === 'sm' ? 18 : size === 'lg' ? 28 : 22;
     if (variant === 'circles') {
       return (
-        <div data-component="CategoryRating" style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+        <div data-component="CategoryRating" className="usi-categoryrating-circles">
           {[0,1,2,3,4].map(n => {
             const filled = value !== null && n <= value;
             return (
               <button key={n} type="button"
                 onClick={() => onChange(value === n ? null : n)}
                 title={String(n)}
-                style={{
-                  width: 30, height: 30, borderRadius: '50%', padding: 0,
-                  border: 'none',
-                  background: filled ? category.color : 'var(--usi-surface-3)',
-                  cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  transition: 'background .12s',
-                  flexShrink: 0,
-                }}>
+                className="usi-categoryrating-circle-btn"
+                style={{ background: filled ? category.color : 'var(--usi-surface-3)' }}>
                 {filled && (
                   <img
                     src={n === 0 ? '/assets/usi-zero-white.svg' : '/assets/usi-star-white.svg'}
                     width="14" height="16"
                     alt={String(n)}
-                    style={{ display: 'block', pointerEvents: 'none' }}
+                    className="usi-categoryrating-circle-img"
                   />
                 )}
               </button>
@@ -82,18 +75,14 @@
     }
     if (variant === 'chips') {
       return (
-        <div data-component="CategoryRating" style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+        <div data-component="CategoryRating" className="usi-categoryrating-chips">
           {[0,1,2,3,4].map(n => (
             <button key={n} type="button" onClick={() => onChange(value === n ? null : n)}
+              className="usi-categoryrating-chip-btn"
               style={{
-                border: '.5px solid var(--usi-border-strong)',
                 background: value === n ? category.color : 'var(--usi-surface)',
                 color: value === n ? '#fff' : 'var(--usi-ink-2)',
                 borderColor: value === n ? category.color : 'var(--usi-border-strong)',
-                borderRadius: 6, height: 26, minWidth: 26, padding: '0 6px',
-                fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                fontFamily: 'inherit',
-                transition: 'all .12s',
               }}>{n}</button>
           ))}
         </div>
@@ -101,15 +90,13 @@
     }
     if (variant === 'segmented') {
       return (
-        <div data-component="CategoryRating" style={{ display: 'inline-flex', background: 'var(--usi-surface-3)', borderRadius: 8, padding: 2, position: 'relative' }}>
+        <div data-component="CategoryRating" className="usi-categoryrating-segmented">
           {[0,1,2,3,4].map(n => (
             <button key={n} type="button" onClick={() => onChange(value === n ? null : n)}
+              className="usi-categoryrating-segmented-btn"
               style={{
-                border: 'none', background: value === n ? category.color : 'transparent',
+                background: value === n ? category.color : 'transparent',
                 color: value === n ? '#fff' : 'var(--usi-ink-3)',
-                borderRadius: 6, height: 24, width: 28, padding: 0,
-                fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                transition: 'all .12s',
               }}>{n}</button>
           ))}
         </div>
@@ -117,14 +104,12 @@
     }
     if (variant === 'dots') {
       return (
-        <div data-component="CategoryRating" style={{ display: 'inline-flex', gap: 4 }}>
+        <div data-component="CategoryRating" className="usi-categoryrating-dots">
           {[1,2,3,4].map(n => (
             <button key={n} type="button" onClick={() => onChange(value === n ? null : n)}
+              className="usi-categoryrating-dot-btn"
               style={{
-                border: 'none', cursor: 'pointer', padding: 0,
-                width: 14, height: 14, borderRadius: '50%',
                 background: n <= value ? category.color : 'var(--usi-star-empty)',
-                transition: 'background .12s, transform .1s',
               }} />
           ))}
         </div>
@@ -137,17 +122,17 @@
   const CategoryStripe = ({ ratings, height = 4 }) => {
     const categories = window.USI_CATEGORIES || [];
     return (
-      <div data-component="CategoryStripe" style={{ display: 'flex', gap: 1.5, height, borderRadius: 2, overflow: 'hidden' }}>
+      <div data-component="CategoryStripe" className="usi-categorystripe-container" style={{ height }}>
         {categories.map(cat => {
           const v = ratings[cat.key] || 0;
           return (
-            <div key={cat.key} style={{ flex: 1, background: 'var(--usi-star-empty)', position: 'relative' }}>
+            <div key={cat.key} className="usi-categorystripe-segment">
               {v > 0 && (
-                <div style={{
-                  position: 'absolute', inset: 0,
-                  background: cat.color,
-                  opacity: 0.3 + (v / 4) * 0.7,
-                }} />
+                <div className="usi-categorystripe-fill"
+                  style={{
+                    background: cat.color,
+                    opacity: 0.3 + (v / 4) * 0.7,
+                  }} />
               )}
             </div>
           );
@@ -160,13 +145,14 @@
   const CategoryDots = ({ ratings, size = 8 }) => {
     const categories = window.USI_CATEGORIES || [];
     return (
-      <div data-component="CategoryDots" style={{ display: 'flex', gap: 4 }}>
+      <div data-component="CategoryDots" className="usi-categorydots-container">
         {categories.map(cat => {
           const v = ratings[cat.key] || 0;
           return (
             <div key={cat.key} title={`${cat.key}: ${v || '—'}`}
+              className="usi-categorydots-dot"
               style={{
-                width: size, height: size, borderRadius: '50%',
+                width: size, height: size,
                 background: v > 0 ? cat.color : 'transparent',
                 border: v > 0 ? 'none' : `1px solid var(--usi-border-strong)`,
                 opacity: v > 0 ? 0.4 + (v / 4) * 0.6 : 1,
@@ -193,17 +179,17 @@
       fracChar = '¼';
     }
     const Star = ({ opacity = 1 }) => (
-      <svg width={15} height={15} viewBox="0 0 16 16" fill="currentColor" style={{ display: 'block', opacity }}>
+      <svg width={15} height={15} viewBox="0 0 16 16" fill="currentColor" className="usi-usistarscore-star" style={{ opacity }}>
         <path d="M8 2l1.8 4 4.2.4-3.2 2.8 1 4.4L8 11.4 4.2 13.6l1-4.4L2 6.4l4.2-.4z" />
       </svg>
     );
     return (
-      <div data-component="UsiStarScore" style={{ display: 'inline-flex', alignItems: 'center', gap: 1, color: 'var(--usi-accent)' }}>
+      <div data-component="UsiStarScore" className="usi-usistarscore-container">
         {Array.from({ length: nFull }).map((_, i) => <Star key={i} />)}
         {fracChar && (
           <>
             <Star opacity={0.3} />
-            <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1, marginLeft: 1 }}>{fracChar}</span>
+            <span className="usi-usistarscore-frac">{fracChar}</span>
           </>
         )}
       </div>
@@ -226,26 +212,20 @@
       fracChar = '¼';
     }
     return (
-      <div data-component="WeightedUsiScore" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{
-          width: size, height: size, borderRadius: '50%',
-          background: 'var(--usi-accent)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 4px 12px rgba(229, 0, 109, 0.15)',
-          flexShrink: 0,
-        }}>
+      <div data-component="WeightedUsiScore" className="usi-weightedscore-container">
+        <div className="usi-weightedscore-badge" style={{ width: size, height: size }}>
           <img 
             src={score < 0.5 ? '/assets/usi-zero-white.svg' : '/assets/usi-star-white.svg'} 
             width={size * 0.55} height={size * 0.55} 
             alt="USI"
           />
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-          <div style={{ fontSize: size * 0.55, fontWeight: 800, color: 'var(--usi-ink)' }}>
+        <div className="usi-weightedscore-info">
+          <div className="usi-weightedscore-value" style={{ fontSize: size * 0.55 }}>
             {nFull}{fracChar && <span style={{ fontSize: '0.65em', verticalAlign: 'top', marginLeft: 1 }}>{fracChar}</span>}
-            <span style={{ fontSize: '0.5em', color: 'var(--usi-ink-4)', fontWeight: 600, marginLeft: 3 }}>/ 4</span>
+            <span className="usi-weightedscore-max">/ 4</span>
           </div>
-          <div className="usi-tiny" style={{ opacity: 0.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 9 }}>Ważona USI</div>
+          <div className="usi-weightedscore-label">Ważona USI</div>
         </div>
       </div>
     );

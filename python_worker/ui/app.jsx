@@ -23,17 +23,17 @@
             <path d="M22.85 15.05c0-.32 .21-.6 .51-.69 .75-.21 2.53-.5 6.57-.5 4.05 0 5.83 .3 6.58 .51 .3 .09 .51 .37 .51 .68v15.78L51.06 26c.3-.1 .63 .02 .81 .28 .43 .65 1.27 2.25 2.51 6.1 1.25 3.85 1.51 5.64 1.55 6.42 .01 .31-.19 .6-.49 .69-3.04 .99-20.55 6.68-30 9.75l18.55 25.56c.17 .25 .16 .59 .03 .83-.49 .61-1.75 1.9-5.02 4.27-3.27 2.38-4.89 3.18-5.62 3.45-.26 .09-.54 .03-.74-.16L24 88c-19.36-26-19.55-26.21-19.71-26.34-.29-.21-.49-.49-.46-.81 .03-.78 .29-2.57 1.55-6.43 1.26-3.89 2.1-5.48 2.53-6.11 .17-.25 .49-.36 .77-.27z" fill="currentColor" />
           </svg>
         </div>
-        <h2 className="usi-h1" style={{ margin: 0 }}>Baza jest pusta</h2>
+        <h2 className="usi-h1">Baza jest pusta</h2>
         <p className="usi-body empty-screen-text">
           Brak inwestycji w bazie. Pobierz przykładowe rekordy z RynekPierwotny.pl.
         </p>
         {fetching ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--usi-ink-3)' }}>
+          <div className="usi-flex-row usi-gap-12 usi-text-secondary">
             <Spinner size={20} stroke={2} />
             <span className="usi-small">Pobieram dane… {fetchCount > 0 ? `(${fetchCount} rekordów)` : ''}</span>
           </div>
         ) : (
-          <button className="usi-btn" style={{ padding: '10px 24px', fontSize: 14 }} onClick={onFetch}>
+          <button className="usi-btn usi-p-24" onClick={onFetch}>
             <Icon name="sparkle" size={15} /> Pobierz 50 inwestycji z RP
           </button>
         )}
@@ -43,34 +43,37 @@
   usiRegister('EmptyScreen', EmptyScreen);
 
   const App = () => {
+    const {
+      Spinner, Icon, ModuleErrorBoundary,
+      ViewList, DeveloperListGrid, DeveloperDetail,
+      DetailRightPanel, DashboardGrid, ViewDownload, ViewLibrary, ViewStoryboard, UIStoryboard, ReportsList, ReportDetail, DataBusProvider, useDataBus,
+      useInvestments, useDevelopers, useConfig,
+      MAIN_CITIES, SOURCES, USI_STATUSES, applyTheme, injectThemeCSS,
+      NavbarShell, NavbarTitle, NavbarCounter, ActionBar, NotificationCenter, StatusMessenger,
+      GlobalSearch, FilterGroup, FilterChip, NavMenuButton, NavDrawer,
+      LoadingScreen, EmptyScreen, useDataBusSelector, TestSuite
+    } = window;
+
+    const rootRef = React.useRef(null);
+    const [view, setView] = React.useState('list');
+    const [navOpen, setNavOpen] = React.useState(false);
+    const [selectedInv, setSelectedInv] = React.useState(null);
+    const [selectedDev, setSelectedDev] = React.useState(null);
+    const [selectedReport, setSelectedReport] = React.useState(null);
+    
+    // Hooks must be called unconditionally at the top level
+    const { refetch } = useInvestments();
+    const config = useConfig();
+    const [fetching] = React.useState(false);
+    const [fetchCount] = React.useState(0);
+    const [dark, setDark] = React.useState(false);
+    const [mode, setMode] = React.useState('grid');
+
+    const testResults = useDataBusSelector(state => state.testResults);
+
+    const { bus, setVariable } = useDataBus();
+
     try {
-      const {
-        Spinner, Icon, ModuleErrorBoundary,
-        ViewList, DeveloperListGrid, DeveloperDetail,
-        DetailRightPanel, DashboardGrid, ViewDownload, ViewLibrary, ViewStoryboard, UIStoryboard, ReportsList, ReportDetail, DataBusProvider, useDataBus,
-        useInvestments, useDevelopers, useConfig,
-        MAIN_CITIES, SOURCES, USI_STATUSES, applyTheme, injectThemeCSS,
-        NavbarShell, NavbarTitle, NavbarCounter, ActionBar, NotificationCenter, StatusMessenger,
-        GlobalSearch, FilterGroup, FilterChip, NavMenuButton, NavDrawer,
-        LoadingScreen, EmptyScreen, useDataBusSelector, TestSuite
-      } = window;
-
-      const rootRef = React.useRef(null);
-      const [view, setView] = React.useState('list');
-      const [navOpen, setNavOpen] = React.useState(false);
-      const [selectedInv, setSelectedInv] = React.useState(null);
-      const [selectedDev, setSelectedDev] = React.useState(null);
-      const [selectedReport, setSelectedReport] = React.useState(null);
-      const { refetch } = useInvestments();
-      const config = useConfig();
-      const [fetching] = React.useState(false);
-      const [fetchCount] = React.useState(0);
-      const [dark, setDark] = React.useState(false);
-      const [mode, setMode] = React.useState('grid');
-
-      const testResults = useDataBusSelector(state => state.testResults);
-
-      const { bus, setVariable } = useDataBus();
       const { 
         investments, developers, loading,
         filters, download, visibleInvestments
@@ -136,9 +139,9 @@
       React.useEffect(() => {
         const { TestSuite } = window;
         if (TestSuite) {
-          setTimeout(() => TestSuite.run(), 2000);
+          setTimeout(() => TestSuite.run(setVariable), 2000);
         }
-      }, []);
+      }, [setVariable]);
 
       if (loading && investments.length === 0) return <div data-component="App" ref={rootRef} className="app-container usi-app"><LoadingScreen /></div>;
       if (!loading && investments.length === 0) return <div data-component="App" ref={rootRef} className="app-container usi-app"><EmptyScreen onFetch={() => {}} fetching={fetching} fetchCount={fetchCount} /></div>;
@@ -188,7 +191,7 @@
                     return (
                       <button 
                         className="usi-btn ghost icon sm" 
-                        onClick={() => TestSuite && TestSuite.run()} 
+                        onClick={() => TestSuite && TestSuite.run(setVariable)} 
                         title="Uruchom testy jednostkowe JS"
                         style={{ color: statusColor }}
                       >
@@ -286,7 +289,7 @@
                   </FilterGroup>
                   <div className="usi-divider-v" />
                   <button className="usi-btn ghost sm" onClick={() => window.usiTriggerScan && window.usiTriggerScan()}>
-                    <Icon name="zap" size={14} style={{ marginRight: 4 }} /> Skanuj
+                    <Icon name="zap" size={14} /> Skanuj
                   </button>
                 </div>
               ) : (
@@ -300,7 +303,7 @@
 
           <main className="usi-app-main usi-scroll">
             <ModuleErrorBoundary fallback={
-              <div className="usi-p-24" style={{ textAlign: 'center' }}>
+              <div className="usi-p-24 usi-flex-col usi-flex-center">
                 <h2 className="usi-h2">Coś poszło nie tak</h2>
                 <p className="usi-body">Wystąpił błąd podczas renderowania tego widoku.</p>
                 <button className="usi-btn" onClick={() => window.location.reload()}>Odśwież aplikację</button>
@@ -356,7 +359,7 @@
       );
     } catch (err) {
       console.error("CRITICAL APP RENDER ERROR:", err);
-      return <div style={{ padding: 40, color: '#c00' }}><h1>Błąd renderowania</h1><pre>{err.stack}</pre></div>;
+      return <div className="usi-p-24" style={{ color: '#c00' }}><h1>Błąd renderowania</h1><pre>{err.stack}</pre></div>;
     }
   }
   usiRegister('App', App);

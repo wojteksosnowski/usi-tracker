@@ -12,7 +12,7 @@
     const DefaultFooterRight = (
       <div className="list-card-avg-box">
         <Icon name="star" size={12} />
-        <span className="usi-mono" style={{ fontWeight: 600 }}>{avg.toFixed(2)}</span>
+        <span className="usi-mono usi-weight-600">{avg.toFixed(2)}</span>
       </div>
     );
 
@@ -25,9 +25,9 @@
         extra={inv.district}
         onClick={onSelect}
         badges={
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <div className="usi-flex-row usi-gap-8">
             <SourceBadge source={inv.source} />
-            {inv.is_new && <span className="usi-pill success" style={{ fontSize: 10, padding: '2px 8px' }}>NOWE</span>}
+            {inv.is_new && <span className="usi-pill success usi-tiny">NOWE</span>}
           </div>
         }
         footerLeft={<CategoryStripe ratings={inv.ratings || {}} />}

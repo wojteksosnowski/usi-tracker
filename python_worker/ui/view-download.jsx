@@ -124,15 +124,15 @@ window.usiRegister('ViewDownload', function ViewDownload() {
       key: 'image',
       label: 'Zdjęcie',
       width: 80,
-      render: (val) => val ? <img src={val} alt="thumb" style={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 4 }} /> : <div style={{ width: 60, height: 40, background: 'var(--usi-surface-2)', borderRadius: 4 }} />
+      render: (val) => val ? <img src={val} alt="thumb" className="list-table-thumb" /> : <div className="list-table-thumb-empty" />
     },
     {
       key: 'name',
       label: 'Nazwa',
       render: (val, row) => (
         <div>
-          <div style={{ fontWeight: 600 }}>{val}</div>
-          <div style={{ fontSize: 11, color: 'var(--usi-ink-3)' }}>{row.id}</div>
+          <div className="usi-weight-600">{val}</div>
+          <div className="usi-tiny usi-text-secondary">{row.id}</div>
         </div>
       )
     },
@@ -140,7 +140,7 @@ window.usiRegister('ViewDownload', function ViewDownload() {
       key: 'source',
       label: 'Źródło',
       width: 100,
-      render: (val) => SourceBadge ? <SourceBadge source={val} /> : <span style={{ textTransform: 'uppercase', fontSize: 11, fontWeight: 700 }}>{val}</span>
+      render: (val) => SourceBadge ? <SourceBadge source={val} /> : <span className="usi-tiny usi-weight-600" style={{ textTransform: 'uppercase' }}>{val}</span>
     },
     {
       key: 'developer',
@@ -168,19 +168,18 @@ window.usiRegister('ViewDownload', function ViewDownload() {
   ];
 
   return (
-    <div data-component="ViewDownload" className="usi-app download-view-content" style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--usi-bg)' }}>
-      
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+    <div data-component="ViewDownload" className="download-view-container">
+      <div className="usi-flex-1 usi-overflow-hidden">
         {errorMsg && (
-          <div style={{ padding: '24px 24px 0 24px' }}>
-            <div className="usi-pill error" style={{ padding: '12px 16px' }}>{errorMsg}</div>
+          <div className="usi-p-24" style={{ paddingBottom: 0 }}>
+            <div className="usi-pill error usi-p-16">{errorMsg}</div>
           </div>
         )}
         
         {visibleResults.length === 0 && !loading && !errorMsg ? (
-            <div className="usi-app-empty" style={{ height: '70%', display: 'flex', flexDirection: 'column', justifyContent: 'center', opacity: 0.5 }}>
-                <Icon name="zap" size={48} style={{ marginBottom: 16 }} />
-                <div className="usi-body" style={{ fontSize: '1.2rem' }}>Kliknij "Skanuj", aby wyszukać nowe inwestycje</div>
+            <div className="usi-app-empty download-empty-state">
+                <Icon name="zap" size={48} className="usi-m-16" />
+                <div className="usi-h2">Kliknij "Skanuj", aby wyszukać nowe inwestycje</div>
             </div>
         ) : (
           <DataGrid 
@@ -193,7 +192,6 @@ window.usiRegister('ViewDownload', function ViewDownload() {
           />
         )}
       </div>
-
     </div>
   );
 });

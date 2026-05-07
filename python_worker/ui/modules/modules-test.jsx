@@ -10,7 +10,7 @@
     describe: (name, fn) => {
       suites.push({ name, fn });
     },
-    run: async () => {
+    run: async (setVariable) => {
       results.length = 0;
       for (const suite of suites) {
         console.group(`[TestSuite] ${suite.name}`);
@@ -59,8 +59,7 @@
       }
       
       const hasFailures = results.some(s => s.tests.some(t => t.status === 'fail'));
-      if (window.useDataBus) {
-        const { setVariable } = window.useDataBus();
+      if (setVariable) {
         setVariable('appStatus', { 
           type: hasFailures ? 'error' : 'success', 
           msg: hasFailures ? 'Błąd testów JS!' : 'Testy JS: OK' 

@@ -3,7 +3,8 @@
 function DashboardGrid({ accent, dark, hereApiKey }) {
   const {
     React, USI_CATEGORIES, ratingStatus, avgRating,
-    CategoryAvgRow, ProgressBarAnalytics, MiniMap, useDataBus
+    CategoryAvgRow, ProgressBarAnalytics, MiniMap, useDataBus,
+    KPI, DashboardMap, DataGrid, CategoryDots
   } = window;
 
   const { bus } = useDataBus();
@@ -27,7 +28,7 @@ function DashboardGrid({ accent, dark, hereApiKey }) {
     : 0;
 
   return (
-    <div data-component="DashboardGrid" className="dashboard-content usi-scroll" style={{ height: '100%', overflowY: 'auto', padding: '24px' }}>
+    <div data-component="DashboardGrid" className="dashboard-content usi-scroll usi-h-full usi-p-24 usi-overflow-auto">
         <KPI title="Inwestycji" value={total} sub="w bazie" col={3} />
         <KPI title="Ocenione" value={rated} sub={`${partial} częściowo`} col={3} accent="var(--usi-success)" />
         <KPI title="Zdjęć" value={photos.toLocaleString('pl-PL')} sub={`${toDelete} do usunięcia`} col={3} />
@@ -43,19 +44,19 @@ function DashboardGrid({ accent, dark, hereApiKey }) {
         </div>
 
         <div data-component="Dashboard-GeoDistribution" className="usi-card dashboard-geo-distribution">
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div className="usi-flex-row usi-gap-12 usi-m-16" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
             <span className="usi-tiny">Rozkład geograficzny</span>
             <span className="usi-small">{total} inwestycji</span>
           </div>
           <DashboardMap investments={investments} accent={accent} dark={dark} apiKey={hereApiKey} />
         </div>
 
-        <div data-component="Dashboard-TopInvestments" className="usi-card dashboard-card-half" style={{ display: 'flex', flexDirection: 'column' }}>
-          <div className="usi-tiny" style={{ padding: '16px 16px 8px' }}>Top inwestycje wg średniej</div>
+        <div data-component="Dashboard-TopInvestments" className="usi-card dashboard-card-half usi-flex-col">
+          <div className="usi-tiny usi-p-16" style={{ paddingBottom: 8 }}>Top inwestycje wg średniej</div>
           {ranked.length === 0 ? (
-            <div className="usi-small" style={{ padding: 16, color: 'var(--usi-ink-4)' }}>Brak ocenionych inwestycji</div>
+            <div className="usi-small usi-p-16" style={{ color: 'var(--usi-ink-4)' }}>Brak ocenionych inwestycji</div>
           ) : (
-            <div style={{ flex: 1, minHeight: 300 }}>
+            <div className="usi-flex-1" style={{ minHeight: 300 }}>
               <DataGrid 
                 data={ranked.slice(0, 10)} 
                 rowHeight={60}
@@ -65,7 +66,7 @@ function DashboardGrid({ accent, dark, hereApiKey }) {
                     label: '#', 
                     width: 30, 
                     align: 'center',
-                    render: (_, row) => <span className="usi-mono" style={{ fontSize: 11, opacity: 0.5 }}>{ranked.indexOf(row) + 1}</span>
+                    render: (_, row) => <span className="usi-mono usi-tiny" style={{ opacity: 0.5 }}>{ranked.indexOf(row) + 1}</span>
                   },
                   {
                     key: 'name',
@@ -73,14 +74,14 @@ function DashboardGrid({ accent, dark, hereApiKey }) {
                     render: (val, row) => {
                       const thumb = row.photos && row.photos.length > 0 ? row.photos[0] : null;
                       return (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div className="usi-flex-row usi-gap-12">
                           {thumb
                             ? <img src={thumb} alt="" className="dashboard-top-investment-thumb" />
                             : <div className="dashboard-top-investment-thumb-empty" />
                           }
                           <div className="dashboard-top-investment-info">
                             <div className="dashboard-top-investment-name">{val}</div>
-                            <div className="usi-small" style={{ fontSize: 11 }}>{row.developer}</div>
+                            <div className="usi-small usi-tiny">{row.developer}</div>
                           </div>
                         </div>
                       );
@@ -97,7 +98,7 @@ function DashboardGrid({ accent, dark, hereApiKey }) {
                     label: '★',
                     width: 60,
                     align: 'right',
-                    render: (_, row) => <span className="usi-mono" style={{ fontWeight: 600 }}>{avgRating(row).toFixed(2)}</span>
+                    render: (_, row) => <span className="usi-mono usi-weight-600">{avgRating(row).toFixed(2)}</span>
                   }
                 ]}
               />
@@ -106,7 +107,7 @@ function DashboardGrid({ accent, dark, hereApiKey }) {
         </div>
 
         <div data-component="Dashboard-Progress" className="usi-card dashboard-card-full">
-          <div className="usi-tiny" style={{ marginBottom: 12 }}>Postęp ocen</div>
+          <div className="usi-tiny usi-p-16" style={{ paddingBottom: 12 }}>Postęp ocen</div>
           <ProgressBarAnalytics rated={rated} partial={partial} total={total} />
         </div>
     </div>
@@ -114,6 +115,7 @@ function DashboardGrid({ accent, dark, hereApiKey }) {
 }
 
 function KPI({ title, value, sub, col = 3, accent }) {
+  const { React } = window;
   return (
     <div data-component="KPI" className="usi-card kpi-card" style={{ gridColumn: `span ${col}` }}>
       <div className="usi-tiny kpi-title">{title}</div>
@@ -125,7 +127,7 @@ function KPI({ title, value, sub, col = 3, accent }) {
 }
 
 function DashboardMap({ investments = [], accent, dark, apiKey }) {
-  const { MiniMap } = window;
+  const { React, MiniMap } = window;
   return (
     <div className="dashboard-map-container">
         <MiniMap coords={[52.23, 21.01]} height="100%" />
@@ -133,4 +135,4 @@ function DashboardMap({ investments = [], accent, dark, apiKey }) {
   );
 }
 
-Object.assign(window, { DashboardGrid });
+Object.assign(window, { DashboardGrid, KPI, DashboardMap });

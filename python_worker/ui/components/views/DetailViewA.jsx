@@ -4,8 +4,10 @@
   const { React, usiRegister, MetadataPanel, RatingsPanel, ModuleWrapper, NearbyInvestmentsModule, ModuleTypes, Gallery, Lightbox } = window;
 
   const DetailsA = ({ inv, ratings, handleRating, comment, handleComment, status, handleStatus, saved, focusedCat, onFocusedCatChange, metaConfig }) => {
+    const { useDataBus } = window;
     const [marked, setMarked] = React.useState(new Set());
     const [lightbox, setLightbox] = React.useState(null);
+    const { bus } = useDataBus();
     
     return (
       <div data-component="DetailsA" className="detail-grid">
@@ -41,7 +43,7 @@
               moduleSpec={{
                 inputs: { items: { type: ModuleTypes.RecordSet, from: 'nearbyInvestments' } }
               }}
-              context={window.useDataBus().bus}
+              context={bus}
               title="W okolicy"
               icon="map"
               height={400}

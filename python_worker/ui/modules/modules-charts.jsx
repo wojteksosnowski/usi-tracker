@@ -63,18 +63,18 @@
     return (
       <BaseModule title={title} icon="trending-up">
         {aggregateByQuarter.length === 0 ? (
-          <div className="usi-small" style={{ color: 'var(--usi-ink-4)', padding: '20px 0', textAlign: 'center' }}>
+          <div className="usi-small usi-chart-empty">
             Brak danych do wygenerowania wykresu trendów.
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="usi-chart-container">
             {scopedBus?.hoveredQuarter && (
-              <div className="usi-flex-row usi-gap-8 usi-align-center" style={{ marginBottom: -5 }}>
+              <div className="usi-flex-row usi-gap-8 usi-align-center usi-chart-hover-info">
                 <span className="usi-pill sm info usi-mono">{scopedBus.hoveredQuarter}</span>
                 <span className="usi-tiny" style={{ opacity: 0.6 }}>Wybrany kwartał</span>
               </div>
             )}
-            <div style={{ height: 200, width: '100%', padding: '10px 0' }}>
+            <div className="usi-chart-canvas-box">
               <canvas ref={canvasRef} />
             </div>
           </div>

@@ -107,18 +107,18 @@ function SourceBadge({ source, url }) {
 
   if (url) {
     return (
-      <a 
-        data-component="SourceBadge" 
-        href={url} 
-        target="_blank" 
-        rel="noopener noreferrer" 
+      <a
+        data-component="SourceBadge"
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
         className={`usi-source ${cls}`}
-        style={{ textDecoration: 'none' }}
         onClick={e => e.stopPropagation()}
       >
         {label}
       </a>
     );
+
   }
   return <span data-component="SourceBadge" className={`usi-source ${cls}`}>{label}</span>;
 }
@@ -130,19 +130,11 @@ function FilterChip({ label, active, onClick, color, source }) {
       data-component="FilterChip"
       data-active={active}
       onClick={(e) => onClick && onClick(e.shiftKey)}
+      className="usi-filter-chip"
       style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        padding: '6px 12px',
-        borderRadius: '16px',
-        fontSize: '11px',
-        fontWeight: 700,
-        cursor: 'pointer',
-        border: '1.5px solid ' + (active ? (color || 'var(--usi-accent)') : 'var(--usi-border)'),
+        borderColor: active ? (color || 'var(--usi-accent)') : 'var(--usi-border)',
         background: active ? (color ? color + '15' : 'rgba(229, 0, 109, 0.1)') : 'var(--usi-surface)',
         color: active ? (color || 'var(--usi-accent)') : 'var(--usi-ink-3)',
-        transition: 'all 0.15s ease',
-        boxShadow: active ? '0 2px 4px rgba(0,0,0,0.06)' : 'none',
       }}
     >
       {label}
@@ -171,37 +163,31 @@ function StandardCard({
   return (
     <article 
       data-component="StandardCard" 
-      className={`usi-card ${disabled ? 'flat' : ''}`} 
+      className={`usi-standard-card usi-card ${disabled ? 'flat disabled' : ''}`} 
       onClick={disabled ? null : onClick} 
-      style={{ 
-        height: 320, 
-        display: 'flex', 
-        flexDirection: 'column', 
-        cursor: disabled ? 'default' : 'pointer', 
-        opacity: disabled ? 0.7 : 1,
-        ...style 
-      }}
+      style={style}
     >
-      <div style={{ position: 'relative', height: 160, background: 'var(--usi-surface-3)', overflow: 'hidden' }}>
+      <div className="usi-card-img-container">
         {image ? (
-          typeof image === 'string' ? <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : safeImage
+          typeof image === 'string' ? <img src={image} alt="" className="usi-card-img" /> : safeImage
         ) : (
-          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--usi-ink-4)', fontSize: 32 }}>📷</div>
+          <div className="usi-card-img-placeholder">📷</div>
         )}
-        <div style={{ position: 'absolute', top: 10, left: 10, display: 'flex', gap: 6 }}>
+        <div className="usi-card-badges">
           {badges}
         </div>
-...
+        {overlay}
       </div>
-      <div style={{ padding: '12px 14px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+
+      <div className="usi-card-body">
         <div>
-          <h3 className="usi-h3" style={{ margin: 0, marginBottom: 2, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{safeTitle}</h3>
-          <div className="usi-small" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{safeSubtitle}</div>
-          {extra && <div className="usi-tiny" style={{ marginTop: 4, opacity: 0.7 }}>{safeRender(extra)}</div>}
+          <h3 className="usi-h3 usi-card-title">{safeTitle}</h3>
+          <div className="usi-small usi-card-subtitle">{safeSubtitle}</div>
+          {extra && <div className="usi-tiny usi-card-extra">{safeRender(extra)}</div>}
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <div className="usi-card-footer">
           <div>{footerLeft}</div>
-          <div style={{ textAlign: 'right' }}>{footerRight}</div>
+          <div className="usi-card-footer-right">{footerRight}</div>
         </div>
       </div>
     </article>
@@ -253,8 +239,6 @@ function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
     { id: 'list', label: 'Inwestycje', icon: 'grid', desc: 'Lista wszystkich inwestycji' },
     { id: 'developers', label: 'Deweloperzy', icon: 'list', desc: 'Baza firm deweloperskich' },
     { id: 'reports', label: 'Raporty', icon: 'list', desc: 'Analizy i zestawienia' },
-    { id: 'library', label: 'Biblioteka', icon: 'grid', desc: 'Galeria dostępnych modułów' },
-    { id: 'storyboard', label: 'Storyboard', icon: 'sparkle', desc: 'Testowanie komponentów' },
     { id: 'dashboard', label: 'Dashboard', icon: 'sparkle', desc: 'Podsumowania i wykresy' },
     { id: 'download', label: 'Pobieranie', icon: 'download', desc: 'Pobierz nowe inwestycje' },
     { id: 'storyboard', label: 'Storyboard', icon: 'layout', desc: 'Izolowane środowisko testowe' },
@@ -278,7 +262,7 @@ function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
         data-component="NavDrawer" 
         className="usi-nav-drawer usi-slide-down"
       >
-        <nav style={{ flex: 1, padding: '12px 10px', overflow: 'auto' }} className="usi-scroll">
+        <nav className="usi-nav-drawer-nav usi-scroll">
           {items.map(it => {
             const active = it.id === current;
             return (
@@ -288,45 +272,35 @@ function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
                 onClick={() => { if (onNav) onNav(it.id); onClose(); }}
                 className="usi-nav-item"
               >
-                <span className="usi-nav-icon-wrapper" style={{
+                <span className="usi-nav-item-icon-wrapper" style={{
                   background: active ? 'var(--usi-accent)' : 'var(--usi-surface-3)',
                   color: active ? '#fff' : 'var(--usi-ink-3)',
                 }}>
                   <Icon name={it.icon} size={14} />
                 </span>
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: 'block', fontWeight: 600, fontSize: 13 }}>{it.label}</span>
+                <span className="usi-nav-item-text-box">
+                  <span className="usi-nav-item-label">{it.label}</span>
                 </span>
-                {active && <span style={{ width: 4, height: 16, borderRadius: 2, background: 'var(--usi-accent)' }} />}
+                {active && <span className="usi-nav-item-active-indicator" />}
               </button>
             );
           })}
         </nav>
 
-        <div style={{ padding: '12px', borderTop: '.5px solid var(--usi-border)', background: 'var(--usi-surface-2)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="usi-nav-drawer-footer">
           <button
             data-component="ThemeToggle"
             onClick={onToggleTheme}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-              padding: '8px 12px', borderRadius: 6, border: '.5px solid var(--usi-border-strong)',
-              background: 'var(--usi-surface)', color: 'var(--usi-ink)',
-              cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: 12
-            }}
+            className="usi-theme-toggle"
           >
-            <span style={{ fontSize: 16 }}>{dark ? '☀' : '◑'}</span>
+            <span className="usi-theme-toggle-icon">{dark ? '☀' : '◑'}</span>
             <span>{dark ? 'Jasny motyw' : 'Ciemny motyw'}</span>
           </button>
 
           <button
             data-component="ExportBaseline"
             onClick={() => window.captureVisualBaseline && window.captureVisualBaseline()}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-              padding: '8px 12px', borderRadius: 6, border: '.5px solid var(--usi-border)',
-              background: 'var(--usi-surface-3)', color: 'var(--usi-ink-2)',
-              cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500, fontSize: 11
-            }}
+            className="usi-export-baseline"
           >
             <Icon name="download" size={14} />
             <span>Eksportuj Baseline (Visual)</span>
@@ -350,26 +324,19 @@ function NotificationCenter() {
   const progress = job.progress || 0;
 
   return (
-    <div data-component="NotificationCenter" style={{ 
-      width: '100%', maxWidth: 400, display: 'flex', flexDirection: 'column', gap: 4,
-      background: 'var(--usi-surface-2)', padding: '6px 12px', borderRadius: 8,
-      border: '.5px solid var(--usi-border)', animation: 'usi-slide-down 0.3s ease-out'
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span className="usi-tiny" style={{ fontWeight: 700, color: 'var(--usi-accent)', textTransform: 'uppercase', fontSize: 9 }}>
+    <div data-component="NotificationCenter" className="usi-notification-center">
+      <div className="usi-notification-center-header">
+        <span className="usi-notification-center-title">
           Zadanie w toku
         </span>
-        <span className="usi-mono" style={{ fontSize: 10, fontWeight: 700 }}>{progress}%</span>
+        <span className="usi-mono usi-notification-center-progress-text">{progress}%</span>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span className="usi-small" style={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <div className="usi-notification-center-body">
+        <span className="usi-notification-center-job-name">
           {job.name || 'Przetwarzanie...'}
         </span>
-        <div style={{ flex: 1.5, height: 4, background: 'var(--usi-surface-3)', borderRadius: 2, overflow: 'hidden' }}>
-          <div style={{ 
-            height: '100%', width: `${progress}%`, background: 'var(--usi-accent)', 
-            transition: 'width 0.3s ease-out', borderRadius: 2 
-          }} />
+        <div className="usi-notification-center-bar-bg">
+          <div className="usi-notification-center-bar-fill" style={{ width: `${progress}%` }} />
         </div>
       </div>
     </div>
@@ -391,16 +358,13 @@ window.usiRegister('ActionBar', ActionBar);
 function GlobalSearch({ value, onChange, placeholder = 'Szukaj...', onKeyDown }) {
   const { Icon } = window;
   return (
-    <div data-component="GlobalSearch" style={{
-      position: 'relative', flex: 1, maxWidth: 400, display: 'flex', alignItems: 'center'
-    }}>
-      <span style={{ position: 'absolute', left: 12, color: 'var(--usi-ink-4)', display: 'flex' }}>
+    <div data-component="GlobalSearch" className="usi-global-search-container">
+      <span className="usi-global-search-icon">
         <Icon name="search" size={14} />
       </span>
       <input
         data-component="Search-Input"
-        className="usi-input"
-        style={{ paddingLeft: 34, height: 36, borderRadius: 18, fontSize: 13, background: 'var(--usi-surface-2)', border: '.5px solid var(--usi-border)' }}
+        className="usi-input usi-global-search-input"
         placeholder={placeholder}
         value={value}
         onChange={e => onChange(e.target.value)}
@@ -412,7 +376,7 @@ function GlobalSearch({ value, onChange, placeholder = 'Szukaj...', onKeyDown })
 
 function FilterGroup({ label, children }) {
   return (
-    <div data-component="FilterGroup" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+    <div data-component="FilterGroup" className="usi-filter-group">
       {children}
     </div>
   );
@@ -453,19 +417,16 @@ function StatusMessenger() {
   const theme = config[status.type] || config.info;
 
   return (
-    <div data-component="StatusMessenger" style={{
-      display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px',
-      borderRadius: '20px', background: theme.bg, color: theme.color,
-      border: `.5px solid ${theme.color}40`, animation: 'usi-slide-down 0.2s ease-out'
+    <div data-component="StatusMessenger" className="usi-status-messenger" style={{
+      background: theme.bg, color: theme.color,
+      border: `.5px solid ${theme.color}40`,
     }}>
       <Icon name={theme.icon} size={14} stroke={2.5} />
-      <span style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 300 }}>
+      <span className="usi-status-messenger-text">
         {status.msg}
       </span>
       {status.type === 'error' && (
-        <button onClick={() => setVariable('appStatus', null)} style={{ 
-          background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 2, display: 'flex' 
-        }}>
+        <button onClick={() => setVariable('appStatus', null)} className="usi-status-messenger-close">
           <Icon name="close" size={12} />
         </button>
       )}
@@ -476,9 +437,9 @@ window.usiRegister('StatusMessenger', StatusMessenger);
 
 function NavbarTitle({ title, subtitle }) {
   return (
-    <div data-component="NavbarTitle" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-      <span style={{ fontWeight: 700, fontSize: 15, lineHeight: 1.2, color: 'var(--usi-ink)' }}>{title}</span>
-      {subtitle && <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--usi-ink-3)' }}>{subtitle}</span>}
+    <div data-component="NavbarTitle" className="usi-navbar-title-container">
+      <span className="usi-navbar-title">{title}</span>
+      {subtitle && <span className="usi-navbar-subtitle">{subtitle}</span>}
     </div>
   );
 }
@@ -495,11 +456,11 @@ function NotificationConsole() {
   return (
     <div data-component="NotificationConsole" className={`usi-notification-console ${minimized ? 'minimized' : 'expanded'}`}>
       <div className="console-header" onClick={() => setMinimized(!minimized)}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="usi-console-header-info">
           <Icon name="terminal" size={14} />
-          <span className="usi-tiny" style={{ fontWeight: 700, textTransform: 'uppercase' }}>Konsola powiadomień ({notifications.length})</span>
+          <span className="usi-tiny usi-weight-700 usi-text-uppercase">Konsola powiadomień ({notifications.length})</span>
         </div>
-        <div style={{ display: 'flex', gap: 12 }}>
+        <div className="usi-console-header-actions">
           <button className="usi-btn sm ghost icon" onClick={(e) => { e.stopPropagation(); setVariable('appNotifications', []); }}>
             <Icon name="close" size={12} />
           </button>
