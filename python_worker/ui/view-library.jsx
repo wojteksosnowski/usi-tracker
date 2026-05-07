@@ -47,7 +47,11 @@
             <div className="usi-small" style={{ fontWeight: 600 }}>PODGLĄD (PREVIEW)</div>
             <div style={{ minHeight: 100, border: '1px dashed var(--usi-border)', borderRadius: 12, padding: 4, background: 'var(--usi-surface)' }}>
               <ModuleErrorBoundary>
-                <Component {...props} data={bus?.visibleInvestments || []} />
+                <Component 
+                  instanceId={`lib_${name}`}
+                  {...props} 
+                  data={bus?.visibleInvestments || []} 
+                />
               </ModuleErrorBoundary>
             </div>
           </div>

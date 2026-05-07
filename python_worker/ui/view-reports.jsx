@@ -116,6 +116,13 @@ window.ModuleRegistry.registerPreset('LocationAnalysis', [
   { type: 'DataGridModule' }
 ]);
 
+window.ModuleRegistry.registerPreset('MultiModuleTest', [
+  { type: 'PriceTrendModule', props: { title: 'Trend A (Niebieski)', chartColor: '#3989C6' }, id: 'trend_a' },
+  { type: 'PriceTrendModule', props: { title: 'Trend B (Fioletowy)', chartColor: '#9C27B0' }, id: 'trend_b' },
+  { type: 'MapModule', props: { title: 'Mapa Zachodnia', height: 300 }, id: 'map_west' },
+  { type: 'MapModule', props: { title: 'Mapa Wschodnia', height: 300 }, id: 'map_east' }
+]);
+
 
 function ReportDetail({ reportId, onBack }) {
   const { React, Spinner, Icon, ModuleRegistry, ModuleErrorBoundary, useApi } = window;
@@ -133,13 +140,11 @@ function ReportDetail({ reportId, onBack }) {
       .catch(() => setLoading(false));
   }, [reportId, request]);
 
-  if (loading) return <div className="usi-app-loading"><Spinner /></div>;
-  if (!data) return <div className="usi-app-empty">Błąd ładowania raportu.</div>;
-
-  const { definition, data: investments } = data;
-  
   // Resolve modules (supporting presets)
   const modulesToRender = React.useMemo(() => {
+    if (!data || !data.definition) return [];
+    
+    const { definition } = data;
     const raw = definition.modules || [{ type: 'DataGridModule' }];
     const resolved = [];
     raw.forEach(m => {
@@ -152,7 +157,12 @@ function ReportDetail({ reportId, onBack }) {
       }
     });
     return resolved;
-  }, [definition.modules, ModuleRegistry]);
+  }, [data, ModuleRegistry]);
+
+  if (loading) return <div className="usi-app-loading"><Spinner /></div>;
+  if (!data) return <div className="usi-app-empty">Błąd ładowania raportu.</div>;
+
+  const { definition, data: investments } = data;
 
   return (
     <div data-component="ReportDetail" className="report-detail-content usi-scroll">
@@ -177,9 +187,17 @@ function ReportDetail({ reportId, onBack }) {
                return <div key={idx} className="usi-pill error">Błąd konfiguracji {mod.type}: {val.errors.join(', ')}</div>;
              }
 
+             const instanceId = mod.id || `mod_${idx}`;
+
              return (
                <ModuleErrorBoundary key={idx}>
-                 <ModComponent data={investments} definition={definition} {...(mod.props || {})} modules={mod.modules} />
+                 <ModComponent 
+                   instanceId={instanceId}
+                   data={investments} 
+                   definition={definition} 
+                   {...(mod.props || {})} 
+                   modules={mod.modules} 
+                 />
                </ModuleErrorBoundary>
              );
           })}

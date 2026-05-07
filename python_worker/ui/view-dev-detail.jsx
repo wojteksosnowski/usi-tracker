@@ -209,7 +209,7 @@ function JobStatusOverlay({ job, onClose }) {
             </div>
         </div>
         {isFinished && (
-            <button className="usi-btn sm ghost" style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.4)' }} onClick={onClose}>Zamknij</button>
+            <button className="usi-btn sm ghost" style={{ color: 'var(--usi-bg)', borderColor: 'var(--usi-border-strong)' }} onClick={onClose}>Zamknij</button>
         )}
     </div>
   );
@@ -286,7 +286,12 @@ function DeveloperHeroBand({ dev }) {
 
       {firstInvWithCoords ? (
         <div style={{ height: 120, borderRadius: 12, overflow: 'hidden', border: '.5px solid var(--usi-border)' }}>
-            <MiniMap coords={firstInvWithCoords.coords} height="100%" />
+            <MiniMap 
+                coords={firstInvWithCoords.coords} 
+                height="100%" 
+                hereUrl={firstInvWithCoords.here_map_url} 
+                hereUrlDark={firstInvWithCoords.here_map_url_dark} 
+            />
         </div>
       ) : (
         <div style={{ height: 120, borderRadius: 12, background: 'var(--usi-surface-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--usi-ink-4)', fontSize: 11 }}>

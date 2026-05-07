@@ -66,25 +66,43 @@ class DeveloperManager:
                 # RP
                 rp_src = sources.get("rp", {})
                 if rp_src and rp_src.get("id"):
-                    rp_ids.add(str(rp_src["id"]))
+                    val = str(rp_src["id"])
+                    if val and val != "None":
+                        rp_ids.add(val)
                 
                 # Otodom
                 oto_src = sources.get("oto", {})
                 if oto_src:
                     if oto_src.get("id"):
-                        oto_ids.add(str(oto_src["id"]))
+                        val = str(oto_src["id"])
+                        if val and val != "None":
+                            oto_ids.add(val)
                     
                     url = oto_src.get("url")
                     if url:
-                        # Extract slug: /inwestycja/SLUG or /oferta/SLUG
+                        # Extract full slug: /inwestycja/SLUG or /oferta/SLUG
                         match = re.search(r"/(?:inwestycja|oferta)/([^/?#]+)", url)
                         if match:
-                            oto_slugs.add(match.group(1))
+                            full_slug = match.group(1)
+                            oto_slugs.add(full_slug)
+                            # Also extract Hash ID (part after -ID) as per Coda spec
+                            hash_match = re.search(r"-ID([a-zA-Z0-9]+)$", full_slug)
+                            if hash_match:
+                                oto_ids.add(hash_match.group(1))
+                            elif "-ID" not in full_slug and len(full_slug) > 5:
+                                # Sometimes ID is just at the end without -ID if it was a manual entry
+                                # but usually Otodom uses -ID. 
+                                # Based on Coda spec: RegexExtract("(?<=ID).+$")
+                                coda_hash_match = re.search(r"ID([a-zA-Z0-9]+)$", full_slug)
+                                if coda_hash_match:
+                                    oto_ids.add(coda_hash_match.group(1))
 
                 # TabelaOfert
                 to_src = sources.get("to", {})
                 if to_src and to_src.get("id"):
-                    to_ids.add(str(to_src["id"]))
+                    val = str(to_src["id"])
+                    if val and val != "None":
+                        to_ids.add(val)
             except Exception as e:
                 logger.warning(f"Error reading {json_file}: {e}")
 
@@ -211,7 +229,8 @@ class DeveloperManager:
     def merge_developers(self, target_slug: str, source_slug: str) -> bool:
         """
         Merges source developer into target developer.
-        Moves all investment folders and updates USI JSONs.
+        Updates portal mappings and archives source record.
+        DOES NOT move folders to avoid breaking image paths.
         """
         target_dev = self.get_developer(target_slug)
         source_dev = self.get_developer(source_slug)
@@ -220,55 +239,33 @@ class DeveloperManager:
             logger.error(f"Merge failed: target {target_slug} or source {source_slug} not found.")
             return False
             
-        source_data_dir = self.data_dir / source_slug
-        target_data_dir = self.data_dir / target_slug
+        # Merge portal mappings
+        target_mapping = target_dev.setdefault("portal_mapping", {})
+        source_mapping = source_dev.get("portal_mapping", {})
         
-        if source_data_dir.exists():
-            target_data_dir.mkdir(parents=True, exist_ok=True)
-            for inv_dir in source_data_dir.iterdir():
-                if inv_dir.is_dir() and not inv_dir.name.startswith("."):
-                    inv_slug = inv_dir.name
-                    target_inv_dir = target_data_dir / inv_slug
-                    
-                    # Handle name collision
-                    if target_inv_dir.exists():
-                        ts = datetime.now().strftime("%Y%m%d")
-                        target_inv_dir = target_data_dir / f"{inv_slug}_{ts}"
-                    
-                    # Move folder
-                    inv_dir.rename(target_inv_dir)
-                    
-                    # Update USI JSON inside
-                    usi_file = target_inv_dir / f"usi_{inv_slug}.json"
-                    if usi_file.exists():
-                        try:
-                            with open(usi_file, "r", encoding="utf-8") as f:
-                                data = json.load(f)
-                            data["developer_slug"] = target_slug
-                            data["usi_dev_id"] = target_dev["usi_dev_id"]
-                            data["developer"] = target_dev["name"]
-                            with open(usi_file, "w", encoding="utf-8") as f:
-                                json.dump(data, f, indent=2, ensure_ascii=False)
-                        except Exception as e:
-                            logger.error(f"Error updating USI file during merge: {e}")
+        for portal, data in source_mapping.items():
+            if portal not in target_mapping:
+                target_mapping[portal] = data
+                logger.info(f"Merged {portal} mapping from {source_slug} to {target_slug}")
+        
+        # Merge metadata if target is missing it
+        target_meta = target_dev.setdefault("metadata", {})
+        source_meta = source_dev.get("metadata", {})
+        for k, v in source_meta.items():
+            if not target_meta.get(k) and v:
+                target_meta[k] = v
 
-            # Remove empty source dir
-            try:
-                if not any(source_data_dir.iterdir()):
-                    source_data_dir.rmdir()
-            except Exception:
-                pass
+        # Save updated target
+        self.create_developer_file(target_dev)
                 
         # Archive source developer JSON
         source_file = self.dev_dir / f"usi_dev_{source_slug}.json"
         archive_dir = self.dev_dir / "archived"
         archive_dir.mkdir(parents=True, exist_ok=True)
-        source_file.rename(archive_dir / f"usi_dev_{source_slug}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
+        ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+        source_file.rename(archive_dir / f"usi_dev_{source_slug}_{ts}.json")
         
-        # Merge portal mappings to target (optional, but good practice)
-        # ... logic to merge mappings if target has nulls ...
-        
-        logger.info(f"Successfully merged {source_slug} into {target_slug}")
+        logger.info(f"Successfully merged {source_slug} into {target_slug} (mappings only)")
         return True
 
     def dismiss_suggestion(self, dev_slug: str, suggested_id: str) -> bool:

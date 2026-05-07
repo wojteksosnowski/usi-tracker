@@ -253,6 +253,8 @@ function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
     { id: 'list', label: 'Inwestycje', icon: 'grid', desc: 'Lista wszystkich inwestycji' },
     { id: 'developers', label: 'Deweloperzy', icon: 'list', desc: 'Baza firm deweloperskich' },
     { id: 'reports', label: 'Raporty', icon: 'list', desc: 'Analizy i zestawienia' },
+    { id: 'library', label: 'Biblioteka', icon: 'grid', desc: 'Galeria dostępnych modułów' },
+    { id: 'storyboard', label: 'Storyboard', icon: 'sparkle', desc: 'Testowanie komponentów' },
     { id: 'dashboard', label: 'Dashboard', icon: 'sparkle', desc: 'Podsumowania i wykresy' },
     { id: 'download', label: 'Pobieranie', icon: 'download', desc: 'Pobierz nowe inwestycje' },
     { id: 'storyboard', label: 'Storyboard', icon: 'layout', desc: 'Izolowane środowisko testowe' },
@@ -410,11 +412,8 @@ function GlobalSearch({ value, onChange, placeholder = 'Szukaj...', onKeyDown })
 
 function FilterGroup({ label, children }) {
   return (
-    <div data-component="FilterGroup" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      {label && <span className="usi-tiny" style={{ fontWeight: 700, opacity: 0.6, textTransform: 'uppercase' }}>{label}</span>}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        {children}
-      </div>
+    <div data-component="FilterGroup" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      {children}
     </div>
   );
 }
@@ -426,11 +425,20 @@ function StatusMessenger() {
   const status = bus.appStatus;
 
   React.useEffect(() => {
-    if (status && status.type !== 'error') {
-      const timer = setTimeout(() => {
-        setVariable('appStatus', null);
-      }, 3000);
-      return () => clearTimeout(timer);
+    if (status) {
+      // Dodaj do historii powiadomień
+      setVariable('appNotifications', prev => {
+        const last = prev[prev.length - 1];
+        if (last && last.msg === status.msg) return prev; // Unikaj duplikatów
+        return [...(prev || []), { ...status, time: Date.now() }];
+      });
+
+      if (status.type !== 'error') {
+        const timer = setTimeout(() => {
+          setVariable('appStatus', null);
+        }, 3000);
+        return () => clearTimeout(timer);
+      }
     }
   }, [status, setVariable]);
 
@@ -475,3 +483,40 @@ function NavbarTitle({ title, subtitle }) {
   );
 }
 window.usiRegister('NavbarTitle', NavbarTitle);
+
+function NotificationConsole() {
+  const { React, useDataBus, Icon } = window;
+  const { bus, setVariable } = useDataBus();
+  const [minimized, setMinimized] = React.useState(true);
+  const notifications = bus.appNotifications || [];
+
+  if (notifications.length === 0) return null;
+
+  return (
+    <div data-component="NotificationConsole" className={`usi-notification-console ${minimized ? 'minimized' : 'expanded'}`}>
+      <div className="console-header" onClick={() => setMinimized(!minimized)}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Icon name="terminal" size={14} />
+          <span className="usi-tiny" style={{ fontWeight: 700, textTransform: 'uppercase' }}>Konsola powiadomień ({notifications.length})</span>
+        </div>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button className="usi-btn sm ghost icon" onClick={(e) => { e.stopPropagation(); setVariable('appNotifications', []); }}>
+            <Icon name="close" size={12} />
+          </button>
+          <Icon name={minimized ? 'chevronUp' : 'chevronDown'} size={14} />
+        </div>
+      </div>
+      {!minimized && (
+        <div className="console-content usi-scroll">
+          {notifications.slice().reverse().map((n, i) => (
+            <div key={i} className={`console-line ${n.type || 'info'}`}>
+              <span className="line-time">[{new Date(n.time).toLocaleTimeString()}]</span>
+              <span className="line-msg">{n.msg}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+window.usiRegister('NotificationConsole', NotificationConsole);

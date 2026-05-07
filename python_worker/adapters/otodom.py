@@ -42,15 +42,30 @@ class OtodomAdapter(BaseAdapter):
         characteristics = get_val(raw_data, "characteristics", [])
         char_dict = {c.get("key"): c.get("value") for c in characteristics if isinstance(c, dict)}
         
+        # Robust extraction from 'target' block (often has cleaner values)
+        target = get_val(raw_data, "target", {})
+        
         try:
             units_count = int(char_dict.get("number_of_properties")) if char_dict.get("number_of_properties") else None
+            if not units_count and target.get("Number_of_properties"):
+                units_count = int(target["Number_of_properties"])
         except (ValueError, TypeError):
             units_count = None
             
         try:
             price_min = float(char_dict.get("price_per_m_from")) if char_dict.get("price_per_m_from") else None
+            if not price_min and target.get("Price_per_m_from"):
+                price_min = float(target["Price_per_m_from"])
         except (ValueError, TypeError):
             price_min = None
+
+        # Delivery - handle "ready" state from target.State
+        if not delivery_str:
+            state = target.get("State", [])
+            if isinstance(state, list) and "ready" in state:
+                delivery_str = "Gotowe"
+            elif isinstance(state, str) and state == "ready":
+                delivery_str = "Gotowe"
 
         # Extract images
         image_urls = []
@@ -70,6 +85,16 @@ class OtodomAdapter(BaseAdapter):
                 if img_url:
                     image_urls.append(img_url)
 
+        # Identification - extract Hash ID from slug if possible (Coda compatibility)
+        full_slug = get_val(raw_data, "slug", "")
+        numeric_id = str(get_val(raw_data, "id"))
+        oto_id = numeric_id
+        
+        if "-ID" in full_slug:
+            oto_id = full_slug.split("-ID")[-1]
+        elif "ID" in full_slug:
+            oto_id = full_slug.split("ID")[-1]
+
         return {
             "investment_slug": investment_slug,
             "developer_slug": developer_slug,
@@ -78,7 +103,8 @@ class OtodomAdapter(BaseAdapter):
             "status": "Brak",
             "sources": {
                 "oto": {
-                    "id": str(get_val(raw_data, "id")),
+                    "id": oto_id,
+                    "numeric_id": numeric_id,
                     "url": get_val(raw_data, "url"),
                     "last_sync": datetime.now().isoformat()
                 }

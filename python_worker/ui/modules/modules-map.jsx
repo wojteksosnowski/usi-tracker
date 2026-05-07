@@ -46,10 +46,10 @@
   }
   usiRegister('MiniMap', MiniMap);
 
-  function MapModule({ data: localData, height = 400, title = "Mapa Inwestycji", hereApiKey }) {
+  function MapModule({ instanceId, data: localData, height = 400, title = "Mapa Inwestycji", hereApiKey }) {
     const mapRef = React.useRef(null);
     const containerRef = React.useRef(null);
-    const { bus, setVariable } = useDataBus();
+    const { bus, setVariable, scopedBus, scopedSetVariable } = useDataBus(instanceId);
     const [mapLoaded, setMapLoaded] = React.useState(!!window.H);
     const ctx = useModuleContext(localData);
 
@@ -136,10 +136,14 @@
           if (target instanceof H.map.Marker && target.getData) {
             const inv = target.getData();
             if (!inv.isCluster) {
+               console.log(`[MapModule:${instanceId}] selected: ${inv.slug}`);
                setVariable('currentInvestment', inv);
+               if (scopedSetVariable) scopedSetVariable('selectedId', inv.slug || inv.name);
             } else {
-               const bounds = target.getBoundingBox();
-               map.getViewModel().setLookAtData({bounds: bounds});
+               // Dla klastrów używamy getBoundingBox z obiektu klastra (inv)
+               if (inv && typeof inv.getBoundingBox === 'function') {
+                 map.getViewModel().setLookAtData({bounds: inv.getBoundingBox()});
+               }
             }
           }
         });
@@ -163,7 +167,20 @@
             Ładowanie mapy...
           </div>
         ) : (
-          <div ref={containerRef} style={{ width: '100%', height }} />
+          <div style={{ position: 'relative' }}>
+            {scopedBus?.selectedId && (
+              <div style={{ 
+                position: 'absolute', top: 12, right: 12, zIndex: 10,
+                background: 'var(--usi-surface)', padding: '6px 12px', borderRadius: 8,
+                border: '1.5px solid var(--usi-accent)', boxShadow: 'var(--usi-shadow-sm)',
+                animation: 'usi-slide-down 0.2s ease-out'
+              }}>
+                <div className="usi-tiny" style={{ fontWeight: 700, color: 'var(--usi-accent)', textTransform: 'uppercase', marginBottom: 2 }}>Wybrano</div>
+                <div className="usi-small" style={{ fontWeight: 600 }}>{scopedBus.selectedId}</div>
+              </div>
+            )}
+            <div ref={containerRef} style={{ width: '100%', height }} />
+          </div>
         )}
       </BaseModule>
     );

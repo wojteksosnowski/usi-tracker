@@ -20,11 +20,13 @@ window.usiRegister('ViewDownload', function ViewDownload() {
     setLoading(true);
     setErrorMsg(null);
     setResults([]);
+    setVariable('appStatus', { type: 'info', msg: 'Rozpoczęto skanowanie portali...' });
     let allResults = [];
     
     try {
       for (const p of activePortals) {
         try {
+          setVariable('appStatus', { type: 'info', msg: `Skanowanie: ${p}...` });
           const data = await request(`/api/discovery/${p}`);
           if (Array.isArray(data)) {
             allResults = [...allResults, ...data.map(r => ({ ...r, source: p }))];
@@ -34,13 +36,19 @@ window.usiRegister('ViewDownload', function ViewDownload() {
         }
       }
       setResults(allResults);
-      if (allResults.length === 0) setErrorMsg('Nie znaleziono nowych inwestycji na wybranych portalach.');
+      if (allResults.length === 0) {
+        setErrorMsg('Nie znaleziono nowych inwestycji na wybranych portalach.');
+        setVariable('appStatus', { type: 'info', msg: 'Skanowanie zakończone - brak nowych wyników.' });
+      } else {
+        setVariable('appStatus', { type: 'success', msg: `Znaleziono ${allResults.length} inwestycji.` });
+      }
     } catch (err) {
       setErrorMsg('Błąd krytyczny podczas skanowania');
+      setVariable('appStatus', { type: 'error', msg: 'Błąd krytyczny podczas skanowania' });
     } finally {
       setLoading(false);
     }
-  }, [activePortals, request]);
+  }, [activePortals, request, setVariable]);
 
   // Expose trigger to global scope for App ActionBar
   React.useEffect(() => {
@@ -183,12 +191,6 @@ window.usiRegister('ViewDownload', function ViewDownload() {
             renderCard={renderCard}
             emptyMessage={loading ? "Przeszukiwanie wybranych portali..." : "Brak wyników dopasowania"}
           />
-        )}
-
-        {loading && (
-          <div style={{ position: 'absolute', top: 24, right: 24, zIndex: 100 }}>
-             <Spinner size={24} />
-          </div>
         )}
       </div>
 

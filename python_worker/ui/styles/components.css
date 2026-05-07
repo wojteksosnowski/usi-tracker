@@ -1,12 +1,5 @@
 /* components.css — Style dla współdzielonych komponentów */
 
-/* --- Variables (Fallback) --- */
-:root {
-  --usi-bg: #f0eee9;
-  --usi-surface: #fff;
-  --usi-border: rgb(0 0 0 / 8%);
-}
-
 /* Navbar-Top */
 .usi-navbar-top {
   height: 64px;
@@ -167,7 +160,7 @@
   border-bottom: .5px solid var(--usi-border);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 12px 24px rgb(0 0 0 / 8%);
+  box-shadow: var(--usi-shadow-lg);
   z-index: 860;
   max-height: calc(100vh - 60px);
 }
@@ -182,7 +175,7 @@
   position: fixed;
   inset: 0;
   z-index: 850;
-  background: rgb(0 0 0 / 10%);
+  background: var(--usi-backdrop);
 }
 
 .usi-nav-item {
@@ -231,7 +224,7 @@
 
 .usi-card:not(.flat):hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgb(0 0 0 / 8%);
+  box-shadow: var(--usi-shadow-md);
 }
 
 /* Module Cards */
@@ -326,4 +319,70 @@
 .usi-distance-km {
   opacity: 0.6;
 }
+
+/* Notification Console */
+.usi-notification-console {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: var(--usi-surface);
+  border-top: 1px solid var(--usi-border-strong);
+  box-shadow: var(--usi-shadow-lg);
+  transition: all 0.3s ease;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.usi-notification-console.minimized {
+  height: 32px;
+}
+
+.usi-notification-console.expanded {
+  height: 200px;
+}
+
+.console-header {
+  height: 32px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  background: var(--usi-surface-2);
+  user-select: none;
+}
+
+.console-header:hover {
+  background: var(--usi-surface-3);
+}
+
+.console-content {
+  height: 168px;
+  padding: 10px 16px;
+  overflow-y: auto;
+  font-size: 11px;
+  line-height: 1.5;
+  background: var(--usi-bg);
+}
+
+.console-line {
+  margin-bottom: 2px;
+  display: flex;
+  gap: 12px;
+  white-space: pre-wrap;
+}
+
+.line-time {
+  color: var(--usi-ink-4);
+  flex-shrink: 0;
+}
+
+.line-msg {
+  color: var(--usi-ink-2);
+}
+
+.console-line.success .line-msg { color: var(--usi-success); }
+.console-line.error .line-msg { color: var(--usi-danger); }
+.console-line.info .line-msg { color: var(--usi-accent); }
 

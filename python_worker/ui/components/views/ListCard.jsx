@@ -4,7 +4,7 @@
   /**
    * ListCard - Shared component for Investment lists (Main List & Discovery)
    */
-  const ListCard = ({ inv, onSelect, footerRight: CustomFooterRight }) => {
+  const ListCardComponent = ({ inv, onSelect, footerRight: CustomFooterRight }) => {
     const avg = avgRating ? avgRating(inv) : 0;
     const thumb = (inv.photos && inv.photos.length > 0) ? inv.photos[0] : (inv.image || null);
 
@@ -35,6 +35,12 @@
       />
     );
   };
+
+  const ListCard = React.memo(ListCardComponent, (prev, next) => {
+    return prev.inv?.slug === next.inv?.slug && 
+           prev.inv?.updated_at === next.inv?.updated_at &&
+           prev.onSelect === next.onSelect;
+  });
 
   usiRegister('ListCard', ListCard);
 })();

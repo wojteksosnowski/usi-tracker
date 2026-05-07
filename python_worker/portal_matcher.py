@@ -274,7 +274,7 @@ def run_matcher(data_dir: Path, output_path: Path, min_confidence: str = "low") 
 
 def filter_new_investments(discovered_items: list[dict], portal: str) -> list[dict]:
     """
-    Adds 'is_new' flag to discovered items by comparing with existing USIdata.
+    Adds 'is_new' and 'registered' flags to discovered items by comparing with existing USIdata.
     portal: 'rp' or 'otodom'
     """
     from .developer_manager import DeveloperManager
@@ -292,19 +292,39 @@ def filter_new_investments(discovered_items: list[dict], portal: str) -> list[di
         is_new = True
         if portal == "rp":
             item_id = str(item.get("id"))
-            if item_id in rp_ids:
+            if item_id and item_id != "None" and item_id in rp_ids:
                 is_new = False
-        elif portal == "otodom":
+        elif portal == "otodom" or portal == "oto":
             item_id = str(item.get("id"))
+            item_hash = item.get("hash_id")
             item_slug = item.get("slug")
-            if item_id in oto_ids or item_slug in oto_slugs:
+            
+            # 1. Check numeric ID
+            id_match = item_id and item_id != "None" and item_id in oto_ids
+            
+            # 2. Check hash ID from discovery result
+            hash_match_field = item_hash and item_hash in oto_ids
+            
+            # 3. Check full slug
+            slug_match = item_slug and item_slug in oto_slugs
+            
+            # 4. Extract Hash ID from slug as per Coda spec and check (fallback)
+            hash_match_regex = False
+            if item_slug and not hash_match_field:
+                h_match = re.search(r"ID([a-zA-Z0-9]+)$", item_slug)
+                if h_match:
+                    if h_match.group(1) in oto_ids:
+                        hash_match_regex = True
+
+            if id_match or hash_match_field or slug_match or hash_match_regex:
                 is_new = False
         elif portal in ("to", "tabelaofert"):
             item_id = str(item.get("id"))
-            if item_id in to_ids:
+            if item_id and item_id != "None" and item_id in to_ids:
                 is_new = False
 
         item["is_new"] = is_new
+        item["registered"] = not is_new
         item["portal"] = portal
 
     return discovered_items

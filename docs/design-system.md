@@ -68,6 +68,11 @@ Wszystkie kluczowe elementy UI są oznaczone atrybutem `data-component` w celu u
 - `StarRating` / `UsiStarScore`: Reprezentacja gwiazdkowa ocen.
 - `ProgressRing`: Okrągły wskaźnik postępu wypełnienia ocen.
 
+### System Powiadomień (`core.jsx` / `app.jsx`)
+- `StatusMessenger`: Pływający pasek statusu dla krótkich komunikatów (success/error).
+- `NotificationCenter`: Obszar w Navbarze pokazujący aktywne zadania w tle (jobs).
+- `NotificationConsole`: Rozwijany terminal na dole ekranu przechowujący historię wszystkich komunikatów systemowych.
+
 ### Dashboard (`view-dashboard.jsx`)
 - `DashboardGrid`: Główny kontener dashboardu.
 - `DashboardMap`: Mapa z zaznaczonymi inwestycjami.

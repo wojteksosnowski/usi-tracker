@@ -275,6 +275,37 @@ def _extract_to_id(url: str) -> str | None:
     return m.group(1) if m else None
 
 
+def fetch_to_agency_name(url: str) -> str | None:
+    """
+    Fetches only the agency/developer name from TabelaOfert detail page.
+    """
+    html = fetch_to_html(url)
+    if not html:
+        return None
+        
+    # 1. Try JSON-LD Product.brand.name
+    product = parse_to_product(html)
+    if isinstance(product.get("brand"), dict):
+        name = product.get("brand", {}).get("name")
+        if name: return name
+
+    # 2. Try H1 analysis (TabelaOfert common pattern: <h1><span>Inv</span><span>Dev</span></h1>)
+    h1_match = re.search(r"<h1[^>]*>(.*?)</h1>", html, re.DOTALL)
+    if h1_match:
+        spans = re.findall(r"<span[^>]*>(.*?)</span>", h1_match.group(1), re.DOTALL)
+        if len(spans) >= 2:
+            # The second span usually contains the developer name
+            dev_candidate = re.sub(r"<[^>]+>", "", spans[-1]).strip()
+            if dev_candidate and len(dev_candidate) < 100:
+                return dev_candidate
+
+    # 3. Try generic developer pattern
+    dev_match = re.search(r'data-developer="([^"]+)"', html)
+    if dev_match:
+        return dev_match.group(1).strip()
+
+    return "Nieznany Deweloper"
+
 def discover_to_listing(url: str) -> list[dict]:
     """
     Extracts investment links and images from a TabelaOfert listing page.
@@ -286,6 +317,7 @@ def discover_to_listing(url: str) -> list[dict]:
     offers = []
     seen_ids = set()
 
+    # Pattern to find investment links: /inwestycja/slug,iID
     matches = list(re.finditer(r'href="(/inwestycja/([^",]+),i(\d+))"', html))
     
     for m in matches:
@@ -296,18 +328,33 @@ def discover_to_listing(url: str) -> list[dict]:
         full_url = f"https://tabelaofert.pl{full_path}"
         name = slug_part.replace("-", " ").title()
         
-        start_search = max(0, m.start() - 1500)
-        window = html[start_search:m.end()]
+        # Look for image and developer name in the surrounding HTML window
+        start_search = max(0, m.start() - 2000)
+        end_search = min(len(html), m.end() + 1000)
+        window = html[start_search:end_search]
         
+        # Image extraction
         img_matches = list(re.finditer(r'src="(https?://content\.tabelaofert\.pl/[^"]+\.(?:webp|jpg|png|jpeg))"', window))
         image_url = img_matches[-1].group(1) if img_matches else None
+
+        # Developer extraction - TabelaOfert listing usually has developer name near the investment title
+        # Often in a span or data attribute
+        dev_name = None
+        dev_match = re.search(r'data-developer="([^"]+)"', window)
+        if not dev_match:
+            # Fallback to looking for "Deweloper: Name" or similar text patterns
+            dev_match = re.search(r'<span>([^<]+)</span>', window) # This is very broad, but sometimes works in context
         
+        if dev_match:
+            dev_name = dev_match.group(1).strip()
+
         offers.append({
             "id": to_id,
             "url": full_url,
             "name": name,
             "slug": slug_part,
-            "image": image_url
+            "image": image_url,
+            "developer": dev_name
         })
             
     return offers

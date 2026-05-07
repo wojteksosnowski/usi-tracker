@@ -34,7 +34,7 @@ def test_oto_discovery():
     if net_new:
         logger.info("First 5 net-new items:")
         for item in net_new[:5]:
-            logger.info(f" - {item['name']} ({item['url']})")
+            logger.info(f" - {item['name']} | Developer: {item.get('developer') or 'Unknown'} ({item['url']})")
 
 if __name__ == "__main__":
     test_oto_discovery()

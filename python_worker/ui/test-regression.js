@@ -219,6 +219,13 @@ window.runDataBusRegressionTest = function runDataBusRegressionTest() {
         assert("Async simulation: final state correct", s5.other === 'new_root_async');
     });
 
+    // Test 6: Scoped Namespace Isolation (Logic check)
+    const s6_a = simulateUpdate('scopes.map_A.selectedId', 'slug_1', mockState);
+    const s6_b = simulateUpdate('scopes.map_B.selectedId', 'slug_2', s6_a);
+    assert("Scoped update: map_A set", s6_b.scopes.map_A.selectedId === 'slug_1');
+    assert("Scoped update: map_B set", s6_b.scopes.map_B.selectedId === 'slug_2');
+    assert("Scoped update: isolation confirmed", s6_b.scopes.map_A.selectedId !== s6_b.scopes.map_B.selectedId);
+
     console.table(results);
     return results;
 };

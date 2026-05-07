@@ -47,8 +47,7 @@
       const {
         Spinner, Icon, ModuleErrorBoundary,
         ViewList, DeveloperListGrid, DeveloperDetail,
-        DetailRightPanel, DashboardGrid, ViewDownload, ViewLibrary, UIStoryboard,
-        ReportsList, ReportDetail, DataBusProvider, useDataBus,
+        DetailRightPanel, DashboardGrid, ViewDownload, ViewLibrary, ViewStoryboard, UIStoryboard, ReportsList, ReportDetail, DataBusProvider, useDataBus,
         useInvestments, useDevelopers, useConfig,
         MAIN_CITIES, SOURCES, USI_STATUSES, applyTheme, injectThemeCSS,
         NavbarShell, NavbarTitle, NavbarCounter, ActionBar, NotificationCenter, StatusMessenger,
@@ -148,9 +147,10 @@
         if (view === 'list') return "Inwestycje";
         if (view === 'developers') return "Deweloperzy";
         if (view === 'dashboard') return "Dashboard";
-        if (view === 'storyboard') return "Storyboard";
-        if (view === 'reports') return "Raporty";
         if (view === 'library') return "Biblioteka Modułów";
+        if (view === 'storyboard') return "USI Storyboard";
+        if (view === 'download') return "Pobieranie";
+        if (view === 'reports') return "Raporty";
         if (view === 'detail') return selectedInv?.name || "Szczegóły";
         if (view === 'dev-detail') return selectedDev?.name || "Szczegóły dewelopera";
         return "USI Tracker";
@@ -245,7 +245,6 @@
                     {MAIN_CITIES.map(city => (
                       <FilterChip key={city} label={city} active={activeCities.has(city)} onClick={(isShift) => toggleCity(city, isShift)} />
                     ))}
-                    {activeCities.size > 0 && <button className="usi-btn ghost sm" onClick={() => toggleCity(null)}>Reset</button>}
                   </FilterGroup>
                 </div>
               ) : view === 'download' ? (
@@ -345,12 +344,13 @@
 
               {view === 'download' && <ViewDownload />}
               {view === 'library' && <ViewLibrary />}
-              {view === 'storyboard' && <UIStoryboard />}
+              {view === 'storyboard' && (window.ViewStoryboard ? <ViewStoryboard /> : <UIStoryboard />)}
               {view === 'reports' && <ReportsList onSelectReport={(r) => { setSelectedReport(r); setView('report-detail'); }} />}
               {view === 'report-detail' && selectedReport && <ReportDetail reportId={selectedReport.id} onBack={() => setView('reports')} />}
             </ModuleErrorBoundary>
           </main>
 
+          <NotificationConsole />
           {navOpen && <NavDrawer current={view} onClose={() => setNavOpen(false)} onNav={handleNav} dark={dark} onToggleTheme={handleToggleTheme} />}
         </div>
       );

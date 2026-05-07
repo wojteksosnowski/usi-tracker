@@ -1,3 +1,12 @@
+## Poprawki — 2026-05-07
+- **Błąd Discovery Otodom**: Naprawiono filtr „Tylko nowe” poprzez poprawną ekstrakcję ID ofert i usunięcie fałszywych dopasowań do pustych rekordów.
+- **Tryb Ciemny i CSS**: Wprowadzono pełne wsparcie dla motywu ciemnego poprzez system zmiennych CSS i unifikację selektorów ([data-dark="1"]).
+- **System Powiadomień**: Zaimplementowano NotificationConsole z historią zdarzeń oraz NotificationCenter w Navbarze, zastępując globalne spinnery.
+- **Moduły Map**: Zaktualizowano MiniMapy o dynamiczne adresy HERE i naprawiono krytyczny błąd obsługi klastrów (BoundingBox).
+- **Ekstrakcja TO**: Udoskonalono identyfikację deweloperów w scraper_to.py poprzez analizę tagów HTML (fallback dla JSON-LD).
+- **Zarządzanie Deweloperami**: Zoptymalizowano merge_developers, eliminując ryzyko uszkodzenia ścieżek do zdjęć przy scalaniu rekordów.
+- **Responsywność UI**: Wdrożono dynamiczny układ DataGrid (minCardWidth), optymalizując wyświetlanie na szerokich monitorach.
+
 ## Długoterminowe i QA — 2026-05-06
 - Zaimplementowano mechanizm USI Storyboard do izolowanego testowania komponentów UI w czasie rzeczywistym.
 - Wdrożono interaktywny panel Knobs w Storyboardzie, umożliwiający dynamiczną zmianę właściwości komponentów (mock data).
@@ -5,9 +14,7 @@
 - Zaimplementowano system fixtures i mocków dla inwestycji, ułatwiający rozwój interfejsu bez połączenia z API.
 - Wprowadzono instrumentację wydajnościową (useRenderTracker) do weryfikacji optymalizacji selektorów DataBus.
 
-
 ## Optymalizacja Logiki Frontendowej — 2026-05-06
-
 - Wdrożono hook `useApi` z centralnym cache i obsługą błędów.
 - Zunifikowano logikę ocen (`ocenaLog`, `avgRating`) w dedykowanym module `modules-ui.jsx`.
 - Zoptymalizowano `DataBus` wprowadzając selektory (`useDataBusSelector`) i `shallowCompare`.
@@ -20,6 +27,13 @@
 - **Zaawansowana Konfiguracja (Knobs)**: Rozszerzono panele edycji modułów o nowe typy pól (`Select`, `Range`), umożliwiając precyzyjną personalizację wizualizacji bezpośrednio w UI.
 - **Optymalizacja i Stabilność**: Przeprowadzono kompleksowe testy wydajnościowe i stabilności (`runStressTest`), potwierdzając brak wycieków pamięci i wysoką responsywność rejestru komponentów.
 - **Architektura Biblioteki**: Stworzyłem dedykowany widok "Biblioteka", służący jako żywy katalog komponentów z interaktywnym podglądem i dokumentacją parametrów technicznych.
+
+## Stabilność i UX — 2026-05-06
+- **Scoped Namespaces**: Zweryfikowano izolację stanu dla wielu instancji tych samych modułów (np. dwóch map) w jednym raporcie.
+- **Poprawka PriceTrendModule**: Rozwiązano krytyczny błąd destrukturyzacji `scopedBus`, przywracając interaktywność wykresów.
+- **Diagnostyka Interakcji**: Wdrożono szczegółowe logowanie zdarzeń w `MapModule` i `PriceTrendModule` z uwzględnieniem identyfikatorów instancji.
+- **Automatyczna Regresja Danych**: Rozszerzono zestaw testów o weryfikację struktury `bus.scopes` i poprawności zagnieżdżonych aktualizacji stanu.
+- **Raport Diagnostyczny**: Dodano `test_namespaces.json` jako narzędzie do weryfikacji architektury Interact 2.0.
 
 ## DataBus: Zaawansowane funkcje — 2026-05-06
 - **Scoped Namespaces**: Wprowadzono przestrzenie nazw `filters` oraz `download` w DataBus z obsługą notacji kropkowej w `setVariable`.
@@ -46,14 +60,12 @@
 - Centralizacja pomocników i unifikacja logiczna między interfejsem CLI a webowym.
 
 ## Front sklepu: Atomizacja komponentów i "Window Registry" — 2026-05-04
-
 - Ukończono dekompozycję widoku szczegółowego na niezależne komponenty (DetailsViewA, DetailsViewC).
 - Zintegrowano wszystkie kluczowe widoki i komponenty z systemem `usiRegister`.
 - Uproszczono `view-detail.jsx` do roli lekkiego orchestratora.
 - Zlikwidowano race-conditions w środowisku Babel Standalone poprzez rejestr komponentów.
 
 ## Sprzatanie — 2026-05-04
-
 - Naprawiono regresje funkcjonalne po wdrożeniu Shell Layout: przywrócono widok parametrów (Mode A) oraz system oceniania w widoku szczegółów.
 - Zoptymalizowano tryb mediów (Mode C): wdrożono komponent `SlideShow` z dopasowaniem zdjęć do okna i wyeliminowano problem podwójnego przewijania.
 - Przywrócono i ulepszono minimapy: dodano dynamiczną mapę do widoku dewelopera oraz przywrócono podgląd lokalizacji w nagłówku inwestycji.
@@ -62,7 +74,6 @@
 - Rozwiązano krytyczny błąd `TypeError: handleRating is not a function` w trybie media poprzez poprawne przekazywanie propsów w gałęziach warunkowych.
 
 ## Bar Sushi — 2026-05-04
-
 - Wdrożono stałą strukturę "Shell Layout" z ramowymi paskami nawigacji (Top) i akcji (Bottom) zarządzanymi centralnie w `App.jsx`.
 - Zintegrowano system powiadomień `NotificationCenter` (zadania w tle) oraz `StatusMessenger` (systemowe toasty) w górnym pasku.
 - Ujednoliceno system filtrowania i wyszukiwania, przenosząc wszystkie kontrolki widoków listy do ustandaryzowanego komponentu `ActionBar`.
@@ -72,7 +83,6 @@
 - Wprowadzono system raportowania błędów frontendu do serwera (`/api/ui-error`) z zapisem do `logs/ui_errors.log`.
 
 ## Sklepik szkolny — 2026-05-04
-
 - Przeprowadzono głęboką dekompozycję monolitycznego pliku `components.jsx` na moduły: `core`, `ratings`, `modules` i `analytics`.
 - Zmigrowano wszystkie style inline do zewnętrznych arkuszy CSS (`global.css`, `components.css`, `views.css`) z użyciem semantycznych klas.
 - Wprowadzono system zmiennych CSS (`_variables.css`) dla kolorów, siatki 8px oraz pełną obsługę motywów Light/Dark bez wstrzykiwania JS.
@@ -82,15 +92,13 @@
 - Dodano mechanizm **Dependency Waiter**, upewniający się o załadowaniu wszystkich modułów przed startem renderowania Reacta.
 
 ## Witryna sklepowa — 2026-05-03
-
-- Zsynchronizowano `theme.jsx` z Design Systemem, wprowadzając tokeny CSS i ujednolicając siatkę (8px/16px) we wszystkich widokach.
+- Zsynchronizowano `theme.jsx` mit Design Systemem, wprowadzając tokeny CSS i ujednolicając siatkę (8px/16px) we wszystkich widokach.
 - Wzbogacono warstwę semantyczną interfejsu poprzez dodanie precyzyjnych atrybutów `data-component` do interaktywnych elementów i sekcji informacyjnych.
 - Przeprowadzono refaktoryzację struktury UI, wydzielając logikę analityczną i metadane do reużywalnych komponentów w `components.jsx`.
 - Zoptymalizowano pliki widoków (Dashboard, List, Detail) poprzez redukcję nadmiarowego kodu i wprowadzenie uniwersalnych komponentów sterujących.
 - Potwierdzono stabilność systemu i poprawność komunikacji przez `DataBus` oraz bezbłędne działanie filtrów i nawigacji po zmianach.
 
 ## Dania Fast Food — 2026-05-03
-
 - Zaimplementowano fundamenty architektury modułowej: BaseModule, ModuleErrorBoundary i SkeletonModule.
 - Dodano system typowania i walidacji ModuleSchemaValidator dla wejść do modułów.
 - Wyciągnięto logikę dostępu do danych w extractModuleContext i zintegrowano ją w widokach listy i szczegółów inwestycji.
@@ -99,7 +107,6 @@
 - Zrefaktoryzowano i podpięto MiniMap jako udany test nowej architektury.
 
 ## Domowe obiady — 2026-05-03
-
 - Wdrożono infrastrukturę Szyny Danych (DataBus) opartą na React Context, umożliwiającą globalną wymianę stanu między niezależnymi widokami.
 - Stworzono system dynamicznych raportów sterowanych plikami JSON z obsługą filtrów (miasto, deweloper, promień geograficzny).
 - Zaimplementowano silnik filtrowania inwestycji po stronie serwera zintegrowany z definicjami raportów.
@@ -108,7 +115,6 @@
 - Zintegrowano widok szczegółowy z szyną danych, publikując informacje o bieżącej inwestycji i jej sąsiedztwie.
 
 ## Kawiarnia — 2026-05-03
-
 - Utworzono centralną bazę danych deweloperów w `Public/USIdev` oraz system unikalnych identyfikatorów `usi_dev_id` i `usi_inv_id`.
 - Wdrożono mechanizm automatycznego pobierania surowych profili deweloperów oraz ekstrakcję metadanych (NIP, KRS, adres).
 - Zaimplementowano heurystykę wykrywania podobieństw deweloperów, generującą sugestie powiązań dla rekordów z różnych portali.
@@ -117,7 +123,6 @@
 - Wprowadzono system `JobManager` do obsługi asynchronicznych zadań w tle (np. skanowanie portali) z wizualizacją postępu w UI.
 
 ## Lodziarnia — 2026-05-03
-
 - Zaimplementowano ujednolicony mechanizm Discovery dla portali RP, Otodom i TabelaOfert wspierający skanowanie globalne.
 - Wdrożono mechanizm Stage Flattening dla RynekPierwotny, umożliwiający automatyczne wykrywanie i separację etapów inwestycji.
 - Dodano scentralizowany RateLimiter w klasie Fetcher z dedykowanymi opóźnieniami dla domen (np. 3s dla Otodom).
@@ -126,7 +131,6 @@
 - Usprawniono skraper TabelaOfert o obsługę JSON-LD, fallback geokodowania HERE Maps i czyszczenie nazewnictwa.
 
 ## Pizzeria — 2026-05-02
-
 - Odświeżono nawigację UI: dodano wysuwaną szufladę (Drawer) z obsługą trybu jasnego/ciemnego i ulepszono spójność designu.
 - Przeniesiono silnik scrapowania na bibliotekę `Scrapling` oraz wdrożono mechanizm bezpiecznej aktualizacji rekordów JSON z logowaniem zmian.
 - Zaimplementowano w pełni stylizowaną mapę Dashboardu (HERE Maps) z precyzyjnym oznaczaniem inwestycji.
@@ -135,7 +139,6 @@
 - Opracowano i sformalizowano dokumentację Design Systemu oraz nazewnictwo komponentów frontendu.
 
 ## Buda z kebabem — 2026-05-01
-
 - Zaimplementowano modułowe scrapery dla Otodom, RynekPierwotny i TabelaOfert z obsługą Fetchera (curl_cffi i ScrapperAI).
 - Wdrożono integrację z mapami HERE (minimapy, stylizacja, synchronizacja współrzędnych).
 - Stworzono responsywny interfejs użytkownika (React) z widokiem listy 6000+ inwestycji, filtrowaniem i zaawansowanym widokiem detali.

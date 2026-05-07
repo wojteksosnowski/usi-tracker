@@ -99,20 +99,49 @@ def discover_otodom_investments(agency_id: str) -> list[dict]:
     offers = []
     try:
         # Search for ads in the agency profile
-        # Path might vary, common one for agency is props.pageProps.data.searchAds.items
-        search_ads = data.get("props", {}).get("pageProps", {}).get("data", {}).get("searchAds", {})
+        # extract_next_data already returns props.pageProps
+        search_ads = data.get("data", {}).get("searchAds", {})
+        if not search_ads:
+            # Fallback if structure is slightly different
+            search_ads = data.get("searchAds", {})
+            
         items = search_ads.get("items", [])
 
         for item in items:
-            slug = item.get("slug")
-            if slug:
+            full_slug = item.get("slug")
+            if full_slug:
+                # Extract clean slug and hash ID matching Coda logic
+                # RegexExtract("(?:.*)(?=-ID)")
+                clean_slug = full_slug
+                hash_id = None
+                
+                if "-ID" in full_slug:
+                    parts = full_slug.split("-ID")
+                    clean_slug = parts[0]
+                    hash_id = parts[1]
+                elif "ID" in full_slug:
+                    parts = full_slug.split("ID")
+                    clean_slug = parts[0]
+                    hash_id = parts[1]
+
                 img_data = item.get("images", [])
                 img_url = img_data[0].get("medium") if img_data else None
+                
+                # Extract agency name if available in listing item
+                agency_name = item.get("agency", {}).get("name")
+                if not agency_name:
+                    # Fallback to alternative paths if seen
+                    agency_name = item.get("advertiser", {}).get("name")
+
                 offers.append({
-                    "url": f"https://www.otodom.pl/pl/oferta/{slug}",
+                    "id": item.get("id"), # Numeric ID
+                    "hash_id": hash_id,   # Hash ID (Coda's otoID)
+                    "url": f"https://www.otodom.pl/pl/oferta/{full_slug}",
                     "name": item.get("title"),
-                    "slug": slug,
-                    "image": img_url
+                    "slug": clean_slug,   # Cleaned slug (Coda's otoSlug)
+                    "full_slug": full_slug,
+                    "image": img_url,
+                    "developer": agency_name
                 })
     except Exception as e:
         logger.error(f"Error parsing Otodom discovery data: {e}")
@@ -135,27 +164,68 @@ def discover_otodom_listing(url: str) -> list[dict]:
     offers = []
     try:
         # Common path for listings
+        # extract_next_data already returns props.pageProps
         search_ads = data.get("data", {}).get("searchAds", {})
         if not search_ads:
-            # Fallback to alternative path if seen
-            search_ads = data.get("props", {}).get("pageProps", {}).get("data", {}).get("searchAds", {})
+            # Fallback if structure is slightly different
+            search_ads = data.get("searchAds", {})
             
         items = search_ads.get("items", [])
         for item in items:
-            slug = item.get("slug")
-            if slug:
+            full_slug = item.get("slug")
+            if full_slug:
+                # Extract clean slug and hash ID matching Coda logic
+                clean_slug = full_slug
+                hash_id = None
+                
+                if "-ID" in full_slug:
+                    parts = full_slug.split("-ID")
+                    clean_slug = parts[0]
+                    hash_id = parts[1]
+                elif "ID" in full_slug:
+                    parts = full_slug.split("ID")
+                    clean_slug = parts[0]
+                    hash_id = parts[1]
+
                 img_data = item.get("images", [])
                 img_url = img_data[0].get("medium") if img_data else None
+
+                # Extract agency name if available in listing item
+                agency_name = item.get("agency", {}).get("name")
+                if not agency_name:
+                    agency_name = item.get("advertiser", {}).get("name")
+
                 offers.append({
-                    "url": f"https://www.otodom.pl/pl/inwestycja/{slug}",
+                    "id": item.get("id"), # Numeric ID
+                    "hash_id": hash_id,   # Hash ID (Coda's otoID)
+                    "url": f"https://www.otodom.pl/pl/inwestycja/{full_slug}",
                     "name": item.get("title"),
-                    "slug": slug,
-                    "image": img_url
+                    "slug": clean_slug,   # Cleaned slug (Coda's otoSlug)
+                    "full_slug": full_slug,
+                    "image": img_url,
+                    "developer": agency_name
                 })
     except Exception as e:
         logger.error(f"Error parsing Otodom listing discovery data: {e}")
 
     return offers
+
+def fetch_otodom_agency_name(url: str) -> str | None:
+    """
+    Fetches only the agency/developer name from Otodom detail page.
+    """
+    html = fetch_otodom_html(url)
+    if not html:
+        return None
+    data = extract_next_data(html)
+    if not data:
+        return None
+    
+    ad_data = data.get("ad", {})
+    if not ad_data:
+        ad_data = data.get("data", {}).get("searchAds", {})
+        
+    return ad_data.get("agency", {}).get("name")
 
 def scrape_otodom(url: str, developer_slug: str, investment_slug: str) -> dict:
 

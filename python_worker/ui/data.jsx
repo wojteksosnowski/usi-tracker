@@ -34,8 +34,11 @@ function DataBusProvider({ children }) {
     reports: [],
     activeJobs: [],
     appStatus: null,
+    appNotifications: [],
     
-    // Scoped Namespaces
+    // Scoped Namespaces (for component instances)
+    scopes: {},
+    
     filters: {
       search: '',
       dev: '',
@@ -228,14 +231,31 @@ function DataBusProvider({ children }) {
 }
 window.usiRegister('DataBusProvider', DataBusProvider);
 
-function useDataBus() {
+function useDataBus(scopeId) {
   const { React } = window;
   const state = React.useContext(DataBusStateContext);
   const dispatch = React.useContext(DataBusDispatchContext);
   if (!state || !dispatch) {
     return { bus: {}, setVariable: () => {}, getVariable: () => {}, refetch: () => {} };
   }
-  return { ...state, ...dispatch };
+  
+  const context = { ...state, ...dispatch };
+  const { bus, setVariable, ...rest } = context;
+
+  if (scopeId) {
+    const scopedBus = bus.scopes?.[scopeId] || {};
+    const scopedSetVariable = (path, value) => setVariable(`scopes.${scopeId}.${path}`, value);
+    
+    return {
+      bus,
+      setVariable,
+      scopedBus,
+      scopedSetVariable,
+      ...rest
+    };
+  }
+
+  return context;
 }
 window.usiRegister('useDataBus', useDataBus);
 
@@ -363,4 +383,3 @@ function useModuleContext(localData) {
 window.usiRegister('useModuleContext', useModuleContext);
 
 Object.assign(window, { useInvestments, useDevelopers, useConfig, useMetadataConfig, DataBusProvider, useDataBus, useModuleContext, LocalModuleContext });
-

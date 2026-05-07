@@ -175,7 +175,7 @@ body,
 
 .usi-btn.danger {
   background: var(--usi-danger);
-  color: #fff;
+  color: var(--usi-bg);
   border-color: var(--usi-danger);
 }
 
@@ -229,17 +229,29 @@ body,
 
 .usi-source.oto {
   background: #002C57;
-  color: #fff;
+  color: var(--usi-bg);
+}
+
+[data-dark="1"] .usi-source.oto {
+  background: #2D5B8A;
 }
 
 .usi-source.rp {
   background: #C0392B;
-  color: #fff;
+  color: var(--usi-bg);
+}
+
+[data-dark="1"] .usi-source.rp {
+  background: #E66152;
 }
 
 .usi-source.to {
   background: #5A4A2A;
-  color: #fff;
+  color: var(--usi-bg);
+}
+
+[data-dark="1"] .usi-source.to {
+  background: #967E4D;
 }
 
 /* Form fields */

@@ -4,71 +4,18 @@ function DeveloperListGrid({
   developers = [], 
   onSelectDev = () => {}
 }) {
-  const { React, StandardCard, SourceBadge } = window;
+  const { React, DataGrid, DeveloperCard } = window;
   
-  // Virtualization state
-  const containerRef = React.useRef(null);
-  const [scrollTop, setScrollTop] = React.useState(0);
-  const [dimensions, setDimensions] = React.useState({ 
-    width: window.innerWidth, 
-    height: window.innerHeight 
-  });
-
-  const handleScroll = (e) => {
-    setScrollTop(e.target.scrollTop);
-  };
-
-  React.useEffect(() => {
-    const update = () => {
-      if (containerRef.current) {
-        setDimensions({
-          width: containerRef.current.offsetWidth,
-          height: containerRef.current.offsetHeight
-        });
-      }
-    };
-    update();
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, []);
-
-  const rowHeight = 340;
-  const viewHeight = dimensions.height || 800;
-  const availableWidth = Math.max(dimensions.width - 48, 320);
-  const itemsPerRow = Math.max(1, Math.floor(availableWidth / 220)); 
-  const overscanRows = 4;
-  
-  const totalRows = Math.ceil(developers.length / itemsPerRow);
-  const startRow = Math.max(0, Math.floor(scrollTop / rowHeight) - overscanRows);
-  const endRow = Math.min(totalRows, Math.ceil((scrollTop + viewHeight) / rowHeight) + overscanRows);
-  
-  const visibleItems = developers.slice(startRow * itemsPerRow, endRow * itemsPerRow);
-  const paddingTop = startRow * rowHeight;
-  const paddingBottom = Math.max(0, (totalRows - endRow) * rowHeight);
-
   return (
-    <div data-component="DeveloperListGrid" 
-         ref={containerRef}
-         onScroll={handleScroll}
-         className="usi-scroll"
-         style={{ height: '100%', overflowY: 'auto' }}
-    >
-      <div style={{ paddingTop, paddingBottom, minHeight: '100%', padding: '16px' }}>
-        <div className="developer-grid-layout" style={{ 
-          display: 'grid',
-          gridTemplateColumns: `repeat(${itemsPerRow}, 1fr)`, 
-          gap: '16px'
-        }}>
-          {visibleItems.map(dev => <DeveloperCard key={dev.usi_dev_id} dev={dev} onSelect={() => onSelectDev(dev)} />)}
-        </div>
-      </div>
-      
-      {developers.length === 0 && (
-        <div className="developer-empty-state" style={{ padding: '80px 20px', textAlign: 'center' }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>🔍</div>
-          <div className="usi-body">Brak deweloperów pasujących do filtrów</div>
-        </div>
-      )}
+    <div data-component="DeveloperListGrid" style={{ height: '100%', overflow: 'hidden' }}>
+      <DataGrid 
+        data={developers}
+        mode="grid"
+        gridConfig={{ minCardWidth: 220, cardHeight: 340, gap: 16 }}
+        onRowClick={onSelectDev}
+        renderCard={(dev) => <DeveloperCard dev={dev} onSelect={() => onSelectDev(dev)} />}
+        emptyMessage="Brak deweloperów pasujących do filtrów"
+      />
     </div>
   );
 }
@@ -111,4 +58,4 @@ function DeveloperCard({ dev, onSelect }) {
   );
 }
 
-Object.assign(window, { DeveloperListGrid });
+Object.assign(window, { DeveloperListGrid, DeveloperCard });

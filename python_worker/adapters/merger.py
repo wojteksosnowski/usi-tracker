@@ -58,6 +58,7 @@ class Merger:
             "specifications": base.get("specifications", {}).copy() if base.get("specifications") else {},
             "financials": base.get("financials", {}).copy() if base.get("financials") else {},
             "amenities": base.get("amenities", {}).copy() if base.get("amenities") else {},
+
             "ratings": meta_ratings or (existing_data or {}).get("ratings") or {},
             "images_count": base.get("images_count", 0),
             "image_paths": base.get("image_paths", []),
@@ -133,6 +134,10 @@ class Merger:
                 curr_fin["price_max"] = other_fin["price_max"]
             if not curr_fin.get("price_avg") and other_fin.get("price_avg"):
                 curr_fin["price_avg"] = other_fin["price_avg"]
+            
+            # Fallback for price_avg if it is still missing but we have price_min
+            if not curr_fin.get("price_avg") and curr_fin.get("price_min"):
+                curr_fin["price_avg"] = curr_fin["price_min"]
 
             all_labels = set(result["amenities"].get("labels", []))
             other_amen = other.get("amenities", {})

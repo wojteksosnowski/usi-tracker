@@ -29,6 +29,7 @@
   --usi-danger:        #C0392B;
   --usi-star-empty:    #E0E0E0;
   --usi-star-half:     linear-gradient(90deg, currentcolor 50%, rgb(31 28 22 / 14%) 50%);
+  --usi-backdrop:      rgb(31 28 22 / 10%);
   --usi-accent: #E5006D;
   --usi-accent-hover: #C4005D;
   
@@ -50,7 +51,7 @@
   --usi-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.usi-theme-dark {
+[data-dark="1"] {
   --usi-bg:            #16140F;
   --usi-surface:       #1F1C16;
   --usi-surface-2:     #26221B;
@@ -70,4 +71,5 @@
   --usi-danger:        #FF6B5C;
   --usi-star-empty:    #3A3834;
   --usi-star-half:     linear-gradient(90deg, currentcolor 50%, rgb(245 241 232 / 16%) 50%);
+  --usi-backdrop:      rgb(0 0 0 / 40%);
 }

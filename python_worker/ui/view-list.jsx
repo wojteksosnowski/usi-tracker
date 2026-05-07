@@ -9,7 +9,7 @@
     
     const investments = useDataBusSelector(state => state.visibleInvestments || []);
     
-    const columns = [
+    const columns = React.useMemo(() => [
       { 
         key: 'photo', 
         label: '', 
@@ -46,7 +46,13 @@
           return score !== null ? <span className="usi-pill success usi-mono">{score.toFixed(2)}</span> : '—';
         }
       }
-    ];
+    ], [ocenaLog]);
+
+    const renderCard = React.useCallback((inv) => (
+      <DataBoundary data={inv}>
+        {(validInv) => <ListCard inv={validInv} onSelect={() => onSelectInv(validInv)} />}
+      </DataBoundary>
+    ), [onSelectInv, ListCard]);
 
     return (
       <div data-component="ViewList" className="usi-h-full usi-overflow-hidden">
@@ -55,13 +61,9 @@
           mode={mode}
           columns={columns}
           rowHeight={56}
-          gridConfig={{ itemsPerRow: 4, cardHeight: 340 }}
+          gridConfig={{ minCardWidth: 280, cardHeight: 340, gap: 16 }}
           onRowClick={onSelectInv}
-          renderCard={(inv) => (
-            <DataBoundary data={inv}>
-              {(validInv) => <ListCard inv={validInv} onSelect={() => onSelectInv(validInv)} />}
-            </DataBoundary>
-          )}
+          renderCard={renderCard}
           emptyMessage="Brak wyników dla podanych filtrów"
         />
       </div>

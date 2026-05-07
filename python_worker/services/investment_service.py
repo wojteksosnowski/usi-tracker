@@ -22,6 +22,31 @@ class InvestmentService:
     def register_investment(self, portal, developer_name, inv_slug, name, item_id=None, url=None):
         from python_worker.csv_importer import slugify
         from python_worker.developer_manager import DeveloperManager
+        from python_worker.scraper_otodom import fetch_otodom_agency_name
+
+        # If developer is unknown and it's Otodom, try a "pre-scrape" to identify the real developer
+        # This mirrors Coda's "pobierzJSON" button which is needed to identify the record.
+        if (not developer_name or slugify(developer_name) == "nieznany-deweloper") and portal == "oto" and url:
+            logger.info(f"Developer unknown for {url}, performing pre-scrape identification (Otodom)...")
+            try:
+                identified_name = fetch_otodom_agency_name(url)
+                if identified_name:
+                    developer_name = identified_name
+                    logger.info(f"Identified developer via pre-scrape: {developer_name}")
+            except Exception as e:
+                logger.error(f"Pre-scrape identification failed (Otodom): {e}")
+
+        # Similar pre-scrape for TabelaOfert
+        if (not developer_name or slugify(developer_name) == "nieznany-deweloper") and portal == "to" and url:
+            from python_worker.scraper_to import fetch_to_agency_name
+            logger.info(f"Developer unknown for {url}, performing pre-scrape identification (TabelaOfert)...")
+            try:
+                identified_name = fetch_to_agency_name(url)
+                if identified_name:
+                    developer_name = identified_name
+                    logger.info(f"Identified developer via pre-scrape: {developer_name}")
+            except Exception as e:
+                logger.error(f"Pre-scrape identification failed (TabelaOfert): {e}")
 
         if not developer_name or slugify(developer_name) == "nieznany-deweloper":
             logger.error(f"Attempted to register investment with missing or invalid developer: {developer_name}")

@@ -6,47 +6,10 @@
 
 /* Light Theme (Default) */
 [data-dark=""] {
-  --usi-bg:            #F5F2EC;
-  --usi-surface:       #FFF;
-  --usi-surface-2:     #FAF8F3;
-  --usi-surface-3:     #EFEAE0;
-  --usi-border:        rgb(31 28 22 / 10%);
-  --usi-border-strong: rgb(31 28 22 / 20%);
-  --usi-ink:           #1F1C16;
-  --usi-ink-2:         #3A352B;
-  --usi-ink-3:         rgb(31 28 22 / 62%);
-  --usi-ink-4:         rgb(31 28 22 / 42%);
-  --usi-shadow-sm:     0 1px 2px rgb(31 28 22 / 6%), 0 2px 6px rgb(31 28 22 / 4%);
-  --usi-shadow-md:     0 2px 4px rgb(31 28 22 / 6%), 0 8px 24px rgb(31 28 22 / 8%);
-  --usi-shadow-lg:     0 8px 16px rgb(31 28 22 / 8%), 0 24px 56px rgb(31 28 22 / 12%);
-  --usi-overlay-strong: rgb(255 255 255 / 78%);
-  --usi-success:       #1F8A4C;
-  --usi-warn:          #F39200;
-  --usi-danger:        #C0392B;
-  --usi-star-empty:    rgb(31 28 22 / 14%);
+  /* Most variables are in _variables.css :root */
 }
 
-/* Dark Theme Overrides */
-[data-dark="1"] {
-  --usi-bg:            #16140F;
-  --usi-surface:       #1F1C16;
-  --usi-surface-2:     #26221B;
-  --usi-surface-3:     #312C23;
-  --usi-border:        rgb(255 248 232 / 8%);
-  --usi-border-strong: rgb(255 248 232 / 18%);
-  --usi-ink:           #F5F1E8;
-  --usi-ink-2:         #D8D2C2;
-  --usi-ink-3:         rgb(245 241 232 / 62%);
-  --usi-ink-4:         rgb(245 241 232 / 38%);
-  --usi-shadow-sm:     0 1px 2px rgb(0 0 0 / 40%), 0 2px 6px rgb(0 0 0 / 30%);
-  --usi-shadow-md:     0 2px 4px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 45%);
-  --usi-shadow-lg:     0 8px 16px rgb(0 0 0 / 50%), 0 24px 56px rgb(0 0 0 / 55%);
-  --usi-overlay-strong: rgb(22 20 15 / 78%);
-  --usi-success:       #4ED38A;
-  --usi-warn:          #F39200;
-  --usi-danger:        #FF6B5C;
-  --usi-star-empty:    rgb(245 241 232 / 16%);
-}
+/* Dark Theme Overrides handled in _variables.css [data-dark="1"] */
 
 /* Dynamic Star Half Gradient — uses currentColor */
 .usi-star-half {
