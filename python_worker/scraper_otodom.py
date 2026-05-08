@@ -276,11 +276,6 @@ def scrape_otodom(url: str, developer_slug: str, investment_slug: str) -> dict:
         developer_slug = slugify(agency_name)
         logger.info(f"Resolved developer slug from Otodom agency name: {developer_slug}")
             
-    # 4. Save Images
-    logger.info(f"Found {len(images)} images for Otodom investment {investment_slug}")
-    saved_filenames = save_images(images, developer_slug, investment_slug)
-    image_paths = [f"/Public/USI/{developer_slug}/{investment_slug}/{fname}" for fname in saved_filenames]
-    
     # 5. Extract Geo
     # Coordinates are at location.coordinates (mapDetails only has radius/zoom)
     coords = ad_data.get("location", {}).get("coordinates", {})
@@ -310,15 +305,13 @@ def scrape_otodom(url: str, developer_slug: str, investment_slug: str) -> dict:
 
     # 7. Build Result JSON
     ad_data["url"] = url
-    ad_data["images_count"] = len(saved_filenames)
-    ad_data["image_paths"] = image_paths
+    ad_data["image_urls"] = images
     
     result = {
         "source": "otodom.pl",
         "url": url,
         "developer_slug": developer_slug,
         "investment_slug": investment_slug,
-        "usi_folder_path": f"/Public/USI/{developer_slug}/{investment_slug}/",
         "title": ad_data.get("title"),
         "agency_name": ad_data.get("agency", {}).get("name"),
         "agency_id": ad_data.get("agency", {}).get("id"),
@@ -326,8 +319,7 @@ def scrape_otodom(url: str, developer_slug: str, investment_slug: str) -> dict:
         "longitude": lng,
         "delivery_quarter": delivery_quarter,
         "delivery_year": delivery_year,
-        "images_count": len(saved_filenames),
-        "image_paths": image_paths,
+        "image_urls": images,
         "raw_details": ad_data
     }
     

@@ -23,8 +23,6 @@
               }} 
               onLightbox={setLightbox} 
            />
-           <div className="usi-h-24" />
-           <MetadataPanel inv={inv} config={metaConfig} />
         </div>
 
         <div className="detail-ratings-column usi-scroll usi-p-16">
@@ -38,6 +36,8 @@
         </div>
 
         <div className="detail-meta-column usi-scroll usi-p-16">
+           <MetadataPanel inv={inv} config={metaConfig} />
+           <div className="usi-h-24" />
            <ModuleWrapper 
               component={NearbyInvestmentsModule}
               moduleSpec={{

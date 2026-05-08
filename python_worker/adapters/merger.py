@@ -13,6 +13,8 @@ class Merger:
             ("financials.price_avg", ["financials", "price_avg"]),
             ("financials.price_min", ["financials", "price_min"]),
             ("financials.price_max", ["financials", "price_max"]),
+            ("financials.price_m2_min", ["financials", "price_m2_min"]),
+            ("financials.price_m2_max", ["financials", "price_m2_max"]),
             ("specifications.units_count", ["specifications", "units_count"]),
             ("specifications.delivery_date", ["specifications", "delivery_date"]),
             ("images_count", ["images_count"]),
@@ -134,6 +136,10 @@ class Merger:
                 curr_fin["price_max"] = other_fin["price_max"]
             if not curr_fin.get("price_avg") and other_fin.get("price_avg"):
                 curr_fin["price_avg"] = other_fin["price_avg"]
+            if not curr_fin.get("price_m2_min") and other_fin.get("price_m2_min"):
+                curr_fin["price_m2_min"] = other_fin["price_m2_min"]
+            if not curr_fin.get("price_m2_max") and other_fin.get("price_m2_max"):
+                curr_fin["price_m2_max"] = other_fin["price_m2_max"]
             
             # Fallback for price_avg if it is still missing but we have price_min
             if not curr_fin.get("price_avg") and curr_fin.get("price_min"):

@@ -35,6 +35,18 @@
       },
       { key: 'developer', label: 'Deweloper', sortable: true },
       { key: 'district', label: 'Dzielnica', sortable: true, render: val => <span className="usi-text-secondary">{val}</span> },
+      { key: 'delivery', label: 'Termin', sortable: true, width: 120, render: val => <span className="usi-mono">{val}</span> },
+      { 
+        key: 'price_avg', 
+        label: 'Cena śr.', 
+        sortable: true, 
+        width: 140, 
+        align: 'right', 
+        render: (val) => {
+          const { safeRender } = window;
+          return <span className="usi-mono">{safeRender(val, 'currency')}</span>;
+        }
+      },
       { 
         key: 'score', 
         label: 'Ocena', 

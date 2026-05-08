@@ -52,12 +52,31 @@ class OtodomAdapter(BaseAdapter):
         except (ValueError, TypeError):
             units_count = None
             
+        # Financials
         try:
-            price_min = float(char_dict.get("price_per_m_from")) if char_dict.get("price_per_m_from") else None
-            if not price_min and target.get("Price_per_m_from"):
-                price_min = float(target["Price_per_m_from"])
+            # Price per m2
+            p_m2_min = float(char_dict.get("price_per_m_from")) if char_dict.get("price_per_m_from") else None
+            if not p_m2_min and target.get("Price_per_m_from"):
+                p_m2_min = float(target["Price_per_m_from"])
+            
+            p_m2_max = float(char_dict.get("price_per_m_to")) if char_dict.get("price_per_m_to") else None
+            if not p_m2_max and target.get("Price_per_m_to"):
+                p_m2_max = float(target["Price_per_m_to"])
+
+            # Total price
+            price_min = float(char_dict.get("price_from")) if char_dict.get("price_from") else None
+            if not price_min and target.get("Price_from"):
+                price_min = float(target["Price_from"])
+                
+            price_max = float(char_dict.get("price_to")) if char_dict.get("price_to") else None
+            if not price_max and target.get("Price_to"):
+                price_max = float(target["Price_to"])
+
         except (ValueError, TypeError):
+            p_m2_min = None
+            p_m2_max = None
             price_min = None
+            price_max = None
 
         # Delivery - handle "ready" state from target.State
         if not delivery_str:
@@ -123,8 +142,10 @@ class OtodomAdapter(BaseAdapter):
             },
             "financials": {
                 "price_min": price_min,
-                "price_max": None,
-                "price_avg": None
+                "price_max": price_max,
+                "price_avg": None,
+                "price_m2_min": p_m2_min,
+                "price_m2_max": p_m2_max
             },
             "amenities": {
                 "labels": get_val(raw_data, "features", []),

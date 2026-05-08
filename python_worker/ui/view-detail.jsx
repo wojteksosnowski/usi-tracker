@@ -29,8 +29,8 @@
       setVariable('currentInvestment', inv);
       if (inv.coords && inv.coords[0] !== 0) {
         const [lat, lng] = inv.coords;
-        const visible = bus.visibleInvestments || [];
-        const nearby = visible
+        const allInvestments = bus.investments || [];
+        const nearby = allInvestments
           .filter(other => {
             if (other.slug === inv.slug) return false;
             if (!other.coords || other.coords[0] === 0) return false;
@@ -44,7 +44,7 @@
           .sort((a, b) => a.distance - b.distance);
         setVariable('nearbyInvestments', nearby);
       }
-    }, [inv.slug, bus.visibleInvestments, setVariable]);
+    }, [inv.slug, bus.investments, setVariable]);
 
     // Keyboard shortcuts
     React.useEffect(() => {

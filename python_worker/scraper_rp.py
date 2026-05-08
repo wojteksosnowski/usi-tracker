@@ -1,5 +1,6 @@
 import logging
 import json
+import re
 from pathlib import Path
 from .fetcher import fetch_json, fetch_html
 from .image_saver import save_images
@@ -34,7 +35,7 @@ def fetch_rp_developer_profile(vendor_id_or_slug: str) -> dict:
 
     url = f"https://rynekpierwotny.pl/api/v2/vendors/vendor/{vendor_id}/?s=vendor-detail"
     logger.info(f"Fetching RynekPierwotny developer profile for ID: {vendor_id} from {url}")
-    return fetch_json(url) or {}
+    return fetch_json(url, use_scraperapi=False) or {}
 
 def download_raw_rp_json(offer_id: str, dev_slug: str, inv_slug: str) -> Path | None:
     """
@@ -47,7 +48,7 @@ def download_raw_rp_json(offer_id: str, dev_slug: str, inv_slug: str) -> Path | 
         return None
 
     # Also fetch gallery to make the raw JSON complete
-    gallery_data = fetch_json(f"https://rynekpierwotny.pl/api/v2/offers/offer/{offer_id}/?s=offer-detail-gallery")
+    gallery_data = fetch_json(f"https://rynekpierwotny.pl/api/v2/offers/offer/{offer_id}/?s=offer-detail-gallery", use_scraperapi=False)
     if gallery_data:
         details["_raw_gallery"] = gallery_data
 
@@ -61,7 +62,7 @@ def fetch_rp_details(offer_id: str) -> dict:
     """
     url = f"https://rynekpierwotny.pl/api/v2/offers/offer/{offer_id}/?s=offer-detail"
     logger.info(f"Fetching RynekPierwotny details for ID: {offer_id} from {url}")
-    return fetch_json(url) or {}
+    return fetch_json(url, use_scraperapi=False) or {}
 
 def fetch_rp_gallery(offer_id: str) -> list[str]:
     """
@@ -70,7 +71,7 @@ def fetch_rp_gallery(offer_id: str) -> list[str]:
     url = f"https://rynekpierwotny.pl/api/v2/offers/offer/{offer_id}/?s=offer-detail-gallery"
     logger.info(f"Fetching RynekPierwotny gallery for ID: {offer_id} from {url}")
     
-    data = fetch_json(url) or {}
+    data = fetch_json(url, use_scraperapi=False) or {}
     # Extract images from gallery
     images = []
     gallery = data.get("gallery", [])
@@ -88,17 +89,15 @@ def resolve_rp_vendor_id(slug: str) -> str | None:
     """
     url = f"https://rynekpierwotny.pl/deweloperzy/{slug}/"
     logger.info(f"Resolving RP vendor ID for slug: {slug} from {url}")
-    html = fetch_html(url)
+    html = fetch_html(url, use_scraperapi=False)
     if not html:
         return None
     
     # Look for "vendor": ID in the page source or API calls mentioned in scripts
-    # Usually it is in a script tag with some JSON
     match = re.search(r'"vendor_id":\s*(\d+)', html)
     if match:
         return match.group(1)
     
-    # Alternative: check for vendor={ID} in links
     match = re.search(r'vendor=(\d+)', html)
     if match:
         return match.group(1)
@@ -108,9 +107,6 @@ def resolve_rp_vendor_id(slug: str) -> str | None:
 def discover_rp_investments(vendor_id_or_slug: str = None) -> list[dict]:
     """
     Discovers investments on RynekPierwotny.pl.
-    If vendor_id_or_slug is provided, fetches offers for that vendor.
-    If None, fetches recent offers using global JSONMAIN queries from config.
-    Handles stage-flattening (extracts all stages from multi-stage developments).
     """
     if vendor_id_or_slug:
         vendor_id = vendor_id_or_slug
@@ -121,7 +117,7 @@ def discover_rp_investments(vendor_id_or_slug: str = None) -> list[dict]:
                 return []
         url = f"https://rynekpierwotny.pl/api/v2/offers/offer/?s=vendor-detail-offer-list&country=1&country=2&display_type=1&display_type=2&page=1&page_size=100&type=1&type=2&type=3&vendor={vendor_id}"
         logger.info(f"Discovering RP investments for vendor ID: {vendor_id}")
-        data = fetch_json(url) or {}
+        data = fetch_json(url, use_scraperapi=False) or {}
         return _parse_rp_results(data.get("results", []))
     else:
         # Global discovery - scan all configured URLs
@@ -130,7 +126,7 @@ def discover_rp_investments(vendor_id_or_slug: str = None) -> list[dict]:
         seen_ids = set()
         for url in RP_DISCOVERY_URLS:
             logger.info(f"Discovering RP investments via global JSONMAIN query: {url}")
-            data = fetch_json(url) or {}
+            data = fetch_json(url, use_scraperapi=False) or {}
             batch = _parse_rp_results(data.get("results", []))
             for item in batch:
                 if item["id"] not in seen_ids:
@@ -142,7 +138,6 @@ def _parse_rp_results(results: list) -> list[dict]:
     """Helper to parse RP API results and flatten stages."""
     offers = []
     for item in results:
-        # Deep helper to get value from the common {type: ..., value: ...} structure
         def get_val(obj, key):
             if not obj or not isinstance(obj, dict): return None
             v = obj.get(key)
@@ -150,11 +145,9 @@ def _parse_rp_results(results: list) -> list[dict]:
                 return v["value"]
             return v
 
-        # Parent data
         parent_name = item.get("name")
         parent_id = str(item.get("id"))
         
-        # Robust parent image extraction for Discovery (JSONMAIN)
         parent_img = None
         main_img_data = item.get("main_image")
         if main_img_data:
@@ -175,7 +168,6 @@ def _parse_rp_results(results: list) -> list[dict]:
         stages = get_val(groups, "stages") or []
         
         if stages:
-            # Stage-flattening: yield each stage as a separate discovery item
             for stage in stages:
                 s_id_internal = stage.get("id")
                 s_offer_val = get_val(stage, "offer")
@@ -187,7 +179,6 @@ def _parse_rp_results(results: list) -> list[dict]:
                     s_vendor_val = get_val(s_offer_val, "vendor") or {}
                     s_vendor_slug = s_vendor_val.get("slug")
                     
-                    # Stage image - usually missing in discovery, use parent_img
                     s_img = None
                     s_main_photo = get_val(s_offer_val, "main_photo") or get_val(s_offer_val, "main_image")
                     if s_main_photo:
@@ -210,7 +201,6 @@ def _parse_rp_results(results: list) -> list[dict]:
                         "parent_id": parent_id
                     })
         else:
-            # Single-stage investment
             v_data = get_val(item, "vendor") or {}
             v_slug = v_data.get("slug")
             v_name = v_data.get("name")
@@ -232,15 +222,13 @@ def _parse_rp_results(results: list) -> list[dict]:
 
 def scrape_rynek_pierwotny(offer_id: str, developer_slug: str, investment_slug: str, url: str = None) -> dict:
     """
-    Main function to scrape RynekPierwotny investment and save images.
+    Main function to scrape RynekPierwotny investment.
     """
-    # Fetch core details
     details = fetch_rp_details(offer_id)
     if not details:
         return {"error": "Could not fetch details"}
         
-    # Fetch gallery
-    gallery_data = fetch_json(f"https://rynekpierwotny.pl/api/v2/offers/offer/{offer_id}/?s=offer-detail-gallery")
+    gallery_data = fetch_json(f"https://rynekpierwotny.pl/api/v2/offers/offer/{offer_id}/?s=offer-detail-gallery", use_scraperapi=False)
     if gallery_data:
         details["_raw_gallery"] = gallery_data
         
@@ -252,12 +240,10 @@ def scrape_rynek_pierwotny(offer_id: str, developer_slug: str, investment_slug: 
             if img_url:
                 gallery_urls.append(img_url)
     
-    # Add main image to gallery if present
     main_image = details.get("main_image", {}).get("m_img_500")
     if main_image:
         gallery_urls.insert(0, main_image)
         
-    # Helper to get value from the common {type: ..., value: ...} structure
     def get_val(data, key, default=None):
         if not data or key not in data:
             return default
@@ -266,27 +252,14 @@ def scrape_rynek_pierwotny(offer_id: str, developer_slug: str, investment_slug: 
             return val["value"]
         return val
 
-    # Try to extract actual developer slug from vendor data (LOG ONLY, DO NOT OVERWRITE)
     vendor_data = get_val(details, "vendor")
     vendor_slug = get_val(vendor_data, "slug") if vendor_data else None
     offer_slug = details.get("slug", "")
 
-    if vendor_slug:
-        logger.info(f"RynekPierwotny vendor slug: {vendor_slug} (local: {developer_slug})")
-
     if not url and vendor_slug and offer_slug:
         url = f"https://rynekpierwotny.pl/oferty/{vendor_slug}/{offer_slug}-{offer_id}/"
-        logger.info(f"Constructed RP URL from API: {url}")
         
-    # Download images
-    logger.info(f"Found {len(gallery_urls)} images for {investment_slug}")
-    saved_filenames = save_images(gallery_urls, developer_slug, investment_slug)
-    image_paths = [f"/Public/USI/{developer_slug}/{investment_slug}/{fname}" for fname in saved_filenames]
-    
-    # Add url to details for adapter
     details["url"] = url
-
-    # Extract geo and dates using the same helper logic
     geo_point = get_val(details, "geo_point")
     coords = get_val(geo_point, "coordinates") if geo_point else None
     
@@ -297,7 +270,6 @@ def scrape_rynek_pierwotny(offer_id: str, developer_slug: str, investment_slug: 
     groups_id = extract_groups_id(details)
     groups = details.get("groups") or {}
 
-    # Find stage metadata for current offer_id
     stage_sort = None
     stage_is_current = None
     for s in stages:
@@ -306,10 +278,7 @@ def scrape_rynek_pierwotny(offer_id: str, developer_slug: str, investment_slug: 
             stage_is_current = s["current"]
             break
 
-    # Inject images into details for the adapter
-    details["images_count"] = len(saved_filenames)
-    details["image_paths"] = image_paths
-
+    details["image_urls"] = gallery_urls
     sibling_stages = stages
     sibling_stage_folders = [
         f"{developer_slug}/{s['slug']}"
@@ -323,7 +292,6 @@ def scrape_rynek_pierwotny(offer_id: str, developer_slug: str, investment_slug: 
         "url": url,
         "developer_slug": developer_slug,
         "investment_slug": investment_slug,
-        "usi_folder_path": f"/Public/USI/{developer_slug}/{investment_slug}/",
         "name": details.get("name"),
         "address": details.get("address"),
         "geo_point": coords,
@@ -332,8 +300,7 @@ def scrape_rynek_pierwotny(offer_id: str, developer_slug: str, investment_slug: 
         "construction_date_upper": const_upper,
         "website": details.get("website"),
         "properties_count": details.get("properties"),
-        "images_count": len(saved_filenames),
-        "image_paths": image_paths,
+        "image_urls": gallery_urls,
         "groups_id": groups_id,
         "groups_name": groups.get("name"),
         "stage_sort": stage_sort,

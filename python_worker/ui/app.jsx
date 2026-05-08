@@ -61,17 +61,21 @@
     const [selectedDev, setSelectedDev] = React.useState(null);
     const [selectedReport, setSelectedReport] = React.useState(null);
     
-    // Hooks must be called unconditionally at the top level
-    const { refetch } = useInvestments();
+    // Combined DataBus access
+    const { bus, setVariable, refetch: busRefetch } = useDataBus();
+
+    // Secondary hooks
     const config = useConfig();
+    const testResults = useDataBusSelector(state => state.testResults);
+
+    // Manual refetch wrapper since we have bus here
+    const refetch = React.useCallback((type) => busRefetch(type), [busRefetch]);
+
+    // 3. UI State
     const [fetching] = React.useState(false);
     const [fetchCount] = React.useState(0);
     const [dark, setDark] = React.useState(false);
     const [mode, setMode] = React.useState('grid');
-
-    const testResults = useDataBusSelector(state => state.testResults);
-
-    const { bus, setVariable } = useDataBus();
 
     try {
       const { 
@@ -97,6 +101,17 @@
         if (v !== 'detail') setSelectedInv(null);
         if (v !== 'dev-detail') setSelectedDev(null);
         if (v !== 'report-detail') setSelectedReport(null);
+      };
+
+      const handleSelectInv = (inv) => {
+        if (!inv) return;
+        console.group('[App] Selected Investment');
+        console.log('Slug:', inv.slug);
+        console.log('Photos:', inv.photos?.length || 0, inv.photos);
+        console.log('Metadata:', { price: inv.price_avg, delivery: inv.delivery, units: inv.units });
+        console.groupEnd();
+        setSelectedInv(inv);
+        setView('detail');
       };
 
       const toggleSource = (id, isShift) => {
@@ -311,7 +326,7 @@
             }>
               {view === 'list' && (
                 <ViewList 
-                  onSelectInv={(inv) => { setSelectedInv(inv); setView('detail'); }} 
+                  onSelectInv={handleSelectInv} 
                   mode={mode} 
                 />
               )}
@@ -341,7 +356,7 @@
                 <DeveloperDetail
                   dev_slug={selectedDev.developer_slug}
                   onBack={() => setView('developers')}
-                  onSelectInv={(inv) => { setSelectedInv(inv); setView('detail'); }}
+                  onSelectInv={handleSelectInv}
                 />
               )}
 

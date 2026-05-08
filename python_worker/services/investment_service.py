@@ -77,12 +77,15 @@ class InvestmentService:
         elif portal == "to":
             sources["to"] = {"url": url}
 
+        import random
+        usi_inv_id = f"INV-{random.randint(1000, 9999)}"
         skeleton = {
             "investment_slug": inv_slug,
             "developer_slug": dev_slug,
             "name": name,
             "sources": sources,
             "status": "Brak",
+            "usi_inv_id": usi_inv_id,
             "audit": {"created_at": datetime.now().isoformat()}
         }
 
@@ -180,18 +183,32 @@ class InvestmentService:
             ratings_path = inv_dir / f"meta_{inv_slug}_ratings.json"
             ratings = {}
             if ratings_path.exists():
-                with open(ratings_path, "r", encoding="utf-8") as f:
-                    ratings = json.load(f)
+                try:
+                    with open(ratings_path, "r", encoding="utf-8") as f:
+                        ratings = json.load(f)
+                except Exception as e:
+                    logger.error(f"Error reading ratings file: {e}")
             
             event = f"Sync: {', '.join(fetched_sources)}" if fetched_sources else "Manual Update"
             new_unified = Merger.merge(rp_unified, oto_unified, to_unified, ratings, existing_data=usi_data, event=event)
             
+            # Consolidate image saving
             all_urls = new_unified.get("image_urls", [])
             if all_urls:
-                logger.info(f"Checking images for {inv_slug} ({len(all_urls)} URLs)")
-                saved = save_images(all_urls, dev_slug, inv_slug)
-                new_unified["image_paths"] = [f"/Public/USI/{dev_slug}/{inv_slug}/{fname}" for fname in saved]
-                new_unified["images_count"] = len(saved)
+                logger.info(f"Synchronizing images for {inv_slug} ({len(all_urls)} URLs)")
+                saved_filenames = save_images(all_urls, dev_slug, inv_slug)
+                # Filter out any None results if save_images fails for some files
+                valid_filenames = [f for f in saved_filenames if f]
+                new_unified["image_paths"] = [f"/Public/USI/{dev_slug}/{inv_slug}/{fname}" for fname in valid_filenames]
+                new_unified["images_count"] = len(valid_filenames)
+            else:
+                # If no URLs found, try to preserve existing paths if they are still valid on disk
+                img_dir = self.public_usi_dir / dev_slug / inv_slug
+                if img_dir.is_dir():
+                    on_disk = [p.name for p in img_dir.iterdir() if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}]
+                    if on_disk:
+                        new_unified["image_paths"] = [f"/Public/USI/{dev_slug}/{inv_slug}/{fname}" for fname in sorted(on_disk)]
+                        new_unified["images_count"] = len(on_disk)
 
             with open(usi_path, "w", encoding="utf-8") as f_out:
                 json.dump(new_unified, f_out, indent=2, ensure_ascii=False)

@@ -41,6 +41,10 @@ const USI_INVESTMENT_SCHEMA = {
   district: { type: 'string', fallback: 'Brak lokalizacji' },
   address: { type: 'string', fallback: '—' },
   price_avg: { type: 'number', fallback: 0 },
+  price_min: { type: 'number', fallback: null },
+  price_max: { type: 'number', fallback: null },
+  price_m2_min: { type: 'number', fallback: null },
+  price_m2_max: { type: 'number', fallback: null },
   delivery: { type: 'string', fallback: '—' },
   coords: { type: 'array', fallback: [0, 0] },
   photos: { type: 'array', fallback: [] },
@@ -169,7 +173,19 @@ function StandardCard({
     >
       <div className="usi-card-img-container">
         {image ? (
-          typeof image === 'string' ? <img src={image} alt="" className="usi-card-img" /> : safeImage
+          typeof image === 'string' ? (
+            <img 
+              src={image} 
+              alt="" 
+              className="usi-card-img" 
+              onError={(e) => {
+                e.target.onerror = null; 
+                e.target.src = ''; 
+                e.target.className = 'usi-card-img-placeholder broken';
+                e.target.parentElement.innerHTML = '<div class="usi-card-img-placeholder">⚠️</div>';
+              }} 
+            />
+          ) : safeImage
         ) : (
           <div className="usi-card-img-placeholder">📷</div>
         )}
@@ -319,25 +335,17 @@ function NotificationCenter() {
 
   if (jobs.length === 0) return null;
 
-  // Pokazujemy tylko pierwsze aktywne zadanie dla uproszczenia w Navbarze
+  // Pokazujemy tylko pierwsze aktywne zadanie w formie tekstowej konsoli
   const job = jobs[0];
   const progress = job.progress || 0;
+  const message = job.message || 'Przetwarzanie...';
+  const name = (job.name || 'JOB').toUpperCase();
 
   return (
-    <div data-component="NotificationCenter" className="usi-notification-center">
-      <div className="usi-notification-center-header">
-        <span className="usi-notification-center-title">
-          Zadanie w toku
-        </span>
-        <span className="usi-mono usi-notification-center-progress-text">{progress}%</span>
-      </div>
-      <div className="usi-notification-center-body">
-        <span className="usi-notification-center-job-name">
-          {job.name || 'Przetwarzanie...'}
-        </span>
-        <div className="usi-notification-center-bar-bg">
-          <div className="usi-notification-center-bar-fill" style={{ width: `${progress}%` }} />
-        </div>
+    <div data-component="NotificationCenter" className="usi-notification-center-minimal">
+      <div className="usi-mono usi-notification-center-text">
+        &gt; {name}: {message} [{progress}%]
+        {jobs.length > 1 && <span style={{ opacity: 0.6 }}> (+{jobs.length - 1} zad.)</span>}
       </div>
     </div>
   );

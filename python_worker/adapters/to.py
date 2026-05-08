@@ -76,6 +76,36 @@ class TOAdapter(BaseAdapter):
             price_max = float(agg_offers.get("highPrice") or 0) or None
         except:
             price_min, price_max = None, None
+            
+        # Price per m2 from additionalProperty
+        p_m2_min, p_m2_max = None, None
+        for prop in raw_data.get("additionalProperty", []):
+            if prop.get("name") == "Cena za m2 od":
+                try: 
+                    val = prop.get("value", "").replace(" ", "").replace(",", ".")
+                    p_m2_min = float(re.sub(r"[^\d.]", "", val))
+                except: pass
+            if prop.get("name") == "Cena za m2 do":
+                try: 
+                    val = prop.get("value", "").replace(" ", "").replace(",", ".")
+                    p_m2_max = float(re.sub(r"[^\d.]", "", val))
+                except: pass
+        
+        # Fallback: calculate from individual offers if missing
+        if p_m2_min is None or p_m2_max is None:
+            m2_prices = []
+            for off in offers_list:
+                try:
+                    price = float(str(off.get("price") or 0).replace(" ", "").replace(",", "."))
+                    size = float(str(off.get("itemOffered", {}).get("floorSize", {}).get("value") or 0).replace(" ", "").replace(",", "."))
+                    if price > 0 and size > 0:
+                        m2_prices.append(price / size)
+                except:
+                    continue
+            
+            if m2_prices:
+                if p_m2_min is None: p_m2_min = min(m2_prices)
+                if p_m2_max is None: p_m2_max = max(m2_prices)
 
         # Extract images
         raw_urls = raw_data.get("_raw_gallery_urls", [])
@@ -122,7 +152,9 @@ class TOAdapter(BaseAdapter):
             "financials": {
                 "price_min": price_min,
                 "price_max": price_max,
-                "price_avg": None
+                "price_avg": None,
+                "price_m2_min": p_m2_min,
+                "price_m2_max": p_m2_max
             },
             "amenities": {
                 "labels": [],

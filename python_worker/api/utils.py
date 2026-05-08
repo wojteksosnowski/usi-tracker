@@ -133,6 +133,11 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path = None, public
     
     score_data = _compute_amenity_score(labels, raw_codes)
     
+    # Use matched labels for display if manual ones are missing
+    display_amenities = labels
+    if not display_amenities and score_data["matched"]:
+        display_amenities = [m["label"] for m in score_data["matched"]]
+
     source = "RP"
     sources = usi.get("sources", {})
     if "rp" in sources: source = "RP"
@@ -183,15 +188,21 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path = None, public
         "source_url": source_url,
         "source_links": source_links,
         "price_avg": usi.get("financials", {}).get("price_avg") or 0,
+        "price_min": usi.get("financials", {}).get("price_min"),
+        "price_max": usi.get("financials", {}).get("price_max"),
+        "price_m2_min": usi.get("financials", {}).get("price_m2_min"),
+        "price_m2_max": usi.get("financials", {}).get("price_m2_max"),
         "units": usi.get("specifications", {}).get("units_count") or 0,
         "delivery": usi.get("specifications", {}).get("delivery_date") or "—",
         "status": usi.get("status", "Brak"),
-        "amenities": labels,
+        "amenities": display_amenities,
         "amenities_score": score_data["score"],
         "amenities_matched": score_data["matched"],
         "suggested_udogodnienia": _suggest_udogodnienia(score_data["score"]),
         "coords": [lat, lng],
         "photos": images,
+        "usi_inv_id": usi.get("usi_inv_id"),
+        "usi_dev_id": usi.get("usi_dev_id"),
         "ratings": usi.get("ratings", {}),
         "comment": usi.get("ratings", {}).get("komentarz", ""),
         "photos_to_delete": photos_to_delete,

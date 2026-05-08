@@ -40,7 +40,7 @@ function DataGrid({
     if (gridConfig.minCardWidth && dimensions.width > 0) {
       const gap = gridConfig.gap !== undefined ? gridConfig.gap : 16;
       const horizontalPadding = 32; // padding grida to 16px (16 z lewej, 16 z prawej)
-      const availableWidth = dimensions.width - horizontalPadding;
+      const availableWidth = dimensions.width - horizontalPadding - 1; // 1px safety margin
       itemsPerRow = Math.max(1, Math.floor((availableWidth + gap) / (gridConfig.minCardWidth + gap)));
     } else {
       itemsPerRow = gridConfig.itemsPerRow || 1;
@@ -76,7 +76,7 @@ function DataGrid({
       {isGrid ? (
         <div className="usi-datagrid-grid" 
              style={{ 
-               gridTemplateColumns: `repeat(${itemsPerRow}, 1fr)`,
+               gridTemplateColumns: `repeat(${itemsPerRow}, minmax(0, 1fr))`,
                gap: gridConfig.gap !== undefined ? gridConfig.gap : 16
              }}>
           {visibleItems.map((item, idx) => (

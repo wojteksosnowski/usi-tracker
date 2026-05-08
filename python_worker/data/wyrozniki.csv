@@ -1,3 +1,101 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:f3235b6684e6fad4300052b8afa3104ae94b1cf51e0e342a8c51d06889f8e6ab
-size 3850
+Label,RPno,USIudo
+Boiska sportowe,1,1
+Windy,3,1
+Przyjazny dla osób niepełnosprawnych,6,1
+Strefa wypoczynku,20,1
+Siłownia,22,1
+Plac zbaw,26,1
+Monitoring,27,1
+Czujnik dymu,28,1
+Ochrona,2,1
+Garaż,4,1
+Balkon,5,1
+Taras,7,1
+Ogródek,8,1
+Klimatyzacja,9,1
+Winda,10,1
+Basen,11,1
+Sauna,12,1
+Solarium,13,1
+Jacuzzi,14,1
+Brodzik,15,1
+Piwnica,16,1
+Pralnia,17,1
+Suszarnia,18,1
+Wózkarnia,19,1
+Rowerownia,21,1
+Monitoring,23,1
+Wideodomofon,24,1
+Domofon,25,1
+Klub fitness,29,1
+Kort tenisowy,30,1
+Sala zabaw,31,1
+Miejsce do grillowania,32,1
+Paczkomat,33,1
+Ładowarka aut el.,34,1
+Panele fotowol.,35,1
+Odzysk deszczówki,36,1
+Rekuperacja,37,1
+Pompa ciepła,38,1
+Smart Home,39,1
+Światłowód,40,1
+TV kablowa,41,1
+Internet,42,1
+Telefon,43,1
+Gaz,44,1
+Woda,45,1
+Prąd,46,1
+Kanalizacja,47,1
+Oczyszczalnia ścieków,48,1
+Garaż podziemny,49,1
+Parking naziemny,50,1
+Wiata,51,1
+Komórka lokatorska,52,1
+Loggia,53,1
+Antresola,54,1
+Poddasze,55,1
+Spiżarnia,56,1
+Garderoba,57,1
+Kotłownia,58,1
+Kuchenka,59,1
+Lodówka,60,1
+Zmywarka,61,1
+Piekarnik,62,1
+Pralka,63,1
+Suszarka,64,1
+Telewizor,65,1
+Meble,66,1
+Wyposażenie,67,1
+Wykończenie,68,1
+Stan deweloperski,69,1
+Stan surowy,70,1
+Remont,71,1
+Do odświeżenia,72,1
+Nowe,73,1
+Używane,74,1
+Okazja,75,1
+Luksusowe,76,1
+Apartament,77,1
+Loft,78,1
+Studio,79,1
+Kawalerka,80,1
+Mieszkanie,81,1
+Dom,82,1
+Szeregówka,83,1
+Bliźniak,84,1
+Wolnostojący,85,1
+Działka,86,1
+Grunt,87,1
+Las,88,1
+Łąka,89,1
+Pole,90,1
+Siedlisko,91,1
+Gospodarstwo,92,1
+Inwestycyjne,93,1
+Usługowe,94,1
+Handlowe,95,1
+Biurowe,96,1
+Magazynowe,97,1
+Przemysłowe,98,1
+Rolne,99,1
+Budowlane,100,1

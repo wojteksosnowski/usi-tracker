@@ -18,6 +18,11 @@ const DataBusStateContext = window.React.createContext();
 const DataBusDispatchContext = window.React.createContext();
 const LocalModuleContext = window.React.createContext(null);
 
+// Global exports for Babel-compiled files to share same context instances
+window.DataBusStateContext = DataBusStateContext;
+window.DataBusDispatchContext = DataBusDispatchContext;
+window.LocalModuleContext = LocalModuleContext;
+
 const MAIN_CITIES = ['Warszawa', 'Kraków', 'Wrocław', 'Łódź', 'Poznań', 'Gdańsk', 'Szczecin', 'Bydgoszcz', 'Lublin', 'Białystok'];
 
 function DataBusProvider({ children }) {
@@ -213,13 +218,10 @@ function DataBusProvider({ children }) {
 
   // Polling for active jobs
   React.useEffect(() => {
-    let poll;
-    const activeCount = (bus.activeJobs || []).length;
-    if (activeCount > 0) {
-      poll = setInterval(() => refetch('jobs'), 1500);
-    }
-    return () => { if (poll) clearInterval(poll); };
-  }, [bus.activeJobs, refetch]);
+    // Poll every 3 seconds always to catch background tasks
+    const poll = setInterval(() => refetch('jobs'), 3000);
+    return () => clearInterval(poll);
+  }, [refetch]);
 
   return (
     <DataBusDispatchContext.Provider value={dispatchValue}>
@@ -232,9 +234,9 @@ function DataBusProvider({ children }) {
 window.usiRegister('DataBusProvider', DataBusProvider);
 
 function useDataBus(scopeId) {
-  const { React } = window;
-  const state = React.useContext(DataBusStateContext);
-  const dispatch = React.useContext(DataBusDispatchContext);
+  const { React, DataBusStateContext: GlobalState, DataBusDispatchContext: GlobalDispatch } = window;
+  const state = React.useContext(GlobalState || DataBusStateContext);
+  const dispatch = React.useContext(GlobalDispatch || DataBusDispatchContext);
   if (!state || !dispatch) {
     return { bus: {}, setVariable: () => {}, getVariable: () => {}, refetch: () => {} };
   }
@@ -260,8 +262,8 @@ function useDataBus(scopeId) {
 window.usiRegister('useDataBus', useDataBus);
 
 function useDataBusSelector(selector, compare = (a, b) => a === b) {
-  const { React } = window;
-  const context = React.useContext(DataBusStateContext) || {};
+  const { React, DataBusStateContext: GlobalState } = window;
+  const context = React.useContext(GlobalState || DataBusStateContext) || {};
   const isDebug = localStorage.getItem('USI_DEBUG_BUS') === 'true';
   
   // Safe defaults to ensure unconditional hook execution

@@ -411,9 +411,6 @@ def scrape_tabelaofert(url: str, dev_slug: str, inv_slug: str) -> dict:
     gallery_urls = product.get("_raw_gallery_urls", [])
     filtered_urls = filter_investment_images(gallery_urls, product)
     
-    saved = save_images(filtered_urls, dev_slug, inv_slug)
-    image_paths = [f"/Public/USI/{dev_slug}/{inv_slug}/{fname}" for fname in saved]
-
     amenities = []
     props = product.get("additionalProperty", [])
     if isinstance(props, list):
@@ -429,7 +426,6 @@ def scrape_tabelaofert(url: str, dev_slug: str, inv_slug: str) -> dict:
         "to_url": url,
         "developer_slug": dev_slug,
         "investment_slug": inv_slug,
-        "usi_folder_path": f"/Public/USI/{dev_slug}/{inv_slug}/",
         "name": product.get("name"),
         "developer_name": brand_name or None,
         "address": address,
@@ -442,7 +438,6 @@ def scrape_tabelaofert(url: str, dev_slug: str, inv_slug: str) -> dict:
         "properties_count": offers_data.get("offerCount"),
         "construction_date_upper": extract_additional_prop(product, "Termin oddania"),
         "amenities": amenities,
-        "images_count": len(saved),
-        "image_paths": image_paths,
+        "image_urls": filtered_urls,
         "raw_details": product,
     }

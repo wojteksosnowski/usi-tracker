@@ -1,3 +1,12 @@
+## Poprawki 2 — 2026-05-08
+- **Audyt Stylów i CSS**: Wyeliminowano style inline w komponentach JSX, przenosząc je do semantycznych klas. Zoptymalizowano `views.css`, usuwając ponad 800 linii nieużywanego kodu.
+- **Naprawa Modułu „W okolicy”**: Rozwiązano błąd logiczny w wyszukiwaniu pobliskich inwestycji, przywracając poprawne wyświetlanie sąsiedztwa.
+- **Optymalizacja Układu DetailsA**: Wprowadzono elastyczny układ kolumn (50/25/25) i przeniesiono metadane do trzeciej kolumny dla lepszej czytelności.
+- **Metadane Finansowe**: Dodano obsługę i wyświetlanie minimalnej/maksymalnej ceny za m2 we wszystkich adapterach i widoku szczegółowym.
+- **Stabilność Siatki i Kart**: Naprawiono błędy overflow w DataGrid oraz poprawiono proporcje i obsługę błędów miniatur w kartach.
+- **System Powiadomień**: Przebudowano NotificationCenter na minimalistyczny styl konsolowy z poprawnym globalnym pollingiem zadań.
+- **Poprawki TabelaOfert**: Ulepszono TOAdapter o fallback dla brakujących cen m2 oraz uodporniono config.py na błędy uprawnień macOS.
+
 ## Poprawki — 2026-05-07
 - **Błąd Discovery Otodom**: Naprawiono filtr „Tylko nowe” poprzez poprawną ekstrakcję ID ofert i usunięcie fałszywych dopasowań do pustych rekordów.
 - **Tryb Ciemny i CSS**: Wprowadzono pełne wsparcie dla motywu ciemnego poprzez system zmiennych CSS i unifikację selektorów ([data-dark="1"]).

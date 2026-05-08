@@ -1,7 +1,10 @@
 import re
+import logging
 from datetime import datetime
 from python_worker.adapters.base import BaseAdapter
 from python_worker.adapters.utils import get_val
+
+logger = logging.getLogger(__name__)
 
 class RPAdapter(BaseAdapter):
     @staticmethod
@@ -9,15 +12,6 @@ class RPAdapter(BaseAdapter):
         # Handle top-level Coda wrapper if present
         if isinstance(raw_data, dict) and "value" in raw_data:
             raw_data = raw_data["value"]
-
-        # Geo point extraction with deep unwrapping
-        geo = get_val(raw_data, "geo_point")
-        coords = get_val(geo, "coordinates") if isinstance(geo, dict) else None
-        
-        # RP coordinates are [lng, lat]
-        lat_lng = [None, None]
-        if isinstance(coords, list) and len(coords) >= 2:
-            lat_lng = [coords[1], coords[0]]
 
         # Extract specifications
         upper_date = get_val(raw_data, "construction_date_upper")
@@ -35,11 +29,33 @@ class RPAdapter(BaseAdapter):
             except:
                 delivery_str = str(upper_date)
 
-        price_range = get_val(raw_data, "price_m2_range")
+        # Extract financial data (handle RP v2 fields inside 'stats' or top level)
+        stats = raw_data.get("stats", {})
         
+        # Price per m2
+        p_m2_min = get_val(raw_data, "ranges_price_m2_min") or get_val(stats, "ranges_price_m2_min")
+        p_m2_max = get_val(raw_data, "ranges_price_m2_max") or get_val(stats, "ranges_price_m2_max")
+        
+        # Total price
+        p_min = get_val(raw_data, "ranges_price_min") or get_val(stats, "ranges_price_min")
+        p_max = get_val(raw_data, "ranges_price_max") or get_val(stats, "ranges_price_max")
+        
+        # Fallback to price_m2_range object if v2 fields are missing
+        price_m2_range = get_val(raw_data, "price_m2_range")
+        if isinstance(price_m2_range, dict):
+            p_m2_min = p_m2_min or get_val(price_m2_range, "lower")
+            p_m2_max = p_m2_max or get_val(price_m2_range, "upper")
+            p_avg = get_val(price_m2_range, "average")
+        else:
+            p_avg = None
+        
+        if not p_avg and p_m2_min and p_m2_max:
+            try:
+                p_avg = (float(p_m2_min) + float(p_m2_max)) / 2
+            except: pass
+
         # Extract images from gallery if present
         image_urls = []
-        # Support both _raw_gallery (from download_raw) and gallery (if already in data)
         gallery_data = raw_data.get("_raw_gallery") or raw_data.get("gallery")
         if isinstance(gallery_data, dict):
             gallery_items = gallery_data.get("gallery", [])
@@ -50,11 +66,10 @@ class RPAdapter(BaseAdapter):
                 # Find highest g_img_X resolution
                 g_keys = [k for k in img_data.keys() if k.startswith("g_img_")]
                 if g_keys:
-                    # Extract numbers and sort to find max
                     sorted_keys = sorted(g_keys, key=lambda x: int(re.search(r"\d+", x).group() or 0), reverse=True)
                     img_url = img_data.get(sorted_keys[0])
                 else:
-                    img_url = img_data.get("url") # Fallback to generic url if present
+                    img_url = img_data.get("url")
                 
                 if img_url:
                     image_urls.append(img_url)
@@ -72,22 +87,36 @@ class RPAdapter(BaseAdapter):
             if main_image and main_image not in image_urls:
                 image_urls.insert(0, main_image)
 
+        # Geo point extraction
+        geo = get_val(raw_data, "geo_point")
+        coords = get_val(geo, "coordinates") if isinstance(geo, dict) else None
+        lat_lng = [None, None]
+        if isinstance(coords, list) and len(coords) >= 2:
+            lat_lng = [coords[1], coords[0]]
+
         # Location extraction from region object
         region = raw_data.get("region", {})
         city = None
         district = None
         if isinstance(region, dict):
-            # Try to get city from region stats or name
             city_data = region.get("stats", {}).get("region_type_city")
-            if city_data:
+            if isinstance(city_data, dict):
                 city = city_data.get("name")
+            elif region.get("type") == 5:
+                city = region.get("name")
             
-            # Try to get district from region stats or name
             district_data = region.get("stats", {}).get("region_type_district")
-            if district_data:
+            if isinstance(district_data, dict):
                 district = district_data.get("name")
-            elif not city and region.get("type") == 6: # RP type 6 is often a district
+            elif not city and region.get("type") == 6:
                 district = region.get("name")
+
+        # Fallback for city from address
+        raw_address = get_val(raw_data, "address")
+        if not city and raw_address:
+            parts = [p.strip() for p in raw_address.split(",")]
+            if len(parts) >= 1:
+                city = parts[0]
 
         return {
             "investment_slug": investment_slug,
@@ -104,7 +133,7 @@ class RPAdapter(BaseAdapter):
             },
             "location": {
                 "coords": lat_lng,
-                "address": get_val(raw_data, "address"),
+                "address": raw_address,
                 "city": city,
                 "district": district
             },
@@ -115,15 +144,16 @@ class RPAdapter(BaseAdapter):
                 "delivery_year": dy
             },
             "financials": {
-                "price_min": get_val(price_range, "lower") if isinstance(price_range, dict) else None,
-                "price_max": get_val(price_range, "upper") if isinstance(price_range, dict) else None,
-                "price_avg": get_val(price_range, "average") if isinstance(price_range, dict) else None
+                "price_min": p_min,
+                "price_max": p_max,
+                "price_avg": p_avg,
+                "price_m2_min": p_m2_min,
+                "price_m2_max": p_m2_max
             },
             "amenities": {
                 "labels": [], 
                 "raw_codes": get_val(raw_data, "facilities", [])
             },
-            "images_count": get_val(raw_data, "images_count", len(image_urls)),
-            "image_paths": raw_data.get("image_paths", []),
+            "images_count": len(image_urls),
             "image_urls": image_urls
         }

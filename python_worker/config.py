@@ -29,10 +29,13 @@ USI_DEV_DIR = Path(os.getenv("USI_DEV_DIR", str(DROPBOX_PATH / "Public" / "USIde
 USI_DEV_RAW_DIR = USI_DEV_DIR / "raw"
 
 # Ensure directories exist
-USI_DATA_DIR.mkdir(parents=True, exist_ok=True)
-PUBLIC_USI_DIR.mkdir(parents=True, exist_ok=True)
-USI_DEV_DIR.mkdir(parents=True, exist_ok=True)
-USI_DEV_RAW_DIR.mkdir(parents=True, exist_ok=True)
+for d in [USI_DATA_DIR, PUBLIC_USI_DIR, USI_DEV_DIR, USI_DEV_RAW_DIR]:
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        # On some macOS setups, symlinked volumes might throw PermissionError on stat/mkdir
+        # We silently skip to allow the rest of the app to function.
+        pass
 
 # CSV export from Coda.io
 CSV_PATH = DROPBOX_PATH / "reference-data" / "coda" / "USImaster.csv"

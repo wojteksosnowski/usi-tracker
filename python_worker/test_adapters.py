@@ -21,6 +21,9 @@ def test_rp_adapter_transform():
     assert unified["specifications"]["delivery_quarter"] == 4
     assert unified["specifications"]["delivery_year"] == 2025
     assert unified["sources"]["rp"]["id"] == "12345"
+    assert unified["financials"]["price_m2_min"] == 10000
+    assert unified["financials"]["price_m2_max"] == 15000
+    assert unified["financials"]["price_avg"] == 12500
 
 def test_otodom_adapter_transform():
     raw_data = {
@@ -44,6 +47,7 @@ def test_otodom_adapter_transform():
     assert unified["location"]["coords"] == [52.1, 21.1]
     assert unified["specifications"]["units_count"] == 50
     assert unified["sources"]["oto"]["id"] == "67890"
+    assert unified["financials"]["price_m2_min"] == 11000
 
 def test_to_adapter_transform():
     raw_data = {
