@@ -120,6 +120,16 @@ class DiscoveryService:
         """
         Discovers new investments on a portal for global or specific scan.
         """
+        logger.info(f"Triggering discovery for portal: {portal} (ID: {identifier})")
         portal_key = "rp" if portal == "rp" else ("otodom" if portal == "oto" else "to")
-        results = scraper_api.list_investments(self.config, self.fetcher, portal, identifier)
-        return filter_new_investments(results, portal_key)
+        
+        try:
+            results = scraper_api.list_investments(self.config, self.fetcher, portal, identifier)
+            logger.info(f"Scraper library returned {len(results)} items for {portal}")
+            
+            filtered = filter_new_investments(results, portal_key)
+            logger.info(f"Filtered results: {len(filtered)} items")
+            return filtered
+        except Exception as e:
+            logger.error(f"Error during discovery for {portal}: {e}", exc_info=True)
+            raise

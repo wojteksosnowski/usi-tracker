@@ -2,8 +2,8 @@ import requests
 import re
 import logging
 from urllib.parse import unquote
-from .config import SCRAPERAPI_KEY
-from .image_saver import save_images
+from .config import SCRAPERAPI_KEY, get_scraper_config
+from usi_scrapers.manager import TechnicalDataManager
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,12 @@ def grabber(url: str, regex_pattern: str, developer_slug: str, investment_slug: 
         
     # 3. Save Images
     logger.info(f"Grabber found {len(links)} images for {investment_slug}")
-    saved_filenames = save_images(links, developer_slug, investment_slug)
+    config = get_scraper_config()
+    tm = TechnicalDataManager(config)
+    saved_filenames = tm.sync_images(links, developer_slug, investment_slug)
+    
+    # Filter out None from saved_filenames (sync_images returns List[Optional[str]])
+    saved_filenames = [f for f in saved_filenames if f]
     image_paths = [f"/Public/USI/{developer_slug}/{investment_slug}/{fname}" for fname in saved_filenames]
     
     # 4. Build Result

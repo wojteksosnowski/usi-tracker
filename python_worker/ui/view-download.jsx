@@ -28,19 +28,24 @@ window.usiRegister('ViewDownload', function ViewDownload() {
         try {
           setVariable('appStatus', { type: 'info', msg: `Skanowanie: ${p}...` });
           const data = await request(`/api/discovery/${p}`);
+          console.log(`[Discovery] Portal ${p} returned:`, data);
           if (Array.isArray(data)) {
             allResults = [...allResults, ...data.map(r => ({ ...r, source: p }))];
+          } else {
+            console.error(`[Discovery] Expected array from /api/discovery/${p}, got:`, data);
           }
         } catch (e) {
           console.error(`Błąd skanowania ${p}:`, e);
         }
       }
+      console.log(`[Discovery] Final results set:`, allResults.length, "items");
       setResults(allResults);
       if (allResults.length === 0) {
-        setErrorMsg('Nie znaleziono nowych inwestycji na wybranych portalach.');
-        setVariable('appStatus', { type: 'info', msg: 'Skanowanie zakończone - brak nowych wyników.' });
+        setErrorMsg('Nie znaleziono inwestycji na wybranych portalach.');
+        setVariable('appStatus', { type: 'info', msg: 'Skanowanie zakończone - brak wyników.' });
       } else {
-        setVariable('appStatus', { type: 'success', msg: `Znaleziono ${allResults.length} inwestycji.` });
+        const newCount = allResults.filter(r => r.is_new).length;
+        setVariable('appStatus', { type: 'success', msg: `Skanowanie zakończone. Znaleziono ${allResults.length} inwestycji (w tym ${newCount} nowych).` });
       }
     } catch (err) {
       setErrorMsg('Błąd krytyczny podczas skanowania');
@@ -88,22 +93,24 @@ window.usiRegister('ViewDownload', function ViewDownload() {
     }
   };
 
-  const visibleResults = results.filter(r => {
-    if (!r) return false;
-    if (showOnlyNew && !r.is_new) return false;
-    if (identifier) {
-        const query = identifier.toLowerCase();
-        const matchesName = r.name?.toLowerCase().includes(query);
-        const matchesDev = r.developer?.toLowerCase().includes(query);
-        const matchesId = String(r.id).includes(query);
-        if (!matchesName && !matchesDev && !matchesId) return false;
-    }
-    return true;
-  });
+  const visibleResults = React.useMemo(() => {
+    return results.filter(r => {
+      if (!r) return false;
+      if (showOnlyNew && !r.is_new) return false;
+      if (identifier) {
+          const query = identifier.toLowerCase();
+          const matchesName = String(r.name || '').toLowerCase().includes(query);
+          const matchesDev = String(r.developer || '').toLowerCase().includes(query);
+          const matchesId = String(r.id || '').toLowerCase().includes(query);
+          if (!matchesName && !matchesDev && !matchesId) return false;
+      }
+      return true;
+    });
+  }, [results, showOnlyNew, identifier]);
 
   const renderCard = (res) => (
     <ListCard
-      inv={res}
+      inv={{...res, developer: res.developer || '-'}}
       footerRight={
         <button 
           className={`usi-btn sm ${res.registered ? 'success' : ''}`} 
@@ -140,12 +147,12 @@ window.usiRegister('ViewDownload', function ViewDownload() {
       key: 'source',
       label: 'Źródło',
       width: 100,
-      render: (val) => SourceBadge ? <SourceBadge source={val} /> : <span className="usi-tiny usi-weight-600" style={{ textTransform: 'uppercase' }}>{val}</span>
+      render: (val) => window.SourceBadge ? <window.SourceBadge source={val} /> : <span className="usi-tiny usi-weight-600" style={{ textTransform: 'uppercase' }}>{val}</span>
     },
     {
       key: 'developer',
       label: 'Deweloper',
-      render: (val) => val || '-'
+      render: (val) => String(val || '-')
     },
     {
       key: 'registered',
@@ -166,6 +173,14 @@ window.usiRegister('ViewDownload', function ViewDownload() {
       )
     }
   ];
+
+  const emptyMessage = React.useMemo(() => {
+    if (loading) return "Przeszukiwanie wybranych portali...";
+    if (results.length > 0 && visibleResults.length === 0) {
+      return `Brak wyników (ukryto ${results.length} już pobranych inwestycji - wyłącz filtr "Tylko nowe")`;
+    }
+    return "Nie znaleziono inwestycji spełniających kryteria.";
+  }, [loading, results.length, visibleResults.length]);
 
   return (
     <div data-component="ViewDownload" className="download-view-container">
@@ -188,7 +203,7 @@ window.usiRegister('ViewDownload', function ViewDownload() {
             mode={download.mode || 'grid'}
             gridConfig={{ minCardWidth: 180, itemsPerRow: 4, cardHeight: 340 }}
             renderCard={renderCard}
-            emptyMessage={loading ? "Przeszukiwanie wybranych portali..." : "Brak wyników dopasowania"}
+            emptyMessage={emptyMessage}
           />
         )}
       </div>

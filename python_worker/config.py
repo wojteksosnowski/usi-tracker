@@ -79,11 +79,25 @@ VISIBLE_METADATA_FILE = Path(__file__).parent / "data" / "visible_metadata.json"
 def get_scraper_config():
     """Returns a ScraperConfig object for use with the usi-scrapers library."""
     try:
+        import usi_scrapers
+        required_version = "0.1.3"
+        current_version = getattr(usi_scrapers, "__version__", "unknown")
+        
+        if current_version != required_version:
+            warnings.warn(
+                f"USI Scrapers version mismatch! Required: {required_version}, "
+                f"Found: {current_version}. Please update the library.",
+                stacklevel=2
+            )
+            
         from usi_scrapers.models import ScraperConfig
         return ScraperConfig(
             public_dir=USI_DATA_DIR.parent, # Public folder containing USIdata and USI
             scraperapi_key=SCRAPERAPI_KEY,
-            here_api_key=HERE_API_KEY
+            here_api_key=HERE_API_KEY,
+            rp_discovery_urls=RP_DISCOVERY_URLS,
+            otodom_discovery_urls=OTODOM_DISCOVERY_URLS,
+            to_discovery_urls=TABELA_OFERT_DISCOVERY_URLS
         )
     except ImportError:
         # Fallback if library not in path yet

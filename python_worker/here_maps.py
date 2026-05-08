@@ -1,7 +1,7 @@
 import logging
 import json
+import requests
 from .config import HERE_API_KEY
-from .fetcher import fetch_html # Use centralized fetcher
 
 logger = logging.getLogger(__name__)
 
@@ -16,12 +16,13 @@ def geocode_address(address: str) -> tuple[float, float] | tuple[None, None]:
     
     try:
         url = f"{_GEOCODE_URL}?q={address}&apiKey={HERE_API_KEY}"
-        # fetch_html handles impersonation and logging
-        res_text = fetch_html(url)
-        if not res_text:
+        # Use standard requests for simple geocoding call
+        resp = requests.get(url, timeout=10)
+        if resp.status_code != 200:
+            logger.error(f"HERE Geocode API returned {resp.status_code}: {resp.text}")
             return None, None
             
-        data = json.loads(res_text)
+        data = resp.json()
         items = data.get("items", [])
         if items:
             pos = items[0].get("position", {})

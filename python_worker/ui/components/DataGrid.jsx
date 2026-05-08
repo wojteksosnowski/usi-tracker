@@ -79,11 +79,14 @@ function DataGrid({
                gridTemplateColumns: `repeat(${itemsPerRow}, minmax(0, 1fr))`,
                gap: gridConfig.gap !== undefined ? gridConfig.gap : 16
              }}>
-          {visibleItems.map((item, idx) => (
-            <div key={item.slug || item.id || idx} onClick={() => onRowClick(item)}>
-              {renderCard ? renderCard(item) : <pre className="usi-datagrid-pre-debug">{JSON.stringify(item, null, 2)}</pre>}
-            </div>
-          ))}
+          {visibleItems.map((item, idx) => {
+            const itemKey = `${item.portal || item.source || 'inv'}-${item.id || item.slug || idx}`;
+            return (
+              <div key={itemKey} onClick={() => onRowClick(item)}>
+                {renderCard ? renderCard(item) : <pre className="usi-datagrid-pre-debug">{JSON.stringify(item, null, 2)}</pre>}
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="usi-card usi-datagrid-table-card">
@@ -115,15 +118,18 @@ function DataGrid({
               </tr>
             </thead>
             <tbody>
-              {visibleItems.map((item, idx) => (
-                <tr key={item.slug || item.id || idx} className="list-table-tr" onClick={() => onRowClick(item)}>
-                  {columns.map(col => (
-                    <td key={col.key} className="list-table-td" style={{ textAlign: col.align || 'left', height: rowHeight }}>
-                      {col.render ? col.render(item[col.key], item) : item[col.key]}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              {visibleItems.map((item, idx) => {
+                const itemKey = `${item.portal || item.source || 'inv'}-${item.id || item.slug || idx}`;
+                return (
+                  <tr key={itemKey} className="list-table-tr" onClick={() => onRowClick(item)}>
+                    {columns.map(col => (
+                      <td key={col.key} className="list-table-td" style={{ textAlign: col.align || 'left', height: rowHeight }}>
+                        {col.render ? col.render(item[col.key], item) : item[col.key]}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

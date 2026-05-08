@@ -52,7 +52,15 @@ class DeveloperManager:
     def get_existing_identifiers(self) -> dict:
         """
         Scans USI_DATA_DIR for existing investments and returns a dict with sets of IDs.
+        Includes a 5-minute cache to speed up repeated UI calls.
         """
+        now = datetime.now()
+        if hasattr(self, "_identifiers_cache"):
+            cache_time, cache_data = self._identifiers_cache
+            if (now - cache_time).total_seconds() < 300:
+                logger.info("Using cached identifiers (valid for 5m)")
+                return cache_data
+
         rp_ids = set()
         oto_ids = set()
         oto_slugs = set()
@@ -67,10 +75,13 @@ class DeveloperManager:
                 continue
             
             try:
+                # OPTIMIZATION: Read first 4KB to check if it has sources before full parse
+                # (actually for small USI files, just reading is fine)
                 with open(json_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 
                 sources = data.get("sources", {})
+                if not sources: continue
                 
                 # RP
                 rp_src = sources.get("rp", {})
@@ -99,9 +110,6 @@ class DeveloperManager:
                             if hash_match:
                                 oto_ids.add(hash_match.group(1))
                             elif "-ID" not in full_slug and len(full_slug) > 5:
-                                # Sometimes ID is just at the end without -ID if it was a manual entry
-                                # but usually Otodom uses -ID. 
-                                # Based on Coda spec: RegexExtract("(?<=ID).+$")
                                 coda_hash_match = re.search(r"ID([a-zA-Z0-9]+)$", full_slug)
                                 if coda_hash_match:
                                     oto_ids.add(coda_hash_match.group(1))
@@ -116,12 +124,14 @@ class DeveloperManager:
                 logger.warning(f"Error reading {json_file}: {e}")
 
         logger.info(f"Found {len(rp_ids)} RP IDs, {len(oto_ids)} Otodom IDs, and {len(to_ids)} TO IDs.")
-        return {
+        result = {
             "rp_ids": rp_ids,
             "oto_ids": oto_ids,
             "oto_slugs": oto_slugs,
             "to_ids": to_ids
         }
+        self._identifiers_cache = (now, result)
+        return result
 
     def save_raw_json(self, data: dict, dev_slug: str, inv_slug: str, portal_prefix: str) -> Path:
         """Delegates raw investment JSON saving to the library manager."""
