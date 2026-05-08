@@ -1,0 +1,14 @@
+{
+  "investment_slug": "inwestycja-test",
+  "developer_slug": "deweloper",
+  "name": "Nowe Inwestycje (active)",
+  "sources": {
+    "oto": {
+      "url": "https://www.otodom.pl/pl/oferta/nowoczesny-dom-wolnostojacy-w-stanie-deweloperskim-ID4q7H0"
+    }
+  },
+  "status": "Brak",
+  "audit": {
+    "created_at": "2026-05-08T03:25:17.613856"
+  }
+}

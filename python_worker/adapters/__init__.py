@@ -1,7 +1,7 @@
-from .rp import RPAdapter
-from .otodom import OtodomAdapter
-from .to import TOAdapter
 from .merger import Merger
+from usi_scrapers.adapters.rp import RPAdapter
+from usi_scrapers.adapters.otodom import OtodomAdapter
+from usi_scrapers.adapters.to import TOAdapter
 
 class AdapterFactory:
     _adapters = {

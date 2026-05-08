@@ -1,19 +1,25 @@
 import logging
 from pathlib import Path
-from python_worker.config import USI_DATA_DIR
-from python_worker.scraper_rp import discover_rp_investments
-from python_worker.scraper_otodom import discover_otodom_investments, discover_otodom_listing
-from python_worker.scraper_to import discover_to_investments
+from datetime import datetime
+from python_worker.config import USI_DATA_DIR, get_scraper_config
+from usi_scrapers.fetcher import Fetcher
+from usi_scrapers import api as scraper_api
 from python_worker.url_parser import parse_url
 from python_worker.portal_matcher import filter_new_investments
+from python_worker.logger_utils import log_to_processing_log
 
 logger = logging.getLogger(__name__)
 
 class DiscoveryService:
     def __init__(self, data_dir: Path = USI_DATA_DIR):
         self.data_dir = data_dir
+        self.config = get_scraper_config()
+        self.fetcher = Fetcher(self.config) if self.config else None
 
-    def discover_for_developer(self, dev_slug, job_manager=None, job_id=None):
+    def discover_for_developer(self, dev_slug, job_manager=None, job_id=None, download=False):
+        """
+        Discovers and registers new investments for a developer.
+        """
         from python_worker.developer_manager import DeveloperManager
         dm = DeveloperManager(self.data_dir, self.data_dir.parent / "USIdev")
         dev = dm.get_developer(dev_slug)
@@ -25,76 +31,95 @@ class DiscoveryService:
             job_manager.update_progress(job_id, 10, "Starting discovery...")
         
         found_total = 0
+        new_items = []
         
-        # 1. RP
-        rp_map = mapping.get("rp") or {}
-        rp_id = rp_map.get("id") or rp_map.get("slug")
-        if rp_id:
-            if job_manager and job_id:
-                job_manager.update_progress(job_id, 20, f"Scanning RynekPierwotny ({rp_id})...")
-            try:
-                res = discover_rp_investments(rp_id)
-                found_total += len(res)
-            except Exception as e:
-                logger.error(f"RP discovery failed: {e}")
+        # Portals to scan
+        portals = [
+            ("rp", mapping.get("rp", {}).get("id") or mapping.get("rp", {}).get("slug")),
+            ("oto", mapping.get("oto", {}).get("agency_ids", []) or ([mapping["oto"]["agency_id"]] if mapping.get("oto", {}).get("agency_id") else [])),
+            ("to", mapping.get("to", {}).get("agency_id") or mapping.get("to", {}).get("slug"))
+        ]
 
-        # 2. Otodom
-        oto_map = mapping.get("oto") or {}
-        oto_url = oto_map.get("url")
-        if oto_url:
-            if job_manager and job_id:
-                job_manager.update_progress(job_id, 50, f"Scanning Otodom...")
-            try:
-                parsed = parse_url(oto_url)
-                if parsed.get("agency_id"):
-                    res = discover_otodom_investments(parsed["agency_id"])
-                    found_total += len(res)
-            except Exception as e:
-                logger.error(f"Otodom discovery failed: {e}")
+        progress_step = 80 / len(portals) if portals else 0
+        current_progress = 10
 
-        # 3. TO
-        to_map = mapping.get("to") or {}
-        to_slug = to_map.get("slug")
-        if to_slug:
+        for portal, identifier in portals:
+            if not identifier: continue
+            
+            portal_name = "RynekPierwotny" if portal == "rp" else ("Otodom" if portal == "oto" else "TabelaOfert")
             if job_manager and job_id:
-                job_manager.update_progress(job_id, 80, f"Scanning TabelaOfert...")
+                job_manager.update_progress(job_id, int(current_progress), f"Scanning {portal_name}...")
+            
             try:
-                res = discover_to_investments(to_slug)
-                found_total += len(res)
+                # Handle multiple agency IDs for Otodom
+                ids = identifier if isinstance(identifier, list) else [identifier]
+                results = []
+                for idx in ids:
+                    results.extend(scraper_api.list_investments(self.config, self.fetcher, portal, str(idx)))
+                
+                portal_key = "rp" if portal == "rp" else ("otodom" if portal == "oto" else "to")
+                filtered = filter_new_investments(results, portal_key)
+                new_found = [item for item in filtered if item.get("is_new")]
+                
+                for item in new_found:
+                    self._register_new_investment(dev_slug, item, portal_key)
+                    new_items.append((portal, item))
+                found_total += len(new_found)
             except Exception as e:
-                logger.error(f"TO discovery failed: {e}")
+                logger.error(f"{portal_name} discovery failed: {e}")
+            
+            current_progress += progress_step
+
+        if download and new_items:
+            logger.info(f"Downloading raw JSONs for {len(new_items)} new investments...")
+            from python_worker.main import download_raw_json
+            for portal, item in new_items:
+                identifier = item.get("id") if portal == "rp" else item.get("url")
+                download_raw_json(portal, identifier, dev_slug, item["slug"])
 
         if job_manager and job_id:
-            job_manager.update_progress(job_id, 100, f"Finished. Found {found_total} potential investments.")
+            job_manager.update_progress(job_id, 100, f"Finished. Registered {found_total} new investments.")
         
         return found_total
 
+    def _register_new_investment(self, dev_slug, item, portal):
+        """Helper to create a skeleton usi_*.json for a newly discovered investment."""
+        inv_slug = item["slug"]
+        inv_dir = self.data_dir / dev_slug / inv_slug
+        inv_dir.mkdir(parents=True, exist_ok=True)
+        
+        usi_file = inv_dir / f"usi_{inv_slug}.json"
+        
+        # Determine source key
+        portal_key = "rp" if portal == "rp" else ("oto" if portal == "otodom" else "to")
+        identifier_key = "id" if portal == "rp" else "url"
+        identifier_val = item.get("id") if portal == "rp" else item.get("url")
+        
+        import json
+        if usi_file.exists():
+            with open(usi_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        else:
+            data = {
+                "investment_slug": inv_slug,
+                "developer_slug": dev_slug,
+                "name": item["name"],
+                "sources": {},
+                "audit": {"created_at": datetime.now().isoformat()}
+            }
+        
+        if portal_key not in data["sources"]:
+            data["sources"][portal_key] = {identifier_key: identifier_val}
+            with open(usi_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            
+            log_to_processing_log(dev_slug, inv_slug, f"Discovered and registered from {portal} ({identifier_key}: {identifier_val})")
+            logger.info(f"REGISTERED NEW {portal} Investment: {item['name']} in {dev_slug}/{inv_slug}")
+
     def discovery_by_portal(self, portal, identifier=None):
         """
-        Discovers new investments on a portal.
+        Discovers new investments on a portal for global or specific scan.
         """
-        if portal == "rp":
-            results = discover_rp_investments(identifier if identifier else None)
-            return filter_new_investments(results, "rp")
-        elif portal == "oto":
-            from python_worker.config import OTODOM_DISCOVERY_URLS
-            if identifier:
-                results = discover_otodom_investments(identifier)
-            else:
-                results = []
-                seen_slugs = set()
-                for url in OTODOM_DISCOVERY_URLS:
-                    try:
-                        batch = discover_otodom_listing(url)
-                        for item in batch:
-                            if item["slug"] not in seen_slugs:
-                                results.append(item)
-                                seen_slugs.add(item["slug"])
-                    except Exception as e:
-                        logger.warning(f"Failed global discovery for {url}: {e}")
-            return filter_new_investments(results, "otodom")
-        elif portal == "to":
-            results = discover_to_investments(identifier if identifier else None)
-            return filter_new_investments(results, "to")
-        else:
-            raise ValueError(f"Unsupported portal: {portal}")
+        portal_key = "rp" if portal == "rp" else ("otodom" if portal == "oto" else "to")
+        results = scraper_api.list_investments(self.config, self.fetcher, portal, identifier)
+        return filter_new_investments(results, portal_key)

@@ -1,7 +1,13 @@
+import sys
 import os
 import warnings
 from pathlib import Path
 from dotenv import load_dotenv
+
+# Add usi-scrapers to path if not already there
+LIB_PATH = "/Volumes/Samsam/claude-py/usi-scrapers"
+if LIB_PATH not in sys.path:
+    sys.path.append(LIB_PATH)
 
 # Load .env file
 load_dotenv()
@@ -69,3 +75,16 @@ FETCH_DELAYS = {
 # Other constants
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
 VISIBLE_METADATA_FILE = Path(__file__).parent / "data" / "visible_metadata.json"
+
+def get_scraper_config():
+    """Returns a ScraperConfig object for use with the usi-scrapers library."""
+    try:
+        from usi_scrapers.models import ScraperConfig
+        return ScraperConfig(
+            public_dir=USI_DATA_DIR.parent, # Public folder containing USIdata and USI
+            scraperapi_key=SCRAPERAPI_KEY,
+            here_api_key=HERE_API_KEY
+        )
+    except ImportError:
+        # Fallback if library not in path yet
+        return None

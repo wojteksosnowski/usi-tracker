@@ -12,9 +12,18 @@ class DeveloperManager:
         self.data_dir = data_dir
         self.dev_dir = dev_dir or (data_dir.parent / "USIdev")
         self.dev_raw_dir = self.dev_dir / "raw"
-        self.dev_dir.mkdir(parents=True, exist_ok=True)
-        self.dev_raw_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            self.dev_dir.mkdir(parents=True, exist_ok=True)
+            self.dev_raw_dir.mkdir(parents=True, exist_ok=True)
+        except (PermissionError, OSError) as e:
+            logger.warning(f"Note: Could not verify/create directories {self.dev_dir} or {self.dev_raw_dir} due to OS permissions. Proceeding anyway. Error: {e}")
         self.counters_path = Path(__file__).parent / "data" / "usi_counters.json"
+        
+        # Initialize library-based technical manager
+        from python_worker.config import get_scraper_config
+        from usi_scrapers.manager import TechnicalDataManager
+        config = get_scraper_config()
+        self.tech_manager = TechnicalDataManager(config) if config else None
 
     def _get_next_counter(self, key: str) -> int:
         """Atomic-like counter update from file."""
@@ -115,50 +124,32 @@ class DeveloperManager:
         }
 
     def save_raw_json(self, data: dict, dev_slug: str, inv_slug: str, portal_prefix: str) -> Path:
-        """
-        Saves raw JSON data to Public/USIdata/{dev_slug}/{inv_slug}/raw_{portal_prefix}_{inv_slug}.json
-        with automatic timestamp-based archiving of existing files.
-        """
+        """Delegates raw investment JSON saving to the library manager."""
+        if self.tech_manager:
+            from usi_scrapers import api as scraper_api
+            return scraper_api.save_raw(self.tech_manager.config, data, dev_slug, inv_slug, portal_prefix)
+
+        # Fallback (legacy)
         inv_dir = self.data_dir / dev_slug / inv_slug
         inv_dir.mkdir(parents=True, exist_ok=True)
-        
         filename = f"raw_{portal_prefix}_{inv_slug}.json"
         file_path = inv_dir / filename
-        
-        if file_path.exists():
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            archived_filename = f"raw_{portal_prefix}_{inv_slug}_{ts}.json"
-            archived_path = inv_dir / archived_filename
-            file_path.rename(archived_path)
-            logger.info(f"Archived existing raw file: {archived_filename}")
-            
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-            
-        logger.info(f"Saved raw JSON: {file_path}")
         return file_path
 
     def save_dev_raw_json(self, data: dict, dev_slug: str, portal_prefix: str) -> Path:
-        """
-        Saves raw developer profile JSON to Public/USIdev/raw/raw_{portal_prefix}_{dev_slug}.json
-        with automatic timestamp-based archiving.
-        """
+        """Delegates raw developer JSON saving to the library manager."""
+        if self.tech_manager:
+            from usi_scrapers import api as scraper_api
+            return scraper_api.save_raw_developer(self.tech_manager.config, data, dev_slug, portal_prefix)
+
+        # Fallback (legacy)
         filename = f"raw_{portal_prefix}_{dev_slug}.json"
         file_path = self.dev_raw_dir / filename
-        
-        if file_path.exists():
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            archived_filename = f"raw_{portal_prefix}_{dev_slug}_{ts}.json"
-            archived_path = self.dev_raw_dir / archived_filename
-            file_path.rename(archived_path)
-            logger.info(f"Archived existing raw developer file: {archived_filename}")
-            
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-            
-        logger.info(f"Saved raw developer JSON: {file_path}")
         return file_path
-
     def create_developer_file(self, developer_data: dict):
         """
         Creates or updates a usi_dev_{slug}.json file in self.dev_dir.

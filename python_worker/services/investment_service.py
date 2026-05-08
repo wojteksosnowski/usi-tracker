@@ -11,9 +11,22 @@ logger = logging.getLogger(__name__)
 
 class InvestmentService:
     def __init__(self, data_dir: Path = None, public_usi_dir: Path = None):
-        from python_worker.config import USI_DATA_DIR, PUBLIC_USI_DIR
+        from python_worker.config import USI_DATA_DIR, PUBLIC_USI_DIR, get_scraper_config
+        from usi_scrapers.manager import TechnicalDataManager
+        
         self.data_dir = data_dir or Path(USI_DATA_DIR)
         self.public_usi_dir = public_usi_dir or Path(PUBLIC_USI_DIR)
+        
+        # Initialize library-based technical manager
+        self.lib_config = get_scraper_config()
+        if self.lib_config:
+            from usi_scrapers.fetcher import Fetcher
+            from usi_scrapers.manager import TechnicalDataManager
+            self.fetcher = Fetcher(self.lib_config)
+            self.tech_manager = TechnicalDataManager(self.lib_config)
+        else:
+            self.fetcher = None
+            self.tech_manager = None
 
     def get_investment(self, dev_slug, inv_slug):
         from python_worker.api.utils import _load_investment
@@ -22,31 +35,17 @@ class InvestmentService:
     def register_investment(self, portal, developer_name, inv_slug, name, item_id=None, url=None):
         from python_worker.csv_importer import slugify
         from python_worker.developer_manager import DeveloperManager
-        from python_worker.scraper_otodom import fetch_otodom_agency_name
+        from usi_scrapers import api as scraper_api
 
-        # If developer is unknown and it's Otodom, try a "pre-scrape" to identify the real developer
-        # This mirrors Coda's "pobierzJSON" button which is needed to identify the record.
-        if (not developer_name or slugify(developer_name) == "nieznany-deweloper") and portal == "oto" and url:
-            logger.info(f"Developer unknown for {url}, performing pre-scrape identification (Otodom)...")
+        # Identification pre-scrapes (Otodom/TabelaOfert) via API
+        if (not developer_name or slugify(developer_name) == "nieznany-deweloper") and portal in ("oto", "to") and url:
+            logger.info(f"Developer unknown for {url}, performing pre-scrape identification ({portal})...")
             try:
-                identified_name = fetch_otodom_agency_name(url)
+                identified_name = scraper_api.identify_developer(self.fetcher, portal, url)
                 if identified_name:
                     developer_name = identified_name
-                    logger.info(f"Identified developer via pre-scrape: {developer_name}")
             except Exception as e:
-                logger.error(f"Pre-scrape identification failed (Otodom): {e}")
-
-        # Similar pre-scrape for TabelaOfert
-        if (not developer_name or slugify(developer_name) == "nieznany-deweloper") and portal == "to" and url:
-            from python_worker.scraper_to import fetch_to_agency_name
-            logger.info(f"Developer unknown for {url}, performing pre-scrape identification (TabelaOfert)...")
-            try:
-                identified_name = fetch_to_agency_name(url)
-                if identified_name:
-                    developer_name = identified_name
-                    logger.info(f"Identified developer via pre-scrape: {developer_name}")
-            except Exception as e:
-                logger.error(f"Pre-scrape identification failed (TabelaOfert): {e}")
+                logger.error(f"Pre-scrape identification failed ({portal}): {e}")
 
         if not developer_name or slugify(developer_name) == "nieznany-deweloper":
             logger.error(f"Attempted to register investment with missing or invalid developer: {developer_name}")
@@ -55,19 +54,20 @@ class InvestmentService:
         dev_slug = slugify(developer_name)
         dm = DeveloperManager(self.data_dir)
         
-        # Auto-create developer profile if it doesn't exist
+        # Auto-create developer profile if it doesn't exist (semantic layer)
         dev_path = dm.dev_dir / f"usi_dev_{dev_slug}.json"
         if not dev_path.exists():
             logger.info(f"Auto-creating developer profile for: {developer_name} ({dev_slug})")
             dm.create_developer_file({"developer_slug": dev_slug, "name": developer_name})
 
-        inv_dir = self.data_dir / dev_slug / inv_slug
-        usi_path = inv_dir / f"usi_{inv_slug}.json"
+        # Path resolution via library
+        usi_path = self.tech_manager.get_usi_json_path(dev_slug, inv_slug) if self.tech_manager else \
+                   (self.data_dir / dev_slug / inv_slug / f"usi_{inv_slug}.json")
 
         if usi_path.exists():
             raise ValueError("Investment already exists")
 
-        inv_dir.mkdir(parents=True, exist_ok=True)
+        usi_path.parent.mkdir(parents=True, exist_ok=True)
 
         sources = {}
         if portal == "rp":
@@ -77,8 +77,9 @@ class InvestmentService:
         elif portal == "to":
             sources["to"] = {"url": url}
 
-        import random
-        usi_inv_id = f"INV-{random.randint(1000, 9999)}"
+        # Use DeveloperManager for consistent ID generation
+        usi_inv_id = dm.generate_usi_id("INV")
+        
         skeleton = {
             "investment_slug": inv_slug,
             "developer_slug": dev_slug,
@@ -96,16 +97,20 @@ class InvestmentService:
         return dev_slug, inv_slug
 
     def update_investment(self, dev_slug, inv_slug, use_local_raw=False):
-        # Implementation moved from main.py
-        from python_worker.main import (
-            scrape_rynek_pierwotny, scrape_otodom, scrape_tabelaofert,
-            download_raw_json
-        )
+        """
+        Orchestrates the update of an investment:
+        1. Scrapes raw data (or loads local)
+        2. Transforms to unified USI schema
+        3. Merges with existing data and ratings
+        4. Synchronizes images
+        """
+        from usi_scrapers import api as scraper_api
         from python_worker.developer_manager import DeveloperManager
-        from python_worker.image_saver import save_images
 
-        inv_dir = self.data_dir / dev_slug / inv_slug
-        usi_path = inv_dir / f"usi_{inv_slug}.json"
+        # Path resolution via library
+        usi_path = self.tech_manager.get_usi_json_path(dev_slug, inv_slug) if self.tech_manager else \
+                   (self.data_dir / dev_slug / inv_slug / f"usi_{inv_slug}.json")
+        inv_dir = usi_path.parent
 
         if not usi_path.exists() and not use_local_raw:
             logger.warning(f"Investment file not found skipping: {usi_path}")
@@ -128,58 +133,45 @@ class InvestmentService:
         to_unified = None
         fetched_sources = []
 
-        # RP
-        if "rp" in sources:
-            raw_rp_path = inv_dir / f"raw_rp_{inv_slug}.json"
-            if use_local_raw and raw_rp_path.exists():
-                with open(raw_rp_path, "r") as f:
+        # Generic update loop using scraper_api
+        for portal in ["rp", "oto", "to"]:
+            if portal not in sources: continue
+            
+            portal_name = "RynekPierwotny" if portal == "rp" else ("Otodom" if portal == "oto" else "TabelaOfert")
+            raw_prefix = "rp" if portal == "rp" else ("oto" if portal == "oto" else "to")
+            raw_files = list(inv_dir.glob(f"raw_{raw_prefix}_*.json"))
+            
+            if use_local_raw and raw_files:
+                raw_path = raw_files[0]
+                with open(raw_path, "r") as f:
                     raw_details = json.load(f)
-                    rp_unified = AdapterFactory.get_adapter("rp").transform(raw_details, inv_slug, dev_slug)
-                    fetched_sources.append("RP (local)")
-            elif sources["rp"].get("id"):
-                offer_id = sources["rp"]["id"]
-                res = scrape_rynek_pierwotny(offer_id, dev_slug, inv_slug)
-                if "raw_details" in res:
-                    dm = DeveloperManager(self.data_dir)
-                    dm.save_raw_json(res["raw_details"], dev_slug, inv_slug, "rp")
-                    rp_unified = AdapterFactory.get_adapter("rp").transform(res["raw_details"], inv_slug, dev_slug)
-                    fetched_sources.append("RP")
-
-        # Otodom
-        if "oto" in sources:
-            raw_oto_path = inv_dir / f"raw_oto_{inv_slug}.json"
-            if use_local_raw and raw_oto_path.exists():
-                with open(raw_oto_path, "r") as f:
-                    raw_details = json.load(f)
-                    oto_unified = AdapterFactory.get_adapter("oto").transform(raw_details, inv_slug, dev_slug)
-                    fetched_sources.append("Otodom (local)")
-            elif sources["oto"].get("url"):
-                oto_url = sources["oto"]["url"]
-                res = scrape_otodom(oto_url, dev_slug, inv_slug)
-                if "raw_details" in res:
-                    dm = DeveloperManager(self.data_dir)
-                    dm.save_raw_json(res["raw_details"], dev_slug, inv_slug, "oto")
-                    oto_unified = AdapterFactory.get_adapter("oto").transform(res["raw_details"], inv_slug, dev_slug)
-                    fetched_sources.append("Otodom")
-
-        # TO
-        if "to" in sources:
-            raw_to_path = inv_dir / f"raw_to_{inv_slug}.json"
-            if use_local_raw and raw_to_path.exists():
-                with open(raw_to_path, "r") as f:
-                    raw_details = json.load(f)
-                    to_unified = AdapterFactory.get_adapter("to").transform(raw_details, inv_slug, dev_slug)
-                    fetched_sources.append("TO (local)")
-            elif sources["to"].get("url"):
-                to_url = sources["to"]["url"]
-                res = scrape_tabelaofert(to_url, dev_slug, inv_slug)
-                if "raw_details" in res:
-                    dm = DeveloperManager(self.data_dir)
-                    dm.save_raw_json(res["raw_details"], dev_slug, inv_slug, "to")
-                    to_unified = AdapterFactory.get_adapter("to").transform(res["raw_details"], inv_slug, dev_slug)
-                    fetched_sources.append("TO")
+                    adapter_key = "rp" if portal == "rp" else ("oto" if portal == "oto" else "to")
+                    rp_oto_to_unified = AdapterFactory.get_adapter(adapter_key).transform(raw_details, inv_slug, dev_slug)
+                    
+                    if portal == "rp": rp_unified = rp_oto_to_unified
+                    elif portal == "oto": oto_unified = rp_oto_to_unified
+                    elif portal == "to": to_unified = rp_oto_to_unified
+                    
+                    fetched_sources.append(f"{portal_name} ({raw_path.name})")
+            else:
+                identifier = sources[portal].get("id") or sources[portal].get("url")
+                if identifier:
+                    res = scraper_api.fetch_investment(self.lib_config, self.fetcher, portal, identifier, dev_slug, inv_slug)
+                    if "raw_details" in res:
+                        dm = DeveloperManager(self.data_dir)
+                        dm.save_raw_json(res["raw_details"], dev_slug, inv_slug, raw_prefix)
+                        
+                        adapter_key = "rp" if portal == "rp" else ("oto" if portal == "oto" else "to")
+                        rp_oto_to_unified = AdapterFactory.get_adapter(adapter_key).transform(res["raw_details"], inv_slug, dev_slug)
+                        
+                        if portal == "rp": rp_unified = rp_oto_to_unified
+                        elif portal == "oto": oto_unified = rp_oto_to_unified
+                        elif portal == "to": to_unified = rp_oto_to_unified
+                        
+                        fetched_sources.append(portal_name)
 
         if rp_unified or oto_unified or to_unified:
+            # Semantic layer: Ratings and Merging
             ratings_path = inv_dir / f"meta_{inv_slug}_ratings.json"
             ratings = {}
             if ratings_path.exists():
@@ -192,18 +184,18 @@ class InvestmentService:
             event = f"Sync: {', '.join(fetched_sources)}" if fetched_sources else "Manual Update"
             new_unified = Merger.merge(rp_unified, oto_unified, to_unified, ratings, existing_data=usi_data, event=event)
             
-            # Consolidate image saving
+            # Technical layer: Image synchronization via library
             all_urls = new_unified.get("image_urls", [])
-            if all_urls:
+            if all_urls and self.tech_manager:
                 logger.info(f"Synchronizing images for {inv_slug} ({len(all_urls)} URLs)")
-                saved_filenames = save_images(all_urls, dev_slug, inv_slug)
-                # Filter out any None results if save_images fails for some files
+                saved_filenames = self.tech_manager.sync_images(all_urls, dev_slug, inv_slug)
                 valid_filenames = [f for f in saved_filenames if f]
                 new_unified["image_paths"] = [f"/Public/USI/{dev_slug}/{inv_slug}/{fname}" for fname in valid_filenames]
                 new_unified["images_count"] = len(valid_filenames)
-            else:
-                # If no URLs found, try to preserve existing paths if they are still valid on disk
-                img_dir = self.public_usi_dir / dev_slug / inv_slug
+            elif not all_urls:
+                # Fallback: check disk if no URLs provided (e.g. rebuild from raw without internet)
+                img_dir = self.tech_manager.get_image_path(dev_slug, inv_slug) if self.tech_manager else \
+                          (self.public_usi_dir / dev_slug / inv_slug)
                 if img_dir.is_dir():
                     on_disk = [p.name for p in img_dir.iterdir() if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}]
                     if on_disk:

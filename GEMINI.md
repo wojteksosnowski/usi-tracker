@@ -6,9 +6,10 @@ USI Tracker is a specialized system for monitoring real-estate investments in Po
 
 - **Purpose**: Automate the collection of investment data (prices, delivery dates, amenities, photos) and unify them into a canonical JSON format (`usi_*.json`).
 - **Core Architecture**:
-  - **Scrapers**: Specialized modules for each portal.
+  - **Thin-Client Scrapers**: ALL technical I/O, raw data fetching, and asset management (images) are delegated to the `usi-scrapers` library. The tracker acts as an orchestrator.
+  - **TechnicalDataManager**: Centralized manager in `usi-scrapers` used for path resolution and technical data persistence.
   - **Adapters**: Transforms raw vendor-specific JSON into a unified USI schema. Located in `python_worker/adapters/` (Factory pattern).
-  - **Service Layer**: Business logic encapsulated in `python_worker/services/` (`InvestmentService`, `DiscoveryService`).
+  - **Service Layer**: Business logic encapsulated in `python_worker/services/` (`InvestmentService`, `DiscoveryService`). Focuses on semantic merging and ratings.
   - **Data Store**: A file-based structure under `Public/USIdata/` organized by `{developer_slug}/{investment_slug}/`.
   - **UI API**: Modular Flask Blueprints in `python_worker/api/blueprints/`.
   - **UI**: A local Flask-served React application for high-density visualization.
@@ -55,9 +56,11 @@ pip install -r python_worker/requirements.txt
 
 ## ⚖️ Development Conventions
 
-### Data Unification
-- All new data must be processed through `RPAdapter`, `OtodomAdapter`, or `TOAdapter` before being merged via `Merger.merge`.
-- **Slug Normalization**: Always use `slugify` (from `csv_importer.py`) to handle Polish characters (ł -> l) and ensure consistent folder names.
+### Scraper Delegation & Library Architecture
+- **No Local Scrapers**: Do NOT add new `scraper_*.py` files to `usi-tracker`. All portal interaction logic must reside in the `usi-scrapers` library.
+- **I/O Delegation**: Always use `TechnicalDataManager` from the library to save raw data or sync images. This prevents path drift and ensures consistent storage across environments.
+- **Semantic Separation**: Keep data transformation (Adapters) and merging (Merger) in `usi-tracker`. The library provides "Technical Data," while the tracker creates "Business Data."
+- **Path Resolution**: Avoid hardcoding paths like `Public/USIdata`. Use `config.public_dir` and library utilities to resolve paths.
 
 ### UI Development (React 18)
 - **No Bundler**: Files in `python_worker/ui/` are loaded directly in `index.html`.
