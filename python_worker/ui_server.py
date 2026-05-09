@@ -7,12 +7,14 @@ import os
 from pathlib import Path
 from flask import Flask, send_from_directory, jsonify
 
-from python_worker.config import USI_DATA_DIR, VISIBLE_METADATA_FILE
+from python_worker.config import USI_DATA_DIR, USI_DEV_DIR, VISIBLE_METADATA_FILE
 from python_worker.api.common import get_ui_config, log_ui_error_to_file
 from python_worker.api.blueprints.jobs import jobs_bp
 from python_worker.api.blueprints.investments import investments_bp
 from python_worker.api.blueprints.discovery import discovery_bp
 from python_worker.api.blueprints.reports import reports_bp
+from python_worker.api.blueprints.poi import poi_bp
+from python_worker.api.blueprints.crawler_api import crawler_bp
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +28,8 @@ app.register_blueprint(jobs_bp, url_prefix='/api')
 app.register_blueprint(investments_bp, url_prefix='/api')
 app.register_blueprint(discovery_bp, url_prefix='/api')
 app.register_blueprint(reports_bp, url_prefix='/api')
+app.register_blueprint(poi_bp, url_prefix='/api')
+app.register_blueprint(crawler_bp, url_prefix='/api')
 
 @app.route("/api/config")
 def get_config():
@@ -62,6 +66,11 @@ def serve_static(filename):
     return send_from_directory(UI_DIR, filename)
 
 def run():
+    from python_worker.crawler import init_crawler
+    from python_worker.config import USI_DEV_DIR
+    crawler = init_crawler(USI_DATA_DIR, USI_DEV_DIR)
+    crawler.start()
+
     print(f"USI Tracker UI → http://localhost:{UI_PORT}")
     app.run(host="127.0.0.1", port=UI_PORT, debug=False)
 

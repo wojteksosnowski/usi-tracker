@@ -65,6 +65,8 @@ function DeveloperDetail({
 
   React.useEffect(() => {
     load();
+    // Reset crawler badge when user opens developer detail
+    fetch(`/api/crawler/badge-reset/${dev_slug}`, { method: 'POST' }).catch(() => {});
   }, [load]);
 
   const activeJob = useJobStatus(activeJobId, (finishedJob) => {

@@ -133,6 +133,125 @@
   }
   usiRegister('NearbyInvestmentsModule', NearbyInvestmentsModule);
 
+  // ─── POI Module ───────────────────────────────────────────────────────────
+  const POI_CATEGORY_LABELS = {
+    food:          { label: 'Jedzenie',       icon: 'utensils'     },
+    entertainment: { label: 'Rozrywka',       icon: 'star'         },
+    outdoor:       { label: 'Tereny zielone', icon: 'map'          },
+    transport:     { label: 'Transport',      icon: 'navigation'   },
+    shopping:      { label: 'Zakupy',         icon: 'package'      },
+    education:     { label: 'Edukacja',       icon: 'book'         },
+    health:        { label: 'Zdrowie',        icon: 'heart'        },
+  };
+
+  function PoiModule({ inv }) {
+    const [state, setState] = React.useState('idle'); // idle | loading | done | error | no-coords
+    const [data, setData] = React.useState(null);
+    const devSlug = inv?.developer_slug;
+    const invSlug = inv?.investment_slug;
+
+    const load = React.useCallback((forceRefresh = false) => {
+      if (!devSlug || !invSlug) return;
+      setState('loading');
+      const base = `/api/poi/${devSlug}/${invSlug}`;
+      const url = forceRefresh ? base + '/fetch' : base;
+      const opts = forceRefresh ? { method: 'POST' } : {};
+      fetch(url, opts)
+        .then(async res => {
+          if (res.status === 404) { setState('idle'); return; }
+          if (res.status === 422) { setState('no-coords'); return; }
+          if (!res.ok) { setState('error'); return; }
+          const d = await res.json();
+          setData(d);
+          setState('done');
+        })
+        .catch(() => setState('error'));
+    }, [devSlug, invSlug]);
+
+    React.useEffect(() => { load(false); }, [load]);
+
+    const grouped = React.useMemo(() => {
+      if (!data?.here_places) return {};
+      const g = {};
+      for (const p of data.here_places) {
+        if (!g[p.category]) g[p.category] = [];
+        g[p.category].push(p);
+      }
+      return g;
+    }, [data]);
+
+    const fetchedAt = data?.fetched_at
+      ? new Date(data.fetched_at).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' })
+      : null;
+
+    return (
+      <BaseModule title="Punkty zainteresowania" icon="map">
+        {state === 'loading' && (
+          <div className="usi-app-loading"><window.Spinner size={20} /></div>
+        )}
+        {state === 'no-coords' && (
+          <div className="usi-empty-state"><div className="usi-small usi-text-secondary">Brak współrzędnych dla tej inwestycji.</div></div>
+        )}
+        {state === 'error' && (
+          <div className="usi-empty-state"><div className="usi-small usi-text-secondary">Błąd pobierania POI.</div></div>
+        )}
+        {state === 'idle' && (
+          <div className="usi-poi-empty">
+            <div className="usi-small usi-text-secondary" style={{ marginBottom: 12 }}>Brak danych o punktach w okolicy.</div>
+            <button className="usi-btn usi-btn-primary usi-small" onClick={() => load(true)}>
+              Pobierz POI
+            </button>
+          </div>
+        )}
+        {state === 'done' && data && (
+          <div className="usi-poi-content">
+            <div className="usi-poi-header">
+              {fetchedAt && <span className="usi-tiny usi-text-secondary">Dane z {fetchedAt}</span>}
+              <button className="usi-btn usi-btn-ghost usi-tiny" onClick={() => load(true)} style={{ marginLeft: 'auto' }}>
+                Odśwież
+              </button>
+            </div>
+
+            {Object.entries(grouped).map(([cat, places]) => {
+              const meta = POI_CATEGORY_LABELS[cat] || { label: cat, icon: 'map' };
+              return (
+                <div key={cat} className="usi-poi-group">
+                  <div className="usi-poi-group-header">
+                    <Icon name={meta.icon} size={13} />
+                    <span className="usi-tiny" style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{meta.label}</span>
+                  </div>
+                  {places.map((p, i) => (
+                    <div key={i} className="usi-poi-item">
+                      <div className="usi-poi-item-name usi-small">{p.name}</div>
+                      <div className="usi-poi-item-dist usi-mono usi-tiny">{p.distance}m</div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+
+            {data.wiki_articles?.length > 0 && (
+              <div className="usi-poi-group">
+                <div className="usi-poi-group-header">
+                  <Icon name="book" size={13} />
+                  <span className="usi-tiny" style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Wikipedia</span>
+                </div>
+                {data.wiki_articles.map((a, i) => (
+                  <div key={i} className="usi-poi-item">
+                    <a href={a.url} target="_blank" rel="noreferrer" className="usi-poi-item-name usi-small usi-link">{a.title}</a>
+                    <div className="usi-poi-item-dist usi-mono usi-tiny">{Math.round(a.distance)}m</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </BaseModule>
+    );
+  }
+  ModuleRegistry.register('PoiModule', PoiModule);
+  usiRegister('PoiModule', PoiModule);
+
   function SkeletonModule({ shouldThrow = false }) {
     if (shouldThrow) throw new Error("Sztuczny błąd");
     return (

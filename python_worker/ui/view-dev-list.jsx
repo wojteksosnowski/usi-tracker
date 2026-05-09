@@ -85,11 +85,20 @@ function DeveloperCard({ dev, onSelect }) {
           {dev.website && <div className="usi-tiny usi-text-secondary" style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis' }}>{dev.website}</div>}
         </div>
       }
-      footerRight={dev.suggestions && dev.suggestions.length > 0 && (
-        <div className="usi-pill outline info usi-mono usi-tiny">
-          Sugestie: {dev.suggestions.length}
-        </div>
-      )}
+      footerRight={
+        <>
+          {dev.new_since_review > 0 && (
+            <div className="usi-pill solid success usi-tiny" title="Nowe inwestycje odkryte przez crawler">
+              +{dev.new_since_review} nowe
+            </div>
+          )}
+          {dev.suggestions && dev.suggestions.length > 0 && (
+            <div className="usi-pill outline info usi-mono usi-tiny">
+              Sugestie: {dev.suggestions.length}
+            </div>
+          )}
+        </>
+      }
     />
   );
 }

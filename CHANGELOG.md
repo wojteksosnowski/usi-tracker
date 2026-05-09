@@ -1,3 +1,16 @@
+## POI widget + Developer Crawler — 2026-05-09
+
+- **PoiModule (P01 backend)**: nowe endpointy `GET /api/poi/<dev_slug>/<inv_slug>` (odczyt `poi_<inv_slug>.json`) i `POST /api/poi/<dev_slug>/<inv_slug>/fetch` (fetch HERE Places Browse API + Wikimedia geosearch PL, zapis JSON). Współrzędne z `location.coords`. Kategorie: food, entertainment, outdoor, transport, shopping, education, health.
+- **PoiModule (P02 frontend)**: nowy `PoiModule` w `modules-ui.jsx` — lista POI pogrupowana po kategorii z odległością. Sekcja Wikipedia z linkami. Stan "idle" pokazuje przycisk "Pobierz POI"; auto-load przy otwarciu. Wbudowany w prawą kolumnę `DetailViewA`.
+- **DeveloperCrawler**: moduł `crawler.py` — daemon thread crawlujący discovery dla wszystkich deweloperów. Pierwsze wejście: stagger losowy po 2 tygodniach; powtórka co 30±5 dni. Tempo: 10-20 min przerwa między wizytami. Stan (`last_visit`, `next_visit`, `new_since_review`) zapisywany w `usi_dev_*.json["crawler"]`.
+- **Crawler API**: nowe endpointy `GET /api/crawler/status`, `POST /api/crawler/pause`, `POST /api/crawler/resume`, `POST /api/crawler/badge-reset/<dev_slug>`.
+- **Badge nowych inwestycji**: pole `new_since_review` w odpowiedzi `/api/developers`; karta dewelopera pokazuje zielony badge "+N nowe" gdy crawler znajdzie nowe inwestycje. Badge zerowany przy otwarciu widoku dewelopera.
+
+## Widok C pasek kategorii + DataGrid bez migotania — 2026-05-09
+
+- **ModeC pasek kategorii**: zastąpiono przycisk "Pokaż panel" stałym paskiem 6 chipów (kolorowa kropka + skrót + wartość). Klik w chip ustawia `focusedCat` i otwiera `RatingsPanel`. Strzałka toggle zwija/rozwija panel (max-height 320px).
+- **DataGrid brak migotania**: tryb `table` wyłącza wirtualizację i renderuje wszystkie wiersze bezpośrednio — eliminuje migotanie przy scrollowaniu. Tryb `grid` zachowuje wirtualizację z RAF-throttled scroll handlerem.
+
 ## MiniMapa — pinezka SVG + retina + styl wektorowy; Pobieranie bulk — 2026-05-09
 
 - **Pinezka SVG**: HERE Maps Image API v3 nie obsługuje stylowania markera przez query params (wszystkie opcje `icon:`, `color:` zwracają 400). Zamiast tego nakładamy własny różowy SVG marker (`#E5006D`, teardrop z białym kółkiem) przez `position:absolute; left:50%; top:50%; transform:translate(-50%,-100%)` — mapa z `overlay:zoom=16` jest zawsze wycentrowana na koordynatach, więc marker trafia dokładnie w punkt.

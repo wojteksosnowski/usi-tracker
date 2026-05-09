@@ -150,10 +150,12 @@ def list_developers():
     dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
     developers = dm.list_developers()
     developers.sort(key=lambda x: x.get("name", "").lower())
+    dev_dir_base = Path(USI_DATA_DIR).parent / "USIdev"
     for dev in developers:
-        dev_dir = Path(USI_DATA_DIR) / dev["developer_slug"]
-        if dev_dir.exists():
-            inv_dirs = [d for d in dev_dir.iterdir() if d.is_dir()]
+        slug = dev["developer_slug"]
+        inv_dir = Path(USI_DATA_DIR) / slug
+        if inv_dir.exists():
+            inv_dirs = [d for d in inv_dir.iterdir() if d.is_dir()]
             dev["investments_count"] = len(inv_dirs)
             mtimes = []
             for d in inv_dirs:
@@ -164,6 +166,8 @@ def list_developers():
         else:
             dev["investments_count"] = 0
             dev["last_updated"] = None
+        # Crawler badge
+        dev["new_since_review"] = dev.get("crawler", {}).get("new_since_review", 0)
     return jsonify(developers)
 
 @investments_bp.route("/developer/<dev_slug>")

@@ -1,7 +1,7 @@
 // DetailViewA.jsx — widok szczegółowy tryb A
 
 (function() {
-  const { React, usiRegister, MetadataPanel, RatingsPanel, ModuleWrapper, NearbyInvestmentsModule, ModuleTypes, Gallery, Lightbox, Icon } = window;
+  const { React, usiRegister, MetadataPanel, RatingsPanel, ModuleWrapper, NearbyInvestmentsModule, PoiModule, ModuleTypes, Gallery, Lightbox, Icon } = window;
 
   const DetailsA = ({ inv, ratings, handleRating, comment, handleComment, status, handleStatus, saved, focusedCat, onFocusedCatChange, metaConfig, onUpdateInv }) => {
     const { useDataBus } = window;
@@ -102,7 +102,7 @@
            </button>
            <MetadataPanel inv={inv} config={metaConfig} />
            <div className="usi-h-24" />
-           <ModuleWrapper 
+           <ModuleWrapper
               component={NearbyInvestmentsModule}
               moduleSpec={{
                 inputs: { items: { type: ModuleTypes.RecordSet, from: 'nearbyInvestments' } }
@@ -112,6 +112,8 @@
               icon="map"
               height={400}
            />
+           <div className="usi-h-24" />
+           <PoiModule inv={inv} />
         </div>
         {lightbox !== null && <Lightbox inv={inv} index={lightbox} onClose={() => setLightbox(null)} />}
       </div>
