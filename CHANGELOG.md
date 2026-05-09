@@ -1,3 +1,12 @@
+## Milestone: Scraper Library & Data Integrity — 2026-05-09
+- **Architektura „Thin-Client”**: Zakończono migrację logiki skrapowania i adaptacji danych do zewnętrznej, wersjonowanej biblioteki `usi-scrapers` (v0.1.8).
+- **Naprawa TabelaOfert (v0.1.8)**: Rozwiązano krytyczny błąd wycieku zdjęć z niepowiązanych etapów inwestycji poprzez wdrożenie „slicera” HTML (Area-Limited Extraction).
+- **Czyszczenie Bazy Danych**: Przeprowadzono automatyczne usunięcie 40 „czystych” rekordów TabelaOfert, które posiadały błędy w strukturze zdjęć, w celu ich ponownej, poprawnej rejestracji.
+- **Poprawki RynekPierwotny**: Wdrożono mechanizm „Stage Flattening” w bibliotece, poprawnie mapujący poszczególne etapy inwestycji na niezależne rekordy USI.
+- **Stabilność Konfiguracji**: Naprawiono błędy składniowe w `config.py` i usprawniono mechanizm weryfikacji wersji biblioteki przy starcie systemu.
+- **Unifikacja Danych**: Przygotowano fundamenty pod standaryzację pól `delivery_date`, identyfikując różnice w raportowaniu terminów między portalami.
+- **Optymalizacja Środowiska**: Poprawiono proces instalacji biblioteki `usi-scrapers` poprzez patchowanie `pyproject.toml` (naprawa autodetekcji pakietów).
+
 ## Poprawki 2 — 2026-05-08
 - **Audyt Stylów i CSS**: Wyeliminowano style inline w komponentach JSX, przenosząc je do semantycznych klas. Zoptymalizowano `views.css`, usuwając ponad 800 linii nieużywanego kodu.
 - **Naprawa Modułu „W okolicy”**: Rozwiązano błąd logiczny w wyszukiwaniu pobliskich inwestycji, przywracając poprawne wyświetlanie sąsiedztwa.
