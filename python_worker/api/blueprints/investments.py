@@ -149,8 +149,9 @@ def list_developers():
     from pathlib import Path
     dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
     developers = dm.list_developers()
+    # Hide child developers (merged into a parent via parent_id)
+    developers = [d for d in developers if not d.get("parent_id")]
     developers.sort(key=lambda x: x.get("name", "").lower())
-    dev_dir_base = Path(USI_DATA_DIR).parent / "USIdev"
     for dev in developers:
         slug = dev["developer_slug"]
         inv_dir = Path(USI_DATA_DIR) / slug
@@ -181,13 +182,26 @@ def get_developer_detail(dev_slug):
     dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
     dev = dm.get_developer(dev_slug)
     if not dev: abort(404)
-    investments = []
-    dev_dir = Path(USI_DATA_DIR) / dev_slug
-    if dev_dir.exists():
-        for inv_dir in dev_dir.iterdir():
-            if inv_dir.is_dir() and not inv_dir.name.startswith("."):
-                inv = _load_investment(dev_slug, inv_dir.name)
-                if inv: investments.append(inv)
+
+    target_id = dev.get("usi_dev_id")
+
+    # Collect investments from this dev and all children (merged_from)
+    def _load_inv_dir(d_slug: str) -> list:
+        result = []
+        d = Path(USI_DATA_DIR) / d_slug
+        if d.exists():
+            for inv_dir in d.iterdir():
+                if inv_dir.is_dir() and not inv_dir.name.startswith("."):
+                    inv = _load_investment(d_slug, inv_dir.name)
+                    if inv: result.append(inv)
+        return result
+
+    investments = _load_inv_dir(dev_slug)
+    for member in dev.get("merged_from", []):
+        child_slug = member.get("slug")
+        if child_slug and child_slug != dev_slug:
+            investments.extend(_load_inv_dir(child_slug))
+
     dev["investments"] = investments
     return jsonify(dev)
 

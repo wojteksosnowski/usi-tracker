@@ -239,9 +239,14 @@ class DeveloperManager:
 
     def merge_developers(self, target_slug: str, source_slug: str) -> bool:
         """
-        Merges source developer into target developer.
-        Transfers portal_mapping + metadata, records merge in events log,
-        archives source dev file. Investment folders stay in place.
+        Łączy source dewelopera z target deweloperem.
+
+        Model: pliki NIE są usuwane ani archiwizowane.
+        - source_dev.parent_id = target_dev.usi_dev_id  (hierarchia kaptiałowa)
+        - portal_mapping source trafia do target (non-destructive)
+        - target.merged_from[] przechowuje listę dzieci (cache)
+        - Oba rekordy zostają w USIdev/ (legacy location w USIdata normalizowana)
+        - list_developers() filtruje po parent_id == null
         """
         target_dev = self.get_developer(target_slug)
         source_dev = self.get_developer(source_slug)
@@ -251,24 +256,30 @@ class DeveloperManager:
                          f"source={source_slug} found={source_dev is not None}")
             return False
 
-        # Merge portal mappings
+        target_id = target_dev.get("usi_dev_id")
+        if not target_id:
+            logger.error(f"Merge failed: target {target_slug} has no usi_dev_id")
+            return False
+
+        # Set parent_id on source (this hides it from the main developer list)
+        source_dev["parent_id"] = target_id
+
+        # Enrich target portal_mapping with source mappings (non-destructive)
         target_mapping = target_dev.setdefault("portal_mapping", {})
-        source_mapping = source_dev.get("portal_mapping", {})
-        for portal, data in source_mapping.items():
+        for portal, data in source_dev.get("portal_mapping", {}).items():
             if portal not in target_mapping:
                 target_mapping[portal] = data
                 logger.info(f"Merged {portal} mapping from {source_slug} to {target_slug}")
 
-        # Merge metadata
+        # Enrich target metadata (non-destructive)
         target_meta = target_dev.setdefault("metadata", {})
         for k, v in source_dev.get("metadata", {}).items():
             if not target_meta.get(k) and v:
                 target_meta[k] = v
 
-        # Record in merged_from list
+        # Cache merged children on target (avoids full scan for detail view)
         merged_from = target_dev.setdefault("merged_from", [])
-        already = any(m.get("slug") == source_slug for m in merged_from)
-        if not already:
+        if not any(m.get("slug") == source_slug for m in merged_from):
             merged_from.append({
                 "slug": source_slug,
                 "name": source_dev.get("name", source_slug),
@@ -276,41 +287,37 @@ class DeveloperManager:
                 "merged_at": datetime.now().isoformat(),
             })
 
-        # Remove source from suggestions if present
+        # Remove source from suggestions on target
         target_dev["suggestions"] = [
             s for s in target_dev.get("suggestions", [])
             if s.get("developer_slug") != source_slug
         ]
 
-        # Record event
+        # Events
         self._append_event(target_dev, {
             "type": "merge_in",
             "source_slug": source_slug,
             "source_name": source_dev.get("name", source_slug),
         })
 
+        # Save target
         self.create_developer_file(target_dev)
 
-        # Archive source dev file (mark merged_into, then move)
-        source_file = self.dev_dir / f"usi_dev_{source_slug}.json"
-        legacy_source = self.data_dir / source_slug / f"usi_dev_{source_slug}.json"
-        actual_source = source_file if source_file.exists() else (legacy_source if legacy_source.exists() else None)
+        # Save source with parent_id set.
+        # If source was in legacy USIdata location, normalize it to USIdev.
+        legacy_path = self.data_dir / source_slug / f"usi_dev_{source_slug}.json"
+        canonical_path = self.dev_dir / f"usi_dev_{source_slug}.json"
+        try:
+            canonical_path.write_text(
+                json.dumps(source_dev, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            if legacy_path.exists() and legacy_path != canonical_path:
+                legacy_path.unlink()
+                logger.info(f"Normalized {source_slug} dev file from USIdata to USIdev")
+        except Exception as e:
+            logger.error(f"Failed to save source {source_slug} with parent_id: {e}")
 
-        if actual_source:
-            source_dev["merged_into"] = target_slug
-            source_dev["merged_at"] = datetime.now().isoformat()
-            archive_dir = self.dev_dir / "archived"
-            archive_dir.mkdir(parents=True, exist_ok=True)
-            ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-            dest = archive_dir / f"usi_dev_{source_slug}_{ts}.json"
-            try:
-                dest.write_text(json.dumps(source_dev, ensure_ascii=False, indent=2), encoding="utf-8")
-                actual_source.unlink()
-                logger.info(f"Archived {source_slug} → {dest}")
-            except Exception as e:
-                logger.error(f"Archive failed for {source_slug}: {e}")
-
-        logger.info(f"Merged {source_slug} into {target_slug}")
+        logger.info(f"Linked {source_slug} → parent={target_slug} ({target_id})")
         return True
 
     def dismiss_suggestion(self, dev_slug: str, suggested_id: str) -> bool:
