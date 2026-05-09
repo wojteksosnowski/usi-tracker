@@ -97,10 +97,12 @@ function DataGrid({
   }
 
   // Grid mode: virtualized
-  const effectiveRowHeight = gridConfig.cardHeight;
+  // effectiveRowHeight must include the row gap so calculated total height
+  // matches actual CSS grid height — otherwise the browser auto-corrects scroll.
+  const gap = gridConfig.gap !== undefined ? gridConfig.gap : 16;
+  const effectiveRowHeight = gridConfig.cardHeight + gap;
   let itemsPerRow = 1;
   if (gridConfig.minCardWidth && dimensions.width > 0) {
-    const gap = gridConfig.gap !== undefined ? gridConfig.gap : 16;
     const availableWidth = dimensions.width - 32 - 1;
     itemsPerRow = Math.max(1, Math.floor((availableWidth + gap) / (gridConfig.minCardWidth + gap)));
   } else {

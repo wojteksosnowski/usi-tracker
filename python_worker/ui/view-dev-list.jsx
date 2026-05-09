@@ -8,6 +8,7 @@ function DeveloperListGrid({
   const { developers = [], filters = {} } = bus;
   const { search = '', sources = new Set() } = filters;
   const [onlyActive, setOnlyActive] = React.useState(false);
+  const [onlySuggestions, setOnlySuggestions] = React.useState(false);
 
   const TWELVE_MONTHS_AGO = Date.now() / 1000 - 365 * 24 * 3600;
 
@@ -28,9 +29,17 @@ function DeveloperListGrid({
       if (onlyActive) {
         if (!dev.last_updated || dev.last_updated < TWELVE_MONTHS_AGO) return false;
       }
+      if (onlySuggestions) {
+        if (!dev.suggestions || dev.suggestions.length === 0) return false;
+      }
       return true;
     });
-  }, [developers, search, sources, onlyActive]);
+  }, [developers, search, sources, onlyActive, onlySuggestions]);
+
+  const suggestionsTotal = React.useMemo(
+    () => developers.reduce((n, d) => n + (d.suggestions?.length || 0), 0),
+    [developers]
+  );
 
   return (
     <div data-component="DeveloperListGrid" className="usi-h-full usi-flex-col usi-overflow-hidden">
@@ -40,6 +49,13 @@ function DeveloperListGrid({
           onClick={() => setOnlyActive(v => !v)}>
           Aktywni
         </button>
+        {suggestionsTotal > 0 && (
+          <button
+            className={`usi-btn sm ${onlySuggestions ? '' : 'ghost'}`}
+            onClick={() => setOnlySuggestions(v => !v)}>
+            Sugestie ({suggestionsTotal})
+          </button>
+        )}
         <span className="usi-tiny usi-text-secondary">{filteredDevelopers.length} deweloperów</span>
       </div>
       <div className="usi-flex-1 usi-overflow-hidden">
