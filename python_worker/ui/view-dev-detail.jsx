@@ -50,16 +50,16 @@ function DeveloperDetail({
   
   const { request } = useApi();
 
-  const load = React.useCallback(() => {
-    setLoading(true);
+  const load = React.useCallback((silent = false) => {
+    if (!silent) setLoading(true);
     request(`/api/developer/${dev_slug}`)
       .then(data => {
         setDeveloper(data);
-        setLoading(false);
+        if (!silent) setLoading(false);
       })
       .catch(err => {
         console.error("Failed to load developer", err);
-        setLoading(false);
+        if (!silent) setLoading(false);
       });
   }, [dev_slug, request]);
 
@@ -121,7 +121,7 @@ function DeveloperDetail({
     .then(r => r.json())
     .then(data => {
       if (data.ok) {
-        load(); // sync with server after animation
+        load(true); // silent sync — no spinner, keeps optimistic card visible
       } else {
         // Revert optimistic update
         setLocalMerged(prev => prev.filter(m => m.slug !== source_slug));

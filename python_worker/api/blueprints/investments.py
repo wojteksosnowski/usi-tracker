@@ -1,11 +1,21 @@
 import json
 import logging
+from pathlib import Path
 from flask import Blueprint, jsonify, abort, request, send_file
 from python_worker.services.investment_service import InvestmentService
 from python_worker.jobs import job_manager
 from python_worker.api.utils import _valid_slug, _valid_filename
 
 logger = logging.getLogger(__name__)
+
+def _count_valid_investments(dev_dir: Path) -> int:
+    """Count investment folders that have a usi_*.json file (loadable investments)."""
+    if not dev_dir.exists():
+        return 0
+    return sum(
+        1 for d in dev_dir.iterdir()
+        if d.is_dir() and not d.name.startswith('.') and list(d.glob("usi_*.json"))
+    )
 
 investments_bp = Blueprint('investments', __name__)
 investment_service = InvestmentService()
@@ -154,13 +164,13 @@ def list_developers():
         slug = dev["developer_slug"]
         inv_dir = Path(USI_DATA_DIR) / slug
         if inv_dir.exists():
-            inv_dirs = [d for d in inv_dir.iterdir() if d.is_dir()]
-            dev["investments_count"] = len(inv_dirs)
+            valid_dirs = [d for d in inv_dir.iterdir() if d.is_dir() and not d.name.startswith('.')]
             mtimes = []
-            for d in inv_dirs:
+            for d in valid_dirs:
                 usi_files = list(d.glob("usi_*.json"))
                 if usi_files:
                     mtimes.append(usi_files[0].stat().st_mtime)
+            dev["investments_count"] = len(mtimes)
             dev["last_updated"] = max(mtimes) if mtimes else None
         else:
             dev["investments_count"] = 0
@@ -206,9 +216,7 @@ def get_developer_detail(dev_slug):
         if child_dev:
             member["portal_mapping"] = child_dev.get("portal_mapping", {})
             child_dir = Path(USI_DATA_DIR) / child_slug
-            member["investments_count"] = sum(
-                1 for d in child_dir.iterdir() if d.is_dir()
-            ) if child_dir.exists() else 0
+            member["investments_count"] = _count_valid_investments(child_dir)
 
     # Enrich suggestions with portal_mapping, name, investments_count
     for s in dev.get("suggestions", []):
@@ -220,14 +228,10 @@ def get_developer_detail(dev_slug):
             s["name"] = s_dev.get("name", s_slug)
             s["portal_mapping"] = s_dev.get("portal_mapping", {})
             s_dir = Path(USI_DATA_DIR) / s_slug
-            s["investments_count"] = sum(
-                1 for d in s_dir.iterdir() if d.is_dir()
-            ) if s_dir.exists() else 0
+            s["investments_count"] = _count_valid_investments(s_dir)
 
     dev["investments"] = investments
-    # Count investments belonging only to the root developer (not merged children)
-    root_dir = Path(USI_DATA_DIR) / dev_slug
-    dev["investments_count"] = sum(1 for d in root_dir.iterdir() if d.is_dir()) if root_dir.exists() else 0
+    dev["investments_count"] = _count_valid_investments(Path(USI_DATA_DIR) / dev_slug)
     return jsonify(dev)
 
 @investments_bp.route("/developer/<dev_slug>/merge", methods=["POST"])
