@@ -225,6 +225,9 @@ def get_developer_detail(dev_slug):
             ) if s_dir.exists() else 0
 
     dev["investments"] = investments
+    # Count investments belonging only to the root developer (not merged children)
+    root_dir = Path(USI_DATA_DIR) / dev_slug
+    dev["investments_count"] = sum(1 for d in root_dir.iterdir() if d.is_dir()) if root_dir.exists() else 0
     return jsonify(dev)
 
 @investments_bp.route("/developer/<dev_slug>/merge", methods=["POST"])

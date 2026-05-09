@@ -222,7 +222,7 @@ function DeveloperDetail({
 
           <aside className="developer-sidebar">
             <DeveloperSuggestions suggestions={localSuggestions} onMerge={handleMerge} onDismiss={handleDismiss} />
-            <MergedMembersPanel members={localMerged} arrivingSlug={arrivingSlug} />
+            <MergedMembersPanel dev={developer} members={localMerged} arrivingSlug={arrivingSlug} />
             <DeveloperStats dev={developer} onCityClick={setFilterCity} activeCity={filterCity} />
             <DevEventsLog dev={developer} />
             <DeveloperMetadata dev={developer} />
@@ -469,16 +469,29 @@ function DeveloperSuggestions({ suggestions, onMerge, onDismiss }) {
   );
 }
 
-function MergedMembersPanel({ members, arrivingSlug }) {
-  if (!members || members.length === 0) return null;
+function MergedMembersPanel({ dev, members, arrivingSlug }) {
+  if (!dev) return null;
+  const total = 1 + (members || []).length;
 
   return (
     <div className="usi-card usi-p-16">
       <h3 className="dev-panel-header">
-        Połączone rekordy ({members.length})
+        <Icon name="grid" size={12} />
+        Skład rekordu ({total})
       </h3>
       <div className="usi-flex-col usi-gap-8">
-        {members.map((m, i) => (
+        {/* Main (root) developer card */}
+        <DevMiniCard
+          key={dev.developer_slug}
+          name={dev.name}
+          slug={dev.developer_slug}
+          usiId={dev.usi_dev_id}
+          portalMapping={dev.portal_mapping || {}}
+          invCount={dev.investments_count}
+          sub="Rekord główny"
+        />
+        {/* Merged children */}
+        {(members || []).map((m, i) => (
           <DevMiniCard
             key={m.slug || i}
             name={m.name}
@@ -489,7 +502,7 @@ function MergedMembersPanel({ members, arrivingSlug }) {
             arriving={arrivingSlug === m.slug}
             sub={m.merged_at
               ? 'Połączono ' + new Date(m.merged_at).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' })
-              : null}
+              : 'Połączony rekord'}
           />
         ))}
       </div>
