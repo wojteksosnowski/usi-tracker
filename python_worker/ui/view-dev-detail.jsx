@@ -52,7 +52,7 @@ function DeveloperDetail({
 
   const load = React.useCallback((silent = false) => {
     if (!silent) setLoading(true);
-    request(`/api/developer/${dev_slug}`)
+    request(`/api/developer/${dev_slug}`, { noCache: true })
       .then(data => {
         setDeveloper(data);
         if (!silent) setLoading(false);
