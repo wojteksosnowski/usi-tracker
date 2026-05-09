@@ -286,12 +286,7 @@ function DeveloperHeroBand({ dev }) {
 
       {firstInvWithCoords ? (
         <div style={{ height: 120, borderRadius: 12, overflow: 'hidden', border: '.5px solid var(--usi-border)' }}>
-            <MiniMap 
-                coords={firstInvWithCoords.coords} 
-                height="100%" 
-                hereUrl={firstInvWithCoords.here_map_url} 
-                hereUrlDark={firstInvWithCoords.here_map_url_dark} 
-            />
+            <MiniMap coords={firstInvWithCoords.coords} ratio={3} />
         </div>
       ) : (
         <div className="usi-m-12 usi-flex-center usi-text-secondary usi-tiny" style={{ height: 120, borderRadius: 12, background: 'var(--usi-surface-3)' }}>

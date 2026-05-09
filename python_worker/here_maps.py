@@ -33,6 +33,10 @@ def geocode_address(address: str) -> tuple[float, float] | tuple[None, None]:
     return None, None
 
 
+_STYLE_LIGHT = "explore.satellite.day"
+_STYLE_DARK  = "explore.satellite.night"
+
+
 def build_here_url(
     lat: float,
     lon: float,
@@ -40,16 +44,18 @@ def build_here_url(
     zoom: int = 16,
     width: int = 1536,
     height: int = 512,
-    style: str = "explore.satellite.day",
+    dark: bool = False,
+    style: str = None,
     lang: str = "pl",
     scale_bar: str = "km",
     pois: bool = False,
     marker_size: str = "large",
     marker_icon: str = "bubble",
 ) -> str:
+    if style is None:
+        style = _STYLE_DARK if dark else _STYLE_LIGHT
     pois_val = "enabled" if pois else "disabled"
     path = f"overlay:zoom={zoom}/{width}x{height}/png"
-    # HERE API requires unencoded colons, commas, pipes, semicolons in overlay params
     query = (
         f"apiKey={HERE_API_KEY}"
         f"&overlay=point:{lat},{lon}|size={marker_size};icon={marker_icon}"
@@ -68,6 +74,7 @@ def enrich_with_here_map(result: dict) -> dict:
         return result
     try:
         result["here_map_url"] = build_here_url(float(lat), float(lon))
+        result["here_map_url_dark"] = build_here_url(float(lat), float(lon), dark=True)
     except Exception as e:
         logger.warning(f"Could not build HERE map URL: {e}")
     return result

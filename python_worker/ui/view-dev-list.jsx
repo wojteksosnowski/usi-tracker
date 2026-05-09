@@ -1,53 +1,57 @@
 // view-dev-list.jsx — widok listy deweloperów
 
-function DeveloperListGrid({ 
+function DeveloperListGrid({
   onSelectDev = () => {}
 }) {
   const { React, DataGrid, DeveloperCard, useDataBus } = window;
   const { bus } = useDataBus();
   const { developers = [], filters = {} } = bus;
-  const { search = '', sources = new Set(), cities = new Set() } = filters;
-  
+  const { search = '', sources = new Set() } = filters;
+  const [onlyActive, setOnlyActive] = React.useState(false);
+
+  const TWELVE_MONTHS_AGO = Date.now() / 1000 - 365 * 24 * 3600;
+
   const filteredDevelopers = React.useMemo(() => {
     return developers.filter(dev => {
-      // 1. Search filter
       if (search) {
         const s = search.toLowerCase();
-        const matches = (dev.name || '').toLowerCase().includes(s) || 
+        const matches = (dev.name || '').toLowerCase().includes(s) ||
                         (dev.developer_slug || '').toLowerCase().includes(s) ||
                         (dev.usi_dev_id || '').toLowerCase().includes(s);
         if (!matches) return false;
       }
-
-      // 2. Sources filter
       if (sources.size > 0) {
         const devSources = Object.keys(dev.portal_mapping || {}).map(s => s.toLowerCase());
         const hasMatch = Array.from(sources).some(s => devSources.includes(s.toLowerCase()));
         if (!hasMatch) return false;
       }
-
-      // 3. City filter (from B05 - though user wants it removed from UI, keeping logic for consistency if active)
-      if (cities.size > 0) {
-         // Developers might not have a city field directly, but we could filter by investments if data is enriched
-         // For now, if no city data on dev, we might just pass or filter out if city is selected.
-         // Assuming we want to filter devs who HAVE investments in these cities.
-         // This requires more data than currently in 'dev' object.
+      if (onlyActive) {
+        if (!dev.last_updated || dev.last_updated < TWELVE_MONTHS_AGO) return false;
       }
-
       return true;
     });
-  }, [developers, search, sources, cities]);
+  }, [developers, search, sources, onlyActive]);
 
   return (
-    <div data-component="DeveloperListGrid" className="usi-h-full usi-overflow-hidden">
-      <DataGrid 
-        data={filteredDevelopers}
-        mode="grid"
-        gridConfig={{ minCardWidth: 220, cardHeight: 340, gap: 16 }}
-        onRowClick={onSelectDev}
-        renderCard={(dev) => <DeveloperCard dev={dev} onSelect={() => onSelectDev(dev)} />}
-        emptyMessage="Brak deweloperów pasujących do filtrów"
-      />
+    <div data-component="DeveloperListGrid" className="usi-h-full usi-flex-col usi-overflow-hidden">
+      <div className="usi-dev-list-toolbar">
+        <button
+          className={`usi-btn sm ${onlyActive ? '' : 'ghost'}`}
+          onClick={() => setOnlyActive(v => !v)}>
+          Aktywni
+        </button>
+        <span className="usi-tiny usi-text-secondary">{filteredDevelopers.length} deweloperów</span>
+      </div>
+      <div className="usi-flex-1 usi-overflow-hidden">
+        <DataGrid
+          data={filteredDevelopers}
+          mode="grid"
+          gridConfig={{ minCardWidth: 220, cardHeight: 340, gap: 16 }}
+          onRowClick={onSelectDev}
+          renderCard={(dev) => <DeveloperCard dev={dev} onSelect={() => onSelectDev(dev)} />}
+          emptyMessage="Brak deweloperów pasujących do filtrów"
+        />
+      </div>
     </div>
   );
 }

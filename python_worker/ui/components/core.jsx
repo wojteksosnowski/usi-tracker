@@ -462,35 +462,44 @@ window.usiRegister('NavbarTitle', NavbarTitle);
 function NotificationConsole() {
   const { React, useDataBus, Icon } = window;
   const { bus, setVariable } = useDataBus();
-  const [minimized, setMinimized] = React.useState(true);
+  const [visible, setVisible] = React.useState(false);
   const notifications = bus.appNotifications || [];
 
-  if (notifications.length === 0) return null;
+  React.useEffect(() => {
+    const handler = (e) => {
+      if (e.key === '§') setVisible(v => !v);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   return (
-    <div data-component="NotificationConsole" className={`usi-notification-console ${minimized ? 'minimized' : 'expanded'}`}>
-      <div className="console-header" onClick={() => setMinimized(!minimized)}>
+    <div data-component="NotificationConsole"
+         className={`usi-notification-console expanded${visible ? ' visible' : ''}`}>
+      <div className="console-header" onClick={() => setVisible(false)}>
         <div className="usi-console-header-info">
           <Icon name="terminal" size={14} />
-          <span className="usi-tiny usi-weight-700 usi-text-uppercase">Konsola powiadomień ({notifications.length})</span>
+          <span className="usi-tiny usi-weight-700 usi-text-uppercase">
+            Konsola [{notifications.length}] — § zamknij
+          </span>
         </div>
         <div className="usi-console-header-actions">
           <button className="usi-btn sm ghost icon" onClick={(e) => { e.stopPropagation(); setVariable('appNotifications', []); }}>
             <Icon name="close" size={12} />
           </button>
-          <Icon name={minimized ? 'chevronUp' : 'chevronDown'} size={14} />
         </div>
       </div>
-      {!minimized && (
-        <div className="console-content usi-scroll">
-          {notifications.slice().reverse().map((n, i) => (
+      <div className="console-content usi-scroll">
+        {notifications.length === 0
+          ? <div className="console-line info"><span className="line-msg">— brak powiadomień —</span></div>
+          : notifications.slice().reverse().map((n, i) => (
             <div key={i} className={`console-line ${n.type || 'info'}`}>
               <span className="line-time">[{new Date(n.time).toLocaleTimeString()}]</span>
               <span className="line-msg">{n.msg}</span>
             </div>
-          ))}
-        </div>
-      )}
+          ))
+        }
+      </div>
     </div>
   );
 }

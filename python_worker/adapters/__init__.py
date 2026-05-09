@@ -95,12 +95,16 @@ class RPAdapter:
 
         offer_id = str(raw.get("id", ""))
         url = raw.get("url")
-        if not url:
-            vendor = _get_val(raw, "vendor")
-            vendor_slug = _get_val(vendor, "slug") if isinstance(vendor, dict) else None
-            offer_slug = raw.get("slug", "")
-            if vendor_slug and offer_slug:
-                url = f"https://rynekpierwotny.pl/oferty/{vendor_slug}/{offer_slug}-{offer_id}/"
+        vendor = _get_val(raw, "vendor")
+        if isinstance(vendor, dict):
+            vendor_name = _get_val(vendor, "name")
+            if vendor_name:
+                u["developer"] = vendor_name
+            if not url:
+                vendor_slug = _get_val(vendor, "slug")
+                offer_slug = raw.get("slug", "")
+                if vendor_slug and offer_slug:
+                    url = f"https://rynekpierwotny.pl/oferty/{vendor_slug}/{offer_slug}-{offer_id}/"
 
         u["sources"]["rp"] = {"id": offer_id, "url": url}
         u["location"].update({

@@ -200,6 +200,10 @@ class Merger:
             ex_dev_id = existing_data.get("usi_dev_id")
             if ex_dev_id and not result.get("usi_dev_id"):
                 result["usi_dev_id"] = ex_dev_id
+            if not result.get("developer") and existing_data.get("developer"):
+                result["developer"] = existing_data["developer"]
+            if not result.get("developer_slug") and existing_data.get("developer_slug"):
+                result["developer_slug"] = existing_data["developer_slug"]
 
         if existing_data:
             changes = Merger._detect_changes(existing_data, result)

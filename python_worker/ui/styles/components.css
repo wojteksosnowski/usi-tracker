@@ -324,15 +324,20 @@
 /* Notification Console */
 .usi-notification-console {
   position: fixed;
-  bottom: 0;
+  top: 0;
   left: 0;
   right: 0;
-  z-index: 1000;
+  z-index: 2000;
   background: var(--usi-surface);
-  border-top: 1px solid var(--usi-border-strong);
+  border-bottom: 1px solid var(--usi-border-strong);
   box-shadow: var(--usi-shadow-lg);
-  transition: all 0.3s ease;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  transform: translateY(-100%);
+  transition: transform 0.25s ease;
+}
+
+.usi-notification-console.visible {
+  transform: translateY(0);
 }
 
 .usi-notification-console.minimized {
@@ -340,7 +345,7 @@
 }
 
 .usi-notification-console.expanded {
-  height: 200px;
+  height: 220px;
 }
 
 .console-header {
@@ -474,6 +479,21 @@
 
 .usi-datagrid-pre-debug {
   font-size: 10px;
+}
+
+.list-table-thumb {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 6px;
+  display: block;
+}
+
+.list-table-thumb-empty {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  background: var(--usi-surface-3);
 }
 
 /* Gallery */
@@ -1202,19 +1222,21 @@
 .usi-status-messenger {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  border-radius: 20px;
+  gap: 6px;
+  padding: 2px 0;
+  background: none !important;
+  border: none !important;
   animation: usi-slide-down 0.2s ease-out;
 }
 
 .usi-status-messenger-text {
-  font-size: 13px;
-  font-weight: 600;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 300px;
+  max-width: 360px;
 }
 
 .usi-status-messenger-close {
@@ -1451,7 +1473,6 @@
   text-decoration: none;
   background: var(--usi-surface-3);
   border: .5px solid var(--usi-border);
-  height: var(--usi-map-height, 140px);
 }
 
 .usi-minimap-img,

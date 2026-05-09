@@ -3,27 +3,84 @@
 (function() {
   const { React, usiRegister, useDarkMode, useModuleContext, BaseModule, useDataBus } = window;
 
-  function MiniMap({ geo, label, height = 140, points = [], hereUrl = '', hereUrlDark = '', coords, containerWidth }) {
+  const _HERE_BASE = "https://image.maps.hereapi.com/mia/v3/base/mc";
+  const _HERE_STYLE_LIGHT = "explore.day";
+  const _HERE_STYLE_DARK  = "explore.night";
+  const _HERE_MAX_PX = 2048;
+
+  function _buildHereUrl(lat, lon, cssWidth, cssHeight, dark) {
+    const apiKey = window.usiConfig?.hereApiKey || 'BDske2zxCqqwwBGMf4IBKA49FRvRZLe4TnfBtYTor9c';
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.min(Math.round(cssWidth * dpr), _HERE_MAX_PX);
+    const h = Math.min(Math.round(cssHeight * dpr), _HERE_MAX_PX);
+    const style = dark ? _HERE_STYLE_DARK : _HERE_STYLE_LIGHT;
+    const path = `overlay:zoom=16/${w}x${h}/png`;
+    const query = `apiKey=${apiKey}&overlay=point:${lat},${lon}&style=${style}&lang=pl`;
+    return `${_HERE_BASE}/${path}?${query}`;
+  }
+
+  // ratio = width / height, default 3 (3:1 landscape)
+  function MiniMap({ geo, label, ratio = 3, coords }) {
     const ctx = useModuleContext();
     const mapCoords = geo ? [geo.lat, geo.lng] : (coords || (ctx.geoPoint ? [ctx.geoPoint.lat, ctx.geoPoint.lng] : null));
-    
+    const isDark = useDarkMode();
+
+    const containerRef = React.useRef(null);
+    const [imgUrls, setImgUrls] = React.useState({ light: '', dark: '' });
+    const pendingRef = React.useRef(null);
+    const lastSizeRef = React.useRef({ w: 0, h: 0 });
+
+    const rebuildUrls = React.useCallback((w) => {
+      if (!mapCoords || w < 10) return;
+      const h = Math.round(w / ratio);
+      if (w === lastSizeRef.current.w && h === lastSizeRef.current.h) return;
+      lastSizeRef.current = { w, h };
+      const [lat, lon] = mapCoords;
+      setImgUrls({
+        light: _buildHereUrl(lat, lon, w, h, false),
+        dark:  _buildHereUrl(lat, lon, w, h, true),
+      });
+    }, [mapCoords, ratio]);
+
+    // ResizeObserver: stretch immediately, debounce URL rebuild ≥5s
     React.useEffect(() => {
-      if (containerWidth > 0) { console.log(`[MiniMap] containerWidth: ${Math.round(containerWidth)}px`); }
-    }, [containerWidth]);
+      if (!containerRef.current) return;
+      const ro = new ResizeObserver(entries => {
+        const w = Math.round(entries[0].contentRect.width);
+        if (w < 10) return;
+        if (pendingRef.current) clearTimeout(pendingRef.current);
+        pendingRef.current = setTimeout(() => rebuildUrls(w), 5000);
+        if (!imgUrls.light) rebuildUrls(w);
+      });
+      ro.observe(containerRef.current);
+      return () => { ro.disconnect(); if (pendingRef.current) clearTimeout(pendingRef.current); };
+    }, [rebuildUrls, imgUrls.light]);
+
+    // Rebuild when coords become available (investment loaded after mount)
+    React.useEffect(() => {
+      if (!containerRef.current || !mapCoords) return;
+      const w = containerRef.current.offsetWidth;
+      if (w > 10) rebuildUrls(w);
+    }, [mapCoords, rebuildUrls]);
 
     if (!mapCoords || mapCoords[0] === 0) return null;
-    const url = `https://www.google.com/maps/@${mapCoords[0]},${mapCoords[1]},780m/`;
-    const isDark = useDarkMode();
-    const imgSrc = (isDark && hereUrlDark) ? hereUrlDark : hereUrl;
+
+    const googleUrl = `https://www.google.com/maps/@${mapCoords[0]},${mapCoords[1]},780m/`;
+    const imgSrc = (isDark && imgUrls.dark) ? imgUrls.dark : imgUrls.light;
+    // Aspect-ratio via padding-bottom trick: height = width / ratio → pb = (1/ratio)*100%
+    const pb = `${(100 / ratio).toFixed(4)}%`;
 
     return (
-      <a data-component="MiniMap" href={url} target="_blank" rel="noopener" title="Otwórz w Google Maps"
-        className="usi-minimap-container"
-        style={{ '--usi-map-height': `${height}px` }}>
+      <a data-component="MiniMap" ref={containerRef} href={googleUrl} target="_blank"
+         rel="noopener" title="Otwórz w Google Maps"
+         className="usi-minimap-container"
+         style={{ display: 'block', position: 'relative', paddingBottom: pb, overflow: 'hidden' }}>
         {imgSrc ? (
-          <img src={imgSrc} alt="Mapa lokalizacji" className="usi-minimap-img" />
+          <img src={imgSrc} alt="Mapa lokalizacji"
+               style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
         ) : (
-          <svg viewBox="0 0 300 200" preserveAspectRatio="none" className="usi-minimap-svg">
+          <svg viewBox="0 0 300 200" preserveAspectRatio="none"
+               style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
             <rect x="0" y="0" width="300" height="200" fill="var(--usi-surface-3)" />
             <path d="M0 40 L80 50 L120 30 L200 35 L300 60 L300 0 L0 0 Z" fill="color-mix(in oklab, #7DB951 18%, transparent)" />
             <path d="M0 160 L40 165 L80 158 L120 170 L160 168 L200 175 L240 170 L300 178 L300 200 L0 200 Z" fill="color-mix(in oklab, #3989C6 18%, transparent)" />
@@ -43,9 +100,7 @@
   MiniMap.__spec = {
     props: {
       label: { type: 'String', label: 'Etykieta', default: 'Lokalizacja' },
-      height: { type: 'Number', label: 'Wysokość (px)', default: 140 },
-      hereUrl: { type: 'String', label: 'Statyczna Mapa (Light)', default: '' },
-      hereUrlDark: { type: 'String', label: 'Statyczna Mapa (Dark)', default: '' }
+      ratio: { type: 'Number', label: 'Proporcja szerokość/wysokość', default: 3 },
     }
   };
   window.ModuleRegistry.register('MiniMap', MiniMap, MiniMap.__spec);

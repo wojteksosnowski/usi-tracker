@@ -69,7 +69,7 @@ window.usiRegister('ViewDownload', function ViewDownload() {
       const data = await request('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           developer_name: res.developer || res.agency_name || res.agency || res.vendor_slug || "Nieznany Deweloper",
           inv_slug: res.slug || String(res.id),
           name: res.name || String(res.id),
@@ -79,8 +79,7 @@ window.usiRegister('ViewDownload', function ViewDownload() {
         })
       });
       if (data) {
-        setResults(prev => prev.map(r => r.url === res.url ? { ...r, registered: true } : r));
-        // Refresh jobs and main investments list
+        setResults(prev => prev.filter(r => r.url !== res.url));
         if (refetch) {
           refetch('jobs');
           refetch('investments');
@@ -91,6 +90,16 @@ window.usiRegister('ViewDownload', function ViewDownload() {
     } finally {
       setRegistering(prev => ({ ...prev, [res.url]: false }));
     }
+  };
+
+  const handleRegisterAll = async () => {
+    const newOnes = visibleResults.filter(r => r.is_new && !r.registered);
+    if (newOnes.length === 0) return;
+    setVariable('appStatus', { type: 'info', msg: `Pobieranie ${newOnes.length} nowych inwestycji...` });
+    for (const res of newOnes) {
+      await handleRegister(res);
+    }
+    setVariable('appStatus', { type: 'success', msg: `Pobrano ${newOnes.length} inwestycji.` });
   };
 
   const visibleResults = React.useMemo(() => {
@@ -182,8 +191,18 @@ window.usiRegister('ViewDownload', function ViewDownload() {
     return "Nie znaleziono inwestycji spełniających kryteria.";
   }, [loading, results.length, visibleResults.length]);
 
+  const newCount = visibleResults.filter(r => r.is_new && !r.registered).length;
+
   return (
     <div data-component="ViewDownload" className="download-view-container">
+      {newCount > 0 && (
+        <div className="usi-download-bulk-bar">
+          <span className="usi-tiny usi-text-secondary">{newCount} nowych do pobrania</span>
+          <button className="usi-btn sm" onClick={handleRegisterAll}>
+            <Icon name="zap" size={12} /> Pobierz wszystkie nowe ({newCount})
+          </button>
+        </div>
+      )}
       <div className="usi-flex-1 usi-overflow-hidden">
         {errorMsg && (
           <div className="usi-p-24" style={{ paddingBottom: 0 }}>

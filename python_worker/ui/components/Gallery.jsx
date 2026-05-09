@@ -64,8 +64,8 @@
 
     React.useEffect(() => {
       const handler = (e) => {
-        if (e.key === 'ArrowLeft')  { e.stopPropagation(); setIdx(i => Math.max(0, i - 1)); }
-        if (e.key === 'ArrowRight') { e.stopPropagation(); setIdx(i => Math.min(total - 1, i + 1)); }
+        if (e.key === '[') { e.preventDefault(); setIdx(i => Math.max(0, i - 1)); }
+        if (e.key === ']') { e.preventDefault(); setIdx(i => Math.min(total - 1, i + 1)); }
       };
       document.addEventListener('keydown', handler);
       return () => document.removeEventListener('keydown', handler);
@@ -144,8 +144,8 @@
     React.useEffect(() => {
       const k = (e) => {
         if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
-        if (e.key === 'ArrowLeft') { e.stopPropagation(); setI(p => Math.max(0, p - 1)); }
-        if (e.key === 'ArrowRight') { e.stopPropagation(); setI(p => Math.min(inv.photos.length - 1, p + 1)); }
+        if (e.key === '[') { e.preventDefault(); setI(p => Math.max(0, p - 1)); }
+        if (e.key === ']') { e.preventDefault(); setI(p => Math.min(inv.photos.length - 1, p + 1)); }
       };
       document.addEventListener('keydown', k, true);
       return () => document.removeEventListener('keydown', k, true);

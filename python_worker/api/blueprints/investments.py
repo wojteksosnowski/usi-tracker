@@ -152,7 +152,18 @@ def list_developers():
     developers.sort(key=lambda x: x.get("name", "").lower())
     for dev in developers:
         dev_dir = Path(USI_DATA_DIR) / dev["developer_slug"]
-        dev["investments_count"] = sum(1 for d in dev_dir.iterdir() if d.is_dir()) if dev_dir.exists() else 0
+        if dev_dir.exists():
+            inv_dirs = [d for d in dev_dir.iterdir() if d.is_dir()]
+            dev["investments_count"] = len(inv_dirs)
+            mtimes = []
+            for d in inv_dirs:
+                usi_files = list(d.glob("usi_*.json"))
+                if usi_files:
+                    mtimes.append(usi_files[0].stat().st_mtime)
+            dev["last_updated"] = max(mtimes) if mtimes else None
+        else:
+            dev["investments_count"] = 0
+            dev["last_updated"] = None
     return jsonify(developers)
 
 @investments_bp.route("/developer/<dev_slug>")

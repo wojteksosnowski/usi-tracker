@@ -130,7 +130,7 @@ function DashboardMap({ investments = [], accent, dark, apiKey }) {
   const { React, MiniMap } = window;
   return (
     <div className="dashboard-map-container">
-        <MiniMap coords={[52.23, 21.01]} height="100%" />
+        <MiniMap coords={[52.23, 21.01]} ratio={3} />
     </div>
   );
 }

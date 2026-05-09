@@ -1,3 +1,33 @@
+## MiniMapa — pinezka SVG + retina + styl wektorowy; Pobieranie bulk — 2026-05-09
+
+- **Pinezka SVG**: HERE Maps Image API v3 nie obsługuje stylowania markera przez query params (wszystkie opcje `icon:`, `color:` zwracają 400). Zamiast tego nakładamy własny różowy SVG marker (`#E5006D`, teardrop z białym kółkiem) przez `position:absolute; left:50%; top:50%; transform:translate(-50%,-100%)` — mapa z `overlay:zoom=16` jest zawsze wycentrowana na koordynatach, więc marker trafia dokładnie w punkt.
+
+## MiniMapa retina + styl wektorowy; Pobieranie bulk — 2026-05-09
+
+- **MiniMap retina**: `_buildHereUrl` mnoży CSS pixels przez `devicePixelRatio` (max 2×, ograniczone do 2048px HERE limit) — mapa ostra na ekranach Retina.
+- **Styl wektorowy HERE**: zmieniono z `explore.satellite.day/night` na `explore.day` / `explore.night` — czytelniejsza mapa, lepsza typografia w dark mode.
+- **Pobieranie — usunięcie karty**: po udanym `/api/register` karta natychmiast znika z listy (zamiast oznaczenia `registered: true`).
+- **Pobierz wszystkie nowe**: pasek `usi-download-bulk-bar` z licznikiem i przyciskiem "Pobierz wszystkie nowe (N)" — sekwencyjna rejestracja, błąd jednej nie przerywa batcha.
+
+## UI — naprawki Inwestycji, Deweloperów i Powiadomień — 2026-05-09
+
+- **CSS `list-table-thumb`**: dodano brakujący constraint (40×40px, `object-fit: cover`, border-radius) — miniaturki w widoku listy przestały być olbrzymie.
+- **Nawigacja strzałkami**: `←`/`→` przełączają inwestycje z listy `visibleInvestments` gdy widok `detail` jest aktywny; `[`/`]` (zamiast strzałek) przełączają zdjęcia w `SlideShow` i `Lightbox`.
+- **Przycisk "Powrót"**: `prevView` state w `app.jsx` — back z widoku detail inwestycji wraca do poprzedniego widoku (`dev-detail` lub `list`), nie zawsze do listy.
+- **Filtr "Aktywni"**: backend `/api/developers` wzbogacony o `last_updated` (max mtime `usi_*.json` w folderze dewelopera); frontend filtruje po 12 miesiącach.
+- **StatusMessenger**: usunięto styl pill/badge (border-radius, padding); zastąpiono monosopace text (`font-family: JetBrains Mono`).
+- **NotificationConsole**: przeniesiono z dołu na górę ekranu (slide `translateY(-100%)` → `translateY(0)`); toggle klawiszem `§`; konsola zawsze wyrenderowana (animacja CSS, nie warunkowy `return null`).
+- **Naprawa `developer: null`**: `RPAdapter._from_raw` wyciąga `vendor.name`; `Merger` zachowuje `developer`/`developer_slug` z `existing_data`.
+
+## MiniMap dynamiczny + naprawki adaptera — 2026-05-09
+
+- **MiniMap ResizeObserver**: `MiniMap` mierzy teraz szerokość kontenera przez `ResizeObserver`, przelicza wysokość z proporcji (`ratio`, domyślnie 3:1) i buduje URL HERE po stronie klienta — bez pre-generowania w backendzie.
+- **Dark mode w MiniMap**: generowane są oba warianty URL (light/dark) przy każdym przeliczeniu; przełącznik motywu działa natychmiast bez reloadu obrazu.
+- **Debounce URL**: nowy request do HERE nie częściej niż co 5 sekund od ostatniej zmiany rozmiaru; bieżący obraz rozciąga się (`object-fit: cover`) do czasu doładowania.
+- **CSS fix — padding-bottom vs height**: usunięto `height: var(--usi-map-height, 140px)` z `.usi-minimap-container`, który kolidował z techniką `padding-bottom` nowego MiniMap i powodował 2× za dużą mapę.
+- **Naprawa `developer: null`**: `RPAdapter._from_raw` teraz wyciąga `vendor.name` z raw RP JSON i ustawia pole `developer`; `Merger` zachowuje `developer`/`developer_slug` z `existing_data` gdy portal zwraca null.
+- **Usunięto pre-generowanie URL HERE z backendu**: `api/utils.py` nie dodaje już `here_map_url`/`here_map_url_dark` do odpowiedzi (generowanie przeniesione do klienta).
+
 ## Weryfikacja zmiany statusu w metadanych — 2026-05-09
 - Zdiagnozowano i naprawiono błąd synchronizacji statusu inwestycji między backendem a UI.
 - Poprawiono hook useRatings, aby automatycznie aktualizował lokalny stan DataBus po udanym zapisie.

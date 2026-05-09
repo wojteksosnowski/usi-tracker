@@ -43,12 +43,7 @@
 
         {hasMap && (
           <div className="hero-band-map-col">
-              <MiniMap 
-                geo={geoPoint} 
-                height="100%" 
-                hereUrl={inv.here_map_url} 
-                hereUrlDark={inv.here_map_url_dark} 
-              />
+              <MiniMap geo={geoPoint} ratio={3} />
           </div>
         )}
       </div>

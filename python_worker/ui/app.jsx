@@ -54,6 +54,7 @@
 
     const rootRef = React.useRef(null);
     const [view, setView] = React.useState('list');
+    const [prevView, setPrevView] = React.useState('list');
     const [navOpen, setNavOpen] = React.useState(false);
     const [selectedInv, setSelectedInv] = React.useState(null);
     const [selectedDev, setSelectedDev] = React.useState(null);
@@ -103,14 +104,22 @@
 
       const handleSelectInv = (inv) => {
         if (!inv) return;
-        console.group('[App] Selected Investment');
-        console.log('Slug:', inv.slug);
-        console.log('Photos:', inv.photos?.length || 0, inv.photos);
-        console.log('Metadata:', { price: inv.price_avg, delivery: inv.delivery, units: inv.units });
-        console.groupEnd();
+        setPrevView(view);
         setSelectedInv(inv);
         setView('detail');
       };
+
+      React.useEffect(() => {
+        const handler = (e) => {
+          if (view !== 'detail' || !selectedInv) return;
+          const list = visibleInvestments || [];
+          const idx = list.findIndex(i => i.slug === selectedInv.slug);
+          if (e.key === 'ArrowLeft' && idx > 0) { e.preventDefault(); handleSelectInv(list[idx - 1]); }
+          if (e.key === 'ArrowRight' && idx < list.length - 1) { e.preventDefault(); handleSelectInv(list[idx + 1]); }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+      }, [view, selectedInv, visibleInvestments]);
 
       const toggleSource = (id, isShift) => {
         setVariable('filters.sources', prev => {
@@ -368,7 +377,7 @@
               {view === 'detail' && selectedInv && (
                 <DetailRightPanel
                   inv={selectedInv}
-                  onBack={() => setView('list')}
+                  onBack={() => setView(prevView || 'list')}
                   onUpdateInv={() => {
                     refetch();
                     const { developer_slug: d, investment_slug: i } = selectedInv;

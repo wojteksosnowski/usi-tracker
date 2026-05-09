@@ -167,6 +167,16 @@
     overflow: hidden;
 }
 
+.usi-dev-list-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 0.5px solid var(--usi-border);
+  background: var(--usi-surface);
+  flex-shrink: 0;
+}
+
 .developer-detail-toolbar {
     display: flex;
     align-items: center;
@@ -358,6 +368,17 @@
     height: 100vh;
     overflow: hidden;
     background: var(--usi-bg);
+}
+
+.usi-download-bulk-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  border-bottom: 0.5px solid var(--usi-border);
+  background: var(--usi-surface);
+  flex-shrink: 0;
+  gap: 12px;
 }
 
 .download-empty-state {

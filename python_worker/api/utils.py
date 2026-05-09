@@ -7,7 +7,6 @@ from pathlib import Path
 from datetime import datetime
 from functools import lru_cache
 from python_worker.config import USI_DATA_DIR, PUBLIC_USI_DIR
-from python_worker.here_maps import build_here_url
 
 logger = logging.getLogger(__name__)
 
@@ -161,14 +160,6 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path = None, public
     lat = loc.get("coords", [0, 0])[0] or 0
     lng = loc.get("coords", [0, 0])[1] or 0
     
-    here_map_url = here_map_url_dark = ""
-    if lat != 0 or lng != 0:
-        try:
-            here_map_url = build_here_url(lat, lng, style="explore.day", zoom=14, width=560, height=140)
-            here_map_url_dark = build_here_url(lat, lng, style="explore.night", zoom=14, width=560, height=140)
-        except Exception:
-            pass
-            
     address = loc.get("address") or ""
     district = loc.get("district")
     if not district:
@@ -208,6 +199,4 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path = None, public
         "photos_to_delete": photos_to_delete,
         "folder_path": str(inv_dir),
         "website": "",
-        "here_map_url": here_map_url,
-        "here_map_url_dark": here_map_url_dark,
     }
