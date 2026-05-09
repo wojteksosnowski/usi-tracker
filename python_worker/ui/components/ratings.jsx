@@ -26,22 +26,27 @@
                 cursor: readonly ? 'default' : 'pointer',
                 width: size, height: size,
                 transform: hover === idx ? 'scale(1.1)' : 'scale(1)',
+                position: 'relative'
               }}>
-              <div className="usi-starrating-svg-wrapper" style={{ width: size, height: size }}>
-                <svg width="0" height="0" style={{ position: 'absolute' }}>
-                  <defs>
-                    <linearGradient id={`half-${i}-${size}`} x1="0" x2="1" y1="0" y2="0">
-                      <stop offset="50%" stopColor={c} />
-                      <stop offset="50%" stopColor="var(--usi-star-empty)" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-                <Icon 
-                  name="usiLogo" 
-                  size={size} 
-                  color={filled ? c : (halfFill ? `url(#half-${i}-${size})` : 'var(--usi-star-empty)')}
-                />
-              </div>
+              <img src="/assets/usi-star-white.svg" width={size} height={size}
+                style={{
+                  opacity: filled || halfFill ? 1 : 0.2,
+                  filter: (filled || halfFill) ? 'none' : 'grayscale(1) brightness(0.5)',
+                  transition: 'opacity .12s, filter .12s'
+                }}
+                alt="star"
+              />
+              {halfFill && (
+                <div style={{
+                  position: 'absolute', top: 0, left: 0, width: '50%', height: '100%',
+                  overflow: 'hidden', pointerEvents: 'none'
+                }}>
+                  <img src="/assets/usi-star-white.svg" width={size} height={size}
+                    style={{ position: 'absolute', top: 0, left: 0 }}
+                    alt="star-half"
+                  />
+                </div>
+              )}
             </button>
           );
         })}
@@ -64,10 +69,14 @@
                 className="usi-categoryrating-circle-btn"
                 style={{ background: filled ? category.color : 'var(--usi-surface-3)' }}>
                 {filled && (
-                  <Icon name={n === 0 ? 'usiZero' : 'usiStar'} size={sz * 0.7} />
+                  <img
+                    src={n === 0 ? '/assets/usi-zero-white.svg' : '/assets/usi-star-white.svg'}
+                    width="14" height="16"
+                    alt={String(n)}
+                    className="usi-categoryrating-circle-img"
+                  />
                 )}
-                </button>
-
+              </button>
             );
           })}
         </div>
@@ -179,9 +188,14 @@
       fracChar = '¼';
     }
     const Star = ({ opacity = 1 }) => (
-      <svg width={15} height={15} viewBox="0 0 16 16" fill="currentColor" className="usi-usistarscore-star" style={{ opacity }}>
-        <path d="M8 2l1.8 4 4.2.4-3.2 2.8 1 4.4L8 11.4 4.2 13.6l1-4.4L2 6.4l4.2-.4z" />
-      </svg>
+      <img
+        src="/assets/icons/star.svg"
+        width={15}
+        height={15}
+        className="usi-usistarscore-star"
+        alt="star"
+        style={{ opacity, display: 'inline-block', verticalAlign: 'middle' }}
+      />
     );
     return (
       <div data-component="UsiStarScore" className="usi-usistarscore-container">
@@ -214,10 +228,13 @@
     return (
       <div data-component="WeightedUsiScore" className="usi-weightedscore-container">
         <div className="usi-weightedscore-badge" style={{ width: size, height: size }}>
-          <Icon name={score < 0.5 ? 'usiZero' : 'usiStar'} size={size * 0.6} />
+          <img 
+            src={score < 0.5 ? '/assets/usi-zero-white.svg' : '/assets/usi-star-white.svg'} 
+            width={size * 0.55} height={size * 0.55} 
+            alt="USI"
+          />
         </div>
         <div className="usi-weightedscore-info">
-
           <div className="usi-weightedscore-value" style={{ fontSize: size * 0.55 }}>
             {nFull}{fracChar && <span style={{ fontSize: '0.65em', verticalAlign: 'top', marginLeft: 1 }}>{fracChar}</span>}
             <span className="usi-weightedscore-max">/ 4</span>

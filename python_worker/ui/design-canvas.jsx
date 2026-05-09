@@ -442,7 +442,7 @@ function DCArtboardFrame({ sectionId, artboard, label, order, onRename, onReorde
     <div ref={ref} data-dc-slot={id} style={{ position: 'relative', flexShrink: 0 }}>
       <div className="dc-labelrow" style={{ position: 'absolute', bottom: '100%', left: -4, marginBottom: 4, color: DC.label }}>
         <div className="dc-grip" onPointerDown={onGripDown} title="Drag to reorder">
-          <svg width="9" height="13" viewBox="0 0 9 13" fill="currentColor"><circle cx="2" cy="2" r="1.1"/><circle cx="7" cy="2" r="1.1"/><circle cx="2" cy="6.5" r="1.1"/><circle cx="7" cy="6.5" r="1.1"/><circle cx="2" cy="11" r="1.1"/><circle cx="7" cy="11" r="1.1"/></svg>
+          <img src="/assets/dc-grip.svg" width="9" height="13" alt="grip" />
         </div>
         <div className="dc-labeltext" onClick={onFocus} title="Click to focus">
           <DCEditable value={label} onChange={onRename} onClick={(e) => e.stopPropagation()}
@@ -450,7 +450,7 @@ function DCArtboardFrame({ sectionId, artboard, label, order, onRename, onReorde
         </div>
       </div>
       <button className="dc-expand" onClick={onFocus} onPointerDown={(e) => e.stopPropagation()} title="Focus">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M7 1h4v4M5 11H1V7M11 1L7.5 4.5M1 11l3.5-3.5"/></svg>
+        <img src="/assets/dc-expand.svg" width="12" height="12" alt="expand" />
       </button>
       <div className="dc-card"
         style={{ borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06)', overflow: 'hidden', width, height, background: '#fff', ...style }}>
@@ -519,8 +519,7 @@ function DCFocusOverlay({ entry, sectionMeta, sectionOrder }) {
         display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background .15s' }}
       onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,.18)')}
       onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,.08)')}>
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-        <path d={dir === 'left' ? 'M11 3L5 9l6 6' : 'M7 3l6 6-6 6'} /></svg>
+      <img src={`/assets/dc-arrow-${dir}.svg`} width="18" height="18" alt={`arrow-${dir}`} />
     </button>
   );
 
@@ -541,7 +540,7 @@ function DCFocusOverlay({ entry, sectionMeta, sectionOrder }) {
               borderRadius: 6, textAlign: 'left', fontFamily: 'inherit' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 18, fontWeight: 600, letterSpacing: -0.3 }}>{meta.title}</span>
-              <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" style={{ opacity: .7 }}><path d="M2 4l3.5 3.5L9 4"/></svg>
+              <img src="/assets/dc-chevron-down.svg" width="11" height="11" alt="chevron" style={{ opacity: .7 }} />
             </span>
             {meta.subtitle && <span style={{ display: 'block', fontSize: 13, opacity: .6, fontWeight: 400, marginTop: 2 }}>{meta.subtitle}</span>}
           </button>

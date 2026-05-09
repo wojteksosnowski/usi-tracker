@@ -103,9 +103,11 @@ class InvestmentService:
         2. Transforms to unified USI schema
         3. Merges with existing data and ratings
         4. Synchronizes images
+
+        Returns True on success, False if no data was fetched/merged.
+        Raises RuntimeError with a human-readable message if all portals failed.
         """
         from usi_scrapers import api as scraper_api
-        from python_worker.developer_manager import DeveloperManager
 
         # Path resolution via library
         usi_path = self.tech_manager.get_usi_json_path(dev_slug, inv_slug) if self.tech_manager else \
@@ -132,43 +134,62 @@ class InvestmentService:
         oto_unified = None
         to_unified = None
         fetched_sources = []
+        failed_sources = []
 
         # Generic update loop using scraper_api
         for portal in ["rp", "oto", "to"]:
             if portal not in sources: continue
-            
+
             portal_name = "RynekPierwotny" if portal == "rp" else ("Otodom" if portal == "oto" else "TabelaOfert")
             raw_prefix = "rp" if portal == "rp" else ("oto" if portal == "oto" else "to")
             raw_files = list(inv_dir.glob(f"raw_{raw_prefix}_*.json"))
-            
+
             if use_local_raw and raw_files:
-                raw_path = raw_files[0]
+                raw_path = sorted(raw_files)[-1]  # newest file (by name, which includes timestamp)
                 with open(raw_path, "r") as f:
                     raw_details = json.load(f)
-                    adapter_key = "rp" if portal == "rp" else ("oto" if portal == "oto" else "to")
-                    rp_oto_to_unified = AdapterFactory.get_adapter(adapter_key).transform(raw_details, inv_slug, dev_slug)
-                    
+                rp_oto_to_unified = AdapterFactory.get_adapter(raw_prefix).transform(raw_details, inv_slug, dev_slug)
+                if portal == "rp": rp_unified = rp_oto_to_unified
+                elif portal == "oto": oto_unified = rp_oto_to_unified
+                elif portal == "to": to_unified = rp_oto_to_unified
+                fetched_sources.append(f"{portal_name} (local)")
+            else:
+                # RP uses numeric ID; Otodom and TO require a full URL
+                if portal == "rp":
+                    identifier = sources[portal].get("id") or sources[portal].get("url")
+                else:
+                    identifier = sources[portal].get("url") or sources[portal].get("id")
+                if not identifier:
+                    log_to_processing_log(dev_slug, inv_slug, f"Skipped {portal_name}: no identifier in sources")
+                    continue
+                try:
+                    res = scraper_api.fetch_investment(self.lib_config, self.fetcher, portal, identifier, dev_slug, inv_slug)
+                except Exception as e:
+                    error_msg = f"Exception during fetch: {e}"
+                    logger.error(f"[{portal_name}] {inv_slug}: {error_msg}")
+                    log_to_processing_log(dev_slug, inv_slug, f"Error fetching from {portal_name}: {error_msg}")
+                    failed_sources.append(f"{portal_name} ({error_msg})")
+                    continue
+
+                if res and "raw_details" in res:
+                    if self.tech_manager:
+                        self.tech_manager.save_raw_data(res["raw_details"], dev_slug, inv_slug, raw_prefix)
+                    else:
+                        inv_dir.mkdir(parents=True, exist_ok=True)
+                        raw_path = inv_dir / f"raw_{raw_prefix}_{inv_slug}.json"
+                        with open(raw_path, "w", encoding="utf-8") as f:
+                            json.dump(res["raw_details"], f, indent=2, ensure_ascii=False)
+
+                    rp_oto_to_unified = AdapterFactory.get_adapter(raw_prefix).transform(res, inv_slug, dev_slug)
                     if portal == "rp": rp_unified = rp_oto_to_unified
                     elif portal == "oto": oto_unified = rp_oto_to_unified
                     elif portal == "to": to_unified = rp_oto_to_unified
-                    
-                    fetched_sources.append(f"{portal_name} ({raw_path.name})")
-            else:
-                identifier = sources[portal].get("id") or sources[portal].get("url")
-                if identifier:
-                    res = scraper_api.fetch_investment(self.lib_config, self.fetcher, portal, identifier, dev_slug, inv_slug)
-                    if "raw_details" in res:
-                        dm = DeveloperManager(self.data_dir)
-                        dm.save_raw_json(res["raw_details"], dev_slug, inv_slug, raw_prefix)
-                        
-                        adapter_key = "rp" if portal == "rp" else ("oto" if portal == "oto" else "to")
-                        rp_oto_to_unified = AdapterFactory.get_adapter(adapter_key).transform(res["raw_details"], inv_slug, dev_slug)
-                        
-                        if portal == "rp": rp_unified = rp_oto_to_unified
-                        elif portal == "oto": oto_unified = rp_oto_to_unified
-                        elif portal == "to": to_unified = rp_oto_to_unified
-                        
-                        fetched_sources.append(portal_name)
+                    fetched_sources.append(portal_name)
+                else:
+                    error_msg = res.get("error", "Unknown error") if isinstance(res, dict) else "No valid response"
+                    logger.error(f"[{portal_name}] {inv_slug}: {error_msg}")
+                    log_to_processing_log(dev_slug, inv_slug, f"Fetch failed — {portal_name}: {error_msg}")
+                    failed_sources.append(f"{portal_name} ({error_msg})")
 
         if rp_unified or oto_unified or to_unified:
             # Semantic layer: Ratings and Merging
@@ -180,10 +201,10 @@ class InvestmentService:
                         ratings = json.load(f)
                 except Exception as e:
                     logger.error(f"Error reading ratings file: {e}")
-            
+
             event = f"Sync: {', '.join(fetched_sources)}" if fetched_sources else "Manual Update"
             new_unified = Merger.merge(rp_unified, oto_unified, to_unified, ratings, existing_data=usi_data, event=event)
-            
+
             # Technical layer: Image synchronization via library
             all_urls = new_unified.get("image_urls", [])
             if all_urls and self.tech_manager:
@@ -192,22 +213,33 @@ class InvestmentService:
                 valid_filenames = [f for f in saved_filenames if f]
                 new_unified["image_paths"] = [f"/Public/USI/{dev_slug}/{inv_slug}/{fname}" for fname in valid_filenames]
                 new_unified["images_count"] = len(valid_filenames)
-            elif not all_urls:
-                # Fallback: check disk if no URLs provided (e.g. rebuild from raw without internet)
+                logger.info(f"Image sync complete for {inv_slug}: {len(valid_filenames)}/{len(all_urls)} saved")
+            elif all_urls and not self.tech_manager:
+                logger.warning(f"Image sync skipped for {inv_slug}: tech_manager not available (check SCRAPERAPI_KEY / config)")
+                log_to_processing_log(dev_slug, inv_slug, "Image sync skipped: scraper config unavailable")
+            else:
+                # No URLs from scraper — keep whatever is already on disk
                 img_dir = self.tech_manager.get_image_path(dev_slug, inv_slug) if self.tech_manager else \
                           (self.public_usi_dir / dev_slug / inv_slug)
                 if img_dir.is_dir():
-                    on_disk = [p.name for p in img_dir.iterdir() if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}]
+                    on_disk = sorted(p.name for p in img_dir.iterdir()
+                                     if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"})
                     if on_disk:
-                        new_unified["image_paths"] = [f"/Public/USI/{dev_slug}/{inv_slug}/{fname}" for fname in sorted(on_disk)]
+                        new_unified["image_paths"] = [f"/Public/USI/{dev_slug}/{inv_slug}/{fname}" for fname in on_disk]
                         new_unified["images_count"] = len(on_disk)
 
             with open(usi_path, "w", encoding="utf-8") as f_out:
                 json.dump(new_unified, f_out, indent=2, ensure_ascii=False)
-            
-            log_to_processing_log(dev_slug, inv_slug, f"Updated investment data. Sources: {', '.join(fetched_sources)}")
+
+            summary = f"Updated: {', '.join(fetched_sources)}"
+            if failed_sources:
+                summary += f". Failed: {', '.join(failed_sources)}"
+            log_to_processing_log(dev_slug, inv_slug, summary)
             return True
-        
+
+        # All portals failed
+        if failed_sources:
+            raise RuntimeError(f"Fetch failed for all portals: {'; '.join(failed_sources)}")
         return False
 
     def save_ratings(self, dev_slug, inv_slug, payload):

@@ -103,12 +103,15 @@ logs/            Runtime logs (worker.log)
 | Module | Role |
 |---|---|
 | `main.py` | CLI entry point; dispatches to ui, update-dev, update-inv, discover, download-raw, rebuild-from-raw, import-csv, backfill-ids |
-| `adapters.py` | Transforms raw portal API responses to unified schema: `RPAdapter`, `OtodomAdapter`, `TOAdapter`, `Merger`; also exports `get_val()` for unwrapping RP API wrapper dicts |
+| `adapters/` | Package exposing `AdapterFactory`, `Merger`, and re-exporting the adapter classes from `usi_scrapers` (`RPAdapter`, `OtodomAdapter`, `TOAdapter`). `Merger.merge()` in `adapters/merger.py` combines portal results into the unified schema. |
 | `developer_manager.py` | `DeveloperManager` — reads/writes `usi_dev_*.json` profiles, generates `DEV-NNNN`/`INV-NNNN` IDs, saves raw portal JSONs |
 | `fetcher.py` | `Fetcher` class + module-level `fetch_html`/`fetch_json` — shared HTTP utilities with rate-limiting |
 | `scraper_rp.py` | RynekPierwotny.pl scraper — hits their REST API directly; exports `scrape_rynek_pierwotny`, `discover_rp_investments`, `download_raw_rp_json` |
 | `scraper_otodom.py` | Otodom.pl scraper — fetches HTML via ScraperAPI, extracts `__NEXT_DATA__` JSON |
 | `scraper_to.py` | TabelaOfert.pl scraper — tries direct HTTP first, falls back to ScraperAPI |
+| `services/investment_service.py` | `InvestmentService` — business logic layer used by the Flask API; handles get/register/update investments, auto-creates developer profiles, delegates to `usi_scrapers` library |
+| `api/` | Flask blueprints (`investments`, `discovery`, `jobs`, `reports`) mounted by `ui_server.py`; thin HTTP layer that delegates to `InvestmentService` |
+| `jobs.py` | `JobManager` — runs long scrape/update operations in background threads; tracks progress/status so the UI can poll `/api/jobs/<id>` |
 | `csv_importer.py` | Bulk importer from USImaster.csv; exports `slugify()` used across the codebase |
 | `listings.py` | Batch fetch of recent investments from both portals; produces `app_latest_results*.json` |
 | `image_saver.py` | Downloads and deduplicates images into `Public/USI/{dev_slug}/{inv_slug}/` |
@@ -119,9 +122,11 @@ logs/            Runtime logs (worker.log)
 | `portal_matcher.py` | Cross-portal fuzzy matcher (name + geo similarity); `filter_new_investments` used by discover flow |
 | `logger_utils.py` | `log_to_processing_log(dev_slug, inv_slug, message)` — appends to per-investment log file |
 | `migrator.py` | Legacy schema migration from old `app_result_*.json` format to `usi_*.json` |
-| `ui_server.py` | Flask local web UI for browsing investments, images, and maps |
-| `config.py` | Centralises all paths and API keys |
+| `ui_server.py` | Flask local web UI; mounts API blueprints and serves static JSX/CSS assets |
+| `config.py` | Centralises all paths and API keys; `get_scraper_config()` builds config for the `usi_scrapers` library |
 | `schemas/` | JSON Schema definitions for `usi_investment`, `usi_developer`, `raw_rp`, `raw_oto`, `raw_to` — the canonical data contracts |
+
+The `usi_scrapers` PyPI library (`from usi_scrapers import api as scraper_api`) handles low-level scraping for the service layer. `InvestmentService` calls it via `get_scraper_config()` and wraps results into the local schema. Direct scraper modules (`scraper_rp.py`, etc.) are still used by CLI commands.
 
 ## UI JSX Architecture
 
@@ -129,27 +134,43 @@ The web UI (`ui_server.py` + `python_worker/ui/`) uses React 18 with Babel Stand
 
 **Load order in `index.html`** (dependency order matters):
 ```
-theme.jsx              → design tokens, applyTheme()
-data.jsx               → useInvestments(), ocenaLog(), avgRating()
-components/core.jsx    → Spinner, Icon, SourceBadge, StandardCard, NavDrawer, …
-components/ratings.jsx → StarRating, CategoryRating, UsiStarScore, …
-components/modules.jsx → ModuleWrapper, BaseModule, MiniMap, …
-components/analytics.jsx → CategoryAvgRow, ProgressBarAnalytics, MetadataPanel
-view-detail-gallery.jsx → tileBtn, DeletionBadge, PhotoOverlay, PhotoTile, SlideShow, Gallery, Lightbox
-view-detail-ratings.jsx → _ratingCache, useRatings, RatingsPanel
-view-detail.jsx        → Row, MetadataBlock, SourceLinks, HeroBand, ModeC, DetailRightPanel
-view-list.jsx          → ListGrid, ListCard, ListToolbar
-view-dev-list.jsx      → Developer list view
-view-dev-detail.jsx    → Developer detail view
-view-reports.jsx       → Reports and analytics view
-view-download.jsx      → Download/export view
-view-dashboard.jsx     → DashboardGrid, KPI, DashboardMap
-app.jsx                → App (root), LoadingScreen, EmptyScreen
+registry.js                          → non-Babel module registry (plain JS)
+theme.jsx                            → design tokens, applyTheme()
+data.jsx                             → useInvestments(), ocenaLog(), avgRating()
+components/atomic/Icon.jsx           → Icon primitive
+components/atomic/Loading.jsx        → Loading primitive
+components/ModuleErrorBoundary.jsx   → error boundary wrapper
+components/DataGrid.jsx              → DataGrid table component
+components/core.jsx                  → Spinner, SourceBadge, StandardCard, NavDrawer, …
+components/ratings.jsx               → StarRating, CategoryRating, UsiStarScore, …
+modules/modules-core.jsx             → ModuleWrapper, BaseModule
+modules/modules-map.jsx              → MiniMap and map helpers
+modules/modules-charts.jsx           → chart-based modules
+modules/modules-ui.jsx               → UI-only modules
+modules/modules-test.jsx             → test/dev modules
+components/analytics.jsx             → CategoryAvgRow, ProgressBarAnalytics, MetadataPanel
+components/Gallery.jsx               → PhotoOverlay, PhotoTile, SlideShow, Gallery, Lightbox
+components/RatingsPanel.jsx          → useRatings, RatingsPanel
+components/HeroBand.jsx              → HeroBand hero section
+components/views/DetailViewA.jsx     → detail view layout A
+components/views/DetailViewC.jsx     → detail view layout C
+components/views/ListCard.jsx        → list card component
+capture-tool.js / test-regression.js → plain JS dev tools
+view-detail.jsx                      → Row, MetadataBlock, SourceLinks, detail page
+view-list.jsx                        → list page
+view-dev-list.jsx                    → developer list page
+view-dev-detail.jsx                  → developer detail page
+view-reports.jsx                     → reports/analytics page
+view-library.jsx                     → component library browser
+view-download.jsx                    → download/export page
+view-dashboard.jsx                   → DashboardGrid, KPI, DashboardMap
+view-storyboard.jsx                  → storyboard/design preview page
+app.jsx                              → App (root), LoadingScreen, EmptyScreen
 ```
 
 `design-canvas.jsx` is a standalone design tool not loaded by `index.html`.
 
-When adding a new JSX file: place its `<script>` tag after all files it depends on, before all files that use it. Adding a new shared component → `components/core.jsx` or the relevant `components/*.jsx`. Adding gallery/photo logic → `view-detail-gallery.jsx`.
+When adding a new JSX file: place its `<script>` tag after all files it depends on, before all files that use it. Shared primitives → `components/atomic/`. Shared layout components → `components/core.jsx` or a new `components/*.jsx`. Module-panel components → the appropriate `modules/modules-*.jsx`. Gallery/photo logic → `components/Gallery.jsx`. Ratings logic → `components/RatingsPanel.jsx`.
 
 ## Testing Approach
 

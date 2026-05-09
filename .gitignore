@@ -33,6 +33,11 @@ env/
 *.db-journal
 config/secrets.json
 
+# Skrypty tymczasowe / debug
+debug_*.py
+reproduce_*.py
+temp_*/
+
 .gemini/
 gha-creds-*.json
 .github/

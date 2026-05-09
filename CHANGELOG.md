@@ -1,5 +1,22 @@
+## Weryfikacja zmiany statusu w metadanych — 2026-05-09
+- Zdiagnozowano i naprawiono błąd synchronizacji statusu inwestycji między backendem a UI.
+- Poprawiono hook useRatings, aby automatycznie aktualizował lokalny stan DataBus po udanym zapisie.
+- Zweryfikowano poprawność zapisu statusu w głównym pliku usi_*.json na dysku.
+- Potwierdzono spójność danych w MetadataPanel po zmianie statusu przez analityka.
+
+
+- Dodano przycisk "Odśwież dane" w DetailViewA.
+- Zintegrować frontend z asynchronicznym mechanizmem JobManager na backendzie.
+- Wprowadzono endpoint POST /api/refresh obsługujący pełną aktualizację rekordu i zdjęć.
+
+
+- Przeprowadzono audyt i lokalizację inline SVG w kodzie UI.
+- Wyodrębniono 23 ikony i 5 grafik do zewnętrznych plików .svg.
+- Zrefaktoryzowano komponenty Icon, USIStarLogo i StarRating na tagi <img>.
+- Ujednolicono użycie logo USI (usi-star-white.svg) w całej aplikacji.
+- Zweryfikowano poprawne renderowanie i skalowanie zasobów.
+
 ## Standaryzacja stylów i optymalizacja — 2026-05-09
-- **Czyszczenie artefaktów SVG**: Zunifikowano użycie ikon USI (logo, gwiazdka, zero) poprzez wprowadzenie ich do komponentu `Icon.jsx` i usunięcie surowych ścieżek SVG z wielu komponentów (`app.jsx`, `core.jsx`, `ratings.jsx`). Zastąpiono statyczne obrazy SVG (`usi-star-white.svg`, `usi-zero-white.svg`) komponentami React.
 - **Unifikacja Pill Badges**: Zdefiniowano klasę `.usi-pill.info` oraz rozszerzono `.usi-pill.outline` o automatyczne dopasowanie koloru obramowania dla wariantów `success`, `danger` i `info`.
 - **Eliminacja Inline Styles**: Usunięto style inline z widoków deweloperów i biblioteki modułów, zastępując je semantycznymi klasami pomocniczymi (`.usi-text-accent`, `.usi-weight-400`).
 - **Poprawa Wyświetlania Sugestii**: Ujednolicono wygląd etykiet sugestii deweloperów, korzystając z nowego systemu klas CSS.

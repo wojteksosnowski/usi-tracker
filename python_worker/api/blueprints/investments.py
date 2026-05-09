@@ -3,6 +3,7 @@ import logging
 from flask import Blueprint, jsonify, abort, request, send_file
 from python_worker.services.investment_service import InvestmentService
 from python_worker.jobs import job_manager
+from python_worker.api.utils import _valid_slug, _valid_filename
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +12,6 @@ investment_service = InvestmentService()
 
 @investments_bp.route("/image/<dev_slug>/<inv_slug>/<filename>")
 def serve_image(dev_slug, inv_slug, filename):
-    from python_worker.api.utils import _valid_slug, _valid_filename
     from python_worker.config import PUBLIC_USI_DIR
     from pathlib import Path
     if not _valid_slug(dev_slug) or not _valid_slug(inv_slug) or not _valid_filename(filename):
@@ -38,6 +38,8 @@ def list_investments():
 
 @investments_bp.route("/data/<dev_slug>/<inv_slug>")
 def investment_data(dev_slug, inv_slug):
+    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
+        abort(400)
     inv = investment_service.get_investment(dev_slug, inv_slug)
     if inv is None:
         abort(404)
@@ -45,6 +47,8 @@ def investment_data(dev_slug, inv_slug):
 
 @investments_bp.route("/ratings/<dev_slug>/<inv_slug>", methods=["POST"])
 def save_ratings(dev_slug, inv_slug):
+    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
+        abort(400)
     payload = request.get_json(silent=True) or {}
     try:
         if investment_service.save_ratings(dev_slug, inv_slug, payload):
@@ -56,6 +60,8 @@ def save_ratings(dev_slug, inv_slug):
 
 @investments_bp.route("/mark-delete/<dev_slug>/<inv_slug>", methods=["POST"])
 def save_deletion_list(dev_slug, inv_slug):
+    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
+        abort(400)
     payload = request.get_json(silent=True) or {}
     paths = payload.get("paths", [])
     if not isinstance(paths, list):
@@ -67,14 +73,43 @@ def save_deletion_list(dev_slug, inv_slug):
 
 @investments_bp.route("/reload-investment/<dev_slug>/<inv_slug>", methods=["POST"])
 def reload_investment(dev_slug, inv_slug):
+    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
+        abort(400)
     success = investment_service.update_investment(dev_slug, inv_slug)
     if not success:
         return jsonify({"ok": False, "error": "Failed to update"}), 500
     updated_inv = investment_service.get_investment(dev_slug, inv_slug)
     return jsonify({"ok": True, "investment": updated_inv})
 
+@investments_bp.route("/refresh/<dev_slug>/<inv_slug>", methods=["POST"])
+def refresh_investment_route(dev_slug, inv_slug):
+    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
+        abort(400)
+    inv = investment_service.get_investment(dev_slug, inv_slug)
+    if not inv:
+        abort(404)
+    
+    def run_refresh_job(job_id, d_slug, i_slug, inv_name):
+        job_manager.update_progress(job_id, 10, f"Rozpoczęto odświeżanie: {inv_name}")
+        try:
+            if investment_service.update_investment(d_slug, i_slug):
+                job_manager.update_progress(job_id, 100, f"Ukończono odświeżanie: {inv_name}")
+            else:
+                job_manager.update_progress(job_id, 100, f"Brak danych do odświeżenia: {inv_name}", status="failed")
+        except RuntimeError as e:
+            logger.error(f"Refresh job failed for {i_slug}: {e}")
+            job_manager.update_progress(job_id, 100, str(e), status="failed")
+        except Exception as e:
+            logger.exception(f"Exception during refresh job for {i_slug}: {e}")
+            job_manager.update_progress(job_id, 100, f"Wyjątek: {str(e)}", status="failed")
+
+    job_id = job_manager.start_job(f"Refresh: {inv['name']}", run_refresh_job, dev_slug, inv_slug, inv['name'])
+    return jsonify({"ok": True, "job_id": job_id})
+
 @investments_bp.route("/download-raw/<dev_slug>/<inv_slug>", methods=["POST"])
 def download_raw_route(dev_slug, inv_slug):
+    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
+        abort(400)
     from python_worker.config import USI_DATA_DIR
     from python_worker.main import download_raw_json
     from pathlib import Path
@@ -122,6 +157,8 @@ def list_developers():
 
 @investments_bp.route("/developer/<dev_slug>")
 def get_developer_detail(dev_slug):
+    if not _valid_slug(dev_slug):
+        abort(400)
     from python_worker.developer_manager import DeveloperManager
     from python_worker.config import USI_DATA_DIR
     from python_worker.api.utils import _load_investment
@@ -141,12 +178,15 @@ def get_developer_detail(dev_slug):
 
 @investments_bp.route("/developer/<dev_slug>/merge", methods=["POST"])
 def merge_developer(dev_slug):
+    if not _valid_slug(dev_slug):
+        abort(400)
     from python_worker.developer_manager import DeveloperManager
     from python_worker.config import USI_DATA_DIR
     from pathlib import Path
     payload = request.get_json() or {}
     source_slug = payload.get("source_slug")
-    if not source_slug: abort(400)
+    if not source_slug or not _valid_slug(source_slug):
+        abort(400)
     dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
     if dm.merge_developers(dev_slug, source_slug):
         return jsonify({"ok": True})
@@ -154,6 +194,8 @@ def merge_developer(dev_slug):
 
 @investments_bp.route("/developer/<dev_slug>/dismiss-suggestion", methods=["POST"])
 def dismiss_suggestion(dev_slug):
+    if not _valid_slug(dev_slug):
+        abort(400)
     from python_worker.developer_manager import DeveloperManager
     from python_worker.config import USI_DATA_DIR
     from pathlib import Path
@@ -188,7 +230,7 @@ def register():
             if investment_service.update_investment(d_slug, i_slug):
                 job_manager.update_progress(job_id, 100, f"Ukończono: {inv_name}")
             else:
-                job_manager.update_progress(job_id, 100, f"Błąd pobierania: {inv_name}")
+                job_manager.update_progress(job_id, 100, f"Błąd pobierania: {inv_name}", status="failed")
 
         job_id = job_manager.start_job(f"Register: {payload.get('name')}", run_register_job, dev_slug, inv_slug, payload.get('name'))
         return jsonify({"ok": True, "job_id": job_id})

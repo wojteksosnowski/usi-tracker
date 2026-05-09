@@ -16,16 +16,17 @@ class DiscoveryService:
         self.config = get_scraper_config()
         self.fetcher = Fetcher(self.config) if self.config else None
 
-    def discover_for_developer(self, dev_slug, job_manager=None, job_id=None, download=False):
+    def discover_for_developer(self, job_id, dev_slug, job_manager=None, download=False):
         """
         Discovers and registers new investments for a developer.
+        Called via JobManager.start_job — job_id is the first positional arg by convention.
         """
         from python_worker.developer_manager import DeveloperManager
         dm = DeveloperManager(self.data_dir, self.data_dir.parent / "USIdev")
         dev = dm.get_developer(dev_slug)
-        if not dev: 
+        if not dev:
             raise ValueError(f"Developer {dev_slug} not found")
-        
+
         mapping = dev.get("portal_mapping", {})
         if job_manager and job_id:
             job_manager.update_progress(job_id, 10, "Starting discovery...")

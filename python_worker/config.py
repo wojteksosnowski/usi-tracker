@@ -80,7 +80,7 @@ def get_scraper_config():
     """Returns a ScraperConfig object for use with the usi-scrapers library."""
     try:
         import usi_scrapers
-        required_version = "0.1.4"
+        required_version = "0.1.9"
         current_version = getattr(usi_scrapers, "__version__", "unknown")
 
         

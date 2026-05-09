@@ -76,7 +76,7 @@ class Merger:
         all_image_urls = set(result.get("image_urls", []))
 
         if rp_data:
-            result["sources"]["rp"] = rp_data["sources"].get("rp")
+            result["sources"]["rp"] = rp_data["sources"].get("rp") or {}
             if not result["sources"]["rp"].get("url") and existing_sources.get("rp", {}).get("url"):
                 result["sources"]["rp"]["url"] = existing_sources["rp"]["url"]
             if "image_urls" in rp_data:
@@ -85,7 +85,7 @@ class Merger:
             result["sources"]["rp"] = existing_sources["rp"]
 
         if oto_data:
-            result["sources"]["oto"] = oto_data["sources"].get("oto")
+            result["sources"]["oto"] = oto_data["sources"].get("oto") or {}
             if not result["sources"]["oto"].get("url") and existing_sources.get("oto", {}).get("url"):
                 result["sources"]["oto"]["url"] = existing_sources["oto"]["url"]
             if "image_urls" in oto_data:
@@ -94,7 +94,7 @@ class Merger:
             result["sources"]["oto"] = existing_sources["oto"]
 
         if to_data:
-            result["sources"]["to"] = to_data["sources"].get("to")
+            result["sources"]["to"] = to_data["sources"].get("to") or {}
             if not result["sources"]["to"].get("url") and existing_sources.get("to", {}).get("url"):
                 result["sources"]["to"]["url"] = existing_sources["to"]["url"]
             if "image_urls" in to_data:
@@ -159,6 +159,47 @@ class Merger:
             if other.get("images_count", 0) > result.get("images_count", 0):
                 result["images_count"] = other["images_count"]
                 result["image_paths"] = other.get("image_paths", [])
+
+        # Preserve existing_data values for fields that came back null from portals
+        if existing_data:
+            ex_loc = existing_data.get("location") or {}
+            if not result["location"].get("address") and ex_loc.get("address"):
+                result["location"]["address"] = ex_loc["address"]
+            if not result["location"].get("city") and ex_loc.get("city"):
+                result["location"]["city"] = ex_loc["city"]
+            if not result["location"].get("district") and ex_loc.get("district"):
+                result["location"]["district"] = ex_loc["district"]
+            if result["location"].get("coords", [None])[0] is None and \
+                    ex_loc.get("coords", [None])[0] is not None:
+                result["location"]["coords"] = ex_loc["coords"]
+
+            ex_spec = existing_data.get("specifications") or {}
+            if not result["specifications"].get("units_count") and ex_spec.get("units_count"):
+                result["specifications"]["units_count"] = ex_spec["units_count"]
+            if not result["specifications"].get("delivery_date") and ex_spec.get("delivery_date"):
+                result["specifications"]["delivery_date"] = ex_spec["delivery_date"]
+                result["specifications"]["delivery_quarter"] = ex_spec.get("delivery_quarter")
+                result["specifications"]["delivery_year"] = ex_spec.get("delivery_year")
+
+            ex_fin = existing_data.get("financials") or {}
+            for fld in ("price_min", "price_max", "price_avg", "price_m2_min", "price_m2_max"):
+                if not result["financials"].get(fld) and ex_fin.get(fld):
+                    result["financials"][fld] = ex_fin[fld]
+
+            ex_amen = existing_data.get("amenities") or {}
+            ex_labels = ex_amen.get("labels") or []
+            if ex_labels and not result["amenities"].get("labels"):
+                result["amenities"]["labels"] = list(ex_labels)
+            elif ex_labels:
+                merged_labels = set(result["amenities"].get("labels", [])) | set(ex_labels)
+                result["amenities"]["labels"] = list(merged_labels)
+
+            ex_ids = existing_data.get("usi_inv_id")
+            if ex_ids and not result.get("usi_inv_id"):
+                result["usi_inv_id"] = ex_ids
+            ex_dev_id = existing_data.get("usi_dev_id")
+            if ex_dev_id and not result.get("usi_dev_id"):
+                result["usi_dev_id"] = ex_dev_id
 
         if existing_data:
             changes = Merger._detect_changes(existing_data, result)

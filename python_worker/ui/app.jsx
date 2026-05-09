@@ -19,7 +19,7 @@
     return (
       <div data-component="EmptyScreen" className="app-empty-screen">
         <div className="empty-screen-icon">
-          <Icon name="usiLogo" size={64} />
+          <img src="/assets/usi-star-white.svg" width="64" height="64" alt="USI" />
         </div>
         <h2 className="usi-h1">Baza jest pusta</h2>
         <p className="usi-body empty-screen-text">
@@ -369,7 +369,16 @@
                 <DetailRightPanel
                   inv={selectedInv}
                   onBack={() => setView('list')}
-                  onUpdateInv={() => refetch()}
+                  onUpdateInv={() => {
+                    refetch();
+                    const { developer_slug: d, investment_slug: i } = selectedInv;
+                    if (d && i) {
+                      fetch(`/api/data/${d}/${i}`)
+                        .then(r => r.json())
+                        .then(fresh => setSelectedInv(fresh))
+                        .catch(() => {});
+                    }
+                  }}
                 />
               )}
 

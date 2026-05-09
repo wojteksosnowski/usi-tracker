@@ -97,11 +97,16 @@ function DataBoundary({ data, schema = USI_INVESTMENT_SCHEMA, children }) {
 window.usiRegister('DataBoundary', DataBoundary);
 
 function USIStarLogo({ size = 24, color }) {
-  const { Icon } = window;
+  // UWAGA: kolorowanie img jest ograniczone, ale używamy ujednoliconego zasobu
   return (
-    <div data-component="USIStarLogo" className="usi-flex-center" style={{ width: size, height: size, color: color || 'currentColor' }}>
-      <Icon name="usiLogo" size={size} />
-    </div>
+    <img
+      data-component="USIStarLogo"
+      src="/assets/usi-star-white.svg"
+      width={size}
+      height={size}
+      alt="USI Star Logo"
+      style={{ display: 'inline-block', verticalAlign: 'middle' }}
+    />
   );
 }
 window.usiRegister('USIStarLogo', USIStarLogo);

@@ -78,6 +78,18 @@
           _ratingCache.set(inv.slug, { ratings: r, comment: c, status: s });
           setSaved(true);
           setVariable('appStatus', { type: 'success', msg: 'Ocena zapisana' });
+          
+          // Update status and ratings in the global bus so MetadataPanel etc. refresh immediately
+          setVariable('investments', prev => {
+            if (!Array.isArray(prev)) return prev;
+            return prev.map(item => {
+              if (item.slug === inv.slug) {
+                return { ...item, status: s, ratings: { ...r, komentarz: c, status: s }, comment: c };
+              }
+              return item;
+            });
+          });
+          
           setTimeout(() => setSaved(false), 2000);
         })
         .catch(() => { /* Error handled by useApi */ });

@@ -104,7 +104,7 @@
                     onFocusedCatChange={setFocusedCat}
                 />
               ) : (
-                <DetailsA 
+                <DetailsA
                     inv={validInv}
                     ratings={ratings}
                     handleRating={handleRating}
@@ -116,6 +116,7 @@
                     focusedCat={focusedCat}
                     onFocusedCatChange={setFocusedCat}
                     metaConfig={metaConfig}
+                    onUpdateInv={onUpdateInv}
                 />
               )}
 
