@@ -56,7 +56,7 @@
   };
   usiRegister('PhotoTile', PhotoTile);
 
-  const SlideShow = ({ photos = [], marked, onToggleMark, onLightbox, style: extraStyle = {} }) => {
+  const SlideShow = ({ photos = [], marked, onToggleMark, onLightbox, className = '', style: extraStyle = {} }) => {
     const [idx, setIdx] = React.useState(0);
     const total = photos.length;
 
@@ -73,7 +73,7 @@
 
     if (total === 0) {
       return (
-        <div data-component="SlideShow" className="usi-slideshow-empty">
+        <div data-component="SlideShow" className={`usi-slideshow-empty ${className}`}>
           <span className="usi-slideshow-empty-icon">📷</span>
           <span className="usi-small">Brak zdjęć</span>
         </div>
@@ -84,7 +84,7 @@
     const isMrk = marked && marked.has(idx);
 
     return (
-      <div data-component="SlideShow" className="usi-slideshow-container" style={extraStyle}>
+      <div data-component="SlideShow" className={`usi-slideshow-container ${className}`} style={extraStyle}>
         <img src={src} alt="" className="usi-slideshow-img" />
 
         <button className="usi-slideshow-nav-btn" 

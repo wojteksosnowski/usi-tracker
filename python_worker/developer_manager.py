@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import shutil
 from pathlib import Path
 from datetime import datetime
 from .csv_importer import slugify
@@ -261,10 +262,17 @@ class DeveloperManager:
                 
         # Archive source developer JSON
         source_file = self.dev_dir / f"usi_dev_{source_slug}.json"
-        archive_dir = self.dev_dir / "archived"
-        archive_dir.mkdir(parents=True, exist_ok=True)
-        ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-        source_file.rename(archive_dir / f"usi_dev_{source_slug}_{ts}.json")
+        if source_file.exists():
+            archive_dir = self.dev_dir / "archived"
+            archive_dir.mkdir(parents=True, exist_ok=True)
+            ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+            dest_path = archive_dir / f"usi_dev_{source_slug}_{ts}.json"
+            try:
+                shutil.move(str(source_file), str(dest_path))
+                logger.info(f"Archived source developer {source_slug} to {dest_path}")
+            except Exception as e:
+                logger.error(f"Failed to archive source developer file: {e}")
+                # We still return True if the merge was successful, even if archival failed
         
         logger.info(f"Successfully merged {source_slug} into {target_slug} (mappings only)")
         return True

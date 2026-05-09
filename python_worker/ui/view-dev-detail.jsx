@@ -363,7 +363,7 @@ function DeveloperSuggestions({ dev, onMerge, onDismiss }) {
 
   return (
     <div className="usi-card usi-p-16 suggestions-card">
-      <h3 className="usi-h3" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12, color: 'var(--usi-accent)' }}>
+      <h3 className="usi-h3 usi-text-accent" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>
         <Icon name="sparkle" size={12} /> Sugerowane Powiązania
       </h3>
       <div className="usi-flex-col usi-gap-12">

@@ -18,16 +18,12 @@
 
     return (
       <a data-component="MiniMap" href={url} target="_blank" rel="noopener" title="Otwórz w Google Maps"
-        style={{
-          display: 'block', position: 'relative', height, width: '100%',
-          borderRadius: 10, overflow: 'hidden', textDecoration: 'none',
-          background: 'var(--usi-surface-3)',
-          border: '.5px solid var(--usi-border)',
-        }}>
+        className="usi-minimap-container"
+        style={{ '--usi-map-height': `${height}px` }}>
         {imgSrc ? (
-          <img src={imgSrc} alt="Mapa lokalizacji" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          <img src={imgSrc} alt="Mapa lokalizacji" className="usi-minimap-img" />
         ) : (
-          <svg viewBox="0 0 300 200" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}>
+          <svg viewBox="0 0 300 200" preserveAspectRatio="none" className="usi-minimap-svg">
             <rect x="0" y="0" width="300" height="200" fill="var(--usi-surface-3)" />
             <path d="M0 40 L80 50 L120 30 L200 35 L300 60 L300 0 L0 0 Z" fill="color-mix(in oklab, #7DB951 18%, transparent)" />
             <path d="M0 160 L40 165 L80 158 L120 170 L160 168 L200 175 L240 170 L300 178 L300 200 L0 200 Z" fill="color-mix(in oklab, #3989C6 18%, transparent)" />
@@ -44,6 +40,15 @@
       </a>
     );
   }
+  MiniMap.__spec = {
+    props: {
+      label: { type: 'String', label: 'Etykieta', default: 'Lokalizacja' },
+      height: { type: 'Number', label: 'Wysokość (px)', default: 140 },
+      hereUrl: { type: 'String', label: 'Statyczna Mapa (Light)', default: '' },
+      hereUrlDark: { type: 'String', label: 'Statyczna Mapa (Dark)', default: '' }
+    }
+  };
+  window.ModuleRegistry.register('MiniMap', MiniMap, MiniMap.__spec);
   usiRegister('MiniMap', MiniMap);
 
   function MapModule({ instanceId, data: localData, height = 400, title = "Mapa Inwestycji", hereApiKey }) {
@@ -163,23 +168,18 @@
     return (
       <BaseModule title={title} icon="map">
         {!mapLoaded ? (
-          <div className="usi-app-loading" style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="usi-app-loading usi-flex-center" style={{ '--usi-map-height': `${height}px` }}>
             Ładowanie mapy...
           </div>
         ) : (
-          <div style={{ position: 'relative' }}>
+          <div className="usi-map-module-relative">
             {scopedBus?.selectedId && (
-              <div style={{ 
-                position: 'absolute', top: 12, right: 12, zIndex: 10,
-                background: 'var(--usi-surface)', padding: '6px 12px', borderRadius: 8,
-                border: '1.5px solid var(--usi-accent)', boxShadow: 'var(--usi-shadow-sm)',
-                animation: 'usi-slide-down 0.2s ease-out'
-              }}>
-                <div className="usi-tiny" style={{ fontWeight: 700, color: 'var(--usi-accent)', textTransform: 'uppercase', marginBottom: 2 }}>Wybrano</div>
-                <div className="usi-small" style={{ fontWeight: 600 }}>{scopedBus.selectedId}</div>
+              <div className="usi-map-module-selection-badge">
+                <div className="usi-tiny usi-weight-700 usi-text-accent usi-text-uppercase usi-m-b-2">Wybrano</div>
+                <div className="usi-small usi-weight-600">{scopedBus.selectedId}</div>
               </div>
             )}
-            <div ref={containerRef} style={{ width: '100%', height }} />
+            <div ref={containerRef} className="usi-map-module-canvas" style={{ '--usi-map-height': `${height}px` }} />
           </div>
         )}
       </BaseModule>

@@ -1,4 +1,21 @@
-## Milestone: Scraper Library & Data Integrity — 2026-05-09
+## Standaryzacja stylów i optymalizacja — 2026-05-09
+- **Unifikacja Pill Badges**: Zdefiniowano klasę `.usi-pill.info` oraz rozszerzono `.usi-pill.outline` o automatyczne dopasowanie koloru obramowania dla wariantów `success`, `danger` i `info`.
+- **Eliminacja Inline Styles**: Usunięto style inline z widoków deweloperów i biblioteki modułów, zastępując je semantycznymi klasami pomocniczymi (`.usi-text-accent`, `.usi-weight-400`).
+- **Poprawa Wyświetlania Sugestii**: Ujednolicono wygląd etykiet sugestii deweloperów, korzystając z nowego systemu klas CSS.
+- **Standaryzacja DataGrid**: Migracja stylów inline (layout, wyrównanie) do `components.css` oraz wprowadzenie klas pomocniczych w `global.css`. Wykorzystano zmienne CSS dla dynamicznych parametrów siatki.
+- **Standaryzacja RatingsPanel**: Wyeliminowano style inline z `RatingsPanel.jsx`, zastępując je klasami pomocniczymi marginesów i wagi tekstu. Wprowadzono semantyczne klasy dla statusu zapisu i punktacji wyróżników.
+- **Optymalizacja Modułów Analitycznych**: Przeprowadzono audit i czyszczenie stylów w `analytics.jsx`, `modules-map.jsx` oraz `modules-charts.jsx`. Wdrożono zmienne CSS dla dynamicznych szerokości pasków postępu i wysokości map.
+
+## Czyszczenie artefaktów kodu — 2026-05-09
+
+- **Unifikacja ActionBar**: Przeniesiono akcje inwestycji (linki źródłowe, przełącznik trybów) z HeroBand do globalnego ActionBar, poprawiając spójność nawigacji.
+- **Optymalizacja SlideShow**: Rozwiązano problem scrollowania w trybie Media poprzez uelastycznienie komponentu Gallery (className) i wymuszenie pełnej wysokości viewportu.
+- **Integracja Modułowa**: Zarejestrowano brakujący moduł MiniMap w ModuleRegistry, udostępniając go w bibliotece modułów i systemie raportowym.
+- **Naprawa Wyszukiwarki Deweloperów**: Wdrożono brakującą logikę filtrowania i wyszukiwania w widoku deweloperów zintegrowaną z DataBus.
+- **Oczyszczenie Interfejsu**: Usunięto zbędne filtry miast z widoku deweloperów, upraszczając nawigację.
+- **Stabilność Funkcji „Połącz”**: Naprawiono błąd 500 przy scalaniu deweloperów poprzez bezpieczniejszą obsługę plików i automatyczne tworzenie katalogu archiwum.
+
+
 - **Architektura „Thin-Client”**: Zakończono migrację logiki skrapowania i adaptacji danych do zewnętrznej, wersjonowanej biblioteki `usi-scrapers` (v0.1.8).
 - **Naprawa TabelaOfert (v0.1.8)**: Rozwiązano krytyczny błąd wycieku zdjęć z niepowiązanych etapów inwestycji poprzez wdrożenie „slicera” HTML (Area-Limited Extraction).
 - **Czyszczenie Bazy Danych**: Przeprowadzono automatyczne usunięcie 40 „czystych” rekordów TabelaOfert, które posiadały błędy w strukturze zdjęć, w celu ich ponownej, poprawnej rejestracji.

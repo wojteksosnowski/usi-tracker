@@ -258,12 +258,16 @@
                       <FilterChip key={s.id} label={s.label} source={s.id} active={activeSources.has(s.id)} color={s.color} onClick={(isShift) => toggleSource(s.id, isShift)} />
                     ))}
                   </FilterGroup>
-                  <div className="usi-divider-v" />
-                  <FilterGroup label="Miasta">
-                    {MAIN_CITIES.map(city => (
-                      <FilterChip key={city} label={city} active={activeCities.has(city)} onClick={(isShift) => toggleCity(city, isShift)} />
-                    ))}
-                  </FilterGroup>
+                  {view === 'list' && (
+                    <>
+                      <div className="usi-divider-v" />
+                      <FilterGroup label="Miasta">
+                        {MAIN_CITIES.map(city => (
+                          <FilterChip key={city} label={city} active={activeCities.has(city)} onClick={(isShift) => toggleCity(city, isShift)} />
+                        ))}
+                      </FilterGroup>
+                    </>
+                  )}
                 </div>
               ) : view === 'download' ? (
                 <FilterGroup label="Opcje">
@@ -285,6 +289,25 @@
                     <option value="">Statusy</option>
                     {USI_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
+                </div>
+              ) : view === 'detail' && selectedInv ? (
+                <div className="usi-flex-row usi-gap-16">
+                  {window.SourceLinks && <window.SourceLinks inv={selectedInv} />}
+                  <div className="usi-divider-v" />
+                  <div className="mode-switch">
+                    <button 
+                      className={`usi-btn sm ghost mode-switch-btn ${ (bus.detailMode || 'A') === 'A' ? 'active' : ''}`} 
+                      onClick={() => setVariable('detailMode', 'A')}
+                    >
+                      Standard
+                    </button>
+                    <button 
+                      className={`usi-btn sm ghost mode-switch-btn ${ (bus.detailMode || 'A') === 'C' ? 'active' : ''}`} 
+                      onClick={() => setVariable('detailMode', 'C')}
+                    >
+                      Media
+                    </button>
+                  </div>
                 </div>
               ) : view === 'download' ? (
                 <div className="usi-flex-row usi-gap-16">

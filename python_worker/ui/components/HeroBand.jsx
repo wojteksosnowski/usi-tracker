@@ -17,7 +17,7 @@
   };
   usiRegister('SourceLinks', SourceLinks);
 
-  const HeroBand = ({ inv, showMap, detailMode, onModeChange }) => {
+  const HeroBand = ({ inv, showMap }) => {
     const { useModuleContext } = window;
     const { geoPoint } = useModuleContext(inv);
     const score = ocenaLog(inv);
@@ -27,21 +27,13 @@
       <div data-component="HeroBand" className={`hero-band ${hasMap ? 'has-map' : 'no-map'}`}>
         <div>
           <div className="hero-band-title-row">
-            <h1 className="usi-h1">{inv.name}</h1>
+            <h1 className="usi-h1 hero-band-title">{inv.name}</h1>
             <span className="usi-body hero-band-developer">{inv.developer}</span>
           </div>
           <div className="hero-band-stats">
             {inv.address && <span>📍 {inv.address}</span>}
             {inv.price_avg > 0 && <span className="usi-mono">{inv.price_avg.toLocaleString('pl-PL')} zł/m²</span>}
             <span className="usi-mono">{inv.delivery}</span>
-          </div>
-          <div className="hero-band-actions-row">
-              <SourceLinks inv={inv} />
-              <div className="usi-divider-v" />
-              <div className="mode-switch">
-                  <button className={`usi-btn sm ghost mode-switch-btn ${detailMode === 'A' ? 'active' : ''}`} onClick={() => onModeChange('A')}>Standard</button>
-                  <button className={`usi-btn sm ghost mode-switch-btn ${detailMode === 'C' ? 'active' : ''}`} onClick={() => onModeChange('C')}>Media</button>
-              </div>
           </div>
         </div>
 

@@ -76,8 +76,8 @@ function DataGrid({
       {isGrid ? (
         <div className="usi-datagrid-grid" 
              style={{ 
-               gridTemplateColumns: `repeat(${itemsPerRow}, minmax(0, 1fr))`,
-               gap: gridConfig.gap !== undefined ? gridConfig.gap : 16
+               '--usi-dg-cols': itemsPerRow,
+               '--usi-dg-gap': `${gridConfig.gap !== undefined ? gridConfig.gap : 16}px`
              }}>
           {visibleItems.map((item, idx) => {
             const itemKey = `${item.portal || item.source || 'inv'}-${item.id || item.slug || idx}`;
@@ -90,31 +90,29 @@ function DataGrid({
         </div>
       ) : (
         <div className="usi-card usi-datagrid-table-card">
-          <table className="list-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead className="list-table-head usi-datagrid-table-head">
+          <table className="usi-datagrid-table list-table">
+            <thead className="usi-datagrid-table-head list-table-head">
               <tr>
-                {columns.map(col => (
-                  <th 
-                    key={col.key} 
-                    className="list-table-th" 
-                    style={{ 
-                      width: col.width, 
-                      textAlign: col.align || 'left',
-                      cursor: col.sortable ? 'pointer' : 'default',
-                      userSelect: 'none',
-                      backgroundColor: 'var(--usi-surface-2)'
-                    }}
-                    onClick={() => col.sortable && onSort(col.key)}
-                  >
-                    <div className="usi-datagrid-th-content" 
-                         style={{ justifyContent: col.align === 'right' ? 'flex-end' : 'flex-start' }}>
-                      <span className="usi-datagrid-th-label">{col.label}</span>
-                      {col.sortable && sortKey === col.key && (
-                        <Icon name={sortDir === 'asc' ? 'chevronDown' : 'chevronUp'} size={12} />
-                      )}
-                    </div>
-                  </th>
-                ))}
+                {columns.map(col => {
+                  const alignClass = col.align === 'right' ? 'usi-text-right' : (col.align === 'center' ? 'usi-text-center' : 'usi-text-left');
+                  const justifyClass = col.align === 'right' ? 'usi-justify-end' : (col.align === 'center' ? 'usi-justify-center' : 'usi-justify-start');
+                  
+                  return (
+                    <th 
+                      key={col.key} 
+                      className={`usi-datagrid-th list-table-th ${alignClass} ${col.sortable ? 'sortable' : ''}`}
+                      style={{ width: col.width }}
+                      onClick={() => col.sortable && onSort(col.key)}
+                    >
+                      <div className={`usi-datagrid-th-content ${justifyClass}`}>
+                        <span className="usi-datagrid-th-label">{col.label}</span>
+                        {col.sortable && sortKey === col.key && (
+                          <Icon name={sortDir === 'asc' ? 'chevronDown' : 'chevronUp'} size={12} />
+                        )}
+                      </div>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -122,11 +120,16 @@ function DataGrid({
                 const itemKey = `${item.portal || item.source || 'inv'}-${item.id || item.slug || idx}`;
                 return (
                   <tr key={itemKey} className="list-table-tr" onClick={() => onRowClick(item)}>
-                    {columns.map(col => (
-                      <td key={col.key} className="list-table-td" style={{ textAlign: col.align || 'left', height: rowHeight }}>
-                        {col.render ? col.render(item[col.key], item) : item[col.key]}
-                      </td>
-                    ))}
+                    {columns.map(col => {
+                      const alignClass = col.align === 'right' ? 'usi-text-right' : (col.align === 'center' ? 'usi-text-center' : 'usi-text-left');
+                      return (
+                        <td key={col.key} 
+                            className={`usi-datagrid-td list-table-td ${alignClass}`}
+                            style={{ height: rowHeight }}>
+                          {col.render ? col.render(item[col.key], item) : item[col.key]}
+                        </td>
+                      );
+                    })}
                   </tr>
                 );
               })}

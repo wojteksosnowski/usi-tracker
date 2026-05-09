@@ -410,6 +410,40 @@
   padding: 16px;
   width: 100%;
   max-width: 100%;
+  /* Dynamic values via CSS variables if needed, but here we set defaults */
+  grid-template-columns: repeat(var(--usi-dg-cols, 1), minmax(0, 1fr));
+  gap: var(--usi-dg-gap, 16px);
+}
+
+.usi-datagrid-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.usi-datagrid-th {
+  padding: 12px 16px;
+  background-color: var(--usi-surface-2);
+  user-select: none;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--usi-ink-3);
+  border-bottom: 0.5px solid var(--usi-border);
+}
+
+.usi-datagrid-th.sortable {
+  cursor: pointer;
+}
+
+.usi-datagrid-th.sortable:hover {
+  background-color: var(--usi-surface-3);
+}
+
+.usi-datagrid-td {
+  padding: 12px 16px;
+  border-bottom: 0.5px solid var(--usi-border);
+  vertical-align: middle;
 }
 
 .usi-datagrid-table-card {
@@ -770,6 +804,17 @@
   align-items: center;
   gap: 4px;
   transition: color .3s;
+  color: var(--usi-ink-4);
+}
+
+.usi-ratings-panel-save-status.saved {
+  color: var(--usi-success);
+}
+
+.usi-pill-score {
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.65;
 }
 
 /* Analytics & Metadata */
@@ -797,6 +842,8 @@
   height: 100%;
   border-radius: 4px;
   transition: width .4s;
+  width: var(--usi-avg-width, 0%);
+  background: var(--usi-avg-bg, var(--usi-surface-3));
 }
 
 .usi-analytics-avg-value {
@@ -805,6 +852,11 @@
   top: 1px;
   font-size: 11px;
   font-weight: 600;
+  color: var(--usi-ink);
+}
+
+.usi-analytics-avg-value.inverted {
+  color: #fff;
 }
 
 .usi-analytics-avg-count {
@@ -826,6 +878,16 @@
   color: #fff;
   font-size: 12px;
   font-weight: 600;
+  width: var(--usi-progress-width, auto);
+  background: var(--usi-progress-bg);
+}
+
+.usi-analytics-progress-segment.complete { background: var(--usi-success); }
+.usi-analytics-progress-segment.partial { background: var(--usi-warn); }
+.usi-analytics-progress-segment.unrated { 
+  background: var(--usi-surface-3); 
+  color: var(--usi-ink-3); 
+  flex: 1;
 }
 
 .usi-analytics-legend-container {
@@ -847,6 +909,10 @@
   height: 10px;
   border-radius: 2px;
 }
+
+.usi-analytics-legend-dot.success { background: var(--usi-success); }
+.usi-analytics-legend-dot.warn { background: var(--usi-warn); }
+.usi-analytics-legend-dot.surface { background: var(--usi-surface-3); }
 
 .usi-metadata-grid {
   display: grid;
@@ -1374,6 +1440,48 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-size: 9px;
+}
+
+.usi-minimap-container {
+  display: block;
+  position: relative;
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  text-decoration: none;
+  background: var(--usi-surface-3);
+  border: .5px solid var(--usi-border);
+  height: var(--usi-map-height, 140px);
+}
+
+.usi-minimap-img,
+.usi-minimap-svg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.usi-map-module-relative {
+  position: relative;
+}
+
+.usi-map-module-selection-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  background: var(--usi-surface);
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1.5px solid var(--usi-accent);
+  box-shadow: var(--usi-shadow-sm);
+  animation: usi-slide-down 0.2s ease-out;
+}
+
+.usi-map-module-canvas {
+  width: 100%;
+  height: var(--usi-map-height, 400px);
 }
 
 /* Error Boundary */

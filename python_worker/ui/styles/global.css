@@ -195,10 +195,19 @@ body,
   color: var(--usi-danger); 
 }
 
+.usi-pill.info { 
+  background: color-mix(in oklab, var(--usi-accent) 15%, transparent); 
+  color: var(--usi-accent); 
+}
+
 .usi-pill.outline { 
   background: transparent; 
   border: .5px solid var(--usi-border-strong); 
 }
+
+.usi-pill.info.outline { border-color: var(--usi-accent); }
+.usi-pill.success.outline { border-color: var(--usi-success); }
+.usi-pill.danger.outline { border-color: var(--usi-danger); }
 
 /* Source badge — RP / OTO / TO */
 .usi-source {
@@ -388,6 +397,15 @@ body,
 }
 
 .usi-text-secondary { color: var(--usi-ink-3) !important; }
+.usi-text-accent { color: var(--usi-accent) !important; }
 .usi-text-uppercase { text-transform: uppercase !important; }
+.usi-text-left { text-align: left !important; }
+.usi-text-center { text-align: center !important; }
+.usi-text-right { text-align: right !important; }
+
+.usi-justify-start { justify-content: flex-start !important; }
+.usi-justify-center { justify-content: center !important; }
+.usi-justify-end { justify-content: flex-end !important; }
+
 .usi-overflow-hidden { overflow: hidden !important; }
 .usi-overflow-auto { overflow: auto !important; }

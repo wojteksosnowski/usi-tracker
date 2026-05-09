@@ -10,9 +10,8 @@
         <div className="usi-analytics-avg-label">{label}</div>
         <div className="usi-analytics-avg-bar-bg">
           <div className="usi-analytics-avg-bar-fill" 
-            style={{ width: `${(avg / 5) * 100}%`, background: color }} />
-          <span className="usi-mono usi-analytics-avg-value" 
-            style={{ color: avg > 2.5 ? '#fff' : 'var(--usi-ink)' }}>
+            style={{ '--usi-avg-width': `${(avg / 5) * 100}%`, '--usi-avg-bg': color }} />
+          <span className={`usi-mono usi-analytics-avg-value ${avg > 2.5 ? 'inverted' : ''}`}>
             {count > 0 ? avg.toFixed(2) : '—'}
           </span>
         </div>
@@ -24,33 +23,32 @@
   usiRegister('CategoryAvgRow', CategoryAvgRow);
 
   const ProgressBarAnalytics = ({ rated, partial, total }) => {
-    if (total === 0) return <div className="usi-small" style={{ color: 'var(--usi-ink-4)' }}>Brak danych</div>;
+    if (total === 0) return <div className="usi-small usi-text-secondary">Brak danych</div>;
     
     return (
       <>
         <div data-component="Progress-Bar" className="usi-analytics-progress-bar">
-          <div className="usi-analytics-progress-segment" 
-            style={{ width: `${rated/total*100}%`, background: 'var(--usi-success)' }}>
+          <div className="usi-analytics-progress-segment complete" 
+            style={{ '--usi-progress-width': `${rated/total*100}%` }}>
             {rated > 0 ? rated : ''}
           </div>
-          <div className="usi-analytics-progress-segment" 
-            style={{ width: `${partial/total*100}%`, background: 'var(--usi-warn)' }}>
+          <div className="usi-analytics-progress-segment partial" 
+            style={{ '--usi-progress-width': `${partial/total*100}%` }}>
             {partial > 0 ? partial : ''}
           </div>
-          <div className="usi-analytics-progress-segment" 
-            style={{ flex: 1, background: 'var(--usi-surface-3)', color: 'var(--usi-ink-3)' }}>
+          <div className="usi-analytics-progress-segment unrated">
             {total - rated - partial > 0 ? total - rated - partial : ''}
           </div>
         </div>
         <div className="usi-analytics-legend-container">
           <div data-component="Legend" className="usi-analytics-legend-item">
-            <span className="usi-analytics-legend-dot" style={{ background: 'var(--usi-success)' }} /> Pełne
+            <span className="usi-analytics-legend-dot success" /> Pełne
           </div>
           <div data-component="Legend" className="usi-analytics-legend-item">
-            <span className="usi-analytics-legend-dot" style={{ background: 'var(--usi-warn)' }} /> Częściowe
+            <span className="usi-analytics-legend-dot warn" /> Częściowe
           </div>
           <div data-component="Legend" className="usi-analytics-legend-item">
-            <span className="usi-analytics-legend-dot" style={{ background: 'var(--usi-surface-3)' }} /> Nieocenione
+            <span className="usi-analytics-legend-dot surface" /> Nieocenione
           </div>
         </div>
       </>
@@ -87,7 +85,7 @@
           })}
           {inv.folder_path && (
             <div data-component="Metadata-FolderPath" className="usi-metadata-folder-path">
-              <div className="usi-small" style={{ marginBottom: 1 }}>Ścieżka folderu</div>
+              <div className="usi-small usi-m-b-1">Ścieżka folderu</div>
               <div className="usi-mono usi-metadata-folder-text">{inv.folder_path}</div>
             </div>
           )}

@@ -71,7 +71,7 @@
             {scopedBus?.hoveredQuarter && (
               <div className="usi-flex-row usi-gap-8 usi-align-center usi-chart-hover-info">
                 <span className="usi-pill sm info usi-mono">{scopedBus.hoveredQuarter}</span>
-                <span className="usi-tiny" style={{ opacity: 0.6 }}>Wybrany kwartał</span>
+                <span className="usi-tiny usi-opacity-60">Wybrany kwartał</span>
               </div>
             )}
             <div className="usi-chart-canvas-box">

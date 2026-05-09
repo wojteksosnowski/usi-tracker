@@ -16,14 +16,16 @@
 
   function DetailRightPanel({ inv, onBack, onUpdateInv }) {
     const { HeroBand, ModeC, DetailsA, Lightbox, DataBoundary } = window;
-    const [detailMode, setDetailMode] = React.useState('A');
+    const { bus, setVariable } = useDataBus();
+    const detailMode = bus.detailMode || 'A';
+    const setDetailMode = (m) => setVariable('detailMode', m);
+
     const [marked, setMarked] = React.useState(new Set());
     const [focusedCat, setFocusedCat] = React.useState(-1);
     const [lightbox, setLightbox] = React.useState(null);
 
     const { ratings, handleRating, comment, handleComment, status, handleStatus, saved } = useRatings(inv);
     const metaConfig = useMetadataConfig();
-    const { bus, setVariable } = useDataBus();
 
     React.useEffect(() => {
       setVariable('currentInvestment', inv);
@@ -79,8 +81,6 @@
               <HeroBand
                 inv={validInv}
                 showMap={true}
-                detailMode={detailMode}
-                onModeChange={setDetailMode}
               />
 
               {detailMode === 'C' ? (

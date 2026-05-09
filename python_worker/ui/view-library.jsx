@@ -21,7 +21,7 @@
       <div data-component="ModuleGalleryItem" className="usi-card usi-p-24 usi-flex-col usi-gap-24" style={{ background: 'var(--usi-surface-2)' }}>
         <div className="usi-flex-row" style={{ justifyContent: 'space-between', alignItems: 'baseline', borderBottom: '0.5px solid var(--usi-border)', paddingBottom: 12 }}>
           <div>
-            <h3 className="usi-h3" style={{ margin: 0, color: 'var(--usi-accent)' }}>{name}</h3>
+            <h3 className="usi-h3 usi-text-accent" style={{ margin: 0 }}>{name}</h3>
             <div className="usi-tiny" style={{ opacity: 0.6 }}>ModuleRegistry Component</div>
           </div>
           <div className="usi-pill sm info">Spec: {spec ? 'YES' : 'NO'}</div>
