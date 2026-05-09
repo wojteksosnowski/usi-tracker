@@ -15,9 +15,22 @@ discovery_service = DiscoveryService()
 def discover_dev_new(dev_slug):
     if not _valid_slug(dev_slug):
         abort(400)
+
+    def _run_with_event(job_id, d_slug, job_manager=None):
+        result = discovery_service.discover_for_developer(job_id, d_slug, job_manager=job_manager)
+        try:
+            from python_worker.developer_manager import DeveloperManager
+            from python_worker.config import USI_DATA_DIR
+            from pathlib import Path
+            dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
+            dm.log_event(d_slug, {"type": "discover", "by": "user", "found": result or 0})
+        except Exception:
+            pass
+        return result
+
     job_id = job_manager.start_job(
         f"Discovery: {dev_slug}",
-        discovery_service.discover_for_developer,
+        _run_with_event,
         dev_slug,
         job_manager=job_manager
     )

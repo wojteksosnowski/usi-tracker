@@ -403,6 +403,21 @@
     border: 0.5px solid var(--usi-border);
 }
 
+.dev-suggestion-card {
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.dev-suggestion-card:hover {
+    background: color-mix(in oklab, var(--usi-accent) 8%, var(--usi-surface));
+    border-color: var(--usi-accent);
+}
+
+.dev-suggestion-card.merging {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
 /* Reports View */
 .reports-list-content {
     padding: 24px;

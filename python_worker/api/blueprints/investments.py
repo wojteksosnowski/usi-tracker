@@ -202,10 +202,14 @@ def merge_developer(dev_slug):
     source_slug = payload.get("source_slug")
     if not source_slug or not _valid_slug(source_slug):
         abort(400)
-    dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
-    if dm.merge_developers(dev_slug, source_slug):
-        return jsonify({"ok": True})
-    return jsonify({"ok": False}), 500
+    try:
+        dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
+        if dm.merge_developers(dev_slug, source_slug):
+            return jsonify({"ok": True})
+        return jsonify({"ok": False, "error": "Merge failed — check server logs"}), 422
+    except Exception as e:
+        logger.exception("merge_developer error: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 @investments_bp.route("/developer/<dev_slug>/dismiss-suggestion", methods=["POST"])
 def dismiss_suggestion(dev_slug):

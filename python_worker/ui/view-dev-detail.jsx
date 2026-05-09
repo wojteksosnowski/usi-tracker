@@ -84,17 +84,22 @@ function DeveloperDetail({
       });
   };
 
+  const [mergingSlug, setMergingSlug] = React.useState(null);
+
   const handleMerge = (source_slug) => {
-    if (!confirm(`Czy na pewno chcesz połączyć dewelopera '${source_slug}' z bieżącym? Wszystkie inwestycje zostaną przeniesione.`)) return;
-    request(`/api/developer/${dev_slug}/merge`, {
+    if (mergingSlug) return;
+    setMergingSlug(source_slug);
+    fetch(`/api/developer/${dev_slug}/merge`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source_slug })
     })
+    .then(r => r.json())
     .then(data => {
+      setMergingSlug(null);
       if (data.ok) load();
-      else alert("Błąd połączenia rekordów.");
-    });
+    })
+    .catch(() => setMergingSlug(null));
   };
 
   const handleDismiss = (usi_dev_id) => {
@@ -138,7 +143,7 @@ function DeveloperDetail({
         {activeJobId ? <Spinner size={12} stroke={1.5} /> : <Icon name="sparkle" size={12} />}
         {activeJobId ? ' Zadanie w tle...' : ' Sprawdź nowe inwestycje'}
       </button>
-      {navOpen && <NavDrawer current="developers" onClose={() => setNavOpen(false)} onNav={v => { setNavOpen(false); onNav(v); }} dark={dark} onToggleTheme={handleToggleTheme} />}
+      {navOpen && <NavDrawer current="developers" onClose={() => setNavOpen(false)} onNav={v => { setNavOpen(false); onNav(v); }} dark={dark} onToggleTheme={onToggleTheme} />}
     </div>
   );
 
@@ -182,8 +187,10 @@ function DeveloperDetail({
           </section>
 
           <aside className="developer-sidebar">
-            <DeveloperSuggestions dev={developer} onMerge={handleMerge} onDismiss={handleDismiss} />
+            <DeveloperSuggestions dev={developer} onMerge={handleMerge} onDismiss={handleDismiss} mergingSlug={mergingSlug} />
+            <MergedMembersPanel dev={developer} />
             <DeveloperStats dev={developer} onCityClick={setFilterCity} activeCity={filterCity} />
+            <DevEventsLog dev={developer} />
             <DeveloperMetadata dev={developer} />
             <DeveloperPortals dev={developer} />
           </aside>
@@ -355,23 +362,112 @@ function DeveloperPortals({ dev }) {
   );
 }
 
-function DeveloperSuggestions({ dev, onMerge, onDismiss }) {
+function DeveloperSuggestions({ dev, onMerge, onDismiss, mergingSlug }) {
   if (!dev.suggestions || dev.suggestions.length === 0) return null;
+  const { Spinner } = window;
 
   return (
     <div className="usi-card usi-p-16 suggestions-card">
       <h3 className="usi-h3 usi-text-accent" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>
-        <Icon name="sparkle" size={12} /> Sugerowane Powiązania
+        <Icon name="sparkle" size={12} /> Sugerowane powiązania — kliknij kartę aby połączyć
       </h3>
-      <div className="usi-flex-col usi-gap-12">
-        {dev.suggestions.map(s => (
-          <div key={s.usi_dev_id} className="suggestion-item">
-            <div className="usi-body usi-weight-600" style={{ marginBottom: 2 }}>{s.developer_slug}</div>
-            <div className="usi-tiny usi-text-secondary" style={{ marginBottom: 8 }}>{s.reason}</div>
-            <div className="usi-flex-row usi-gap-8">
-              <button className="usi-btn sm usi-flex-1" onClick={() => onMerge(s.developer_slug)}>Połącz</button>
-              <button className="usi-btn sm ghost" onClick={() => onDismiss(s.usi_dev_id)}>Ignoruj</button>
+      <div className="usi-flex-col usi-gap-8">
+        {dev.suggestions.map(s => {
+          const isMerging = mergingSlug === s.developer_slug;
+          return (
+            <div
+              key={s.usi_dev_id}
+              className={`suggestion-item dev-suggestion-card${isMerging ? ' merging' : ''}`}
+              onClick={() => !mergingSlug && onMerge(s.developer_slug)}
+              title="Kliknij aby połączyć z bieżącym deweloperem"
+            >
+              <div className="usi-flex-row" style={{ alignItems: 'center', gap: 8 }}>
+                {isMerging
+                  ? <Spinner size={14} stroke={1.5} />
+                  : <Icon name="sparkle" size={14} style={{ color: 'var(--usi-accent)', flexShrink: 0 }} />
+                }
+                <div className="usi-flex-1">
+                  <div className="usi-body usi-weight-600">{s.developer_slug}</div>
+                  <div className="usi-tiny usi-text-secondary">{s.reason}</div>
+                </div>
+                <button
+                  className="usi-btn sm ghost"
+                  style={{ flexShrink: 0 }}
+                  onClick={e => { e.stopPropagation(); onDismiss(s.usi_dev_id); }}
+                  disabled={!!mergingSlug}
+                  title="Ignoruj sugestię"
+                >
+                  <Icon name="x" size={12} />
+                </button>
+              </div>
             </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MergedMembersPanel({ dev }) {
+  const merged = dev.merged_from || [];
+  if (merged.length === 0) return null;
+
+  return (
+    <div className="usi-card usi-p-16">
+      <h3 className="usi-h3" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12, color: 'var(--usi-ink-4)' }}>
+        Wchodzące w skład ({merged.length})
+      </h3>
+      <div className="usi-flex-col usi-gap-6">
+        {merged.map((m, i) => (
+          <div key={i} className="usi-flex-row" style={{ alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '0.5px solid var(--usi-border)' }}>
+            <div className="usi-flex-1">
+              <div className="usi-body">{m.name || m.slug}</div>
+              <div className="usi-mono usi-tiny usi-text-secondary">{m.slug}</div>
+            </div>
+            {m.merged_at && (
+              <div className="usi-tiny usi-text-secondary" style={{ flexShrink: 0 }}>
+                {new Date(m.merged_at).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' })}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DevEventsLog({ dev }) {
+  const events = dev.events || [];
+  if (events.length === 0) return null;
+  const [expanded, setExpanded] = React.useState(false);
+  const shown = expanded ? events : events.slice(0, 5);
+
+  const typeLabel = (e) => {
+    if (e.type === 'merge_in') return `Połączono: ${e.source_name || e.source_slug}`;
+    if (e.type === 'dismiss_suggestion') return `Ignorowano: ${e.dismissed_slug}`;
+    if (e.type === 'discover') return `Discover (${e.by}): ${e.found} nowych`;
+    return e.type;
+  };
+
+  return (
+    <div className="usi-card usi-p-16">
+      <div className="usi-flex-row" style={{ alignItems: 'center', marginBottom: 10 }}>
+        <h3 className="usi-h3 usi-flex-1" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--usi-ink-4)', margin: 0 }}>
+          Dziennik zdarzeń
+        </h3>
+        {events.length > 5 && (
+          <button className="usi-btn sm ghost" onClick={() => setExpanded(v => !v)} style={{ fontSize: 11 }}>
+            {expanded ? 'Zwiń' : `+${events.length - 5} więcej`}
+          </button>
+        )}
+      </div>
+      <div className="usi-flex-col usi-gap-4">
+        {shown.map((e, i) => (
+          <div key={i} className="usi-flex-row" style={{ gap: 8, alignItems: 'baseline' }}>
+            <div className="usi-tiny usi-text-secondary usi-mono" style={{ flexShrink: 0, minWidth: 80 }}>
+              {e.at ? new Date(e.at).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
+            </div>
+            <div className="usi-tiny">{typeLabel(e)}</div>
           </div>
         ))}
       </div>

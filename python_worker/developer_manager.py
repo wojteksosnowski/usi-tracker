@@ -202,8 +202,11 @@ class DeveloperManager:
         return file_path
 
     def get_developer(self, dev_slug: str) -> dict:
-        """Loads developer data from USIdev directory."""
+        """Loads developer data from USIdev directory, with fallback to USIdata legacy location."""
         file_path = self.dev_dir / f"usi_dev_{dev_slug}.json"
+        if not file_path.exists():
+            # Fallback: legacy usi_dev_*.json stored inside USIdata/{slug}/
+            file_path = self.data_dir / dev_slug / f"usi_dev_{dev_slug}.json"
         if not file_path.exists():
             return None
         try:
@@ -228,53 +231,86 @@ class DeveloperManager:
         """Standardizes a developer name into a slug."""
         return slugify(name)
 
+    def _append_event(self, dev: dict, event: dict):
+        """Append to dev['events'] (newest first, max 100 entries)."""
+        events = dev.setdefault("events", [])
+        events.insert(0, {"at": datetime.now().isoformat(), **event})
+        dev["events"] = events[:100]
+
     def merge_developers(self, target_slug: str, source_slug: str) -> bool:
         """
         Merges source developer into target developer.
-        Updates portal mappings and archives source record.
-        DOES NOT move folders to avoid breaking image paths.
+        Transfers portal_mapping + metadata, records merge in events log,
+        archives source dev file. Investment folders stay in place.
         """
         target_dev = self.get_developer(target_slug)
         source_dev = self.get_developer(source_slug)
-        
+
         if not target_dev or not source_dev:
-            logger.error(f"Merge failed: target {target_slug} or source {source_slug} not found.")
+            logger.error(f"Merge failed: target={target_slug} found={target_dev is not None}, "
+                         f"source={source_slug} found={source_dev is not None}")
             return False
-            
+
         # Merge portal mappings
         target_mapping = target_dev.setdefault("portal_mapping", {})
         source_mapping = source_dev.get("portal_mapping", {})
-        
         for portal, data in source_mapping.items():
             if portal not in target_mapping:
                 target_mapping[portal] = data
                 logger.info(f"Merged {portal} mapping from {source_slug} to {target_slug}")
-        
-        # Merge metadata if target is missing it
+
+        # Merge metadata
         target_meta = target_dev.setdefault("metadata", {})
-        source_meta = source_dev.get("metadata", {})
-        for k, v in source_meta.items():
+        for k, v in source_dev.get("metadata", {}).items():
             if not target_meta.get(k) and v:
                 target_meta[k] = v
 
-        # Save updated target
+        # Record in merged_from list
+        merged_from = target_dev.setdefault("merged_from", [])
+        already = any(m.get("slug") == source_slug for m in merged_from)
+        if not already:
+            merged_from.append({
+                "slug": source_slug,
+                "name": source_dev.get("name", source_slug),
+                "usi_dev_id": source_dev.get("usi_dev_id"),
+                "merged_at": datetime.now().isoformat(),
+            })
+
+        # Remove source from suggestions if present
+        target_dev["suggestions"] = [
+            s for s in target_dev.get("suggestions", [])
+            if s.get("developer_slug") != source_slug
+        ]
+
+        # Record event
+        self._append_event(target_dev, {
+            "type": "merge_in",
+            "source_slug": source_slug,
+            "source_name": source_dev.get("name", source_slug),
+        })
+
         self.create_developer_file(target_dev)
-                
-        # Archive source developer JSON
+
+        # Archive source dev file (mark merged_into, then move)
         source_file = self.dev_dir / f"usi_dev_{source_slug}.json"
-        if source_file.exists():
+        legacy_source = self.data_dir / source_slug / f"usi_dev_{source_slug}.json"
+        actual_source = source_file if source_file.exists() else (legacy_source if legacy_source.exists() else None)
+
+        if actual_source:
+            source_dev["merged_into"] = target_slug
+            source_dev["merged_at"] = datetime.now().isoformat()
             archive_dir = self.dev_dir / "archived"
             archive_dir.mkdir(parents=True, exist_ok=True)
             ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-            dest_path = archive_dir / f"usi_dev_{source_slug}_{ts}.json"
+            dest = archive_dir / f"usi_dev_{source_slug}_{ts}.json"
             try:
-                shutil.move(str(source_file), str(dest_path))
-                logger.info(f"Archived source developer {source_slug} to {dest_path}")
+                dest.write_text(json.dumps(source_dev, ensure_ascii=False, indent=2), encoding="utf-8")
+                actual_source.unlink()
+                logger.info(f"Archived {source_slug} → {dest}")
             except Exception as e:
-                logger.error(f"Failed to archive source developer file: {e}")
-                # We still return True if the merge was successful, even if archival failed
-        
-        logger.info(f"Successfully merged {source_slug} into {target_slug} (mappings only)")
+                logger.error(f"Archive failed for {source_slug}: {e}")
+
+        logger.info(f"Merged {source_slug} into {target_slug}")
         return True
 
     def dismiss_suggestion(self, dev_slug: str, suggested_id: str) -> bool:
@@ -282,11 +318,25 @@ class DeveloperManager:
         dev = self.get_developer(dev_slug)
         if not dev or "suggestions" not in dev:
             return False
-            
+        dismissed = next((s for s in dev["suggestions"] if s["usi_dev_id"] == suggested_id), None)
         new_suggestions = [s for s in dev["suggestions"] if s["usi_dev_id"] != suggested_id]
         if len(new_suggestions) == len(dev["suggestions"]):
             return False
-            
         dev["suggestions"] = new_suggestions
+        if dismissed:
+            self._append_event(dev, {
+                "type": "dismiss_suggestion",
+                "dismissed_slug": dismissed.get("developer_slug"),
+                "dismissed_id": suggested_id,
+            })
+        self.create_developer_file(dev)
+        return True
+
+    def log_event(self, dev_slug: str, event: dict) -> bool:
+        """Append a generic event to the developer's event log."""
+        dev = self.get_developer(dev_slug)
+        if not dev:
+            return False
+        self._append_event(dev, event)
         self.create_developer_file(dev)
         return True

@@ -218,6 +218,14 @@ class DeveloperCrawler:
         self._record_visit(dev_slug, new_count)
         logger.info("Crawler done: %s — %d new investments", dev_slug, new_count)
 
+    def _log_dev_event(self, dev_slug: str, event: dict):
+        try:
+            from python_worker.developer_manager import DeveloperManager
+            dm = DeveloperManager(self.data_dir, self.dev_dir)
+            dm.log_event(dev_slug, event)
+        except Exception as e:
+            logger.warning("_log_dev_event(%s) failed: %s", dev_slug, e)
+
     def _record_visit(self, dev_slug: str, new_count: int):
         dev_file = self.dev_dir / f"usi_dev_{dev_slug}.json"
         if not dev_file.exists():
@@ -231,6 +239,10 @@ class DeveloperCrawler:
             crawler["last_new_count"] = new_count
             crawler["new_since_review"] = crawler.get("new_since_review", 0) + new_count
             data["crawler"] = crawler
+            # Append to events log
+            events = data.setdefault("events", [])
+            events.insert(0, {"at": _iso(_now_utc()), "type": "discover", "by": "crawler", "found": new_count})
+            data["events"] = events[:100]
             dev_file.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         except Exception as e:
             logger.error("_record_visit(%s) failed: %s", dev_slug, e)
