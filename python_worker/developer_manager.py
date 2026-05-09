@@ -217,12 +217,14 @@ class DeveloperManager:
             return None
 
     def list_developers(self) -> list:
-        """Returns a list of all developer data objects."""
+        """Returns top-level developer data objects (children with parent_id excluded)."""
         developers = []
         for json_file in self.dev_dir.glob("usi_dev_*.json"):
             try:
                 with open(json_file, "r", encoding="utf-8") as f:
-                    developers.append(json.load(f))
+                    dev = json.load(f)
+                if not dev.get("parent_id"):
+                    developers.append(dev)
             except Exception as e:
                 logger.warning(f"Error reading {json_file}: {e}")
         return developers

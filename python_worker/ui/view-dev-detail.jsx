@@ -84,11 +84,35 @@ function DeveloperDetail({
       });
   };
 
-  const [mergingSlug, setMergingSlug] = React.useState(null);
+  // Local state for optimistic merge (card jumps immediately without reload)
+  const [localSuggestions, setLocalSuggestions] = React.useState([]);
+  const [localMerged, setLocalMerged] = React.useState([]);
+  const [arrivingSlug, setArrivingSlug] = React.useState(null);
 
-  const handleMerge = (source_slug) => {
-    if (mergingSlug) return;
-    setMergingSlug(source_slug);
+  React.useEffect(() => {
+    if (developer) {
+      setLocalSuggestions(developer.suggestions || []);
+      setLocalMerged(developer.merged_from || []);
+    }
+  }, [developer]);
+
+  const handleMerge = (suggestion) => {
+    const source_slug = suggestion.developer_slug;
+
+    // Optimistic: move card immediately from suggestions → connected
+    setLocalSuggestions(prev => prev.filter(s => s.developer_slug !== source_slug));
+    const arriving = {
+      slug: source_slug,
+      name: suggestion.name || source_slug,
+      usi_dev_id: suggestion.usi_dev_id,
+      portal_mapping: suggestion.portal_mapping || {},
+      investments_count: suggestion.investments_count || 0,
+      merged_at: new Date().toISOString(),
+    };
+    setLocalMerged(prev => [arriving, ...prev]);
+    setArrivingSlug(source_slug);
+    setTimeout(() => setArrivingSlug(null), 600);
+
     fetch(`/api/developer/${dev_slug}/merge`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -96,20 +120,30 @@ function DeveloperDetail({
     })
     .then(r => r.json())
     .then(data => {
-      setMergingSlug(null);
-      if (data.ok) load();
+      if (data.ok) {
+        load(); // sync with server after animation
+      } else {
+        // Revert optimistic update
+        setLocalMerged(prev => prev.filter(m => m.slug !== source_slug));
+        setLocalSuggestions(prev => [suggestion, ...prev]);
+      }
     })
-    .catch(() => setMergingSlug(null));
+    .catch(() => {
+      setLocalMerged(prev => prev.filter(m => m.slug !== source_slug));
+      setLocalSuggestions(prev => [suggestion, ...prev]);
+    });
   };
 
   const handleDismiss = (usi_dev_id) => {
+    const dismissed = localSuggestions.find(s => s.usi_dev_id === usi_dev_id);
+    setLocalSuggestions(prev => prev.filter(s => s.usi_dev_id !== usi_dev_id));
     request(`/api/developer/${dev_slug}/dismiss-suggestion`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ usi_dev_id })
     })
-    .then(data => {
-      if (data.ok) load();
+    .catch(() => {
+      if (dismissed) setLocalSuggestions(prev => [...prev, dismissed]);
     });
   };
 
@@ -187,8 +221,8 @@ function DeveloperDetail({
           </section>
 
           <aside className="developer-sidebar">
-            <DeveloperSuggestions dev={developer} onMerge={handleMerge} onDismiss={handleDismiss} mergingSlug={mergingSlug} />
-            <MergedMembersPanel dev={developer} />
+            <DeveloperSuggestions suggestions={localSuggestions} onMerge={handleMerge} onDismiss={handleDismiss} />
+            <MergedMembersPanel members={localMerged} arrivingSlug={arrivingSlug} />
             <DeveloperStats dev={developer} onCityClick={setFilterCity} activeCity={filterCity} />
             <DevEventsLog dev={developer} />
             <DeveloperMetadata dev={developer} />
@@ -362,74 +396,101 @@ function DeveloperPortals({ dev }) {
   );
 }
 
-function DeveloperSuggestions({ dev, onMerge, onDismiss, mergingSlug }) {
-  if (!dev.suggestions || dev.suggestions.length === 0) return null;
-  const { Spinner } = window;
-
+// ── DevMiniCard — shared card for suggestions and connected-records panels ──
+function DevMiniCard({ name, slug, usiId, portalMapping = {}, invCount, sub, arriving, footer }) {
+  const { SourceBadge } = window;
+  const hasRp  = !!portalMapping.rp;
+  const hasOto = !!portalMapping.oto;
+  const hasTo  = !!portalMapping.to;
   return (
-    <div className="usi-card usi-p-16 suggestions-card">
-      <h3 className="usi-h3 usi-text-accent" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>
-        <Icon name="sparkle" size={12} /> Sugerowane powiązania — kliknij kartę aby połączyć
-      </h3>
-      <div className="usi-flex-col usi-gap-8">
-        {dev.suggestions.map(s => {
-          const isMerging = mergingSlug === s.developer_slug;
-          return (
-            <div
-              key={s.usi_dev_id}
-              className={`suggestion-item dev-suggestion-card${isMerging ? ' merging' : ''}`}
-              onClick={() => !mergingSlug && onMerge(s.developer_slug)}
-              title="Kliknij aby połączyć z bieżącym deweloperem"
-            >
-              <div className="usi-flex-row" style={{ alignItems: 'center', gap: 8 }}>
-                {isMerging
-                  ? <Spinner size={14} stroke={1.5} />
-                  : <Icon name="sparkle" size={14} style={{ color: 'var(--usi-accent)', flexShrink: 0 }} />
-                }
-                <div className="usi-flex-1">
-                  <div className="usi-body usi-weight-600">{s.developer_slug}</div>
-                  <div className="usi-tiny usi-text-secondary">{s.reason}</div>
-                </div>
-                <button
-                  className="usi-btn sm ghost"
-                  style={{ flexShrink: 0 }}
-                  onClick={e => { e.stopPropagation(); onDismiss(s.usi_dev_id); }}
-                  disabled={!!mergingSlug}
-                  title="Ignoruj sugestię"
-                >
-                  <Icon name="x" size={12} />
-                </button>
-              </div>
-            </div>
-          );
-        })}
+    <div className={`dev-mini-card${arriving ? ' dev-card-arriving' : ''}`}>
+      <div className="dev-mini-card-top">
+        <div className="dev-mini-card-name usi-body usi-weight-600">{name || slug}</div>
+        <div className="dev-mini-card-meta usi-mono usi-tiny usi-text-secondary">
+          {slug}{usiId ? ` · ${usiId}` : ''}
+          {invCount != null ? ` · ${invCount} inw.` : ''}
+        </div>
+        {sub && <div className="usi-tiny usi-text-secondary dev-mini-card-sub">{sub}</div>}
+      </div>
+      <div className="dev-mini-card-bottom">
+        <div className="dev-mini-card-badges">
+          {hasRp  && <SourceBadge source="rp" />}
+          {hasOto && <SourceBadge source="oto" />}
+          {hasTo  && <SourceBadge source="to" />}
+          {!hasRp && !hasOto && !hasTo && (
+            <span className="usi-tiny usi-text-secondary">brak portali</span>
+          )}
+        </div>
+        {footer}
       </div>
     </div>
   );
 }
 
-function MergedMembersPanel({ dev }) {
-  const merged = dev.merged_from || [];
-  if (merged.length === 0) return null;
+function DeveloperSuggestions({ suggestions, onMerge, onDismiss }) {
+  if (!suggestions || suggestions.length === 0) return null;
+
+  return (
+    <div className="usi-card usi-p-16 suggestions-card">
+      <h3 className="dev-panel-header usi-text-accent">
+        <Icon name="sparkle" size={12} /> Sugerowane powiązania
+      </h3>
+      <div className="usi-flex-col usi-gap-8">
+        {suggestions.map(s => (
+          <DevMiniCard
+            key={s.usi_dev_id}
+            name={s.name || s.developer_slug}
+            slug={s.developer_slug}
+            usiId={s.usi_dev_id}
+            portalMapping={s.portal_mapping || {}}
+            invCount={s.investments_count}
+            sub={s.reason}
+            footer={
+              <div className="usi-flex-row usi-gap-6">
+                <button
+                  className="usi-btn sm usi-flex-1"
+                  onClick={() => onMerge(s)}
+                >
+                  Połącz
+                </button>
+                <button
+                  className="usi-btn sm ghost"
+                  onClick={() => onDismiss(s.usi_dev_id)}
+                  title="Ignoruj sugestię"
+                >
+                  <Icon name="x" size={12} />
+                </button>
+              </div>
+            }
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MergedMembersPanel({ members, arrivingSlug }) {
+  if (!members || members.length === 0) return null;
 
   return (
     <div className="usi-card usi-p-16">
-      <h3 className="usi-h3" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12, color: 'var(--usi-ink-4)' }}>
-        Wchodzące w skład ({merged.length})
+      <h3 className="dev-panel-header">
+        Połączone rekordy ({members.length})
       </h3>
-      <div className="usi-flex-col usi-gap-6">
-        {merged.map((m, i) => (
-          <div key={i} className="usi-flex-row" style={{ alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '0.5px solid var(--usi-border)' }}>
-            <div className="usi-flex-1">
-              <div className="usi-body">{m.name || m.slug}</div>
-              <div className="usi-mono usi-tiny usi-text-secondary">{m.slug}</div>
-            </div>
-            {m.merged_at && (
-              <div className="usi-tiny usi-text-secondary" style={{ flexShrink: 0 }}>
-                {new Date(m.merged_at).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' })}
-              </div>
-            )}
-          </div>
+      <div className="usi-flex-col usi-gap-8">
+        {members.map((m, i) => (
+          <DevMiniCard
+            key={m.slug || i}
+            name={m.name}
+            slug={m.slug}
+            usiId={m.usi_dev_id}
+            portalMapping={m.portal_mapping || {}}
+            invCount={m.investments_count}
+            arriving={arrivingSlug === m.slug}
+            sub={m.merged_at
+              ? 'Połączono ' + new Date(m.merged_at).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' })
+              : null}
+          />
         ))}
       </div>
     </div>

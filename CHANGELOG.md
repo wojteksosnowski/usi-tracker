@@ -1,3 +1,17 @@
+## Łączenie deweloperów — model parent_id + DevMiniCard UX — 2026-05-09
+
+- **Model parent_id**: `merge_developers()` ustawia `parent_id` na źródle — żadne pliki nie są archiwizowane ani usuwane. Raw pliki portali (`raw_rp_*.json`, `raw_oto_*.json`, `raw_to_*.json`) pozostają nienaruszone. Slugi portali są święte.
+- **`list_developers()` filtruje dzieci**: deweloperzy z `parent_id` znikają z głównej listy — zarówno w `DeveloperManager.list_developers()` jak i w API.
+- **Fallback lokalizacji**: `get_developer()` szuka najpierw w `USIdev/`, potem w legacy `USIdata/{slug}/`. Legacy kopie są normalizowane do `USIdev/` przy pierwszym merge.
+- **Cache `merged_from[]`**: target dewelopera gromadzi listę wciągniętych slugów; API wzbogaca każdy wpis o `portal_mapping` i `investments_count`.
+- **Log zdarzeń `events[]`**: każda operacja (merge_in, dismiss_suggestion) dopisuje wpis newest-first, max 100 pozycji. Publiczna metoda `DeveloperManager.log_event()`.
+- **`DevMiniCard`**: nowy komponent karty dewelopera w `view-dev-detail.jsx` — nazwa, slug·ID·liczba inwestycji, sugestia/data (sub), odznaki portali, dowolny footer z przyciskami.
+- **Optimistic UI**: kliknięcie "Połącz" natychmiast przenosi kartę do panelu "Połączeni" z animacją CSS `devCardArrive`; wywołanie API w tle; cofnięcie stanu przy błędzie.
+- **Odrzucanie sugestii**: przycisk X na karcie sugestii usuwa ją optimistycznie; API `dismiss-suggestion` dopisuje zdarzenie.
+- **`DevEventsLog`**: panel 5 ostatnich zdarzeń ze zwijaniem.
+- **Naprawa `onToggleTheme`**: prop był przekazywany pod błędną nazwą `handleToggleTheme` — naprawiono (eliminuje ReferenceError w logach).
+- **Testy**: `test_developer_manager.py` — 15 testów: get (USIdev, legacy, missing), list (filtr dzieci), merge (7 przypadków w tym niezmienność raw), dismiss (2).
+
 ## POI widget + Developer Crawler — 2026-05-09
 
 - **PoiModule (P01 backend)**: nowe endpointy `GET /api/poi/<dev_slug>/<inv_slug>` (odczyt `poi_<inv_slug>.json`) i `POST /api/poi/<dev_slug>/<inv_slug>/fetch` (fetch HERE Places Browse API + Wikimedia geosearch PL, zapis JSON). Współrzędne z `location.coords`. Kategorie: food, entertainment, outdoor, transport, shopping, education, health.

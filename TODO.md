@@ -48,7 +48,42 @@
 
 ---
 
+---
+
+## ✅ Zamknięty: Łączenie deweloperów — model parent_id + UX kart
+
+### Krok D01 — Backend: model parent_id
+
+- [x] `DeveloperManager.merge_developers()` — źródło dostaje `parent_id`, pliki NIE są archiwizowane
+- [x] `list_developers()` filtruje `parent_id != null` (dzieci ukryte z głównej listy)
+- [x] `get_developer()` fallback: USIdev/ → USIdata/{slug}/ (legacy location)
+- [x] `merged_from[]` cache na target dewelopera (portal_mapping, investments_count)
+- [x] `events[]` log na target (merge_in, dismiss_suggestion); max 100 wpisów
+- [x] `dismiss_suggestion()` — usuwa sugestię i dopisuje zdarzenie
+
+### Krok D02 — API
+
+- [x] `GET /api/developer/<slug>` — enriches `merged_from[]` i `suggestions[]` (name, portal_mapping, investments_count)
+- [x] `POST /api/developer/<slug>/merge` — obsługa błędów 422 vs 500
+- [x] `POST /api/developer/<slug>/dismiss-suggestion`
+
+### Krok D03 — Frontend: DevMiniCard + optimistic UI
+
+- [x] Komponent `DevMiniCard` — nazwa, slug·ID·liczba inw., sugestia/data, odznaki portali, przyciski w footerze
+- [x] `DeveloperSuggestions` — lista kart sugestii z przyciskami "Połącz" + odrzuć
+- [x] `MergedMembersPanel` — lista kart połączonych deweloperów z animacją przybycia
+- [x] Optimistic update: karta natychmiast przeskakuje do panelu "Połączeni", cofnięcie przy błędzie API
+- [x] Animacja CSS `devCardArrive` na karcie w chwili pojawienia się w panelu
+- [x] `DevEventsLog` — lista ostatnich zdarzeń (5 widoczne, zwijalne)
+- [x] Usunięto `confirm()` — brak popup przy łączeniu
+- [x] Naprawa `handleToggleTheme` → `onToggleTheme` (błąd ReferenceError)
+
+### Krok D04 — Testy
+
+- [x] `test_developer_manager.py` — 15 testów pokrywających get, list, merge, dismiss
+- [x] `test_merge_source_raw_files_untouched` — weryfikuje byte-for-byte niezmienność raw_*.json
+
+---
+
 ## Przyszłe kamienie milowe
 
-### Widok listy — migotanie przy scrollowaniu
-- (przeniesione do bieżącego kamienia C02)

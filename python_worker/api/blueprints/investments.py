@@ -149,8 +149,6 @@ def list_developers():
     from pathlib import Path
     dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
     developers = dm.list_developers()
-    # Hide child developers (merged into a parent via parent_id)
-    developers = [d for d in developers if not d.get("parent_id")]
     developers.sort(key=lambda x: x.get("name", "").lower())
     for dev in developers:
         slug = dev["developer_slug"]
@@ -197,10 +195,34 @@ def get_developer_detail(dev_slug):
         return result
 
     investments = _load_inv_dir(dev_slug)
+
+    # Enrich merged_from entries with portal_mapping and investments_count
     for member in dev.get("merged_from", []):
         child_slug = member.get("slug")
-        if child_slug and child_slug != dev_slug:
-            investments.extend(_load_inv_dir(child_slug))
+        if not child_slug or child_slug == dev_slug:
+            continue
+        investments.extend(_load_inv_dir(child_slug))
+        child_dev = dm.get_developer(child_slug)
+        if child_dev:
+            member["portal_mapping"] = child_dev.get("portal_mapping", {})
+            child_dir = Path(USI_DATA_DIR) / child_slug
+            member["investments_count"] = sum(
+                1 for d in child_dir.iterdir() if d.is_dir()
+            ) if child_dir.exists() else 0
+
+    # Enrich suggestions with portal_mapping, name, investments_count
+    for s in dev.get("suggestions", []):
+        s_slug = s.get("developer_slug")
+        if not s_slug:
+            continue
+        s_dev = dm.get_developer(s_slug)
+        if s_dev:
+            s["name"] = s_dev.get("name", s_slug)
+            s["portal_mapping"] = s_dev.get("portal_mapping", {})
+            s_dir = Path(USI_DATA_DIR) / s_slug
+            s["investments_count"] = sum(
+                1 for d in s_dir.iterdir() if d.is_dir()
+            ) if s_dir.exists() else 0
 
     dev["investments"] = investments
     return jsonify(dev)
