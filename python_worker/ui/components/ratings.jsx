@@ -27,17 +27,21 @@
                 width: size, height: size,
                 transform: hover === idx ? 'scale(1.1)' : 'scale(1)',
               }}>
-              <svg width={size} height={size} viewBox="0 0 48 48" className="usi-starrating-svg">
-                <defs>
-                  <linearGradient id={`half-${i}-${size}`} x1="0" x2="1" y1="0" y2="0">
-                    <stop offset="50%" stopColor={c} />
-                    <stop offset="50%" stopColor="var(--usi-star-empty)" />
-                  </linearGradient>
-                </defs>
-                <path d="M22.85 15.05c0-.32 .21-.6 .51-.69 .75-.21 2.53-.5 6.57-.5 4.05 0 5.83 .3 6.58 .51 .3 .09 .51 .37 .51 .68v15.78L51.06 26c.3-.1 .63 .02 .81 .28 .43 .65 1.27 2.25 2.51 6.1 1.25 3.85 1.51 5.64 1.55 6.42 .01 .31-.19 .6-.49 .69-3.04 .99-20.55 6.68-30 9.75l18.55 25.56c.17 .25 .16 .59 .03 .83-.49 .61-1.75 1.9-5.02 4.27-3.27 2.38-4.89 3.18-5.62 3.45-.26 .09-.54 .03-.74-.16L24 88c-19.36-26-19.55-26.21-19.71-26.34-.29-.21-.49-.49-.46-.81 .03-.78 .29-2.57 1.55-6.43 1.26-3.89 2.1-5.48 2.53-6.11 .17-.25 .49-.36 .77-.27z"
-                  fill={filled ? c : (halfFill ? `url(#half-${i}-${size})` : 'var(--usi-star-empty)')}
-                  style={{ transition: 'fill .12s' }} />
-              </svg>
+              <div className="usi-starrating-svg-wrapper" style={{ width: size, height: size }}>
+                <svg width="0" height="0" style={{ position: 'absolute' }}>
+                  <defs>
+                    <linearGradient id={`half-${i}-${size}`} x1="0" x2="1" y1="0" y2="0">
+                      <stop offset="50%" stopColor={c} />
+                      <stop offset="50%" stopColor="var(--usi-star-empty)" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <Icon 
+                  name="usiLogo" 
+                  size={size} 
+                  color={filled ? c : (halfFill ? `url(#half-${i}-${size})` : 'var(--usi-star-empty)')}
+                />
+              </div>
             </button>
           );
         })}
@@ -60,14 +64,10 @@
                 className="usi-categoryrating-circle-btn"
                 style={{ background: filled ? category.color : 'var(--usi-surface-3)' }}>
                 {filled && (
-                  <img
-                    src={n === 0 ? '/assets/usi-zero-white.svg' : '/assets/usi-star-white.svg'}
-                    width="14" height="16"
-                    alt={String(n)}
-                    className="usi-categoryrating-circle-img"
-                  />
+                  <Icon name={n === 0 ? 'usiZero' : 'usiStar'} size={sz * 0.7} />
                 )}
-              </button>
+                </button>
+
             );
           })}
         </div>
@@ -214,13 +214,10 @@
     return (
       <div data-component="WeightedUsiScore" className="usi-weightedscore-container">
         <div className="usi-weightedscore-badge" style={{ width: size, height: size }}>
-          <img 
-            src={score < 0.5 ? '/assets/usi-zero-white.svg' : '/assets/usi-star-white.svg'} 
-            width={size * 0.55} height={size * 0.55} 
-            alt="USI"
-          />
+          <Icon name={score < 0.5 ? 'usiZero' : 'usiStar'} size={size * 0.6} />
         </div>
         <div className="usi-weightedscore-info">
+
           <div className="usi-weightedscore-value" style={{ fontSize: size * 0.55 }}>
             {nFull}{fracChar && <span style={{ fontSize: '0.65em', verticalAlign: 'top', marginLeft: 1 }}>{fracChar}</span>}
             <span className="usi-weightedscore-max">/ 4</span>

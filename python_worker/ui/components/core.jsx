@@ -97,10 +97,11 @@ function DataBoundary({ data, schema = USI_INVESTMENT_SCHEMA, children }) {
 window.usiRegister('DataBoundary', DataBoundary);
 
 function USIStarLogo({ size = 24, color }) {
+  const { Icon } = window;
   return (
-    <svg data-component="USIStarLogo" width={size} height={size} viewBox="0 0 48 48" fill="none">
-      <path d="M22.85 15.05c0-.32 .21-.6 .51-.69 .75-.21 2.53-.5 6.57-.5 4.05 0 5.83 .3 6.58 .51 .3 .09 .51 .37 .51 .68v15.78L51.06 26c.3-.1 .63 .02 .81 .28 .43 .65 1.27 2.25 2.51 6.1 1.25 3.85 1.51 5.64 1.55 6.42 .01 .31-.19 .6-.49 .69-3.04 .99-20.55 6.68-30 9.75l18.55 25.56c.17 .25 .16 .59 .03 .83-.49 .61-1.75 1.9-5.02 4.27-3.27 2.38-4.89 3.18-5.62 3.45-.26 .09-.54 .03-.74-.16L24 88c-19.36-26-19.55-26.21-19.71-26.34-.29-.21-.49-.49-.46-.81 .03-.78 .29-2.57 1.55-6.43 1.26-3.89 2.1-5.48 2.53-6.11 .17-.25 .49-.36 .77-.27z" fill={color || 'currentColor'} />
-    </svg>
+    <div data-component="USIStarLogo" className="usi-flex-center" style={{ width: size, height: size, color: color || 'currentColor' }}>
+      <Icon name="usiLogo" size={size} />
+    </div>
   );
 }
 window.usiRegister('USIStarLogo', USIStarLogo);

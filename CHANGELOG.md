@@ -1,4 +1,5 @@
 ## Standaryzacja stylów i optymalizacja — 2026-05-09
+- **Czyszczenie artefaktów SVG**: Zunifikowano użycie ikon USI (logo, gwiazdka, zero) poprzez wprowadzenie ich do komponentu `Icon.jsx` i usunięcie surowych ścieżek SVG z wielu komponentów (`app.jsx`, `core.jsx`, `ratings.jsx`). Zastąpiono statyczne obrazy SVG (`usi-star-white.svg`, `usi-zero-white.svg`) komponentami React.
 - **Unifikacja Pill Badges**: Zdefiniowano klasę `.usi-pill.info` oraz rozszerzono `.usi-pill.outline` o automatyczne dopasowanie koloru obramowania dla wariantów `success`, `danger` i `info`.
 - **Eliminacja Inline Styles**: Usunięto style inline z widoków deweloperów i biblioteki modułów, zastępując je semantycznymi klasami pomocniczymi (`.usi-text-accent`, `.usi-weight-400`).
 - **Poprawa Wyświetlania Sugestii**: Ujednolicono wygląd etykiet sugestii deweloperów, korzystając z nowego systemu klas CSS.
