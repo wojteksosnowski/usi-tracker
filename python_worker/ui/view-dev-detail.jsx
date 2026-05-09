@@ -40,7 +40,7 @@ function DeveloperDetail({
   const {
     React, Spinner, NavMenuButton, Icon,
     NavDrawer, StandardCard, SourceBadge, MetadataPanel,
-    MAIN_CITIES, useApi
+    MAIN_CITIES, useApi, useDataBus
   } = window;
   const [developer, setDeveloper] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -49,6 +49,7 @@ function DeveloperDetail({
   const [filterCity, setFilterCity] = React.useState(null);
   
   const { request } = useApi();
+  const { refetch } = useDataBus();
 
   const load = React.useCallback((silent = false) => {
     if (!silent) setLoading(true);
@@ -122,6 +123,7 @@ function DeveloperDetail({
     .then(data => {
       if (data.ok) {
         load(true); // silent sync — no spinner, keeps optimistic card visible
+        refetch('developers'); // remove merged child from global list
       } else {
         // Revert optimistic update
         setLocalMerged(prev => prev.filter(m => m.slug !== source_slug));
