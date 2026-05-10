@@ -99,7 +99,7 @@ window.usiRegister('ViewDownload', function ViewDownload() {
     for (const res of newOnes) {
       await handleRegister(res);
     }
-    setVariable('appStatus', { type: 'success', msg: `Pobrano ${newOnes.length} inwestycji.` });
+    setVariable('appStatus', { type: 'success', msg: `Zlecono pobranie ${newOnes.length} inwestycji. Postęp możesz śledzić w pasku zadań.` });
   };
 
   const visibleResults = React.useMemo(() => {

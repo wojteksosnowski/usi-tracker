@@ -65,6 +65,20 @@ def index():
 def serve_static(filename):
     return send_from_directory(UI_DIR, filename)
 
+# ── Logging Filter ─────────────────────────────────────────────────────────────
+
+class IgnorePollingFilter(logging.Filter):
+    """Filters out frequent polling requests from console output to keep it clean."""
+    def filter(self, record):
+        msg = record.getMessage()
+        return not any(x in msg for x in [
+            "GET /api/jobs", 
+            "GET /api/crawler/status", 
+            "POST /api/ui-error"
+        ])
+
+logging.getLogger("werkzeug").addFilter(IgnorePollingFilter())
+
 def run():
     from python_worker.crawler import init_crawler
     from python_worker.config import USI_DEV_DIR

@@ -24,12 +24,27 @@ investment_service = InvestmentService()
 def serve_image(dev_slug, inv_slug, filename):
     from python_worker.config import PUBLIC_USI_DIR
     from pathlib import Path
+    from urllib.parse import quote
     if not _valid_slug(dev_slug) or not _valid_slug(inv_slug) or not _valid_filename(filename):
         abort(400)
+    
+    # 1. Try exact match (decoded by Flask)
     img_path = Path(PUBLIC_USI_DIR) / dev_slug / inv_slug / filename
-    if not img_path.exists():
-        abort(404)
-    return send_file(img_path)
+    if img_path.exists():
+        return send_file(img_path)
+        
+    # 2. Try re-encoding (for files literally named with % on disk)
+    encoded_filename = quote(filename)
+    # quote() uses uppercase %XX, but some scrapers might use lowercase
+    alt_path_upper = Path(PUBLIC_USI_DIR) / dev_slug / inv_slug / encoded_filename
+    if alt_path_upper.exists():
+        return send_file(alt_path_upper)
+        
+    alt_path_lower = Path(PUBLIC_USI_DIR) / dev_slug / inv_slug / encoded_filename.lower()
+    if alt_path_lower.exists():
+        return send_file(alt_path_lower)
+
+    abort(404)
 
 @investments_bp.route("/investments")
 def list_investments():
@@ -139,6 +154,7 @@ def download_raw_route(dev_slug, inv_slug):
                     success = True
         return jsonify({"ok": success})
     except Exception as e:
+        logger.error(f"API Error in {request.path}: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 @investments_bp.route("/fetch-status")
@@ -326,7 +342,7 @@ def register():
         elif "otodom" in portal or portal == "oto": portal = "oto"
         elif "tabelaofert" in portal or portal == "to": portal = "to"
 
-        dev_slug, inv_slug = investment_service.register_investment(
+        result = investment_service.register_investment(
             portal=portal,
             developer_name=payload.get("developer_name"),
             inv_slug=payload.get("inv_slug"),
@@ -334,6 +350,11 @@ def register():
             item_id=payload.get("id"),
             url=payload.get("url")
         )
+
+        if result == (None, None):
+            return jsonify({"ok": True, "skipped": True, "message": "Investment already exists by ID"})
+
+        dev_slug, inv_slug = result
 
         def run_register_job(job_id, d_slug, i_slug, inv_name):
             job_manager.update_progress(job_id, 10, f"Rozpoczęto pobieranie: {inv_name}")
@@ -345,4 +366,5 @@ def register():
         job_id = job_manager.start_job(f"Register: {payload.get('name')}", run_register_job, dev_slug, inv_slug, payload.get('name'))
         return jsonify({"ok": True, "job_id": job_id})
     except Exception as e:
+        logger.error(f"API Error in {request.path}: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500

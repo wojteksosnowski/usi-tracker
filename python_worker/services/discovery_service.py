@@ -16,11 +16,17 @@ class DiscoveryService:
         self.config = get_scraper_config()
         self.fetcher = Fetcher(self.config) if self.config else None
 
-    def discover_for_developer(self, job_id, dev_slug, job_manager=None, download=False):
+    def discover_for_developer(self, job_id=None, dev_slug=None, job_manager=None, download=False):
         """
         Discovers and registers new investments for a developer.
-        Called via JobManager.start_job — job_id is the first positional arg by convention.
+        Can be called directly (CLI) or via JobManager.
         """
+        # If called from CLI: discover_for_developer(slug, download=True)
+        # If called from JobManager: discover_for_developer(job_id, slug, ...)
+        if dev_slug is None and job_id is not None:
+            dev_slug = job_id
+            job_id = None
+
         from python_worker.developer_manager import DeveloperManager
         dm = DeveloperManager(self.data_dir, self.data_dir.parent / "USIdev")
         dev = dm.get_developer(dev_slug)
@@ -129,12 +135,35 @@ class DiscoveryService:
     def discovery_by_portal(self, portal, identifier=None):
         """
         Discovers new investments on a portal for global or specific scan.
+        Supports both IDs (developer scan) and URLs (listing scan).
         """
-        logger.info(f"Triggering discovery for portal: {portal} (ID: {identifier})")
+        logger.info(f"Triggering discovery for portal: {portal} (Identifier: {identifier})")
         portal_key = "rp" if portal == "rp" else ("otodom" if portal == "oto" else "to")
         
         try:
-            results = scraper_api.list_investments(self.config, self.fetcher, portal, identifier)
+            results = []
+            # Check if identifier is a URL for general listing discovery
+            is_url = str(identifier).startswith("http") if identifier else False
+
+            if is_url:
+                logger.info(f"Detected listing URL discovery: {identifier}")
+                if portal == "rp":
+                    # RP doesn't have a specialized listing-URL scraper, but we can try 
+                    # extracting vendor-id/slug or fallback to list_investments
+                    results = scraper_api.list_investments(self.config, self.fetcher, portal, identifier)
+                elif portal == "oto":
+                    results = scraper_api.discover_otodom_listing(identifier, self.fetcher)
+                elif portal == "to":
+                    results = scraper_api.discover_to_listing(identifier, self.fetcher)
+            else:
+                # Standard ID-based or global discovery
+                if portal == "rp" and not identifier:
+                    # Global RP scan (no vendor ID)
+                    results = scraper_api.discover_rp_investments(self.fetcher, self.config)
+                else:
+                    # Specific developer by ID/slug
+                    results = scraper_api.list_investments(self.config, self.fetcher, portal, identifier)
+
             logger.info(f"Scraper library returned {len(results)} items for {portal}")
             
             filtered = filter_new_investments(results, portal_key)

@@ -64,8 +64,26 @@ class InvestmentService:
         usi_path = self.tech_manager.get_usi_json_path(dev_slug, inv_slug) if self.tech_manager else \
                    (self.data_dir / dev_slug / inv_slug / f"usi_{inv_slug}.json")
 
+        # 1. Check if EXACT path exists
         if usi_path.exists():
-            raise ValueError("Investment already exists")
+            return dev_slug, inv_slug # Silent return if exactly the same
+
+        # 2. Check for ID-based duplication across all investments
+        # This prevents 500 errors when portal changes slug/dev but ID remains same
+        existing_ids = dm.get_existing_identifiers()
+        id_exists = False
+        if portal == "rp" and item_id and str(item_id) in existing_ids.get("rp_ids", set()):
+            id_exists = True
+        elif portal == "oto" and item_id and str(item_id) in existing_ids.get("oto_ids", set()):
+            id_exists = True
+        elif portal == "to" and item_id and str(item_id) in existing_ids.get("to_ids", set()):
+            id_exists = True
+
+        if id_exists:
+            logger.info(f"Investment with ID {item_id} ({portal}) already exists in system. Skipping registration.")
+            # We don't have the exact dev/inv slug here easily without a full scan,
+            # but returning (None, None) or similar would signal "nothing to do"
+            return None, None
 
         usi_path.parent.mkdir(parents=True, exist_ok=True)
 

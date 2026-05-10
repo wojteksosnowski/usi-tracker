@@ -166,9 +166,12 @@ function StandardCard({
   overlay = null,
   style = {}
 }) {
+  const { React } = window;
+  const [imgError, setImgError] = React.useState(false);
+  
   const safeTitle = safeRender(title, 'string', 'Brak tytułu');
   const safeSubtitle = safeRender(subtitle, 'string', '');
-  const safeImage = safeRender(image, 'object', null); // Returns object if it's a React element
+  const safeImage = safeRender(image, 'object', null); 
 
   return (
     <article 
@@ -178,18 +181,15 @@ function StandardCard({
       style={style}
     >
       <div className="usi-card-img-container">
-        {image ? (
+        {imgError ? (
+          <div className="usi-card-img-placeholder broken">⚠️</div>
+        ) : image ? (
           typeof image === 'string' ? (
             <img 
               src={image} 
               alt="" 
               className="usi-card-img" 
-              onError={(e) => {
-                e.target.onerror = null; 
-                e.target.src = ''; 
-                e.target.className = 'usi-card-img-placeholder broken';
-                e.target.parentElement.innerHTML = '<div class="usi-card-img-placeholder">⚠️</div>';
-              }} 
+              onError={() => setImgError(true)} 
             />
           ) : safeImage
         ) : (
