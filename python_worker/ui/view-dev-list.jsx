@@ -3,12 +3,11 @@
 function DeveloperListGrid({
   onSelectDev = () => {}
 }) {
-  const { React, DataGrid, DeveloperCard, useDataBus } = window;
+  const { React, DataGrid, DeveloperCard, useDataBus, SourceBadge } = window;
   const { bus, setVariable } = useDataBus();
-  const { developers = [], filters = {} } = bus;
+  const { developers = [], filters = {}, devFilters = {}, devListMode = 'grid' } = bus;
   const { search = '', sources = new Set() } = filters;
-  const [onlyActive, setOnlyActive] = React.useState(false);
-  const [onlySuggestions, setOnlySuggestions] = React.useState(false);
+  const { onlyActive = false, onlySuggestions = false } = devFilters;
 
   const TWELVE_MONTHS_AGO = Date.now() / 1000 - 365 * 24 * 3600;
 
@@ -45,35 +44,64 @@ function DeveloperListGrid({
     [developers]
   );
 
+  React.useEffect(() => {
+    setVariable('devSuggestionsTotal', suggestionsTotal);
+  }, [suggestionsTotal]);
+
+  const devColumns = [
+    {
+      key: 'name',
+      label: 'Deweloper',
+      render: (val, dev) => (
+        <div>
+          <div className="usi-body usi-weight-600">{dev.name}</div>
+          <div className="usi-mono usi-tiny usi-text-secondary">{dev.developer_slug} · {dev.usi_dev_id}</div>
+        </div>
+      )
+    },
+    {
+      key: 'portal_mapping',
+      label: 'Portale',
+      width: 120,
+      render: (val, dev) => (
+        <div className="usi-flex-row usi-gap-4">
+          {dev.portal_mapping?.rp && <SourceBadge source="rp" />}
+          {dev.portal_mapping?.oto && <SourceBadge source="oto" />}
+          {dev.portal_mapping?.to && <SourceBadge source="to" />}
+        </div>
+      )
+    },
+    {
+      key: 'investments_count',
+      label: 'Inwest.',
+      width: 80,
+      align: 'right',
+      render: (val) => <span className="usi-body usi-weight-600">{val || 0}</span>
+    },
+    {
+      key: 'new_since_review',
+      label: 'Nowe',
+      width: 70,
+      align: 'center',
+      render: (val) => val > 0
+        ? <span className="usi-pill solid success usi-tiny">+{val}</span>
+        : <span className="usi-text-secondary">—</span>
+    },
+  ];
+
   return (
     <div data-component="DeveloperListGrid"
          className="usi-h-full"
-         style={{ display: 'grid', gridTemplateRows: 'auto 1fr', overflow: 'hidden' }}>
-      <div className="usi-dev-list-toolbar">
-        <button
-          className={`usi-btn sm ${onlyActive ? '' : 'ghost'}`}
-          onClick={() => setOnlyActive(v => !v)}>
-          Aktywni
-        </button>
-        {suggestionsTotal > 0 && (
-          <button
-            className={`usi-btn sm ${onlySuggestions ? '' : 'ghost'}`}
-            onClick={() => setOnlySuggestions(v => !v)}>
-            Sugestie ({suggestionsTotal})
-          </button>
-        )}
-        <span className="usi-tiny usi-text-secondary">{filteredDevelopers.length} deweloperów</span>
-      </div>
-      <div style={{ minHeight: 0, overflow: 'hidden' }}>
-        <DataGrid
-          data={filteredDevelopers}
-          mode="grid"
-          gridConfig={{ minCardWidth: 220, cardHeight: 340, gap: 16 }}
-          onRowClick={onSelectDev}
-          renderCard={(dev) => <DeveloperCard dev={dev} onSelect={() => onSelectDev(dev)} />}
-          emptyMessage="Brak deweloperów pasujących do filtrów"
-        />
-      </div>
+         style={{ overflow: 'hidden' }}>
+      <DataGrid
+        data={filteredDevelopers}
+        mode={devListMode}
+        columns={devColumns}
+        gridConfig={{ minCardWidth: 220, cardHeight: 340, gap: 16 }}
+        onRowClick={onSelectDev}
+        renderCard={(dev) => <DeveloperCard dev={dev} onSelect={() => onSelectDev(dev)} />}
+        emptyMessage="Brak deweloperów pasujących do filtrów"
+      />
     </div>
   );
 }

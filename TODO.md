@@ -114,4 +114,38 @@
 
 ---
 
+---
+
+## ✅ Zamknięty: Deweloperzy — ActionBar i UX
+
+### Krok A01 — ActionBar widok listy deweloperów
+- [x] Przeniesiono Aktywni/Sugestie/licznik z `usi-dev-list-toolbar` do ActionBar center (FilterGroup "Filtry")
+- [x] Dodano przełącznik kafelki/lista do ActionBar left (dla obu widoków: lista inwestycji i lista deweloperów)
+- [x] Usunięto przyciski Dashboard/Raporty z ActionBar (były w `else` branch)
+- [x] Dodano crawler toggle w ActionBar right dla widoku deweloperów
+- [x] Usunięto `usi-dev-list-toolbar` div z `DeveloperListGrid`
+- [x] `DeveloperListGrid` czyta `devFilters` i `devListMode` z DataBus; eksportuje `devSuggestionsTotal`
+
+### Krok A02 — Tryb tabeli dla listy deweloperów
+- [x] `DeveloperListGrid` w trybie tabeli używa `DataGrid` z kolumnami: Deweloper, Portale, Inwest., Nowe
+
+### Krok A03 — Widok dewelopera — poprawki UX
+- [x] `DeveloperHeroBand` — dane firmy (adres, NIP, KRS, email, tel) wyświetlane w jednej linii pod slugiem
+- [x] `DeveloperStats` — zmieniono na średnią ważoną wg liczby mieszkań (większa inwestycja ważona wyżej)
+- [x] `DevMiniCard` — usunięto toggle, lista inwestycji zawsze widoczna
+- [x] ActionBar right dla dev-detail — przycisk "Sprawdź nowe inwestycje" pokazuje licznik `new_since_review`
+
+### Krok A04 — Sprawdzenie JSONów deweloperów z portali
+- [x] Zbadano: RP vendor API (`/api/v2/vendors/vendor/{id}/`) zwraca dane profilu; lista inwestycji ma `vendor.offices` ale brak NIP/KRS
+- [x] Katalog `Public/USIdev/raw/` jest pusty — dane firm nie były pobierane; `usi_dev_*.json` nie mają pola `metadata`
+- [x] Panel "Dane Firmy" w sidebar pozostaje; HeroBand pokaże dane gdy `metadata` zostanie uzupełnione
+
+---
+
 ## Przyszłe kamienie milowe
+
+### Deweloperzy
+
+- karty deweloperow powinny pokazywac liczbe nowych inwestycji (inna metryka niż `new_since_review`?)
+
+

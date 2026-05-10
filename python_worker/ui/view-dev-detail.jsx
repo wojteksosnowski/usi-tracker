@@ -276,16 +276,20 @@ function DeveloperStats({ dev, onCityClick, activeCity }) {
     const stats = {};
     investments.forEach(inv => {
       const city = inv.city || inv.address?.split(',')[0]?.trim() || 'Nieokreślone';
-      if (!stats[city]) stats[city] = { count: 0, units: 0, scores: [] };
+      if (!stats[city]) stats[city] = { count: 0, units: 0, scoreItems: [] };
       stats[city].count += 1;
       stats[city].units += (inv.units || 0);
-      if (inv.ratings_score) stats[city].scores.push(inv.ratings_score);
+      if (inv.ratings_score) stats[city].scoreItems.push({ score: inv.ratings_score, units: inv.units || 1 });
     });
-    return Object.entries(stats).map(([name, s]) => ({
-      name,
-      ...s,
-      avgScore: s.scores.length ? s.scores.reduce((a, b) => a + b, 0) / s.scores.length : null
-    })).sort((a, b) => b.count - a.count);
+    return Object.entries(stats).map(([name, s]) => {
+      const totalUnits = s.scoreItems.reduce((a, b) => a + b.units, 0);
+      const avgScore = totalUnits > 0
+        ? s.scoreItems.reduce((a, b) => a + b.score * b.units, 0) / totalUnits
+        : s.scoreItems.length > 0
+          ? s.scoreItems.reduce((a, b) => a + b.score, 0) / s.scoreItems.length
+          : null;
+      return { name, count: s.count, units: s.units, avgScore };
+    }).sort((a, b) => b.count - a.count);
   }, [investments]);
 
   return (
@@ -314,6 +318,14 @@ function DeveloperStats({ dev, onCityClick, activeCity }) {
 function DeveloperHeroBand({ dev }) {
   const { Icon, MiniMap } = window;
   const firstInvWithCoords = (dev.investments || []).find(i => i.coords && i.coords[0] !== 0);
+  const meta = dev.metadata || {};
+  const metaItems = [
+    meta.address,
+    meta.nip && `NIP: ${meta.nip}`,
+    meta.krs && `KRS: ${meta.krs}`,
+    meta.email,
+    meta.phone,
+  ].filter(Boolean);
 
   return (
     <div data-component="DeveloperHeroBand" className="developer-hero-band" style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 24, alignItems: 'center' }}>
@@ -326,7 +338,12 @@ function DeveloperHeroBand({ dev }) {
             <h1 data-component="Developer-Name" className="usi-h1" style={{ margin: 0 }}>{dev.name}</h1>
             <span data-component="Developer-ID" className="usi-pill outline usi-mono">{dev.usi_dev_id}</span>
           </div>
-          <div data-component="Developer-Slug" className="usi-body usi-text-secondary" style={{ marginBottom: 12 }}>{dev.developer_slug}</div>
+          <div data-component="Developer-Slug" className="usi-body usi-text-secondary" style={{ marginBottom: metaItems.length ? 4 : 12 }}>{dev.developer_slug}</div>
+          {metaItems.length > 0 && (
+            <div className="usi-tiny usi-text-secondary" style={{ marginBottom: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {metaItems.join(' · ')}
+            </div>
+          )}
           <div className="usi-flex-row usi-gap-16">
             {dev.website && (
               <a href={dev.website} target="_blank" rel="noopener" className="usi-btn sm ghost">
@@ -408,11 +425,10 @@ function DeveloperPortals({ dev }) {
 
 // ── DevMiniCard — shared card for suggestions and connected-records panels ──
 function DevMiniCard({ name, slug, usiId, portalMapping = {}, website, invCount, invList, sub, arriving, footer }) {
-  const { React, SourceBadge } = window;
+  const { SourceBadge } = window;
   const hasRp  = !!portalMapping.rp;
   const hasOto = !!portalMapping.oto;
   const hasTo  = !!portalMapping.to;
-  const [showInvs, setShowInvs] = React.useState(false);
 
   return (
     <div className={`dev-mini-card${arriving ? ' dev-card-arriving' : ''}`}>
@@ -438,23 +454,12 @@ function DevMiniCard({ name, slug, usiId, portalMapping = {}, website, invCount,
         {footer}
       </div>
       {invList && invList.length > 0 && (
-        <div>
-          <button
-            className="usi-btn ghost sm"
-            style={{ fontSize: 10, padding: '2px 6px', marginTop: 4 }}
-            onClick={() => setShowInvs(v => !v)}
-          >
-            {showInvs ? '▲ Ukryj inwestycje' : `▼ Inwestycje (${invList.length})`}
-          </button>
-          {showInvs && (
-            <div className="usi-flex-col usi-gap-2" style={{ marginTop: 6 }}>
-              {invList.map((inv, i) => (
-                <div key={i} className="usi-tiny usi-text-secondary usi-mono" style={{ paddingLeft: 4 }}>
-                  · {inv.name || inv.slug}
-                </div>
-              ))}
+        <div className="usi-flex-col usi-gap-2" style={{ marginTop: 6 }}>
+          {invList.map((inv, i) => (
+            <div key={i} className="usi-tiny usi-text-secondary usi-mono" style={{ paddingLeft: 4 }}>
+              · {inv.name || inv.slug}
             </div>
-          )}
+          ))}
         </div>
       )}
     </div>

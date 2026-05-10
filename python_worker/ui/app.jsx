@@ -77,6 +77,17 @@
     const [mode, setMode] = React.useState('grid');
     const devDiscoverRef = React.useRef(null);
     const [devDiscoverActive, setDevDiscoverActive] = React.useState(false);
+    const [crawlerPaused, setCrawlerPaused] = React.useState(false);
+
+    React.useEffect(() => {
+      fetch('/api/crawler/status').then(r => r.json()).then(s => setCrawlerPaused(s.paused || false)).catch(() => {});
+    }, []);
+
+    const toggleCrawler = () => {
+      const url = crawlerPaused ? '/api/crawler/resume' : '/api/crawler/pause';
+      setCrawlerPaused(v => !v);
+      fetch(url, { method: 'POST' }).catch(() => setCrawlerPaused(v => !v));
+    };
 
     const handleRegisterDiscover = React.useCallback((fn, active) => {
       devDiscoverRef.current = fn;
@@ -252,12 +263,19 @@
             left={
               view === 'list' || view === 'developers' ? (
                 <div className="usi-action-bar-group">
-                  {view === 'list' && (
-                    <div className="mode-toggle">
-                      <button className="usi-btn icon sm" aria-pressed={mode === 'grid'} onClick={() => setMode('grid')}><Icon name="grid" /></button>
-                      <button className="usi-btn icon sm" aria-pressed={mode === 'table'} onClick={() => setMode('table')}><Icon name="list" /></button>
-                    </div>
-                  )}
+                  <div className="mode-toggle">
+                    {view === 'list' ? (
+                      <>
+                        <button className="usi-btn icon sm" aria-pressed={mode === 'grid'} onClick={() => setMode('grid')}><Icon name="grid" /></button>
+                        <button className="usi-btn icon sm" aria-pressed={mode === 'table'} onClick={() => setMode('table')}><Icon name="list" /></button>
+                      </>
+                    ) : (
+                      <>
+                        <button className="usi-btn icon sm" aria-pressed={(bus.devListMode || 'grid') === 'grid'} onClick={() => setVariable('devListMode', 'grid')}><Icon name="grid" /></button>
+                        <button className="usi-btn icon sm" aria-pressed={(bus.devListMode || 'grid') === 'table'} onClick={() => setVariable('devListMode', 'table')}><Icon name="list" /></button>
+                      </>
+                    )}
+                  </div>
                   <GlobalSearch value={search} onChange={v => setVariable('filters.search', v)} placeholder={view === 'list' ? "Szukaj inwestycji..." : "Szukaj dewelopera..."} />
                 </div>
               ) : view === 'download' ? (
@@ -296,6 +314,28 @@
                       </FilterGroup>
                     </>
                   )}
+                  {view === 'developers' && (
+                    <>
+                      <div className="usi-divider-v" />
+                      <FilterGroup label="Filtry">
+                        <FilterChip
+                          label="Aktywni"
+                          active={bus.devFilters?.onlyActive || false}
+                          onClick={() => setVariable('devFilters.onlyActive', v => !v)}
+                        />
+                        {(bus.devSuggestionsTotal || 0) > 0 && (
+                          <FilterChip
+                            label={`Sugestie (${bus.devSuggestionsTotal})`}
+                            active={bus.devFilters?.onlySuggestions || false}
+                            onClick={() => setVariable('devFilters.onlySuggestions', v => !v)}
+                          />
+                        )}
+                      </FilterGroup>
+                      <span className="usi-tiny usi-text-secondary" style={{ alignSelf: 'center' }}>
+                        {(bus.visibleDevelopers || []).length} deweloperów
+                      </span>
+                    </>
+                  )}
                 </div>
               ) : view === 'download' ? (
                 <FilterGroup label="Opcje">
@@ -318,19 +358,28 @@
                     {USI_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
+              ) : view === 'developers' ? (
+                <button
+                  className={`usi-btn sm ghost`}
+                  onClick={toggleCrawler}
+                  title={crawlerPaused ? "Wznów crawlera" : "Wstrzymaj crawlera"}
+                >
+                  <Icon name={crawlerPaused ? 'star' : 'zap'} size={12} />
+                  {crawlerPaused ? 'Crawler wyłączony' : 'Crawler aktywny'}
+                </button>
               ) : view === 'detail' && selectedInv ? (
                 <div className="usi-flex-row usi-gap-16">
                   {window.SourceLinks && <window.SourceLinks inv={selectedInv} />}
                   <div className="usi-divider-v" />
                   <div className="mode-switch">
-                    <button 
-                      className={`usi-btn sm ghost mode-switch-btn ${ (bus.detailMode || 'A') === 'A' ? 'active' : ''}`} 
+                    <button
+                      className={`usi-btn sm ghost mode-switch-btn ${ (bus.detailMode || 'A') === 'A' ? 'active' : ''}`}
                       onClick={() => setVariable('detailMode', 'A')}
                     >
                       Standard
                     </button>
-                    <button 
-                      className={`usi-btn sm ghost mode-switch-btn ${ (bus.detailMode || 'A') === 'C' ? 'active' : ''}`} 
+                    <button
+                      className={`usi-btn sm ghost mode-switch-btn ${ (bus.detailMode || 'A') === 'C' ? 'active' : ''}`}
                       onClick={() => setVariable('detailMode', 'C')}
                     >
                       Media
@@ -345,11 +394,11 @@
                       { id: 'oto', label: 'Otodom' },
                       { id: 'to', label: 'TabelaOfert' }
                     ].map(p => (
-                      <FilterChip 
-                        key={p.id} 
-                        label={p.label} 
-                        active={(download.activePortals || new Set()).has(p.id)} 
-                        onClick={(isShift) => toggleDownloadPortal(p.id, isShift)} 
+                      <FilterChip
+                        key={p.id}
+                        label={p.label}
+                        active={(download.activePortals || new Set()).has(p.id)}
+                        onClick={(isShift) => toggleDownloadPortal(p.id, isShift)}
                       />
                     ))}
                   </FilterGroup>
@@ -366,14 +415,11 @@
                 >
                   {devDiscoverActive
                     ? <><Spinner size={12} stroke={1.5} /> Zadanie w tle...</>
-                    : <><Icon name="sparkle" size={12} /> Sprawdź nowe inwestycje</>}
+                    : selectedDev?.new_since_review > 0
+                      ? <><Icon name="sparkle" size={12} /> Pobierz {selectedDev.new_since_review} nowych</>
+                      : <><Icon name="sparkle" size={12} /> Sprawdź nowe inwestycje</>}
                 </button>
-              ) : (
-                <div className="usi-flex-row usi-gap-8">
-                  <button className="usi-btn ghost sm" onClick={() => handleNav('dashboard')}>Dashboard</button>
-                  <button className="usi-btn ghost sm" onClick={() => handleNav('reports')}>Raporty</button>
-                </div>
-              )
+              ) : null
             }
           />
 
