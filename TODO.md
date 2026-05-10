@@ -142,6 +142,37 @@
 
 ---
 
+## ✅ Zamknięty: Wędrowiec — unified crawler (Wizyta + Eksploracja)
+
+### Krok W01 — Architektura
+
+- [x] `DeveloperCrawler` przemianowany na `Wedrowiec` (alias `DeveloperCrawler` zachowany)
+- [x] Dwa tryby w jednym tick: **Wizyta** (discovery znanych deweloperów) + **Eksploracja** (paginacja katalogów portali)
+- [x] Tick wybiera zadanie, które najdłużej czeka (eksploracja vs. wizyta)
+
+### Krok W02 — Eksploracja (nowa funkcjonalność)
+
+- [x] RP: próba REST API `/api/v2/vendors/`, fallback HTML `__NEXT_DATA__`/regex
+- [x] OTO: HTML `__NEXT_DATA__` przez ScraperAPI (agresywny bot-detection)
+- [x] TO: HTML regex na linki `/katalog-firm/deweloperzy/{slug}`
+- [x] Interwały: RP 8–15 min/str., OTO 15–25 min/str., TO 8–15 min/str.
+- [x] Stan eksploracji: `Public/USIdev/wedrowiec_exploration.json` (page, next_at, total_seen, new_reg)
+- [x] Po przejściu wszystkich stron: pauza 30 dni przed kolejnym cyklem
+
+### Krok W03 — DeveloperManager
+
+- [x] `find_by_portal_id(portal, id)` — O(n) scan, obsługuje id/slug/agency_id/agency_ids
+
+### Krok W04 — API
+
+- [x] `GET /api/crawler/exploration` — stan eksploracji (page, max_pages, next_at, new_reg per portal)
+
+### Krok W05 — Testy
+
+- [x] `test_wedrowiec.py` — 20 testów: find_by_portal_id, parsery stron, rejestracja, stan eksploracji
+
+---
+
 ## Przyszłe kamienie milowe
 
 ### Deweloperzy

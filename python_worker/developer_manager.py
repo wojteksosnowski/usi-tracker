@@ -381,6 +381,24 @@ class DeveloperManager:
         logger.info(f"Unlinked {source_slug} from {target_slug}")
         return True
 
+    def find_by_portal_id(self, portal: str, portal_id: str) -> dict | None:
+        """O(n) scan — finds developer with matching portal_mapping id/slug/agency_id."""
+        pid = str(portal_id)
+        for dev_file in self.dev_dir.glob("usi_dev_*.json"):
+            try:
+                data = json.loads(dev_file.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            pm = (data.get("portal_mapping") or {}).get(portal) or {}
+            if (str(pm.get("id", "")) == pid
+                    or str(pm.get("slug", "")) == pid
+                    or str(pm.get("agency_id", "")) == pid):
+                return data
+            for aid in pm.get("agency_ids", []):
+                if str(aid) == pid:
+                    return data
+        return None
+
     def log_event(self, dev_slug: str, event: dict) -> bool:
         """Append a generic event to the developer's event log."""
         dev = self.get_developer(dev_slug)

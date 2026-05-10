@@ -1,13 +1,20 @@
 """
-DeveloperCrawler — background thread that periodically runs discovery for all developers.
+Wędrowiec — unified background crawler.
 
-Schedule: each developer is visited at most once per month.
-All developers are covered within ~2 weeks (staggered random delays).
-Interval between individual visits: 10-20 minutes (random, to avoid detection).
+Two modes in a single daemon thread, chosen each tick:
+
+  Wizyta     — visits a known developer and runs investment discovery
+               (inherited from the old DeveloperCrawler)
+  Eksploracja — slowly pages through developer catalogue pages on RP/OTO/TO
+               and registers newly found developers
+
+Tick interval: 60 s.  At each tick the crawler picks whichever task is most
+overdue (exploration portal vs developer visit) and executes one unit of work.
 """
 import json
 import logging
 import random
+import re
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -15,15 +22,23 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Visit spread window: 14 days total, then repeat monthly
+# ── Wizyta constants ───────────────────────────────────────────────────────────
 _SPREAD_DAYS = 14
 _REVISIT_DAYS = 30
 _REVISIT_JITTER_DAYS = 5
-# Gap between crawler ticks
-_TICK_SECONDS = 60
-# Minimum gap between two consecutive developer visits
 _MIN_VISIT_GAP_MINUTES = 10
 _MAX_VISIT_GAP_MINUTES = 20
+
+# ── Eksploracja constants ──────────────────────────────────────────────────────
+_EXPLORATION_CONFIG = {
+    "rp":  {"max_pages": 217, "min_gap_min": 8,  "max_gap_min": 15},
+    "oto": {"max_pages": 230, "min_gap_min": 15, "max_gap_min": 25},
+    "to":  {"max_pages": 210, "min_gap_min": 8,  "max_gap_min": 15},
+}
+# After completing a full cycle, wait this many days before restarting
+_EXPLORATION_CYCLE_PAUSE_DAYS = 30
+
+_TICK_SECONDS = 60
 
 
 def _now_utc() -> datetime:
@@ -34,10 +49,15 @@ def _iso(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-class DeveloperCrawler:
+def _parse_iso(s: str) -> datetime:
+    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+
+
+class Wedrowiec:
     def __init__(self, data_dir: Path, dev_dir: Path):
         self.data_dir = data_dir
         self.dev_dir = dev_dir
+        self._exploration_file = dev_dir / "wedrowiec_exploration.json"
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._paused = False
@@ -51,21 +71,21 @@ class DeveloperCrawler:
         if self._thread and self._thread.is_alive():
             return
         self._stop_event.clear()
-        self._thread = threading.Thread(target=self._run, daemon=True, name="dev-crawler")
+        self._thread = threading.Thread(target=self._run, daemon=True, name="wedrowiec")
         self._thread.start()
-        logger.info("DeveloperCrawler started")
+        logger.info("Wędrowiec started")
 
     def stop(self):
         self._stop_event.set()
-        logger.info("DeveloperCrawler stop requested")
+        logger.info("Wędrowiec stop requested")
 
     def pause(self):
         self._paused = True
-        logger.info("DeveloperCrawler paused")
+        logger.info("Wędrowiec paused")
 
     def resume(self):
         self._paused = False
-        logger.info("DeveloperCrawler resumed")
+        logger.info("Wędrowiec resumed")
 
     def get_status(self) -> dict:
         with self._lock:
@@ -76,8 +96,22 @@ class DeveloperCrawler:
                 "next_visit_at": _iso(self._next_visit_at) if self._next_visit_at else None,
             }
 
+    def get_exploration_status(self) -> dict:
+        state = self._load_exploration_state()
+        result = {}
+        for portal, cfg in _EXPLORATION_CONFIG.items():
+            ps = state.get(portal, {})
+            result[portal] = {
+                "page": ps.get("page", 0),
+                "max_pages": cfg["max_pages"],
+                "next_at": ps.get("next_at"),
+                "total_seen": ps.get("total_seen", 0),
+                "new_reg": ps.get("new_reg", 0),
+                "cycle_start": ps.get("cycle_start"),
+            }
+        return result
+
     def reset_badge(self, dev_slug: str):
-        """Clear new_since_review counter for a developer (call when user opens dev detail)."""
         dev_file = self.dev_dir / f"usi_dev_{dev_slug}.json"
         if not dev_file.exists():
             return
@@ -91,12 +125,11 @@ class DeveloperCrawler:
         except Exception as e:
             logger.warning("reset_badge(%s) failed: %s", dev_slug, e)
 
-    # ── Internal ──────────────────────────────────────────────────────────────
+    # ── Main loop ─────────────────────────────────────────────────────────────
 
     def _run(self):
-        # Initial stagger so crawler doesn't hit dev #1 immediately on startup
         startup_delay = random.uniform(30, 120)
-        logger.info("DeveloperCrawler waiting %.0fs before first tick", startup_delay)
+        logger.info("Wędrowiec waiting %.0fs before first tick", startup_delay)
         self._stop_event.wait(startup_delay)
 
         while not self._stop_event.is_set():
@@ -104,39 +137,316 @@ class DeveloperCrawler:
                 try:
                     self._tick()
                 except Exception as e:
-                    logger.error("Crawler tick error: %s", e, exc_info=True)
+                    logger.error("Wędrowiec tick error: %s", e, exc_info=True)
             self._stop_event.wait(_TICK_SECONDS)
 
     def _tick(self):
         now = _now_utc()
 
-        # Check if it's time for the next visit
-        with self._lock:
-            if self._next_visit_at and now < self._next_visit_at:
-                return
+        # Which exploration portal is most overdue?
+        exp_portal, exp_overdue_since = self._most_overdue_exploration(now)
+        # Which developer visit is most overdue?
+        visit_dev, visit_overdue_since = self._most_overdue_visit(now)
 
-        dev_slug = self._pick_next_dev()
-        if not dev_slug:
-            # No dev due — schedule first-time visits for all devs
+        if exp_portal is None and visit_dev is None:
+            # Nothing overdue — schedule unvisited devs if any
             self._schedule_all_unvisited()
             return
 
-        with self._lock:
-            self._current_dev = dev_slug
+        # Pick the task that has been waiting the longest
+        if exp_portal and (visit_dev is None or exp_overdue_since >= visit_overdue_since):
+            self._explore_one_page(exp_portal)
+        else:
+            # Guard: respect min gap between visits
+            with self._lock:
+                if self._next_visit_at and now < self._next_visit_at:
+                    return
+            self._do_visit(visit_dev)
+
+    # ── Exploration ───────────────────────────────────────────────────────────
+
+    def _load_exploration_state(self) -> dict:
+        if self._exploration_file.exists():
+            try:
+                return json.loads(self._exploration_file.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+        return {}
+
+    def _save_exploration_state(self, state: dict):
+        try:
+            self._exploration_file.write_text(
+                json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        except Exception as e:
+            logger.error("Failed to save exploration state: %s", e)
+
+    def _most_overdue_exploration(self, now: datetime):
+        """Return (portal, seconds_overdue) for the most overdue portal, or (None, 0)."""
+        state = self._load_exploration_state()
+        best_portal = None
+        best_overdue = 0
+
+        for portal, cfg in _EXPLORATION_CONFIG.items():
+            ps = state.get(portal, {})
+            next_at_str = ps.get("next_at")
+            if not next_at_str:
+                # Never started — immediately overdue
+                overdue = float("inf")
+            else:
+                try:
+                    next_at = _parse_iso(next_at_str)
+                    if next_at > now:
+                        continue  # Not yet due
+                    overdue = (now - next_at).total_seconds()
+                except ValueError:
+                    overdue = float("inf")
+
+            if overdue > best_overdue:
+                best_overdue = overdue
+                best_portal = portal
+
+        return best_portal, best_overdue
+
+    def _explore_one_page(self, portal: str):
+        state = self._load_exploration_state()
+        ps = state.setdefault(portal, {})
+        cfg = _EXPLORATION_CONFIG[portal]
+
+        # Determine next page to fetch
+        current_page = ps.get("page", 0)
+        cycle_start = ps.get("cycle_start")
+
+        if current_page >= cfg["max_pages"]:
+            # Cycle complete — schedule next cycle
+            next_cycle = _now_utc() + timedelta(days=_EXPLORATION_CYCLE_PAUSE_DAYS)
+            ps["page"] = 0
+            ps["next_at"] = _iso(next_cycle)
+            ps["cycle_start"] = None
+            state[portal] = ps
+            self._save_exploration_state(state)
+            logger.info("Wędrowiec: %s exploration cycle complete — next cycle at %s", portal, _iso(next_cycle))
+            return
+
+        next_page = current_page + 1
+        if not cycle_start:
+            ps["cycle_start"] = _iso(_now_utc())
+
+        logger.info("Wędrowiec: exploring %s page %d/%d", portal, next_page, cfg["max_pages"])
 
         try:
-            self._visit(dev_slug)
-        finally:
-            with self._lock:
-                self._current_dev = None
-                gap_minutes = random.uniform(_MIN_VISIT_GAP_MINUTES, _MAX_VISIT_GAP_MINUTES)
-                self._next_visit_at = _now_utc() + timedelta(minutes=gap_minutes)
+            devs = self._fetch_dev_page(portal, next_page)
+        except Exception as e:
+            logger.error("Wędrowiec: %s page %d fetch failed: %s", portal, next_page, e)
+            devs = []
 
-    def _pick_next_dev(self) -> str | None:
-        """Return the developer whose next_visit is oldest and overdue."""
-        now = _now_utc()
+        new_reg = 0
+        for dev_info in devs:
+            if self._register_if_new(portal, dev_info):
+                new_reg += 1
+
+        total_seen = ps.get("total_seen", 0) + len(devs)
+        ps["page"] = next_page
+        ps["total_seen"] = total_seen
+        ps["new_reg"] = ps.get("new_reg", 0) + new_reg
+
+        # Schedule next page
+        gap_min = random.uniform(cfg["min_gap_min"], cfg["max_gap_min"])
+        ps["next_at"] = _iso(_now_utc() + timedelta(minutes=gap_min))
+        state[portal] = ps
+        self._save_exploration_state(state)
+        logger.info(
+            "Wędrowiec: %s page %d → %d devs, %d new registered",
+            portal, next_page, len(devs), new_reg,
+        )
+
+    # ── Portal page parsers ───────────────────────────────────────────────────
+
+    def _get_fetcher(self):
+        from python_worker.config import get_scraper_config
+        from usi_scrapers.fetcher import Fetcher
+        config = get_scraper_config()
+        return Fetcher(config) if config else None
+
+    def _fetch_dev_page(self, portal: str, page: int) -> list[dict]:
+        if portal == "rp":
+            return self._fetch_rp_page(page)
+        elif portal == "oto":
+            return self._fetch_oto_page(page)
+        elif portal == "to":
+            return self._fetch_to_page(page)
+        return []
+
+    def _fetch_rp_page(self, page: int) -> list[dict]:
+        """Try RP REST API first, fall back to HTML __NEXT_DATA__."""
+        fetcher = self._get_fetcher()
+        if not fetcher:
+            return []
+
+        api_url = f"https://rynekpierwotny.pl/api/v2/vendors/?page={page}&page_size=30"
+        try:
+            data = fetcher.fetch_json(api_url, use_scraperapi=False)
+            if data and isinstance(data.get("results"), list):
+                devs = []
+                for v in data["results"]:
+                    vendor_id = str(v.get("id", ""))
+                    slug = v.get("slug", "")
+                    name = v.get("name", "")
+                    if vendor_id and name:
+                        devs.append({"name": name, "id": vendor_id, "slug": slug})
+                return devs
+        except Exception as e:
+            logger.debug("RP API page %d failed (%s), trying HTML", page, e)
+
+        # HTML fallback
+        html_url = f"https://rynekpierwotny.pl/deweloperzy/?page={page}"
+        html = fetcher.fetch(html_url, use_scraperapi=False, use_impersonate=True)
+        if not html:
+            return []
+
+        devs = []
+        # Try __NEXT_DATA__ first
+        nd_match = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.DOTALL)
+        if nd_match:
+            try:
+                page_props = json.loads(nd_match.group(1)).get("props", {}).get("pageProps", {})
+                for v in page_props.get("vendors", []) or page_props.get("results", []):
+                    vendor_id = str(v.get("id", ""))
+                    name = v.get("name", "")
+                    slug = v.get("slug", "")
+                    if vendor_id and name:
+                        devs.append({"name": name, "id": vendor_id, "slug": slug})
+                if devs:
+                    return devs
+            except Exception:
+                pass
+
+        # Last resort: regex scan for vendor_id patterns
+        for m in re.finditer(r'"id"\s*:\s*(\d+)[^}]*"name"\s*:\s*"([^"]+)"', html):
+            devs.append({"name": m.group(2), "id": m.group(1), "slug": ""})
+        return devs
+
+    def _fetch_oto_page(self, page: int) -> list[dict]:
+        fetcher = self._get_fetcher()
+        if not fetcher:
+            return []
+
+        url = f"https://www.otodom.pl/firmy/deweloperzy/?sq=&page={page}"
+        html = fetcher.fetch(url, use_scraperapi=True, use_impersonate=True)
+        if not html:
+            return []
+
+        nd_match = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.DOTALL)
+        if not nd_match:
+            return []
+
+        try:
+            props = json.loads(nd_match.group(1)).get("props", {}).get("pageProps", {})
+        except Exception:
+            return []
+
+        # Agency list can appear under different keys
+        agencies = (
+            props.get("agencies")
+            or props.get("data", {}).get("agencies", [])
+            or props.get("items")
+            or []
+        )
+        devs = []
+        for a in agencies:
+            agency_id = str(a.get("id", "") or a.get("agencyId", ""))
+            name = a.get("name", "") or a.get("brandName", "")
+            if agency_id and name:
+                devs.append({"name": name, "agency_id": agency_id})
+        return devs
+
+    def _fetch_to_page(self, page: int) -> list[dict]:
+        fetcher = self._get_fetcher()
+        if not fetcher:
+            return []
+
+        url = f"https://tabelaofert.pl/katalog-firm/deweloperzy?page={page}"
+        html = fetcher.fetch(url, use_scraperapi=False, use_impersonate=True)
+        if not html:
+            return []
+
+        devs = []
+        for m in re.finditer(
+            r'href=["\'](?:https?://tabelaofert\.pl)?/katalog-firm/deweloperzy/([^"\'/?#]+)["\'][^>]*>\s*([^<]+)',
+            html,
+        ):
+            slug = m.group(1).strip()
+            name = m.group(2).strip()
+            if slug and name and slug != "deweloperzy":
+                devs.append({"name": name, "slug": slug})
+
+        # Deduplicate by slug
+        seen = set()
+        unique = []
+        for d in devs:
+            if d["slug"] not in seen:
+                seen.add(d["slug"])
+                unique.append(d)
+        return unique
+
+    # ── Developer registration ─────────────────────────────────────────────────
+
+    def _register_if_new(self, portal: str, dev_info: dict) -> bool:
+        """Register dev_info as a new developer if not already known. Returns True if new."""
+        from python_worker.developer_manager import DeveloperManager
+        from python_worker.csv_importer import slugify
+
+        dm = DeveloperManager(self.data_dir, self.dev_dir)
+
+        # Determine the portal identifier for lookup
+        if portal == "rp":
+            portal_id = dev_info.get("id") or dev_info.get("slug")
+            lookup_portal = "rp"
+        elif portal == "oto":
+            portal_id = dev_info.get("agency_id")
+            lookup_portal = "oto"
+        else:  # to
+            portal_id = dev_info.get("slug")
+            lookup_portal = "to"
+
+        if not portal_id:
+            return False
+
+        existing = dm.find_by_portal_id(lookup_portal, str(portal_id))
+        if existing:
+            return False
+
+        # New developer — create a skeleton profile
+        dev_slug = slugify(dev_info["name"])
+        if not dev_slug:
+            return False
+
+        if portal == "rp":
+            portal_mapping = {"rp": {"id": dev_info["id"], "slug": dev_info.get("slug", "")}}
+        elif portal == "oto":
+            portal_mapping = {"oto": {"agency_id": dev_info["agency_id"]}}
+        else:
+            portal_mapping = {"to": {"slug": dev_info["slug"]}}
+
+        developer_data = {
+            "developer_slug": dev_slug,
+            "name": dev_info["name"],
+            "portal_mapping": portal_mapping,
+        }
+        try:
+            dm.create_developer_file(developer_data)
+            logger.info("Wędrowiec: registered new developer %s (%s) from %s", dev_info["name"], dev_slug, portal)
+            return True
+        except Exception as e:
+            logger.error("Wędrowiec: failed to register %s: %s", dev_info["name"], e)
+            return False
+
+    # ── Wizyta (developer visit) ───────────────────────────────────────────────
+
+    def _most_overdue_visit(self, now: datetime):
+        """Return (dev_slug, seconds_overdue) for most overdue developer, or (None, 0)."""
         oldest_slug = None
-        oldest_time = None
+        oldest_overdue = 0
 
         for dev_file in self.dev_dir.glob("usi_dev_*.json"):
             try:
@@ -144,35 +454,31 @@ class DeveloperCrawler:
             except Exception:
                 continue
 
-            # Skip devs with no portal mapping (nothing to discover)
             mapping = data.get("portal_mapping", {})
-            has_portals = any(
-                mapping.get(p) for p in ("rp", "oto", "to")
-            )
-            if not has_portals:
+            if not any(mapping.get(p) for p in ("rp", "oto", "to")):
                 continue
 
             crawler = data.get("crawler", {})
             next_visit_str = crawler.get("next_visit")
             if not next_visit_str:
-                continue  # Not yet scheduled — handled by _schedule_all_unvisited
+                continue
 
             try:
-                next_visit = datetime.fromisoformat(next_visit_str.replace("Z", "+00:00"))
+                next_visit = _parse_iso(next_visit_str)
             except ValueError:
                 continue
 
             if next_visit > now:
-                continue  # Not due yet
+                continue
 
-            if oldest_time is None or next_visit < oldest_time:
-                oldest_time = next_visit
+            overdue = (now - next_visit).total_seconds()
+            if overdue > oldest_overdue:
+                oldest_overdue = overdue
                 oldest_slug = data.get("developer_slug") or dev_file.stem.removeprefix("usi_dev_")
 
-        return oldest_slug
+        return oldest_slug, oldest_overdue
 
     def _schedule_all_unvisited(self):
-        """Assign initial next_visit timestamps spread over _SPREAD_DAYS for unvisited devs."""
         devs_to_schedule = []
         for dev_file in self.dev_dir.glob("usi_dev_*.json"):
             try:
@@ -189,7 +495,7 @@ class DeveloperCrawler:
         if not devs_to_schedule:
             return
 
-        logger.info("Scheduling %d unvisited developers over %d days", len(devs_to_schedule), _SPREAD_DAYS)
+        logger.info("Wędrowiec: scheduling %d unvisited devs over %d days", len(devs_to_schedule), _SPREAD_DAYS)
         now = _now_utc()
         spread_seconds = _SPREAD_DAYS * 86400
         random.shuffle(devs_to_schedule)
@@ -205,26 +511,26 @@ class DeveloperCrawler:
             except Exception as e:
                 logger.warning("Failed to schedule %s: %s", dev_file.name, e)
 
-    def _visit(self, dev_slug: str):
-        logger.info("Crawler visiting: %s", dev_slug)
+    def _do_visit(self, dev_slug: str):
+        logger.info("Wędrowiec: visiting %s", dev_slug)
+        with self._lock:
+            self._current_dev = dev_slug
+
         from python_worker.services.discovery_service import DiscoveryService
         svc = DiscoveryService(self.data_dir)
         try:
             new_count = svc.discover_for_developer(None, dev_slug)
         except Exception as e:
-            logger.error("Crawler visit failed for %s: %s", dev_slug, e)
+            logger.error("Wędrowiec: visit failed for %s: %s", dev_slug, e)
             new_count = 0
+        finally:
+            with self._lock:
+                self._current_dev = None
+                gap_min = random.uniform(_MIN_VISIT_GAP_MINUTES, _MAX_VISIT_GAP_MINUTES)
+                self._next_visit_at = _now_utc() + timedelta(minutes=gap_min)
 
         self._record_visit(dev_slug, new_count)
-        logger.info("Crawler done: %s — %d new investments", dev_slug, new_count)
-
-    def _log_dev_event(self, dev_slug: str, event: dict):
-        try:
-            from python_worker.developer_manager import DeveloperManager
-            dm = DeveloperManager(self.data_dir, self.dev_dir)
-            dm.log_event(dev_slug, event)
-        except Exception as e:
-            logger.warning("_log_dev_event(%s) failed: %s", dev_slug, e)
+        logger.info("Wędrowiec: done visiting %s — %d new investments", dev_slug, new_count)
 
     def _record_visit(self, dev_slug: str, new_count: int):
         dev_file = self.dev_dir / f"usi_dev_{dev_slug}.json"
@@ -239,24 +545,26 @@ class DeveloperCrawler:
             crawler["last_new_count"] = new_count
             crawler["new_since_review"] = crawler.get("new_since_review", 0) + new_count
             data["crawler"] = crawler
-            # Append to events log
             events = data.setdefault("events", [])
-            events.insert(0, {"at": _iso(_now_utc()), "type": "discover", "by": "crawler", "found": new_count})
+            events.insert(0, {"at": _iso(_now_utc()), "type": "discover", "by": "wedrowiec", "found": new_count})
             data["events"] = events[:100]
             dev_file.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         except Exception as e:
             logger.error("_record_visit(%s) failed: %s", dev_slug, e)
 
 
-# Module-level singleton — started by ui_server.py
-_instance: DeveloperCrawler | None = None
+# ── Module-level singleton — started by ui_server.py ─────────────────────────
+# Keep old name aliases so ui_server.py and crawler_api.py need no changes
+_instance: Wedrowiec | None = None
+
+DeveloperCrawler = Wedrowiec  # backwards-compat alias
 
 
-def get_crawler() -> DeveloperCrawler | None:
+def get_crawler() -> Wedrowiec | None:
     return _instance
 
 
-def init_crawler(data_dir: Path, dev_dir: Path) -> DeveloperCrawler:
+def init_crawler(data_dir: Path, dev_dir: Path) -> Wedrowiec:
     global _instance
-    _instance = DeveloperCrawler(data_dir, dev_dir)
+    _instance = Wedrowiec(data_dir, dev_dir)
     return _instance

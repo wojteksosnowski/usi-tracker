@@ -44,3 +44,11 @@ def badge_reset(dev_slug):
     if c:
         c.reset_badge(dev_slug)
     return jsonify({"ok": True})
+
+
+@crawler_bp.route("/crawler/exploration", methods=["GET"])
+def crawler_exploration():
+    c = _get_crawler()
+    if not c:
+        return jsonify({})
+    return jsonify(c.get_exploration_status())
