@@ -216,6 +216,7 @@ def get_developer_detail(dev_slug):
         child_dev = dm.get_developer(child_slug)
         if child_dev:
             member["portal_mapping"] = child_dev.get("portal_mapping", {})
+            member["website"] = child_dev.get("website")
             child_dir = Path(USI_DATA_DIR) / child_slug
             member["investments_count"] = _count_valid_investments(child_dir)
         member["inv_list"] = [
@@ -232,6 +233,7 @@ def get_developer_detail(dev_slug):
         if s_dev:
             s["name"] = s_dev.get("name", s_slug)
             s["portal_mapping"] = s_dev.get("portal_mapping", {})
+            s["website"] = s_dev.get("website")
             s_dir = Path(USI_DATA_DIR) / s_slug
             s["investments_count"] = _count_valid_investments(s_dir)
 

@@ -407,7 +407,7 @@ function DeveloperPortals({ dev }) {
 }
 
 // ── DevMiniCard — shared card for suggestions and connected-records panels ──
-function DevMiniCard({ name, slug, usiId, portalMapping = {}, invCount, invList, sub, arriving, footer }) {
+function DevMiniCard({ name, slug, usiId, portalMapping = {}, website, invCount, invList, sub, arriving, footer }) {
   const { React, SourceBadge } = window;
   const hasRp  = !!portalMapping.rp;
   const hasOto = !!portalMapping.oto;
@@ -430,13 +430,9 @@ function DevMiniCard({ name, slug, usiId, portalMapping = {}, invCount, invList,
           {hasOto && <SourceBadge source="oto" />}
           {hasTo  && <SourceBadge source="to" />}
           {!hasRp && !hasOto && !hasTo && (
-            <span
-              className="usi-tiny usi-text-secondary"
-              title="Ten deweloper nie ma powiązań z żadnym portalem"
-              style={{ fontStyle: 'italic' }}
-            >
-              brak portali
-            </span>
+            website
+              ? <a href={website} target="_blank" rel="noopener" className="usi-tiny usi-text-secondary" style={{ textDecoration: 'underline', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }} title={website}>{website.replace(/^https?:\/\//, '')}</a>
+              : <span className="usi-tiny usi-text-secondary" title="Ten deweloper nie ma powiązań z żadnym portalem" style={{ fontStyle: 'italic' }}>brak portali</span>
           )}
         </div>
         {footer}
@@ -481,6 +477,7 @@ function DeveloperSuggestions({ suggestions, onMerge, onDismiss }) {
             slug={s.developer_slug}
             usiId={s.usi_dev_id}
             portalMapping={s.portal_mapping || {}}
+            website={s.website}
             invCount={s.investments_count}
             sub={s.reason}
             footer={
@@ -535,6 +532,7 @@ function MergedMembersPanel({ dev, members, arrivingSlug, onUnmerge }) {
             slug={m.slug}
             usiId={m.usi_dev_id}
             portalMapping={m.portal_mapping || {}}
+            website={m.website}
             invCount={m.investments_count}
             invList={m.inv_list}
             arriving={arrivingSlug === m.slug}
