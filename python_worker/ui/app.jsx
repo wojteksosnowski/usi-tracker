@@ -116,17 +116,29 @@
         setView('detail');
       };
 
+      const handleSelectDev = (dev) => {
+        if (!dev) return;
+        setSelectedDev(dev);
+        setView('dev-detail');
+      };
+
       React.useEffect(() => {
         const handler = (e) => {
-          if (view !== 'detail' || !selectedInv) return;
-          const list = visibleInvestments || [];
-          const idx = list.findIndex(i => i.slug === selectedInv.slug);
-          if (e.key === 'ArrowLeft' && idx > 0) { e.preventDefault(); handleSelectInv(list[idx - 1]); }
-          if (e.key === 'ArrowRight' && idx < list.length - 1) { e.preventDefault(); handleSelectInv(list[idx + 1]); }
+          if (view === 'detail' && selectedInv) {
+            const list = visibleInvestments || [];
+            const idx = list.findIndex(i => i.slug === selectedInv.slug);
+            if (e.key === 'ArrowLeft' && idx > 0) { e.preventDefault(); handleSelectInv(list[idx - 1]); }
+            if (e.key === 'ArrowRight' && idx < list.length - 1) { e.preventDefault(); handleSelectInv(list[idx + 1]); }
+          } else if (view === 'dev-detail' && selectedDev) {
+            const list = developers || [];
+            const idx = list.findIndex(d => d.developer_slug === selectedDev.developer_slug);
+            if (e.key === 'ArrowLeft' && idx > 0) { e.preventDefault(); handleSelectDev(list[idx - 1]); }
+            if (e.key === 'ArrowRight' && idx < list.length - 1) { e.preventDefault(); handleSelectDev(list[idx + 1]); }
+          }
         };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
-      }, [view, selectedInv, visibleInvestments]);
+      }, [view, selectedInv, visibleInvestments, selectedDev, developers]);
 
       const toggleSource = (id, isShift) => {
         setVariable('filters.sources', prev => {
@@ -383,7 +395,7 @@
               {view === 'developers' && (
                 <DeveloperListGrid
                   developers={developers}
-                  onSelectDev={(dev) => { setSelectedDev(dev); setView('dev-detail'); }}
+                  onSelectDev={handleSelectDev}
                 />
               )}
 

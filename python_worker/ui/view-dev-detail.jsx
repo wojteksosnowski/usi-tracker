@@ -195,13 +195,12 @@ function DeveloperDetail({
     : (developer.investments || []);
 
   return (
-    <div data-component="DeveloperDetail" className="usi-app developer-detail-container">
-      <div className="usi-scroll" style={{ flex: 1 }}>
-        <DeveloperHeroBand dev={developer} />
-        
-        {activeJob && <JobStatusOverlay job={activeJob} onClose={() => setActiveJobId(null)} />}
+    <div data-component="DeveloperDetail">
+      <DeveloperHeroBand dev={developer} />
 
-        <div className="developer-main-content">
+      {activeJob && <JobStatusOverlay job={activeJob} onClose={() => setActiveJobId(null)} />}
+
+      <div className="developer-main-content">
           <section>
             <div className="developer-investments-header">
                 <h2 className="usi-h2" style={{ margin: 0 }}>Inwestycje ({filteredInvestments.length})</h2>
@@ -241,7 +240,6 @@ function DeveloperDetail({
             <DeveloperPortals dev={developer} />
           </aside>
         </div>
-      </div>
     </div>
   );
 }
