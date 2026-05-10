@@ -46,7 +46,7 @@ function DeveloperDetail({
   const [filterCity, setFilterCity] = React.useState(null);
   
   const { request } = useApi();
-  const { refetch } = useDataBus();
+  const { refetch, setVariable } = useDataBus();
 
   const load = React.useCallback((silent = false) => {
     if (!silent) setLoading(true);
@@ -67,9 +67,12 @@ function DeveloperDetail({
     fetch(`/api/crawler/badge-reset/${dev_slug}`, { method: 'POST' }).catch(() => {});
   }, [load]);
 
-  const activeJob = useJobStatus(activeJobId, (finishedJob) => {
+  useJobStatus(activeJobId, (finishedJob) => {
     if (finishedJob.status === 'completed') {
       load();
+      setVariable('appStatus', { type: 'success', msg: finishedJob.message || 'Zakończono.' });
+    } else {
+      setVariable('appStatus', { type: 'error', msg: finishedJob.message || 'Wystąpił błąd podczas sprawdzania.' });
     }
     setTimeout(() => setActiveJobId(null), 3000);
   });
@@ -198,8 +201,6 @@ function DeveloperDetail({
     <div data-component="DeveloperDetail">
       <DeveloperHeroBand dev={developer} />
 
-      {activeJob && <JobStatusOverlay job={activeJob} onClose={() => setActiveJobId(null)} />}
-
       <div className="developer-main-content">
           <section>
             <div className="developer-investments-header">
@@ -244,29 +245,6 @@ function DeveloperDetail({
   );
 }
 
-function JobStatusOverlay({ job, onClose }) {
-  const isFinished = job.status === 'completed' || job.status === 'failed';
-  const progress = (job.progress / job.total) * 100;
-
-  return (
-    <div className="job-status-overlay" style={{ 
-        background: job.status === 'failed' ? 'var(--usi-danger)' : 'var(--usi-accent)', 
-    }}>
-        <div className="job-progress-container">
-            <div className="job-progress-info">
-                <span>{job.name} — {job.message}</span>
-                <span>{Math.round(progress)}%</span>
-            </div>
-            <div className="job-progress-bar-bg">
-                <div className="job-progress-bar-fill" style={{ width: `${progress}%` }} />
-            </div>
-        </div>
-        {isFinished && (
-            <button className="usi-btn sm ghost" style={{ color: 'var(--usi-bg)', borderColor: 'var(--usi-border-strong)' }} onClick={onClose}>Zamknij</button>
-        )}
-    </div>
-  );
-}
 
 function DeveloperStats({ dev, onCityClick, activeCity }) {
   const investments = dev.investments || [];

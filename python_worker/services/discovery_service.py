@@ -29,7 +29,7 @@ class DiscoveryService:
 
         mapping = dev.get("portal_mapping", {})
         if job_manager and job_id:
-            job_manager.update_progress(job_id, 10, "Starting discovery...")
+            job_manager.update_progress(job_id, 10, "Szukam nowych inwestycji...")
 
         found_total = 0
         new_items = []
@@ -57,7 +57,7 @@ class DiscoveryService:
             
             portal_name = "RynekPierwotny" if portal == "rp" else ("Otodom" if portal == "oto" else "TabelaOfert")
             if job_manager and job_id:
-                job_manager.update_progress(job_id, int(current_progress), f"Scanning {portal_name}...")
+                job_manager.update_progress(job_id, int(current_progress), f"Sprawdzam {portal_name}...")
             
             try:
                 # Handle multiple agency IDs for Otodom
@@ -87,7 +87,8 @@ class DiscoveryService:
                 download_raw_json(portal, identifier, dev_slug, item["slug"])
 
         if job_manager and job_id:
-            job_manager.update_progress(job_id, 100, f"Finished. Registered {found_total} new investments.")
+            msg = f"Zarejestrowano {found_total} nowych inwestycji." if found_total else "Brak nowych inwestycji."
+            job_manager.update_progress(job_id, 100, msg)
         
         return found_total
 
