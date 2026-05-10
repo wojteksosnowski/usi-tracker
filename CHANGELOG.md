@@ -1,4 +1,10 @@
-## Deweloperzy i Inwestycje — 2026-05-11
+## Inwestycje — 2026-05-11
+- Reorganizacja układu widoku szczegółowego A na 4 kolumny (40/20/20/20).
+- Rozszerzenie schematu USI o wysokość mieszkań (ceiling_height) i link do strony inwestycji (website).
+- Implementacja ekstrakcji wysokości (RP) i strony WWW w adapterach.
+- Aktualizacja interfejsu (MetadataPanel, SourceLinks) w celu prezentacji nowych danych.
+
+
 - Rozszerzenie algorytmu sugestii o lokalizację (Haversine distance) z optymalizacją bounding box.
 - Implementacja globalnego licznika inwestycji oczekujących na dodanie.
 - Pełna automatyzacja: wyzwalanie sugestii przy starcie UI, ręczna komenda CLI oraz cykliczne zadanie w tle (co 24h).

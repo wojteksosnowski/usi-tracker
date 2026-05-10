@@ -104,9 +104,29 @@
 
 .detail-grid {
     display: grid;
-    grid-template-columns: 2fr 1fr 1fr;
+    grid-template-columns: 4fr 2fr 2fr 2fr;
     flex: 1;
     overflow: hidden;
+}
+
+@media (max-width: 1400px) {
+    .detail-grid {
+        grid-template-columns: 3fr 2fr 2fr; /* Col 4 (meta) flows below or hides? No, let's keep 4 on desktop-ish */
+    }
+}
+
+@media (max-width: 1200px) {
+    .detail-grid {
+        grid-template-columns: 1fr 1fr;
+        grid-auto-rows: auto;
+        overflow-y: auto;
+    }
+}
+
+@media (max-width: 768px) {
+    .detail-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .detail-gallery-column {
@@ -115,6 +135,13 @@
 }
 
 .detail-ratings-column {
+    border-left: 0.5px solid var(--usi-border);
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+}
+
+.detail-modules-column {
     border-left: 0.5px solid var(--usi-border);
     display: flex;
     flex-direction: column;

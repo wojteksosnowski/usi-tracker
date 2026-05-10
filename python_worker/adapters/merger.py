@@ -16,6 +16,7 @@ class Merger:
             ("financials.price_m2_min", ["financials", "price_m2_min"]),
             ("financials.price_m2_max", ["financials", "price_m2_max"]),
             ("specifications.units_count", ["specifications", "units_count"]),
+            ("specifications.ceiling_height", ["specifications", "ceiling_height"]),
             ("specifications.delivery_date", ["specifications", "delivery_date"]),
             ("images_count", ["images_count"]),
             ("status", ["status"]),
@@ -54,6 +55,7 @@ class Merger:
             "developer_slug": base.get("developer_slug"),
             "name": base.get("name"),
             "developer": base.get("developer"),
+            "website": base.get("website") or (existing_data or {}).get("website"),
             "status": (meta_ratings or {}).get("status") or (existing_data or {}).get("status") or "Brak",
             "sources": {},
             "location": base.get("location", {}).copy() if base.get("location") else {},
@@ -127,6 +129,8 @@ class Merger:
                 curr_spec["delivery_year"] = other_spec.get("delivery_year")
             if not curr_spec.get("units_count") and other_spec.get("units_count"):
                 curr_spec["units_count"] = other_spec["units_count"]
+            if not curr_spec.get("ceiling_height") and other_spec.get("ceiling_height"):
+                curr_spec["ceiling_height"] = other_spec["ceiling_height"]
 
             other_fin = other.get("financials", {})
             curr_fin = result["financials"]
@@ -176,6 +180,8 @@ class Merger:
             ex_spec = existing_data.get("specifications") or {}
             if not result["specifications"].get("units_count") and ex_spec.get("units_count"):
                 result["specifications"]["units_count"] = ex_spec["units_count"]
+            if not result["specifications"].get("ceiling_height") and ex_spec.get("ceiling_height"):
+                result["specifications"]["ceiling_height"] = ex_spec["ceiling_height"]
             if not result["specifications"].get("delivery_date") and ex_spec.get("delivery_date"):
                 result["specifications"]["delivery_date"] = ex_spec["delivery_date"]
                 result["specifications"]["delivery_quarter"] = ex_spec.get("delivery_quarter")

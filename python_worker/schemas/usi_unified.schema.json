@@ -18,6 +18,7 @@
     "developer_slug": { "type": "string", "description": "Stabilny identyfikator dewelopera (folder)." },
     "name": { "type": "string", "description": "Nazwa inwestycji (wyczyszczona)." },
     "developer": { "type": "string", "description": "Nazwa dewelopera (wyświetlana)." },
+    "website": { "type": ["string", "null"], "format": "uri", "description": "Dedykowana strona WWW inwestycji." },
     "status": { 
       "type": "string", 
       "enum": ["Brak", "AI", "Wstępna", "Poszerzona", "Pełna", "Aktualizacja", "Ukończona"],
@@ -72,6 +73,7 @@
       "properties": {
         "units_count": { "type": "integer", "minimum": 0 },
         "floors_count": { "type": "integer", "minimum": 0 },
+        "ceiling_height": { "type": ["number", "null"], "description": "Wysokość mieszkań w metrach (np. 2.70)." },
         "delivery_date": { "type": "string", "description": "Format: 'Q kw. YYYY' lub ISO date." },
         "delivery_quarter": { "type": "integer", "minimum": 1, "maximum": 4 },
         "delivery_year": { "type": "integer" }

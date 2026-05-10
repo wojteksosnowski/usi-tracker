@@ -18,9 +18,10 @@ def _unified_base(inv_slug, dev_slug, name, developer=None):
         "developer_slug": dev_slug,
         "name": name,
         "developer": developer,
+        "website": None,
         "sources": {},
         "location": {"coords": [None, None], "address": None, "city": None, "district": None},
-        "specifications": {"delivery_date": None, "delivery_quarter": None, "delivery_year": None, "units_count": None},
+        "specifications": {"delivery_date": None, "delivery_quarter": None, "delivery_year": None, "units_count": None, "ceiling_height": None},
         "financials": {"price_min": None, "price_max": None, "price_avg": None, "price_m2_min": None, "price_m2_max": None},
         "amenities": {"labels": [], "raw_codes": []},
         "image_urls": [],
@@ -96,6 +97,7 @@ class RPAdapter:
 
         offer_id = str(raw.get("id", ""))
         url = raw.get("url")
+        website = raw.get("website")
         vendor = _get_val(raw, "vendor")
         if isinstance(vendor, dict):
             vendor_name = _get_val(vendor, "name")
@@ -108,13 +110,27 @@ class RPAdapter:
                     url = f"https://rynekpierwotny.pl/oferty/{vendor_slug}/{offer_slug}-{offer_id}/"
 
         u["sources"]["rp"] = {"id": offer_id, "url": url}
+        u["website"] = website
         u["location"].update({
             "coords": [lat, lng],
             "address": _get_val(raw, "address") or raw.get("address"),
         })
+
+        # Extract height from stats if available
+        stats = _get_val(raw, "stats")
+        height = None
+        if isinstance(stats, dict):
+            h_cm = stats.get("ranges_height_max")
+            if h_cm:
+                try:
+                    height = round(float(h_cm) / 100, 2)
+                except (ValueError, TypeError):
+                    pass
+
         u["specifications"].update({
             "delivery_date": delivery,
             "units_count": _get_val(raw, "properties") or raw.get("properties"),
+            "ceiling_height": height,
         })
         u["amenities"]["raw_codes"] = amenity_codes
         u["image_urls"] = gallery_urls

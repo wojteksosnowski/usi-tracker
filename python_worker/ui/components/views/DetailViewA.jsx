@@ -91,17 +91,7 @@
            />
         </div>
 
-        <div className="detail-meta-column usi-scroll usi-p-16">
-           <button 
-              className="usi-btn usi-btn-outline usi-w-full usi-m-b-16" 
-              onClick={handleRefresh}
-              disabled={refreshing}
-           >
-              <Icon name="sparkle" size={14} className="usi-m-r-8" />
-              {refreshLabel}
-           </button>
-           <MetadataPanel inv={inv} config={metaConfig} />
-           <div className="usi-h-24" />
+        <div className="detail-modules-column usi-scroll usi-p-16">
            <ModuleWrapper
               component={NearbyInvestmentsModule}
               moduleSpec={{
@@ -114,6 +104,18 @@
            />
            <div className="usi-h-24" />
            <PoiModule inv={inv} />
+        </div>
+
+        <div className="detail-meta-column usi-scroll usi-p-16">
+           <button 
+              className="usi-btn usi-btn-outline usi-w-full usi-m-b-16" 
+              onClick={handleRefresh}
+              disabled={refreshing}
+           >
+              <Icon name="sparkle" size={14} className="usi-m-r-8" />
+              {refreshLabel}
+           </button>
+           <MetadataPanel inv={inv} config={metaConfig} />
         </div>
         {lightbox !== null && <Lightbox inv={inv} index={lightbox} onClose={() => setLightbox(null)} />}
       </div>

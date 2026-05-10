@@ -12,6 +12,11 @@
             <SourceBadge source={link.source} /> <Icon name="arrow" size={11} />
           </a>
         ))}
+        {inv.website && (
+          <a className="usi-btn sm ghost" href={inv.website} target="_blank" rel="noopener" title="Oficjalna strona inwestycji">
+            <Icon name="link" size={11} className="usi-m-r-4" /> Strona WWW
+          </a>
+        )}
       </div>
     );
   };
