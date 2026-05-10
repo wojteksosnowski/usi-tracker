@@ -136,7 +136,8 @@ function DataGrid({
       <div className="usi-datagrid-grid"
            style={{
              '--usi-dg-cols': itemsPerRow,
-             '--usi-dg-gap': `${gridConfig.gap !== undefined ? gridConfig.gap : 16}px`
+             '--usi-dg-gap': `${gap}px`,
+             gridAutoRows: `${gridConfig.cardHeight}px`
            }}>
         {visibleItems.map((item, idx) => {
           const itemKey = `${item.portal || item.source || 'inv'}-${item.id || item.slug || idx}`;
