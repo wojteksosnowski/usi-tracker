@@ -4,7 +4,7 @@ function DeveloperListGrid({
   onSelectDev = () => {}
 }) {
   const { React, DataGrid, DeveloperCard, useDataBus } = window;
-  const { bus } = useDataBus();
+  const { bus, setVariable } = useDataBus();
   const { developers = [], filters = {} } = bus;
   const { search = '', sources = new Set() } = filters;
   const [onlyActive, setOnlyActive] = React.useState(false);
@@ -35,6 +35,10 @@ function DeveloperListGrid({
       return true;
     });
   }, [developers, search, sources, onlyActive, onlySuggestions]);
+
+  React.useEffect(() => {
+    setVariable('visibleDevelopers', filteredDevelopers);
+  }, [filteredDevelopers]);
 
   const suggestionsTotal = React.useMemo(
     () => developers.reduce((n, d) => n + (d.suggestions?.length || 0), 0),

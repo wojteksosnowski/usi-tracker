@@ -130,7 +130,7 @@
             if (e.key === 'ArrowLeft' && idx > 0) { e.preventDefault(); handleSelectInv(list[idx - 1]); }
             if (e.key === 'ArrowRight' && idx < list.length - 1) { e.preventDefault(); handleSelectInv(list[idx + 1]); }
           } else if (view === 'dev-detail' && selectedDev) {
-            const list = developers || [];
+            const list = bus.visibleDevelopers || developers || [];
             const idx = list.findIndex(d => d.developer_slug === selectedDev.developer_slug);
             if (e.key === 'ArrowLeft' && idx > 0) { e.preventDefault(); handleSelectDev(list[idx - 1]); }
             if (e.key === 'ArrowRight' && idx < list.length - 1) { e.preventDefault(); handleSelectDev(list[idx + 1]); }
