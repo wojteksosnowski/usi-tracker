@@ -38,6 +38,7 @@ function DataBusProvider({ children }) {
     nearbyInvestments: [],
     reports: [],
     activeJobs: [],
+    pendingTotal: 0,
     appStatus: null,
     appNotifications: [],
     
@@ -219,9 +220,18 @@ function DataBusProvider({ children }) {
   // Polling for active jobs
   React.useEffect(() => {
     // Poll every 3 seconds always to catch background tasks
-    const poll = setInterval(() => refetch('jobs'), 3000);
+    const poll = setInterval(() => {
+      refetch('jobs');
+      // Also poll pending summary
+      fetch('/api/reports/pending-summary')
+        .then(r => r.json())
+        .then(data => {
+          if (data.total_pending != null) setVariable('pendingTotal', data.total_pending);
+        })
+        .catch(() => {});
+    }, 3000);
     return () => clearInterval(poll);
-  }, [refetch]);
+  }, [refetch, setVariable]);
 
   return (
     <DataBusDispatchContext.Provider value={dispatchValue}>

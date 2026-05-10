@@ -87,6 +87,15 @@ function DeveloperListGrid({
         ? <span className="usi-pill solid success usi-tiny">+{val}</span>
         : <span className="usi-text-secondary">—</span>
     },
+    {
+      key: 'unregistered_count',
+      label: 'Odkrycia',
+      width: 70,
+      align: 'center',
+      render: (val) => val > 0
+        ? <span className="usi-pill solid warning usi-tiny">+{val}</span>
+        : <span className="usi-text-secondary">—</span>
+    },
   ];
 
   return (
@@ -137,8 +146,13 @@ function DeveloperCard({ dev, onSelect }) {
       }
       footerRight={
         <>
+          {dev.unregistered_count > 0 && (
+            <div className="usi-pill solid warning usi-tiny" title="Nowe inwestycje znalezione w discovery (niezarejestrowane)" style={{ marginBottom: 4 }}>
+              {dev.unregistered_count} nowości
+            </div>
+          )}
           {dev.new_since_review > 0 && (
-            <div className="usi-pill solid success usi-tiny" title="Nowe inwestycje odkryte przez crawler">
+            <div className="usi-pill solid success usi-tiny" title="Nowe inwestycje odkryte przez crawler" style={{ marginBottom: 4 }}>
               +{dev.new_since_review} nowe
             </div>
           )}

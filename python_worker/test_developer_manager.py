@@ -346,3 +346,54 @@ def test_unmerge_fails_if_not_merged(tmp_path):
 
     result = dm.unmerge_developer("target-co", "not-child")
     assert result is False
+
+
+# ── get_total_pending_count ───────────────────────────────────────────────────
+
+def test_get_total_pending_count(tmp_path):
+    dm = _dm(tmp_path)
+    dev_dir = tmp_path / "USIdev"
+    data_dir = tmp_path / "USIdata"
+    
+    # 1. Setup developers
+    dev1 = _make_dev("dev-1", "Dev 1", "DEV-001")
+    dev2 = _make_dev("dev-2", "Dev 2", "DEV-002")
+    _write_dev(dev_dir, dev1)
+    _write_dev(dev_dir, dev2)
+    
+    # 2. Setup discovery files
+    # dev-1 has 2 items, 1 is registered (by ID match)
+    d1_dir = dev_dir / "dev-1"
+    d1_dir.mkdir()
+    (d1_dir / "discovery.json").write_text(json.dumps({
+        "items": [
+            {"portal": "rp", "id": "101", "slug": "inv-101"},
+            {"portal": "rp", "id": "102", "slug": "inv-102"}
+        ]
+    }))
+    
+    # dev-2 has 1 item, unregistered
+    d2_dir = dev_dir / "dev-2"
+    d2_dir.mkdir()
+    (d2_dir / "discovery.json").write_text(json.dumps({
+        "items": [
+            {"portal": "oto", "id": "hash999", "slug": "slug-999"}
+        ]
+    }))
+    
+    # 3. Register one investment for dev-1 (id 101)
+    inv_dir = data_dir / "dev-1" / "inv-101"
+    inv_dir.mkdir(parents=True)
+    (inv_dir / "usi_inv-101.json").write_text(json.dumps({
+        "sources": {"rp": {"id": "101"}}
+    }))
+    
+    # 4. Calculate count
+    # dev-1: 2 items - 1 registered = 1 pending
+    # dev-2: 1 item - 0 registered = 1 pending
+    # Total = 2
+    assert dm.get_total_pending_count() == 2
+
+def test_get_total_pending_count_empty(tmp_path):
+    dm = _dm(tmp_path)
+    assert dm.get_total_pending_count() == 0

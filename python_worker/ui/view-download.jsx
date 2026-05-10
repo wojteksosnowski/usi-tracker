@@ -16,26 +16,51 @@ window.usiRegister('ViewDownload', function ViewDownload() {
   const [errorMsg, setErrorMsg] = React.useState(null);
   const [registering, setRegistering] = React.useState({});
 
-  const handleGlobalScan = React.useCallback(async () => {
+  const handleGlobalScan = React.useCallback(async (limit = null) => {
     setLoading(true);
     setErrorMsg(null);
     setResults([]);
-    setVariable('appStatus', { type: 'info', msg: 'Rozpoczęto skanowanie portali...' });
+    const limitLabel = limit ? ` (limit: ok. ${limit} ofert)` : '';
+    setVariable('appStatus', { type: 'info', msg: `Rozpoczęto skanowanie portali${limitLabel} w tle...` });
     let allResults = [];
     
     try {
       for (const p of activePortals) {
         try {
-          setVariable('appStatus', { type: 'info', msg: `Skanowanie: ${p}...` });
-          const data = await request(`/api/discovery/${p}`);
-          console.log(`[Discovery] Portal ${p} returned:`, data);
-          if (Array.isArray(data)) {
-            allResults = [...allResults, ...data.map(r => ({ ...r, source: p }))];
-          } else {
-            console.error(`[Discovery] Expected array from /api/discovery/${p}, got:`, data);
+          // Use the new job-based API to show progress in NotificationCenter
+          // Pass the search identifier and limit
+          let url = `/api/discovery/${p}/job?id=${encodeURIComponent(identifier)}`;
+          if (limit) url += `&limit=${limit}`;
+          
+          const jobStart = await request(url, { method: 'POST' });
+          if (!jobStart.job_id) throw new Error("Nie udało się uruchomić zadania discovery");
+
+          // Local polling to wait for results and move to next portal
+          const result = await new Promise((resolve, reject) => {
+            const poll = setInterval(async () => {
+              try {
+                const job = await request(`/api/jobs/${jobStart.job_id}`, { noCache: true });
+                if (job.status === 'completed') {
+                  clearInterval(poll);
+                  resolve(job.result);
+                } else if (job.status === 'failed') {
+                  clearInterval(poll);
+                  reject(new Error(job.error || "Zadanie nie powiodło się"));
+                }
+              } catch (e) {
+                clearInterval(poll);
+                reject(e);
+              }
+            }, 1500);
+          });
+
+          console.log(`[Discovery] Portal ${p} job finished, returned:`, result);
+          if (Array.isArray(result)) {
+            allResults = [...allResults, ...result.map(r => ({ ...r, source: p }))];
           }
         } catch (e) {
           console.error(`Błąd skanowania ${p}:`, e);
+          // Continue to next portal
         }
       }
       console.log(`[Discovery] Final results set:`, allResults.length, "items");
@@ -48,7 +73,7 @@ window.usiRegister('ViewDownload', function ViewDownload() {
         setVariable('appStatus', { type: 'success', msg: `Skanowanie zakończone. Znaleziono ${allResults.length} inwestycji (w tym ${newCount} nowych).` });
       }
     } catch (err) {
-      setErrorMsg('Błąd krytyczny podczas skanowania');
+      setErrorMsg('Błąd krytyczny podczas skanowania: ' + err.message);
       setVariable('appStatus', { type: 'error', msg: 'Błąd krytyczny podczas skanowania' });
     } finally {
       setLoading(false);
@@ -58,8 +83,10 @@ window.usiRegister('ViewDownload', function ViewDownload() {
   // Expose trigger to global scope for App ActionBar
   React.useEffect(() => {
     window.usiTriggerScan = handleGlobalScan;
+    window.usiTriggerScanLimited = () => handleGlobalScan(150); // ok. 5 stron (przy 24-30 na stronę)
     return () => { 
       delete window.usiTriggerScan; 
+      delete window.usiTriggerScanLimited;
     };
   }, [handleGlobalScan]);
 

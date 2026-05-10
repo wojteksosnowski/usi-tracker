@@ -65,7 +65,9 @@ function DeveloperDetail({
     load();
     // Reset crawler badge when user opens developer detail
     fetch(`/api/crawler/badge-reset/${dev_slug}`, { method: 'POST' }).catch(() => {});
-  }, [load]);
+    // Trigger suggestion algorithm to find similar devs
+    fetch('/api/developer/suggest', { method: 'POST' }).then(() => refetch('developers')).catch(() => {});
+  }, [load, dev_slug, refetch]);
 
   useJobStatus(activeJobId, (finishedJob) => {
     if (finishedJob.status === 'completed') {

@@ -2,14 +2,28 @@ import json
 import logging
 from pathlib import Path
 from flask import Blueprint, jsonify, abort
-from python_worker.config import USI_DATA_DIR
+from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
 from python_worker.api.utils import _load_investment, _calculate_ocena_log, _calculate_distance
+from python_worker.developer_manager import DeveloperManager
 
 logger = logging.getLogger(__name__)
 
 reports_bp = Blueprint('reports', __name__)
 
 REPORTS_DIR = Path(USI_DATA_DIR) / "reports"
+
+@reports_bp.route("/reports/pending-summary")
+def get_pending_summary():
+    """Returns global count of unregistered investments found in discovery snapshots."""
+    try:
+        dm = DeveloperManager(USI_DATA_DIR, USI_DEV_DIR)
+        count = dm.get_total_pending_count()
+        return jsonify({
+            "total_pending": count
+        })
+    except Exception as e:
+        logger.error(f"Error getting pending summary: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @reports_bp.route("/reports")
 def list_reports():

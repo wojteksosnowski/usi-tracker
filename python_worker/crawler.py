@@ -63,6 +63,7 @@ class Wedrowiec:
         self._paused = False
         self._current_dev: str | None = None
         self._next_visit_at: datetime | None = None
+        self._last_suggest_at: datetime | None = None
         self._lock = threading.Lock()
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -89,12 +90,18 @@ class Wedrowiec:
 
     def get_status(self) -> dict:
         with self._lock:
-            return {
+            status = {
                 "running": bool(self._thread and self._thread.is_alive()),
                 "paused": self._paused,
                 "current_dev": self._current_dev,
                 "next_visit_at": _iso(self._next_visit_at) if self._next_visit_at else None,
             }
+            # Include exploration stats if running
+            try:
+                status["exploration"] = self.get_exploration_status()
+            except Exception:
+                status["exploration"] = {}
+            return status
 
     def get_exploration_status(self) -> dict:
         state = self._load_exploration_state()
@@ -143,7 +150,18 @@ class Wedrowiec:
     def _tick(self):
         now = _now_utc()
 
-        # Which exploration portal is most overdue?
+        # 1. Periodic suggestion algorithm (every 24h)
+        if not self._last_suggest_at or (now - self._last_suggest_at).total_seconds() > 86400:
+            logger.info("Wędrowiec: triggering periodic developer similarity detection")
+            from python_worker.detect_similar_devs import detect_similar
+            try:
+                # Run similarity detection
+                detect_similar()
+                self._last_suggest_at = now
+            except Exception as e:
+                logger.error("Wędrowiec: periodic similarity detection failed: %s", e)
+
+        # 2. Which exploration portal is most overdue?
         exp_portal, exp_overdue_since = self._most_overdue_exploration(now)
         # Which developer visit is most overdue?
         visit_dev, visit_overdue_since = self._most_overdue_visit(now)

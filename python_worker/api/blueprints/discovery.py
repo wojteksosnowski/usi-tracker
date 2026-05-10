@@ -36,6 +36,27 @@ def discover_dev_new(dev_slug):
     )
     return jsonify({"ok": True, "job_id": job_id})
 
+@discovery_bp.route("/discovery/<portal>/job", methods=["POST"])
+def discovery_job(portal):
+    if portal not in _VALID_PORTALS:
+        return jsonify({"error": f"Unknown portal: {portal}"}), 400
+    identifier = request.args.get("id", "").strip()
+    limit = request.args.get("limit")
+    if limit:
+        try:
+            limit = int(limit)
+        except ValueError:
+            limit = None
+    
+    def _run_discovery_job(job_id, p, ident, lim):
+        job_manager.update_progress(job_id, 10, f"Skanowanie portalu {p}...")
+        results = discovery_service.discovery_by_portal(p, ident, limit=lim)
+        job_manager.update_progress(job_id, 100, f"Znaleziono {len(results)} inwestycji na {p}.")
+        return results
+
+    job_id = job_manager.start_job(f"Discovery: {portal}", _run_discovery_job, portal, identifier, limit)
+    return jsonify({"ok": True, "job_id": job_id})
+
 @discovery_bp.route("/discovery/<portal>")
 def discovery(portal):
     if portal not in _VALID_PORTALS:

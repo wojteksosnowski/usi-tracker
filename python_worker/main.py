@@ -12,6 +12,7 @@ from usi_scrapers import api as scraper_api
 from .csv_importer import import_csv
 from .logger_utils import log_to_processing_log
 from .developer_manager import DeveloperManager
+from .detect_similar_devs import detect_similar
 
 # Set up logging for the whole application
 logging.basicConfig(
@@ -214,6 +215,9 @@ def main():
     # Command: backfill-ids
     parser_backfill = subparsers.add_parser("backfill-ids", help="Generate and assign missing USI IDs for all records")
 
+    # Command: suggest
+    parser_suggest = subparsers.add_parser("suggest", help="Run the developer suggestion algorithm (similarity & location)")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -333,6 +337,11 @@ def main():
 
     elif args.command == "backfill-ids":
         backfill_usi_ids()
+
+    elif args.command == "suggest":
+        logger.info("Starting developer suggestion algorithm...")
+        detect_similar()
+        logger.info("Suggestion algorithm finished.")
 
 if __name__ == "__main__":
     main()

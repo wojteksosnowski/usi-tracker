@@ -60,10 +60,11 @@ class JobManager:
                         self.jobs[job_id]["message"] = "Processing..."
 
                 logger.info(f"Starting job {job_id} ({self.jobs[job_id]['name']})")
-                target_func(job_id, *args, **kwargs)
+                result = target_func(job_id, *args, **kwargs)
                 
                 with self.lock:
                     if job_id in self.jobs:
+                        self.jobs[job_id]["result"] = result
                         if self.jobs[job_id]["status"] == "running":
                             self.jobs[job_id]["status"] = "completed"
                             self.jobs[job_id]["progress"] = self.jobs[job_id]["total"]

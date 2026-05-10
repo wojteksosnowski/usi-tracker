@@ -168,33 +168,45 @@ def fetch_status():
 
 @investments_bp.route("/system/verify-library")
 def verify_library():
+    """Checks the health of the usi-scrapers library connection (v0.3.0)."""
     try:
         from usi_scrapers import api as scraper_api
         from python_worker.config import get_scraper_config
         from usi_scrapers.fetcher import Fetcher
-        
+
         config = get_scraper_config()
         if not config:
             return jsonify({"ok": False, "error": "Scraper config not available"})
-            
+
         fetcher = Fetcher(config)
-        # Using the new consistency verification API from usi-scrapers v0.2.2
-        result = scraper_api.verify_consistency(config, fetcher)
-        return jsonify({"ok": True, "result": result})
-    except AttributeError:
-        return jsonify({"ok": False, "error": "verify_consistency API not found in usi-scrapers library"}), 501
+        # In usi-scrapers v0.3.0 health_check returns standardized {ok: bool, ...}
+        result = scraper_api.health_check(config, fetcher)
+
+        # Ensure 'status' key exists for frontend compatibility if result is True
+        if result.get("ok"):
+            result["status"] = "ok"
+
+        return jsonify(result)
+    except (AttributeError, ImportError) as e:
+        logger.warning(f"Library health check failed: {e}")
+        return jsonify({"ok": False, "error": f"Scraper API mismatch: {e}"}), 501
     except Exception as e:
         logger.exception("verify_library failed")
         return jsonify({"ok": False, "error": str(e)}), 500
-
 # ── Developer API ──────────────────────────────────────────────────────────────
 
 @investments_bp.route("/developers")
 def list_developers():
     from python_worker.developer_manager import DeveloperManager
+    from python_worker.services.discovery_service import DiscoveryService
     from python_worker.config import USI_DATA_DIR
     from pathlib import Path
     dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
+    ds = DiscoveryService(USI_DATA_DIR)
+    
+    # Pre-fetch identifiers once for all developers
+    identifiers = dm.get_existing_identifiers()
+    
     developers = dm.list_developers()
     developers.sort(key=lambda x: x.get("name", "").lower())
     for dev in developers:
@@ -214,7 +226,21 @@ def list_developers():
             dev["last_updated"] = None
         # Crawler badge
         dev["new_since_review"] = dev.get("crawler", {}).get("new_since_review", 0)
+        # Discovery snapshot badge
+        dev["unregistered_count"] = ds.get_unregistered_count(slug, identifiers)
+        
     return jsonify(developers)
+
+@investments_bp.route("/developer/suggest", methods=["POST"])
+def trigger_suggestions():
+    """Triggers the developer similarity algorithm globally."""
+    from python_worker.detect_similar_devs import detect_similar
+    try:
+        detect_similar()
+        return jsonify({"ok": True})
+    except Exception as e:
+        logger.exception("trigger_suggestions error: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 @investments_bp.route("/developer/<dev_slug>")
 def get_developer_detail(dev_slug):

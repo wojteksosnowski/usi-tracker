@@ -9,7 +9,7 @@ import json
 import re
 import pytest
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock, patch
 
 
@@ -320,3 +320,25 @@ def test_record_visit_appends(wedrowiec, dirs):
     log_file = data_dir / "test-dev" / "dev_log.txt"
     lines = [l for l in log_file.read_text().splitlines() if l.strip()]
     assert len(lines) == 2
+
+
+# ── Suggestion periodic run ───────────────────────────────────────────────────
+
+def test_tick_triggers_periodic_suggestions(wedrowiec):
+    """Wedrowiec._tick() should trigger similarity detection every 24h."""
+    with patch("python_worker.detect_similar_devs.detect_similar") as mock_detect, \
+         patch.object(wedrowiec, "_most_overdue_exploration", return_value=(None, 0)), \
+         patch.object(wedrowiec, "_most_overdue_visit", return_value=(None, 0)):
+        
+        # 1. First run (initial)
+        wedrowiec._tick()
+        assert mock_detect.call_count == 1
+        
+        # 2. Second run (immediate) - should skip
+        wedrowiec._tick()
+        assert mock_detect.call_count == 1
+        
+        # 3. Third run (overdue)
+        wedrowiec._last_suggest_at = datetime.now(timezone.utc) - timedelta(hours=25)
+        wedrowiec._tick()
+        assert mock_detect.call_count == 2

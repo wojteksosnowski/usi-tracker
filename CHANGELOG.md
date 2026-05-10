@@ -1,4 +1,47 @@
-## Łączenie deweloperów — model parent_id + DevMiniCard UX — 2026-05-09
+## Deweloperzy i Inwestycje — 2026-05-11
+- Rozszerzenie algorytmu sugestii o lokalizację (Haversine distance) z optymalizacją bounding box.
+- Implementacja globalnego licznika inwestycji oczekujących na dodanie.
+- Pełna automatyzacja: wyzwalanie sugestii przy starcie UI, ręczna komenda CLI oraz cykliczne zadanie w tle (co 24h).
+- Integracja UI: wyświetlanie liczników w ActionBar oraz automatyczne odświeżanie sugestii w widoku dewelopera.
+- Zestaw testów jednostkowych i integracyjnych dla nowej logiki i API.
+
+## Dashboard — 2026-05-10
+- Refaktoryzacja Dashboardu: Naprawiono "rozsypany" układ strony głównej poprzez wdrożenie 12-kolumnowej siatki CSS Grid.
+- Widget Statusu Wędrowca: Dodano interaktywną kartę wyświetlającą stan crawlera, aktualnie odwiedzanego dewelopera oraz statystyki eksploracji portali.
+- Integracja MapModule: Zastąpiono statyczną miniaturę mapy pełnoprawnym, interaktywnym modułem mapy z obsługą klastrowania i nawigacji.
+- Optymalizacja Responsywności: Dostosowano siatkę dashboardu do urządzeń mobilnych i tabletów (dynamiczne przełączanie kolumn).
+- Standaryzacja Kart: Wszystkie moduły dashboardu korzystają teraz ze spójnego komponentu BaseModule.
+
+## v0.9.7 — 2026-05-10
+
+- **Refaktoryzacja Dashboardu**: Naprawiono "rozsypany" układ strony głównej poprzez wdrożenie 12-kolumnowej siatki CSS Grid.
+- **Widget Statusu Wędrowca**: Dodano interaktywną kartę wyświetlającą stan crawlera, aktualnie odwiedzanego dewelopera oraz statystyki eksploracji portali.
+- **Integracja MapModule**: Zastąpiono statyczną miniaturę mapy pełnoprawnym, interaktywnym modułem mapy z obsługą klastrowania i nawigacji.
+- **Optymalizacja Responsywności**: Dostosowano siatkę dashboardu do urządzeń mobilnych i tabletów (dynamiczne przełączanie kolumn).
+- **Standaryzacja Kart**: Wszystkie moduły dashboardu korzystają teraz ze spójnego komponentu BaseModule.
+
+
+- Naprawiono błąd połączenia z biblioteką usi-scrapers (użycie health_check) i zsynchronizowano z wersją v0.3.0.
+- Wdrożono system migawek discovery z licznikami nowości wyświetlanymi na kartach deweloperów.
+- Naprawiono błąd skanowania globalnego dla portali Otodom i TabelaOfert.
+- Zintegrowano skanowanie globalne z NotificationCenter poprzez JobManager (asynchroniczność).
+- Dodano funkcję "Skanuj 5" umożliwiającą szybkie skanowanie pierwszych 150 wyników.
+- Rozwiązano problemy z TypeError w StandardCard oraz błędy kodowania nazw plików (%20).
+- Zoptymalizowano wyjście konsoli poprzez wyciszenie logów pollingu.
+
+
+- **Funkcja "Skanuj 5"**: Dodano możliwość ograniczonego skanowania portali (ok. 5 stron / 150 wyników) w widoku Pobieranie, co pozwala na szybki przegląd nowości przy minimalnym ryzyku blokady IP.
+- **Optymalizacja DiscoveryService**: Pełne wykorzystanie parametrów limitujących w nowym API v0.3.0.
+
+
+- **Migracja na usi-scrapers v0.3.0**: Wdrożono pełne wsparcie dla nowej, ujednoliconej wersji biblioteki scraperów ze standaryzowanymi sygnaturami API.
+- **Uproszczenie DiscoveryService**: Usunięto portal-specyficzne obejścia (hacks) na rzecz czystych wywołań `discover_{portal}_investments`.
+- **Globalne skanowanie**: Naprawiono błąd braku wyników przy skanowaniu całych portali (RP, OTO, TO) — teraz poprawnie zwracane są tysiące ofert.
+- **System Discovery Snapshots**: Wprowadzono trwałe zapisywanie wyników discovery do plików `discovery.json` w folderach deweloperów.
+- **Nowe liczniki w UI**: Dodano pomarańczowe plakietki "Odkrycia" na liście deweloperów, informujące o liczbie niezarejestrowanych inwestycji.
+- **Integracja JobManager**: Skanowanie globalne w widoku Download odbywa się teraz asynchronicznie z podglądem postępu w NotificationCenter.
+- **Standaryzacja Health Check**: Ujednolicono format odpowiedzi `/api/system/verify-library` zgodnie z v0.3.0.
+
 
 - **Model parent_id**: `merge_developers()` ustawia `parent_id` na źródle — żadne pliki nie są archiwizowane ani usuwane. Raw pliki portali (`raw_rp_*.json`, `raw_oto_*.json`, `raw_to_*.json`) pozostają nienaruszone. Slugi portali są święte.
 - **`list_developers()` filtruje dzieci**: deweloperzy z `parent_id` znikają z głównej listy — zarówno w `DeveloperManager.list_developers()` jak i w API.

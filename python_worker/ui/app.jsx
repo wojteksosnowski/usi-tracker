@@ -413,9 +413,19 @@
                     ))}
                   </FilterGroup>
                   <div className="usi-divider-v" />
-                  <button className="usi-btn ghost sm" onClick={() => window.usiTriggerScan && window.usiTriggerScan()}>
-                    <Icon name="zap" size={14} /> Skanuj
-                  </button>
+                  {view === 'download' && bus.pendingTotal > 0 && (
+                    <div className="usi-flex-row usi-gap-8 usi-text-accent" style={{ fontSize: 12, fontWeight: 600 }}>
+                      <Icon name="sparkle" size={14} /> {bus.pendingTotal} oczekujących
+                    </div>
+                  )}
+                  <div className="usi-flex-row usi-gap-8">
+                    <button className="usi-btn ghost sm" onClick={() => window.usiTriggerScanLimited && window.usiTriggerScanLimited()} title="Skanuj ok. 5 stron (150 wyników)">
+                      <Icon name="zap" size={14} /> Skanuj 5
+                    </button>
+                    <button className="usi-btn ghost sm" onClick={() => window.usiTriggerScan && window.usiTriggerScan()} title="Pełne skanowanie katalogu">
+                      <Icon name="zap" size={14} /> Skanuj
+                    </button>
+                  </div>
                 </div>
               ) : view === 'dev-detail' ? (
                 <button

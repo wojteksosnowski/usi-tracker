@@ -229,6 +229,17 @@ class DeveloperManager:
                 logger.warning(f"Error reading {json_file}: {e}")
         return developers
 
+    def get_total_pending_count(self) -> int:
+        """Returns sum of unregistered investments for all active developers."""
+        from .services.discovery_service import DiscoveryService
+        ds = DiscoveryService(self.data_dir)
+        identifiers = self.get_existing_identifiers()
+        
+        total = 0
+        for dev in self.list_developers():
+            total += ds.get_unregistered_count(dev["developer_slug"], identifiers)
+        return total
+
     def resolve_dev_slug(self, name: str) -> str:
         """Standardizes a developer name into a slug."""
         return slugify(name)

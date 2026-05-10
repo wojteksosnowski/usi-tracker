@@ -16,10 +16,10 @@ class DiscoveryService:
         self.config = get_scraper_config()
         self.fetcher = Fetcher(self.config) if self.config else None
 
-    def discover_for_developer(self, job_id=None, dev_slug=None, job_manager=None, download=False):
+    def discover_for_developer(self, job_id=None, dev_slug=None, job_manager=None, download=False, auto_register=True):
         """
-        Discovers and registers new investments for a developer.
-        Can be called directly (CLI) or via JobManager.
+        Discovers and optionally registers new investments for a developer.
+        Saves a snapshot of found items to Public/USIdev/{dev}/discovery.json.
         """
         # If called from CLI: discover_for_developer(slug, download=True)
         # If called from JobManager: discover_for_developer(job_id, slug, ...)
@@ -38,7 +38,8 @@ class DiscoveryService:
             job_manager.update_progress(job_id, 10, "Szukam nowych inwestycji...")
 
         found_total = 0
-        new_items = []
+        all_discovered = []
+        new_items_to_download = []
 
         # Portals to scan — use `or {}` to handle null values stored in JSON
         rp_m  = mapping.get("rp")  or {}
@@ -74,21 +75,28 @@ class DiscoveryService:
                 
                 portal_key = "rp" if portal == "rp" else ("otodom" if portal == "oto" else "to")
                 filtered = filter_new_investments(results, portal_key)
+                all_discovered.extend(filtered)
+                
                 new_found = [item for item in filtered if item.get("is_new")]
                 
                 for item in new_found:
-                    self._register_new_investment(dev_slug, item, portal_key)
-                    new_items.append((portal, item))
+                    if auto_register:
+                        self._register_new_investment(dev_slug, item, portal_key)
+                        item["registered"] = True # Mark as registered in snapshot too
+                    new_items_to_download.append((portal, item))
                 found_total += len(new_found)
             except Exception as e:
                 logger.error(f"{portal_name} discovery failed: {e}")
             
             current_progress += progress_step
 
-        if download and new_items:
-            logger.info(f"Downloading raw JSONs for {len(new_items)} new investments...")
+        # Save snapshot of ALL items found in this run
+        self._save_discovery_snapshot(dev_slug, all_discovered)
+
+        if download and new_items_to_download:
+            logger.info(f"Downloading raw JSONs for {len(new_items_to_download)} new investments...")
             from python_worker.main import download_raw_json
-            for portal, item in new_items:
+            for portal, item in new_items_to_download:
                 identifier = item.get("id") if portal == "rp" else item.get("url")
                 download_raw_json(portal, identifier, dev_slug, item["slug"])
 
@@ -97,6 +105,66 @@ class DiscoveryService:
             job_manager.update_progress(job_id, 100, msg)
         
         return found_total
+
+    def get_unregistered_count(self, dev_slug: str, identifiers: dict = None) -> int:
+        """Returns count of items in discovery.json that are not yet registered."""
+        try:
+            dev_dir = self.data_dir.parent / "USIdev" / dev_slug
+            discovery_file = dev_dir / "discovery.json"
+            if not discovery_file.exists():
+                return 0
+            
+            import json
+            with open(discovery_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            # Recalculate 'registered' status against current DB to be accurate
+            if identifiers is None:
+                from python_worker.developer_manager import DeveloperManager
+                dm = DeveloperManager(self.data_dir)
+                identifiers = dm.get_existing_identifiers()
+            
+            rp_ids = identifiers.get("rp_ids", set())
+            oto_ids = identifiers.get("oto_ids", set())
+            oto_slugs = identifiers.get("oto_slugs", set())
+            to_ids = identifiers.get("to_ids", set())
+            
+            count = 0
+            for item in data.get("items", []):
+                portal = item.get("portal")
+                is_registered = False
+                if portal == "rp":
+                    is_registered = str(item.get("id")) in rp_ids
+                elif portal == "otodom" or portal == "oto":
+                    is_registered = str(item.get("id")) in oto_ids or item.get("slug") in oto_slugs
+                elif portal in ("to", "tabelaofert"):
+                    is_registered = str(item.get("id")) in to_ids
+                
+                if not is_registered:
+                    count += 1
+            return count
+        except Exception as e:
+            logger.debug(f"Error getting unregistered count for {dev_slug}: {e}")
+            return 0
+
+    def _save_discovery_snapshot(self, dev_slug, items):
+        """Saves discovery results to a JSON file in the developer's directory."""
+        try:
+            dev_dir = self.data_dir.parent / "USIdev" / dev_slug
+            dev_dir.mkdir(parents=True, exist_ok=True)
+            discovery_file = dev_dir / "discovery.json"
+            
+            data = {
+                "dev_slug": dev_slug,
+                "checked_at": datetime.now().isoformat(),
+                "items": items
+            }
+            import json
+            with open(discovery_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            logger.info(f"Saved discovery snapshot for {dev_slug} ({len(items)} items)")
+        except Exception as e:
+            logger.error(f"Failed to save discovery snapshot for {dev_slug}: {e}")
 
     def _register_new_investment(self, dev_slug, item, portal):
         """Helper to create a skeleton usi_*.json for a newly discovered investment."""
@@ -132,37 +200,25 @@ class DiscoveryService:
             log_to_processing_log(dev_slug, inv_slug, f"Discovered and registered from {portal} ({identifier_key}: {identifier_val})")
             logger.info(f"REGISTERED NEW {portal} Investment: {item['name']} in {dev_slug}/{inv_slug}")
 
-    def discovery_by_portal(self, portal, identifier=None):
+    def discovery_by_portal(self, portal, identifier=None, limit=None):
         """
         Discovers new investments on a portal for global or specific scan.
         Supports both IDs (developer scan) and URLs (listing scan).
         """
-        logger.info(f"Triggering discovery for portal: {portal} (Identifier: {identifier})")
+        logger.info(f"Triggering discovery for portal: {portal} (Identifier: {identifier}, Limit: {limit})")
         portal_key = "rp" if portal == "rp" else ("otodom" if portal == "oto" else "to")
         
         try:
-            results = []
-            # Check if identifier is a URL for general listing discovery
-            is_url = str(identifier).startswith("http") if identifier else False
-
-            if is_url:
-                logger.info(f"Detected listing URL discovery: {identifier}")
-                if portal == "rp":
-                    # RP doesn't have a specialized listing-URL scraper, but we can try 
-                    # extracting vendor-id/slug or fallback to list_investments
-                    results = scraper_api.list_investments(self.config, self.fetcher, portal, identifier)
-                elif portal == "oto":
-                    results = scraper_api.discover_otodom_listing(identifier, self.fetcher)
-                elif portal == "to":
-                    results = scraper_api.discover_to_listing(identifier, self.fetcher)
+            # USI-Scrapers v0.3.0 standardized API: 
+            # discover_{portal}_investments(config, fetcher, identifier=None, limit=None)
+            discovery_func = getattr(scraper_api, f"discover_{portal_key}_investments", None)
+            
+            if discovery_func:
+                # Global discovery (identifier=None) or specific (identifier=str/URL)
+                results = discovery_func(self.config, self.fetcher, identifier=identifier, limit=limit)
             else:
-                # Standard ID-based or global discovery
-                if portal == "rp" and not identifier:
-                    # Global RP scan (no vendor ID)
-                    results = scraper_api.discover_rp_investments(self.fetcher, self.config)
-                else:
-                    # Specific developer by ID/slug
-                    results = scraper_api.list_investments(self.config, self.fetcher, portal, identifier)
+                # Fallback to generic list_investments if specific discover function missing
+                results = scraper_api.list_investments(self.config, self.fetcher, portal, identifier)
 
             logger.info(f"Scraper library returned {len(results)} items for {portal}")
             

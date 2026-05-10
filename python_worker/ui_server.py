@@ -15,6 +15,7 @@ from python_worker.api.blueprints.discovery import discovery_bp
 from python_worker.api.blueprints.reports import reports_bp
 from python_worker.api.blueprints.poi import poi_bp
 from python_worker.api.blueprints.crawler_api import crawler_bp
+from python_worker.detect_similar_devs import detect_similar
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,10 @@ class IgnorePollingFilter(logging.Filter):
 logging.getLogger("werkzeug").addFilter(IgnorePollingFilter())
 
 def run():
+    # Trigger similarity detection in the background on startup
+    import threading
+    threading.Thread(target=detect_similar, name="startup-suggest", daemon=True).start()
+
     from python_worker.crawler import init_crawler
     from python_worker.config import USI_DEV_DIR
     crawler = init_crawler(USI_DATA_DIR, USI_DEV_DIR)
