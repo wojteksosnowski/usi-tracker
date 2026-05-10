@@ -31,9 +31,9 @@ _MAX_VISIT_GAP_MINUTES = 20
 
 # ── Eksploracja constants ──────────────────────────────────────────────────────
 _EXPLORATION_CONFIG = {
-    "rp":  {"max_pages": 217, "min_gap_min": 8,  "max_gap_min": 15},
-    "oto": {"max_pages": 230, "min_gap_min": 15, "max_gap_min": 25},
-    "to":  {"max_pages": 210, "min_gap_min": 8,  "max_gap_min": 15},
+    "rp":  {"min_gap_min": 8,  "max_gap_min": 15},
+    "oto": {"min_gap_min": 15, "max_gap_min": 25},
+    "to":  {"min_gap_min": 8,  "max_gap_min": 15},
 }
 # After completing a full cycle, wait this many days before restarting
 _EXPLORATION_CYCLE_PAUSE_DAYS = 30
@@ -106,11 +106,11 @@ class Wedrowiec:
     def get_exploration_status(self) -> dict:
         state = self._load_exploration_state()
         result = {}
-        for portal, cfg in _EXPLORATION_CONFIG.items():
+        for portal in _EXPLORATION_CONFIG:
             ps = state.get(portal, {})
             result[portal] = {
                 "page": ps.get("page", 0),
-                "max_pages": cfg["max_pages"],
+                "total_pages": ps.get("total_pages"),
                 "next_at": ps.get("next_at"),
                 "total_seen": ps.get("total_seen", 0),
                 "new_reg": ps.get("new_reg", 0),
@@ -231,14 +231,15 @@ class Wedrowiec:
         ps = state.setdefault(portal, {})
         cfg = _EXPLORATION_CONFIG[portal]
 
-        # Determine next page to fetch
         current_page = ps.get("page", 0)
         cycle_start = ps.get("cycle_start")
+        saved_total = ps.get("total_pages")
 
-        if current_page >= cfg["max_pages"]:
-            # Cycle complete — schedule next cycle
+        # If we already know total_pages and have finished, start next cycle
+        if saved_total and current_page >= saved_total:
             next_cycle = _now_utc() + timedelta(days=_EXPLORATION_CYCLE_PAUSE_DAYS)
             ps["page"] = 0
+            ps["total_pages"] = None
             ps["next_at"] = _iso(next_cycle)
             ps["cycle_start"] = None
             state[portal] = ps
@@ -250,18 +251,28 @@ class Wedrowiec:
         if not cycle_start:
             ps["cycle_start"] = _iso(_now_utc())
 
-        logger.info("Wędrowiec: exploring %s page %d/%d", portal, next_page, cfg["max_pages"])
-
         try:
-            devs = self._fetch_dev_page(portal, next_page)
+            result = self._fetch_dev_page(portal, next_page)
         except Exception as e:
             logger.error("Wędrowiec: %s page %d fetch failed: %s", portal, next_page, e)
-            devs = []
+            result = None
+
+        if result is None:
+            gap_min = random.uniform(cfg["min_gap_min"], cfg["max_gap_min"])
+            ps["next_at"] = _iso(_now_utc() + timedelta(minutes=gap_min))
+            state[portal] = ps
+            self._save_exploration_state(state)
+            return
+
+        total_pages = result.total_pages
+        devs = result.developers
+        ps["total_pages"] = total_pages
+
+        logger.info("Wędrowiec: exploring %s page %d/%d", portal, next_page, total_pages)
 
         if not devs and next_page == 1:
             logger.warning(
-                "Wędrowiec: %s page 1 returned 0 results — portal may be blocking "
-                "curl_cffi impersonation. Exploration will proceed but may stay empty.",
+                "Wędrowiec: %s page 1 returned 0 results — portal may be blocking requests.",
                 portal,
             )
 
@@ -275,17 +286,26 @@ class Wedrowiec:
         ps["total_seen"] = total_seen
         ps["new_reg"] = ps.get("new_reg", 0) + new_reg
 
-        # Schedule next page
-        gap_min = random.uniform(cfg["min_gap_min"], cfg["max_gap_min"])
-        ps["next_at"] = _iso(_now_utc() + timedelta(minutes=gap_min))
+        # If this was the last page, schedule next cycle; otherwise schedule next page
+        if next_page >= total_pages:
+            next_cycle = _now_utc() + timedelta(days=_EXPLORATION_CYCLE_PAUSE_DAYS)
+            ps["page"] = 0
+            ps["total_pages"] = None
+            ps["next_at"] = _iso(next_cycle)
+            ps["cycle_start"] = None
+            logger.info("Wędrowiec: %s exploration cycle complete — next cycle at %s", portal, _iso(next_cycle))
+        else:
+            gap_min = random.uniform(cfg["min_gap_min"], cfg["max_gap_min"])
+            ps["next_at"] = _iso(_now_utc() + timedelta(minutes=gap_min))
+
         state[portal] = ps
         self._save_exploration_state(state)
         logger.info(
-            "Wędrowiec: %s page %d → %d devs, %d new registered",
-            portal, next_page, len(devs), new_reg,
+            "Wędrowiec: %s page %d/%d → %d devs, %d new registered",
+            portal, next_page, total_pages, len(devs), new_reg,
         )
 
-    # ── Portal page parsers ───────────────────────────────────────────────────
+    # ── Portal page fetcher ───────────────────────────────────────────────────
 
     def _get_fetcher(self):
         from python_worker.config import get_scraper_config
@@ -293,111 +313,46 @@ class Wedrowiec:
         config = get_scraper_config()
         return Fetcher(config) if config else None
 
-    def _fetch_dev_page(self, portal: str, page: int) -> list[dict]:
-        if portal == "rp":
-            return self._fetch_rp_page(page)
-        elif portal == "oto":
-            return self._fetch_oto_page(page)
-        elif portal == "to":
-            return self._fetch_to_page(page)
-        return []
+    def _fetch_dev_page(self, portal: str, page: int):
+        """Fetch one page of developer catalogue via usi-scrapers library.
 
-    def _fetch_rp_page(self, page: int) -> list[dict]:
-        """RP developer catalogue — plain HTML, no curl_cffi or ScraperAPI needed.
-        Links are in the form /deweloperzy/{slug}-{id}/ with vendor name as link text.
+        Returns DeveloperPage(developers, total_pages, page) or None on error.
+        Each developer dict has keys: url, name (may be None for TO), slug.
         """
-        import requests as std_requests
-        url = f"https://rynekpierwotny.pl/deweloperzy/?page={page}"
-        try:
-            r = std_requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
-            r.raise_for_status()
-            html = r.text
-        except Exception as e:
-            logger.warning("RP dev page %d fetch failed: %s", page, e)
-            return []
+        from python_worker.config import get_scraper_config
+        from usi_scrapers import api as scraper_api
 
-        devs = []
-        seen = set()
-        for m in re.finditer(
-            r'href=["\'](?:https?://rynekpierwotny\.pl)?/deweloperzy/([a-z0-9\-]+)-(\d+)/["\'][^>]*>\s*([^<\n]+)',
-            html,
-        ):
-            slug, vid, name = m.group(1), m.group(2), m.group(3).strip()
-            if vid not in seen and name:
-                seen.add(vid)
-                devs.append({"name": name, "id": vid, "slug": slug})
-        return devs
-
-    def _fetch_oto_page(self, page: int) -> list[dict]:
-        """OTO developer catalogue — legacy SSR page (not Next.js), curl_cffi works fine.
-        Links are in the form /pl/firmy/deweloperzy/{slug}-ID{agency_id} with name as text.
-        No ScraperAPI needed.
-        """
+        config = get_scraper_config()
         fetcher = self._get_fetcher()
-        if not fetcher:
-            return []
+        if not config or not fetcher:
+            return None
 
-        url = f"https://www.otodom.pl/firmy/deweloperzy/?sq=&page={page}"
-        html = fetcher.fetch(url, use_impersonate=True, use_scraperapi=False)
-        if not html:
-            return []
+        portal_name = {"rp": "rp", "oto": "otodom", "to": "tabelaofert"}.get(portal)
+        if not portal_name:
+            return None
 
-        devs = []
-        seen = set()
-        for m in re.finditer(
-            r'href=["\'](?:https?://www\.otodom\.pl)?/pl/firmy/deweloperzy/([^"\']+?)-ID(\d+)["\'][^>]*>\s*([^<\n]+)',
-            html,
-        ):
-            slug_hint, aid, name = m.group(1), m.group(2), m.group(3).strip()
-            if aid not in seen and name:
-                seen.add(aid)
-                devs.append({"name": name, "agency_id": aid})
-        return devs
-
-    def _fetch_to_page(self, page: int) -> list[dict]:
-        fetcher = self._get_fetcher()
-        if not fetcher:
-            return []
-
-        url = f"https://tabelaofert.pl/katalog-firm/deweloperzy?page={page}"
-        html = fetcher.fetch(url, use_scraperapi=False, use_impersonate=True)
-        if not html:
-            return []
-
-        devs = []
-        for m in re.finditer(
-            r'href=["\'](?:https?://tabelaofert\.pl)?/katalog-firm/deweloperzy/([^"\'/?#]+)["\'][^>]*>\s*([^<]+)',
-            html,
-        ):
-            slug = m.group(1).strip()
-            name = m.group(2).strip()
-            if slug and name and slug != "deweloperzy":
-                devs.append({"name": name, "slug": slug})
-
-        # Deduplicate by slug
-        seen = set()
-        unique = []
-        for d in devs:
-            if d["slug"] not in seen:
-                seen.add(d["slug"])
-                unique.append(d)
-        return unique
+        return scraper_api.list_developers(config, fetcher, portal_name, page=page)
 
     # ── Developer registration ─────────────────────────────────────────────────
 
     def _register_if_new(self, portal: str, dev_info: dict) -> bool:
-        """Register dev_info as a new developer if not already known. Returns True if new."""
+        """Register dev_info as a new developer if not already known. Returns True if new.
+
+        dev_info comes from usi-scrapers list_developers(): {"url", "name", "slug"}.
+        name may be None (TabelaOfert doesn't expose names on the listing page).
+        """
         from python_worker.developer_manager import DeveloperManager
         from python_worker.csv_importer import slugify
 
         dm = DeveloperManager(self.data_dir, self.dev_dir)
 
-        # Determine the portal identifier for lookup
         if portal == "rp":
-            portal_id = dev_info.get("id") or dev_info.get("slug")
+            portal_id = dev_info.get("slug")
             lookup_portal = "rp"
         elif portal == "oto":
-            portal_id = dev_info.get("agency_id")
+            # Extract numeric agency_id from URL: .../deweloperzy/{slug}-ID{id}
+            m = re.search(r"-ID(\d+)$", (dev_info.get("url") or "").rstrip("/"))
+            portal_id = m.group(1) if m else None
             lookup_portal = "oto"
         else:  # to
             portal_id = dev_info.get("slug")
@@ -410,29 +365,29 @@ class Wedrowiec:
         if existing:
             return False
 
-        # New developer — create a skeleton profile
-        dev_slug = slugify(dev_info["name"])
+        display_name = dev_info.get("name") or dev_info.get("slug", "")
+        dev_slug = slugify(display_name)
         if not dev_slug:
             return False
 
         if portal == "rp":
-            portal_mapping = {"rp": {"id": dev_info["id"], "slug": dev_info.get("slug", "")}}
+            portal_mapping = {"rp": {"slug": dev_info["slug"]}}
         elif portal == "oto":
-            portal_mapping = {"oto": {"agency_id": dev_info["agency_id"]}}
+            portal_mapping = {"oto": {"agency_id": portal_id}}
         else:
             portal_mapping = {"to": {"slug": dev_info["slug"]}}
 
         developer_data = {
             "developer_slug": dev_slug,
-            "name": dev_info["name"],
+            "name": display_name,
             "portal_mapping": portal_mapping,
         }
         try:
             dm.create_developer_file(developer_data)
-            logger.info("Wędrowiec: registered new developer %s (%s) from %s", dev_info["name"], dev_slug, portal)
+            logger.info("Wędrowiec: registered new developer %s (%s) from %s", display_name, dev_slug, portal)
             return True
         except Exception as e:
-            logger.error("Wędrowiec: failed to register %s: %s", dev_info["name"], e)
+            logger.error("Wędrowiec: failed to register %s: %s", display_name, e)
             return False
 
     # ── Wizyta (developer visit) ───────────────────────────────────────────────

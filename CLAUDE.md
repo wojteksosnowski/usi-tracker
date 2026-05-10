@@ -26,6 +26,9 @@ cp python_worker/.env python_worker/.env.local  # then edit with your keys
 ## Commands
 
 ```bash
+# Lint CSS (requires stylelint installed globally: npm install -g stylelint stylelint-config-standard)
+./lint-styles.sh
+
 # Run tests
 pytest python_worker/
 
@@ -110,8 +113,10 @@ logs/            Runtime logs (worker.log)
 | `scraper_otodom.py` | Otodom.pl scraper — fetches HTML via ScraperAPI, extracts `__NEXT_DATA__` JSON |
 | `scraper_to.py` | TabelaOfert.pl scraper — tries direct HTTP first, falls back to ScraperAPI |
 | `services/investment_service.py` | `InvestmentService` — business logic layer used by the Flask API; handles get/register/update investments, auto-creates developer profiles, delegates to `usi_scrapers` library |
-| `api/` | Flask blueprints (`investments`, `discovery`, `jobs`, `reports`) mounted by `ui_server.py`; thin HTTP layer that delegates to `InvestmentService` |
-| `jobs.py` | `JobManager` — runs long scrape/update operations in background threads; tracks progress/status so the UI can poll `/api/jobs/<id>` |
+| `services/discovery_service.py` | `DiscoveryService` — discover new investments per developer or per portal; filters already-known slugs, auto-registers new ones |
+| `api/` | Flask blueprints (`investments`, `discovery`, `jobs`, `reports`, `poi`, `crawler_api`) mounted by `ui_server.py`; thin HTTP layer that delegates to service classes |
+| `jobs.py` | `JobManager` — runs long scrape/update operations in background threads; tracks progress/status so the UI can poll `/api/jobs/<id>`. Any operation taking >1 s must go through `JobManager`. |
+| `crawler.py` | `Wędrowiec` — background daemon (60 s tick) running two alternating modes: **Wizyta** (visits a known developer and runs discovery) and **Eksploracja** (pages portal catalogues to find new developers). Mounted by `ui_server.py` and exposed via `crawler_api` blueprint. |
 | `csv_importer.py` | Bulk importer from USImaster.csv; exports `slugify()` used across the codebase |
 | `listings.py` | Batch fetch of recent investments from both portals; produces `app_latest_results*.json` |
 | `image_saver.py` | Downloads and deduplicates images into `Public/USI/{dev_slug}/{inv_slug}/` |
@@ -127,6 +132,10 @@ logs/            Runtime logs (worker.log)
 | `schemas/` | JSON Schema definitions for `usi_investment`, `usi_developer`, `raw_rp`, `raw_oto`, `raw_to` — the canonical data contracts |
 
 The `usi_scrapers` PyPI library (`from usi_scrapers import api as scraper_api`) handles low-level scraping for the service layer. `InvestmentService` calls it via `get_scraper_config()` and wraps results into the local schema. Direct scraper modules (`scraper_rp.py`, etc.) are still used by CLI commands.
+
+**Scraper Library Convention — critical:** Do NOT add new `scraper_*.py` files to this repo. All new portal interaction logic must live in the `usi_scrapers` library. Use `TechnicalDataManager` from that library for all raw-data saves and image syncs — never write portal data directly to `Public/USIdata` from tracker code. This prevents path drift between environments.
+
+**Developer merging:** Developer profiles use a `parent_id` model — child records are filtered from main lists but retained for raw-data integrity. Use `DeveloperManager` for all reads/writes to `usi_dev_*.json`; never access those files directly.
 
 ## UI JSX Architecture
 
@@ -171,6 +180,14 @@ app.jsx                              → App (root), LoadingScreen, EmptyScreen
 `design-canvas.jsx` is a standalone design tool not loaded by `index.html`.
 
 When adding a new JSX file: place its `<script>` tag after all files it depends on, before all files that use it. Shared primitives → `components/atomic/`. Shared layout components → `components/core.jsx` or a new `components/*.jsx`. Module-panel components → the appropriate `modules/modules-*.jsx`. Gallery/photo logic → `components/Gallery.jsx`. Ratings logic → `components/RatingsPanel.jsx`.
+
+**UI conventions:**
+- **Babel race conditions:** Destructuring from `window` (e.g. `const { useState } = React`) MUST happen inside the component function at render time, not at file/module level — Babel Standalone may not have evaluated prior files yet.
+- **Defensive rendering:** Use `safeRender` (validates `typeof === 'string' || 'number'`) before rendering any API data — raw API objects crash React with "Objects are not valid as a React child".
+- **Shell Layout / DataBus:** Centralise all view-level controls (search, filters, action buttons) in the global `ActionBar`. Use the `DataBus` (React Context in `data.jsx`) to share state between views without prop-drilling.
+- **Density-first grid:** Use `DataGrid` with `minCardWidth` targeting 7–9 columns on wide screens. Grid mode uses RAF-throttled virtualisation; Table mode is non-virtualised (use for small lists like developers to avoid flicker).
+- **Error boundaries:** Wrap all views and analytics modules in `ModuleErrorBoundary`. Frontend errors are also posted to `/api/ui-error` and logged to `logs/ui_errors.log`.
+- **Reports data:** Report definitions live in `Public/USIdata/reports/` as JSON files specifying investment filters and display modules (maps, charts, tables).
 
 ## Testing Approach
 
