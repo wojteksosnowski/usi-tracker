@@ -240,6 +240,13 @@ class Wedrowiec:
             logger.error("Wędrowiec: %s page %d fetch failed: %s", portal, next_page, e)
             devs = []
 
+        if not devs and next_page == 1:
+            logger.warning(
+                "Wędrowiec: %s page 1 returned 0 results — portal may be blocking "
+                "curl_cffi impersonation. Exploration will proceed but may stay empty.",
+                portal,
+            )
+
         new_reg = 0
         for dev_info in devs:
             if self._register_if_new(portal, dev_info):
@@ -332,7 +339,10 @@ class Wedrowiec:
             return []
 
         url = f"https://www.otodom.pl/firmy/deweloperzy/?sq=&page={page}"
-        html = fetcher.fetch(url, use_scraperapi=True, use_impersonate=True)
+        # ScraperAPI disabled — OTO blocks curl_cffi but 230 pages × 1 credit would exhaust
+        # the monthly budget. Exploration silently returns empty until a credit-safe strategy
+        # is implemented.
+        html = fetcher.fetch(url, use_impersonate=True, use_scraperapi=False)
         if not html:
             return []
 
