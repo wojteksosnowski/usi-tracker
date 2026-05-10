@@ -29,22 +29,19 @@ function useJobStatus(jobId, onFinished) {
   return job;
 }
 
-function DeveloperDetail({ 
-  dev_slug, 
-  onBack, 
-  onNav, 
+function DeveloperDetail({
+  dev_slug,
+  onBack,
   onSelectInv,
-  dark, 
-  onToggleTheme 
+  onRegisterDiscover,
 }) {
   const {
-    React, Spinner, NavMenuButton, Icon,
-    NavDrawer, StandardCard, SourceBadge, MetadataPanel,
+    React, Spinner, Icon,
+    StandardCard, SourceBadge, MetadataPanel,
     MAIN_CITIES, useApi, useDataBus
   } = window;
   const [developer, setDeveloper] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
-  const [navOpen, setNavOpen] = React.useState(false);
   const [activeJobId, setActiveJobId] = React.useState(null);
   const [filterCity, setFilterCity] = React.useState(null);
   
@@ -77,13 +74,17 @@ function DeveloperDetail({
     }
   });
 
-  const handleUpdate = () => {
+  const handleUpdate = React.useCallback(() => {
     if (activeJobId) return;
     request(`/api/developer/${dev_slug}/discover`, { method: 'POST' })
       .then(data => {
         if (data.job_id) setActiveJobId(data.job_id);
       });
-  };
+  }, [activeJobId, dev_slug, request]);
+
+  React.useEffect(() => {
+    if (onRegisterDiscover) onRegisterDiscover(handleUpdate, !!activeJobId);
+  }, [handleUpdate, activeJobId, onRegisterDiscover]);
 
   // Local state for optimistic merge (card jumps immediately without reload)
   const [localSuggestions, setLocalSuggestions] = React.useState([]);
@@ -136,6 +137,28 @@ function DeveloperDetail({
     });
   };
 
+  const handleUnmerge = (memberSlug) => {
+    const leaving = localMerged.find(m => m.slug === memberSlug);
+    setLocalMerged(prev => prev.filter(m => m.slug !== memberSlug));
+    fetch(`/api/developer/${dev_slug}/unmerge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source_slug: memberSlug })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        load(true);
+        refetch('developers');
+      } else {
+        if (leaving) setLocalMerged(prev => [leaving, ...prev]);
+      }
+    })
+    .catch(() => {
+      if (leaving) setLocalMerged(prev => [leaving, ...prev]);
+    });
+  };
+
   const handleDismiss = (usi_dev_id) => {
     const dismissed = localSuggestions.find(s => s.usi_dev_id === usi_dev_id);
     setLocalSuggestions(prev => prev.filter(s => s.usi_dev_id !== usi_dev_id));
@@ -171,22 +194,8 @@ function DeveloperDetail({
         inv.city === filterCity || (inv.address || '').includes(filterCity))
     : (developer.investments || []);
 
-  const toolbar = (
-    <div className="developer-detail-toolbar">
-      <NavMenuButton onClick={() => setNavOpen(true)} />
-      <button className="usi-btn ghost" onClick={onBack}><Icon name="chevronLeft" /> Powrót</button>
-      <div className="usi-flex-1" />
-      <button className="usi-btn ghost sm" onClick={handleUpdate} disabled={!!activeJobId}>
-        {activeJobId ? <Spinner size={12} stroke={1.5} /> : <Icon name="sparkle" size={12} />}
-        {activeJobId ? ' Zadanie w tle...' : ' Sprawdź nowe inwestycje'}
-      </button>
-      {navOpen && <NavDrawer current="developers" onClose={() => setNavOpen(false)} onNav={v => { setNavOpen(false); onNav(v); }} dark={dark} onToggleTheme={onToggleTheme} />}
-    </div>
-  );
-
   return (
     <div data-component="DeveloperDetail" className="usi-app developer-detail-container">
-      {toolbar}
       <div className="usi-scroll" style={{ flex: 1 }}>
         <DeveloperHeroBand dev={developer} />
         
@@ -225,7 +234,7 @@ function DeveloperDetail({
 
           <aside className="developer-sidebar">
             <DeveloperSuggestions suggestions={localSuggestions} onMerge={handleMerge} onDismiss={handleDismiss} />
-            <MergedMembersPanel dev={developer} members={localMerged} arrivingSlug={arrivingSlug} />
+            <MergedMembersPanel dev={developer} members={localMerged} arrivingSlug={arrivingSlug} onUnmerge={handleUnmerge} />
             <DeveloperStats dev={developer} onCityClick={setFilterCity} activeCity={filterCity} />
             <DevEventsLog dev={developer} />
             <DeveloperMetadata dev={developer} />
@@ -400,11 +409,13 @@ function DeveloperPortals({ dev }) {
 }
 
 // ── DevMiniCard — shared card for suggestions and connected-records panels ──
-function DevMiniCard({ name, slug, usiId, portalMapping = {}, invCount, sub, arriving, footer }) {
-  const { SourceBadge } = window;
+function DevMiniCard({ name, slug, usiId, portalMapping = {}, invCount, invList, sub, arriving, footer }) {
+  const { React, SourceBadge } = window;
   const hasRp  = !!portalMapping.rp;
   const hasOto = !!portalMapping.oto;
   const hasTo  = !!portalMapping.to;
+  const [showInvs, setShowInvs] = React.useState(false);
+
   return (
     <div className={`dev-mini-card${arriving ? ' dev-card-arriving' : ''}`}>
       <div className="dev-mini-card-top">
@@ -421,11 +432,37 @@ function DevMiniCard({ name, slug, usiId, portalMapping = {}, invCount, sub, arr
           {hasOto && <SourceBadge source="oto" />}
           {hasTo  && <SourceBadge source="to" />}
           {!hasRp && !hasOto && !hasTo && (
-            <span className="usi-tiny usi-text-secondary">brak portali</span>
+            <span
+              className="usi-tiny usi-text-secondary"
+              title="Ten deweloper nie ma powiązań z żadnym portalem"
+              style={{ fontStyle: 'italic' }}
+            >
+              brak portali
+            </span>
           )}
         </div>
         {footer}
       </div>
+      {invList && invList.length > 0 && (
+        <div>
+          <button
+            className="usi-btn ghost sm"
+            style={{ fontSize: 10, padding: '2px 6px', marginTop: 4 }}
+            onClick={() => setShowInvs(v => !v)}
+          >
+            {showInvs ? '▲ Ukryj inwestycje' : `▼ Inwestycje (${invList.length})`}
+          </button>
+          {showInvs && (
+            <div className="usi-flex-col usi-gap-2" style={{ marginTop: 6 }}>
+              {invList.map((inv, i) => (
+                <div key={i} className="usi-tiny usi-text-secondary usi-mono" style={{ paddingLeft: 4 }}>
+                  · {inv.name || inv.slug}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -472,8 +509,9 @@ function DeveloperSuggestions({ suggestions, onMerge, onDismiss }) {
   );
 }
 
-function MergedMembersPanel({ dev, members, arrivingSlug }) {
+function MergedMembersPanel({ dev, members, arrivingSlug, onUnmerge }) {
   if (!dev) return null;
+  const { Icon } = window;
   const total = 1 + (members || []).length;
 
   return (
@@ -483,7 +521,6 @@ function MergedMembersPanel({ dev, members, arrivingSlug }) {
         Skład rekordu ({total})
       </h3>
       <div className="usi-flex-col usi-gap-8">
-        {/* Main (root) developer card */}
         <DevMiniCard
           key={dev.developer_slug}
           name={dev.name}
@@ -493,7 +530,6 @@ function MergedMembersPanel({ dev, members, arrivingSlug }) {
           invCount={dev.investments_count}
           sub="Rekord główny"
         />
-        {/* Merged children */}
         {(members || []).map((m, i) => (
           <DevMiniCard
             key={m.slug || i}
@@ -502,10 +538,20 @@ function MergedMembersPanel({ dev, members, arrivingSlug }) {
             usiId={m.usi_dev_id}
             portalMapping={m.portal_mapping || {}}
             invCount={m.investments_count}
+            invList={m.inv_list}
             arriving={arrivingSlug === m.slug}
             sub={m.merged_at
               ? 'Połączono ' + new Date(m.merged_at).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' })
               : 'Połączony rekord'}
+            footer={onUnmerge && (
+              <button
+                className="usi-btn sm ghost"
+                title="Odłącz dewelopera"
+                onClick={() => onUnmerge(m.slug)}
+              >
+                <Icon name="x" size={12} />
+              </button>
+            )}
           />
         ))}
       </div>

@@ -85,5 +85,33 @@
 
 ---
 
-## Przyszłe kamienie milowe
+---
 
+## ✅ Zamknięty: Poprawki panelu dewelopera
+
+### Krok DD01 — Odłączanie połączonych deweloperów
+
+- [x] Backend: `DeveloperManager.unmerge_developer()` — usuwa `parent_id` z source, usuwa wpis z `merged_from[]` target, loguje zdarzenie `unmerge`
+- [x] Endpoint `POST /api/developer/<slug>/unmerge` z body `{ source_slug }`
+- [x] Frontend: przycisk X na kartach dzieci w `MergedMembersPanel` — optimistic update + cofnięcie przy błędzie API
+- [x] Testy: 4 testy `test_unmerge_*` w `test_developer_manager.py`
+
+### Krok DD02 — Wyjaśnienie "brak portali"
+
+- [x] `DevMiniCard`: tooltip `title` na etykiecie "brak portali" z wyjaśnieniem + styl `font-style: italic`
+
+### Krok DD03 — Lista inwestycji na minikarcie
+
+- [x] Backend: `GET /api/developer/<slug>` wzbogaca `merged_from[]` o `inv_list: [{name, slug}]` (maks. 10)
+- [x] `DevMiniCard`: prop `invList` — zwijalna lista inwestycji pod odznakami portali
+
+### Krok DD04 — Refaktoryzacja toolbara dewelopera
+
+- [x] Usunięto `developer-detail-toolbar` z `DeveloperDetail` (hamburger + back button + discover button)
+- [x] `DeveloperDetail` rejestruje `handleUpdate` przez `onRegisterDiscover` callback
+- [x] ActionBar left dla `dev-detail`: "← Powrót do deweloperów" (nawigacja do `developers`)
+- [x] ActionBar right dla `dev-detail`: "Sprawdź nowe inwestycje" z spinner stanem
+
+---
+
+## Przyszłe kamienie milowe

@@ -206,17 +206,22 @@ def get_developer_detail(dev_slug):
 
     investments = _load_inv_dir(dev_slug)
 
-    # Enrich merged_from entries with portal_mapping and investments_count
+    # Enrich merged_from entries with portal_mapping, investments_count and inv_list
     for member in dev.get("merged_from", []):
         child_slug = member.get("slug")
         if not child_slug or child_slug == dev_slug:
             continue
-        investments.extend(_load_inv_dir(child_slug))
+        child_invs = _load_inv_dir(child_slug)
+        investments.extend(child_invs)
         child_dev = dm.get_developer(child_slug)
         if child_dev:
             member["portal_mapping"] = child_dev.get("portal_mapping", {})
             child_dir = Path(USI_DATA_DIR) / child_slug
             member["investments_count"] = _count_valid_investments(child_dir)
+        member["inv_list"] = [
+            {"name": inv.get("name", inv.get("investment_slug", "")), "slug": inv.get("investment_slug", "")}
+            for inv in child_invs[:10]
+        ]
 
     # Enrich suggestions with portal_mapping, name, investments_count
     for s in dev.get("suggestions", []):
@@ -252,6 +257,26 @@ def merge_developer(dev_slug):
         return jsonify({"ok": False, "error": "Merge failed — check server logs"}), 422
     except Exception as e:
         logger.exception("merge_developer error: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@investments_bp.route("/developer/<dev_slug>/unmerge", methods=["POST"])
+def unmerge_developer(dev_slug):
+    if not _valid_slug(dev_slug):
+        abort(400)
+    from python_worker.developer_manager import DeveloperManager
+    from python_worker.config import USI_DATA_DIR
+    from pathlib import Path
+    payload = request.get_json() or {}
+    source_slug = payload.get("source_slug")
+    if not source_slug or not _valid_slug(source_slug):
+        abort(400)
+    try:
+        dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
+        if dm.unmerge_developer(dev_slug, source_slug):
+            return jsonify({"ok": True})
+        return jsonify({"ok": False, "error": "Unmerge failed"}), 422
+    except Exception as e:
+        logger.exception("unmerge_developer error: %s", e)
         return jsonify({"ok": False, "error": str(e)}), 500
 
 @investments_bp.route("/developer/<dev_slug>/dismiss-suggestion", methods=["POST"])

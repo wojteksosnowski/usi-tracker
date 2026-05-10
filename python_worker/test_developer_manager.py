@@ -282,3 +282,67 @@ def test_dismiss_appends_event(tmp_path):
 
     saved = json.loads((dev_dir / "usi_dev_dev-a.json").read_text())
     assert any(e["type"] == "dismiss_suggestion" for e in saved.get("events", []))
+
+
+# ── unmerge_developer ─────────────────────────────────────────────────────────
+
+def test_unmerge_removes_from_merged_from(tmp_path):
+    dm = _dm(tmp_path)
+    dev_dir = tmp_path / "USIdev"
+    target = _make_dev("target-co", "Target", "DEV-0040")
+    source = _make_dev("source-co", "Source", "DEV-0041")
+    source["parent_id"] = "DEV-0040"
+    target["merged_from"] = [{"slug": "source-co", "name": "Source", "usi_dev_id": "DEV-0041"}]
+    _write_dev(dev_dir, target)
+    _write_dev(dev_dir, source)
+
+    result = dm.unmerge_developer("target-co", "source-co")
+    assert result is True
+
+    saved_target = json.loads((dev_dir / "usi_dev_target-co.json").read_text())
+    assert not any(m["slug"] == "source-co" for m in saved_target.get("merged_from", []))
+
+
+def test_unmerge_clears_parent_id_on_source(tmp_path):
+    dm = _dm(tmp_path)
+    dev_dir = tmp_path / "USIdev"
+    target = _make_dev("target-co", "Target", "DEV-0040")
+    source = _make_dev("source-co", "Source", "DEV-0041")
+    source["parent_id"] = "DEV-0040"
+    target["merged_from"] = [{"slug": "source-co", "name": "Source", "usi_dev_id": "DEV-0041"}]
+    _write_dev(dev_dir, target)
+    _write_dev(dev_dir, source)
+
+    dm.unmerge_developer("target-co", "source-co")
+
+    saved_source = json.loads((dev_dir / "usi_dev_source-co.json").read_text())
+    assert "parent_id" not in saved_source
+
+
+def test_unmerge_appends_event(tmp_path):
+    dm = _dm(tmp_path)
+    dev_dir = tmp_path / "USIdev"
+    target = _make_dev("target-co", "Target", "DEV-0040")
+    source = _make_dev("source-co", "Source", "DEV-0041")
+    source["parent_id"] = "DEV-0040"
+    target["merged_from"] = [{"slug": "source-co", "name": "Source", "usi_dev_id": "DEV-0041"}]
+    _write_dev(dev_dir, target)
+    _write_dev(dev_dir, source)
+
+    dm.unmerge_developer("target-co", "source-co")
+
+    saved_target = json.loads((dev_dir / "usi_dev_target-co.json").read_text())
+    assert any(e["type"] == "unmerge" for e in saved_target.get("events", []))
+
+
+def test_unmerge_fails_if_not_merged(tmp_path):
+    dm = _dm(tmp_path)
+    dev_dir = tmp_path / "USIdev"
+    target = _make_dev("target-co", "Target", "DEV-0040")
+    source = _make_dev("not-child", "NotChild", "DEV-0042")
+    target["merged_from"] = []
+    _write_dev(dev_dir, target)
+    _write_dev(dev_dir, source)
+
+    result = dm.unmerge_developer("target-co", "not-child")
+    assert result is False

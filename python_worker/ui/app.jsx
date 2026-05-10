@@ -75,6 +75,13 @@
     const [fetchCount] = React.useState(0);
     const [dark, setDark] = React.useState(false);
     const [mode, setMode] = React.useState('grid');
+    const devDiscoverRef = React.useRef(null);
+    const [devDiscoverActive, setDevDiscoverActive] = React.useState(false);
+
+    const handleRegisterDiscover = React.useCallback((fn, active) => {
+      devDiscoverRef.current = fn;
+      setDevDiscoverActive(active);
+    }, []);
 
     try {
       const { 
@@ -247,13 +254,15 @@
                     <button className="usi-btn icon sm" aria-pressed={download.mode === 'grid'} onClick={() => setVariable('download.mode', 'grid')}><Icon name="grid" /></button>
                     <button className="usi-btn icon sm" aria-pressed={download.mode === 'table'} onClick={() => setVariable('download.mode', 'table')}><Icon name="list" /></button>
                   </div>
-                  <GlobalSearch 
-                    value={download.search || ''} 
-                    onChange={v => setVariable('download.search', v)} 
-                    placeholder="Filtruj wyniki..." 
+                  <GlobalSearch
+                    value={download.search || ''}
+                    onChange={v => setVariable('download.search', v)}
+                    placeholder="Filtruj wyniki..."
                   />
                 </div>
-              ) : (view !== 'download') ? (
+              ) : view === 'dev-detail' ? (
+                <button className="usi-btn ghost sm" onClick={() => handleNav('developers')}><Icon name="chevronLeft" /> Powrót do deweloperów</button>
+              ) : view !== 'download' ? (
                 <button className="usi-btn ghost sm" onClick={() => handleNav('list')}><Icon name="chevronLeft" /> Powrót do listy</button>
               ) : null
             }
@@ -337,6 +346,16 @@
                     <Icon name="zap" size={14} /> Skanuj
                   </button>
                 </div>
+              ) : view === 'dev-detail' ? (
+                <button
+                  className="usi-btn ghost sm"
+                  disabled={devDiscoverActive}
+                  onClick={() => devDiscoverRef.current && devDiscoverRef.current()}
+                >
+                  {devDiscoverActive
+                    ? <><Spinner size={12} stroke={1.5} /> Zadanie w tle...</>
+                    : <><Icon name="sparkle" size={12} /> Sprawdź nowe inwestycje</>}
+                </button>
               ) : (
                 <div className="usi-flex-row usi-gap-8">
                   <button className="usi-btn ghost sm" onClick={() => handleNav('dashboard')}>Dashboard</button>
@@ -394,8 +413,9 @@
               {view === 'dev-detail' && selectedDev && (
                 <DeveloperDetail
                   dev_slug={selectedDev.developer_slug}
-                  onBack={() => setView('developers')}
+                  onBack={() => handleNav('developers')}
                   onSelectInv={handleSelectInv}
+                  onRegisterDiscover={handleRegisterDiscover}
                 />
               )}
 

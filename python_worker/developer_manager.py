@@ -341,6 +341,46 @@ class DeveloperManager:
         self.create_developer_file(dev)
         return True
 
+    def unmerge_developer(self, target_slug: str, source_slug: str) -> bool:
+        """
+        Odłącza source_slug od target_slug.
+        - Usuwa parent_id z rekordu source
+        - Usuwa wpis ze merged_from[] na target
+        - Portale przeniesione podczas merge NIE są cofane (zbyt ryzykowne)
+        """
+        target_dev = self.get_developer(target_slug)
+        source_dev = self.get_developer(source_slug)
+        if not target_dev or not source_dev:
+            return False
+
+        before = len(target_dev.get("merged_from", []))
+        target_dev["merged_from"] = [
+            m for m in target_dev.get("merged_from", [])
+            if m.get("slug") != source_slug
+        ]
+        if len(target_dev.get("merged_from", [])) == before:
+            return False
+
+        source_dev.pop("parent_id", None)
+
+        self._append_event(target_dev, {
+            "type": "unmerge",
+            "source_slug": source_slug,
+            "source_name": source_dev.get("name", source_slug),
+        })
+
+        self.create_developer_file(target_dev)
+        canonical_path = self.dev_dir / f"usi_dev_{source_slug}.json"
+        try:
+            canonical_path.write_text(
+                json.dumps(source_dev, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        except Exception as e:
+            logger.error(f"Failed to save unmerged source {source_slug}: {e}")
+
+        logger.info(f"Unlinked {source_slug} from {target_slug}")
+        return True
+
     def log_event(self, dev_slug: str, event: dict) -> bool:
         """Append a generic event to the developer's event log."""
         dev = self.get_developer(dev_slug)

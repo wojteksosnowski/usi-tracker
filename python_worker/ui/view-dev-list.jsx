@@ -42,7 +42,9 @@ function DeveloperListGrid({
   );
 
   return (
-    <div data-component="DeveloperListGrid" className="usi-h-full usi-flex-col usi-overflow-hidden">
+    <div data-component="DeveloperListGrid"
+         className="usi-h-full"
+         style={{ display: 'grid', gridTemplateRows: 'auto 1fr', overflow: 'hidden' }}>
       <div className="usi-dev-list-toolbar">
         <button
           className={`usi-btn sm ${onlyActive ? '' : 'ghost'}`}
@@ -58,7 +60,7 @@ function DeveloperListGrid({
         )}
         <span className="usi-tiny usi-text-secondary">{filteredDevelopers.length} deweloperów</span>
       </div>
-      <div className="usi-flex-1 usi-overflow-hidden">
+      <div style={{ minHeight: 0, overflow: 'hidden' }}>
         <DataGrid
           data={filteredDevelopers}
           mode="grid"
