@@ -81,7 +81,17 @@
 
     React.useEffect(() => {
       fetch('/api/crawler/status').then(r => r.json()).then(s => setCrawlerPaused(s.paused || false)).catch(() => {});
-    }, []);
+      
+      // Verify library health on startup
+      fetch('/api/system/verify-library')
+        .then(r => r.json())
+        .then(data => {
+           setVariable('systemHealth', data);
+        })
+        .catch(err => {
+           setVariable('systemHealth', { ok: false, error: 'Network error' });
+        });
+    }, [setVariable]);
 
     const toggleCrawler = () => {
       const url = crawlerPaused ? '/api/crawler/resume' : '/api/crawler/pause';

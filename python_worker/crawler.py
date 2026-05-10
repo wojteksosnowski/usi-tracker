@@ -525,6 +525,10 @@ class Wedrowiec:
             events.insert(0, {"at": _iso(_now_utc()), "type": "discover", "by": "wedrowiec", "found": new_count})
             data["events"] = events[:100]
             dev_file.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            from python_worker.logger_utils import log_to_dev_log
+            log_to_dev_log(dev_slug,
+                f"Wędrowiec — wizyta zakończona. Znaleziono: {new_count} nowych inwestycji. "
+                f"Kolejna wizyta: {crawler['next_visit']}")
         except Exception as e:
             logger.error("_record_visit(%s) failed: %s", dev_slug, e)
 

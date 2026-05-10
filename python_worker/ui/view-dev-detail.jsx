@@ -236,6 +236,7 @@ function DeveloperDetail({
             <DeveloperSuggestions suggestions={localSuggestions} onMerge={handleMerge} onDismiss={handleDismiss} />
             <MergedMembersPanel dev={developer} members={localMerged} arrivingSlug={arrivingSlug} onUnmerge={handleUnmerge} />
             <DeveloperStats dev={developer} onCityClick={setFilterCity} activeCity={filterCity} />
+            <WedrowiecStatus dev={developer} />
             <DevEventsLog dev={developer} />
             <DeveloperMetadata dev={developer} />
             <DeveloperPortals dev={developer} />
@@ -534,6 +535,35 @@ function MergedMembersPanel({ dev, members, arrivingSlug, onUnmerge }) {
           />
         ))}
       </div>
+    </div>
+  );
+}
+
+function WedrowiecStatus({ dev }) {
+  const crawler = dev?.crawler || {};
+  const lastVisit = crawler.last_visit;
+  const nextVisit = crawler.next_visit;
+  const found = crawler.last_new_count ?? null;
+
+  const fmt = iso => iso
+    ? new Date(iso).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '—';
+
+  return (
+    <div className="usi-card" style={{ padding: '12px 16px' }}>
+      <div className="usi-label" style={{ marginBottom: 6 }}>Wędrowiec</div>
+      {!lastVisit ? (
+        <div className="usi-tiny usi-text-secondary">
+          Brak wizyt
+          {nextVisit && <> · planowana {fmt(nextVisit)}</>}
+        </div>
+      ) : (
+        <div className="usi-tiny" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span>Ostatnia wizyta: <b>{fmt(lastVisit)}</b></span>
+          <span>Znaleziono: <b>{found === 0 ? 'brak nowych' : `${found} nowych`}</b></span>
+          <span className="usi-text-secondary">Powrót: {fmt(nextVisit)}</span>
+        </div>
+      )}
     </div>
   );
 }

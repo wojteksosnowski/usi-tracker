@@ -281,3 +281,42 @@ def test_exploration_cycle_resets_when_max_pages_reached(wedrowiec):
     state2 = json.loads(wedrowiec._exploration_file.read_text())
     assert state2["rp"]["page"] == 0
     assert state2["rp"]["cycle_start"] is None
+
+
+# ── _record_visit dev_log ─────────────────────────────────────────────────────
+
+def _write_simple_dev(dev_dir: Path, slug: str) -> Path:
+    profile = {
+        "developer_slug": slug,
+        "name": slug.title(),
+        "usi_dev_id": f"DEV-TEST-{slug}",
+        "portal_mapping": {},
+        "audit": {"created_at": datetime.now().isoformat()},
+    }
+    p = dev_dir / f"usi_dev_{slug}.json"
+    p.write_text(json.dumps(profile))
+    return p
+
+
+def test_record_visit_writes_dev_log(wedrowiec, dirs):
+    data_dir, dev_dir = dirs
+    _write_simple_dev(dev_dir, "test-dev")
+    with patch("python_worker.logger_utils.USI_DATA_DIR", data_dir):
+        wedrowiec._record_visit("test-dev", 3)
+    log_file = data_dir / "test-dev" / "dev_log.txt"
+    assert log_file.exists()
+    content = log_file.read_text()
+    assert "Wędrowiec" in content
+    assert "3 nowych inwestycji" in content
+    assert "Kolejna wizyta" in content
+
+
+def test_record_visit_appends(wedrowiec, dirs):
+    data_dir, dev_dir = dirs
+    _write_simple_dev(dev_dir, "test-dev")
+    with patch("python_worker.logger_utils.USI_DATA_DIR", data_dir):
+        wedrowiec._record_visit("test-dev", 1)
+        wedrowiec._record_visit("test-dev", 0)
+    log_file = data_dir / "test-dev" / "dev_log.txt"
+    lines = [l for l in log_file.read_text().splitlines() if l.strip()]
+    assert len(lines) == 2

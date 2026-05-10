@@ -310,6 +310,42 @@ function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
         </nav>
 
         <div className="usi-nav-drawer-footer">
+          {(() => {
+            const { useDataBusSelector } = window;
+            const health = useDataBusSelector(state => state.systemHealth);
+            if (!health) return null;
+            
+            const isOk = health.ok && (health.result?.status === 'ok' || health.result === true);
+            const statusLabel = isOk ? 'Scrapers: Połączono' : 'Scrapers: Błąd spójności';
+            const statusColor = isOk ? 'var(--usi-success)' : 'var(--usi-danger)';
+            
+            return (
+              <div 
+                className="usi-library-health" 
+                title={health.error || (health.result && JSON.stringify(health.result))}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '12px 16px',
+                  fontSize: '11px',
+                  borderTop: '1px solid var(--usi-surface-3)',
+                  color: statusColor,
+                  background: 'var(--usi-surface-2)'
+                }}
+              >
+                <div style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  background: statusColor,
+                  boxShadow: isOk ? '0 0 8px var(--usi-success)' : 'none'
+                }} />
+                <span style={{ fontWeight: 600, letterSpacing: '0.02em' }}>{statusLabel}</span>
+              </div>
+            );
+          })()}
+
           <button
             data-component="ThemeToggle"
             onClick={onToggleTheme}

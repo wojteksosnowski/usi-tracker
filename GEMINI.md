@@ -14,6 +14,7 @@ USI Tracker is a specialized system for monitoring real-estate investments in Po
   - **Service Layer**: Business logic encapsulated in `python_worker/services/` (`InvestmentService`, `DiscoveryService`). Focuses on semantic merging and ratings.
   - **Data Store**: A file-based structure under `Public/USIdata/` (investments) and `Public/USIdev/` (developer profiles).
   - **UI API**: Modular Flask Blueprints in `python_worker/api/blueprints/`.
+  - **Consistency API**: Built-in verification of `usi-scrapers` health, triggered on startup and visible in UI.
   - **UI**: A local Flask-served React application for high-density visualization.
 - **Integrations**: Syncs with Coda.io and Dropbox for distributed data access.
 
@@ -78,6 +79,7 @@ pip install -r python_worker/requirements.txt
   - **Table mode**: Non-virtualized, used for smaller lists (e.g., developers) to prevent flicker.
 - **Asynchronous Operations**: Any task longer than 1s (e.g., registration, updates) must use the `JobManager` backend. The UI provides progress feedback via `NotificationCenter` in the navbar.
 - **Dynamic MiniMaps**: Generated client-side using HERE Maps API. Supports retina scaling and dark mode switching without backend pre-generation.
+- **Library Health Check**: Automatic consistency verification of `usi-scrapers` on startup. Status visible in the navigation drawer.
 - **Error Boundaries**: Wrap key views and modules in `ModuleErrorBoundary` to isolate failures.
 - **UI Error Logging**: Critical errors are captured and sent to `/api/ui-error`, logged in `logs/ui_errors.log`.
 

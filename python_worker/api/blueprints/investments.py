@@ -150,6 +150,27 @@ def fetch_status():
                 for inv in dev.iterdir() if inv.is_dir() and list(inv.glob("usi_*.json"))) if data_root.exists() else 0
     return jsonify({"count": count})
 
+@investments_bp.route("/system/verify-library")
+def verify_library():
+    try:
+        from usi_scrapers import api as scraper_api
+        from python_worker.config import get_scraper_config
+        from usi_scrapers.fetcher import Fetcher
+        
+        config = get_scraper_config()
+        if not config:
+            return jsonify({"ok": False, "error": "Scraper config not available"})
+            
+        fetcher = Fetcher(config)
+        # Using the new consistency verification API from usi-scrapers v0.2.2
+        result = scraper_api.verify_consistency(config, fetcher)
+        return jsonify({"ok": True, "result": result})
+    except AttributeError:
+        return jsonify({"ok": False, "error": "verify_consistency API not found in usi-scrapers library"}), 501
+    except Exception as e:
+        logger.exception("verify_library failed")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 # ── Developer API ──────────────────────────────────────────────────────────────
 
 @investments_bp.route("/developers")
