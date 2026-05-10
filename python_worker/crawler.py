@@ -285,89 +285,55 @@ class Wedrowiec:
         return []
 
     def _fetch_rp_page(self, page: int) -> list[dict]:
-        """Try RP REST API first, fall back to HTML __NEXT_DATA__."""
-        fetcher = self._get_fetcher()
-        if not fetcher:
-            return []
-
-        api_url = f"https://rynekpierwotny.pl/api/v2/vendors/?page={page}&page_size=30"
+        """RP developer catalogue — plain HTML, no curl_cffi or ScraperAPI needed.
+        Links are in the form /deweloperzy/{slug}-{id}/ with vendor name as link text.
+        """
+        import requests as std_requests
+        url = f"https://rynekpierwotny.pl/deweloperzy/?page={page}"
         try:
-            data = fetcher.fetch_json(api_url, use_scraperapi=False)
-            if data and isinstance(data.get("results"), list):
-                devs = []
-                for v in data["results"]:
-                    vendor_id = str(v.get("id", ""))
-                    slug = v.get("slug", "")
-                    name = v.get("name", "")
-                    if vendor_id and name:
-                        devs.append({"name": name, "id": vendor_id, "slug": slug})
-                return devs
+            r = std_requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
+            r.raise_for_status()
+            html = r.text
         except Exception as e:
-            logger.debug("RP API page %d failed (%s), trying HTML", page, e)
-
-        # HTML fallback
-        html_url = f"https://rynekpierwotny.pl/deweloperzy/?page={page}"
-        html = fetcher.fetch(html_url, use_scraperapi=False, use_impersonate=True)
-        if not html:
+            logger.warning("RP dev page %d fetch failed: %s", page, e)
             return []
 
         devs = []
-        # Try __NEXT_DATA__ first
-        nd_match = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.DOTALL)
-        if nd_match:
-            try:
-                page_props = json.loads(nd_match.group(1)).get("props", {}).get("pageProps", {})
-                for v in page_props.get("vendors", []) or page_props.get("results", []):
-                    vendor_id = str(v.get("id", ""))
-                    name = v.get("name", "")
-                    slug = v.get("slug", "")
-                    if vendor_id and name:
-                        devs.append({"name": name, "id": vendor_id, "slug": slug})
-                if devs:
-                    return devs
-            except Exception:
-                pass
-
-        # Last resort: regex scan for vendor_id patterns
-        for m in re.finditer(r'"id"\s*:\s*(\d+)[^}]*"name"\s*:\s*"([^"]+)"', html):
-            devs.append({"name": m.group(2), "id": m.group(1), "slug": ""})
+        seen = set()
+        for m in re.finditer(
+            r'href=["\'](?:https?://rynekpierwotny\.pl)?/deweloperzy/([a-z0-9\-]+)-(\d+)/["\'][^>]*>\s*([^<\n]+)',
+            html,
+        ):
+            slug, vid, name = m.group(1), m.group(2), m.group(3).strip()
+            if vid not in seen and name:
+                seen.add(vid)
+                devs.append({"name": name, "id": vid, "slug": slug})
         return devs
 
     def _fetch_oto_page(self, page: int) -> list[dict]:
+        """OTO developer catalogue — legacy SSR page (not Next.js), curl_cffi works fine.
+        Links are in the form /pl/firmy/deweloperzy/{slug}-ID{agency_id} with name as text.
+        No ScraperAPI needed.
+        """
         fetcher = self._get_fetcher()
         if not fetcher:
             return []
 
         url = f"https://www.otodom.pl/firmy/deweloperzy/?sq=&page={page}"
-        # ScraperAPI disabled — OTO blocks curl_cffi but 230 pages × 1 credit would exhaust
-        # the monthly budget. Exploration silently returns empty until a credit-safe strategy
-        # is implemented.
         html = fetcher.fetch(url, use_impersonate=True, use_scraperapi=False)
         if not html:
             return []
 
-        nd_match = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.DOTALL)
-        if not nd_match:
-            return []
-
-        try:
-            props = json.loads(nd_match.group(1)).get("props", {}).get("pageProps", {})
-        except Exception:
-            return []
-
-        # Agency list can appear under different keys
-        agencies = (
-            props.get("agencies")
-            or props.get("data", {}).get("agencies", [])
-            or props.get("items")
-            or []
-        )
         devs = []
-        for a in agencies:
-            agency_id = str(a.get("id", "") or a.get("agencyId", ""))
-            name = a.get("name", "") or a.get("brandName", "")
-            if agency_id and name:
-                devs.append({"name": name, "agency_id": agency_id})
+        seen = set()
+        for m in re.finditer(
+            r'href=["\'](?:https?://www\.otodom\.pl)?/pl/firmy/deweloperzy/([^"\']+?)-ID(\d+)["\'][^>]*>\s*([^<\n]+)',
+            html,
+        ):
+            slug_hint, aid, name = m.group(1), m.group(2), m.group(3).strip()
+            if aid not in seen and name:
+                seen.add(aid)
+                devs.append({"name": name, "agency_id": aid})
         return devs
 
     def _fetch_to_page(self, page: int) -> list[dict]:

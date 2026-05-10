@@ -103,53 +103,62 @@ def test_find_by_portal_id_null_portal_mapping(dirs):
 
 # ── Page parser: RP ───────────────────────────────────────────────────────────
 
-def test_fetch_rp_page_api_success(wedrowiec):
-    api_response = {
-        "results": [
-            {"id": 1, "name": "Acme Dev", "slug": "acme-dev"},
-            {"id": 2, "name": "Beta Dev", "slug": "beta-dev"},
-        ]
-    }
-    mock_fetcher = MagicMock()
-    mock_fetcher.fetch_json.return_value = api_response
-    with patch.object(wedrowiec, "_get_fetcher", return_value=mock_fetcher):
+def _rp_html(dev_pairs: list[tuple]) -> str:
+    """Build fake RP developer listing HTML with /deweloperzy/{slug}-{id}/ links."""
+    links = "".join(
+        f'<a href="/deweloperzy/{slug}-{vid}/">{name}</a>'
+        for slug, vid, name in dev_pairs
+    )
+    return f"<html><body>{links}</body></html>"
+
+
+def test_fetch_rp_page_parses_links(wedrowiec):
+    html = _rp_html([
+        ("dom-development-sa", "955", "Dom Development S.A."),
+        ("atal-sa", "1084", "ATAL S.A."),
+    ])
+    import requests as std_requests
+    mock_resp = MagicMock()
+    mock_resp.text = html
+    mock_resp.raise_for_status = MagicMock()
+    with patch("python_worker.crawler.requests", create=True), \
+         patch("requests.get", return_value=mock_resp):
         devs = wedrowiec._fetch_rp_page(1)
     assert len(devs) == 2
-    assert devs[0] == {"name": "Acme Dev", "id": "1", "slug": "acme-dev"}
+    assert devs[0] == {"name": "Dom Development S.A.", "id": "955", "slug": "dom-development-sa"}
 
 
-def test_fetch_rp_page_api_empty_falls_back_to_html(wedrowiec):
-    next_data_html = json.dumps({
-        "props": {"pageProps": {"vendors": [{"id": 42, "name": "HTML Dev", "slug": "html-dev"}]}}
-    })
-    html = f'<script id="__NEXT_DATA__" type="application/json">{next_data_html}</script>'
-    mock_fetcher = MagicMock()
-    mock_fetcher.fetch_json.return_value = {"results": []}  # empty
-    mock_fetcher.fetch.return_value = html
-    with patch.object(wedrowiec, "_get_fetcher", return_value=mock_fetcher):
+def test_fetch_rp_page_deduplicates(wedrowiec):
+    """Same vendor ID appearing twice (e.g., in featured + list) counted once."""
+    html = _rp_html([("atal-sa", "1084", "ATAL"), ("atal-sa", "1084", "ATAL")])
+    mock_resp = MagicMock()
+    mock_resp.text = html
+    mock_resp.raise_for_status = MagicMock()
+    with patch("requests.get", return_value=mock_resp):
         devs = wedrowiec._fetch_rp_page(1)
-    # Empty API results → falls back (returns [] here since API returned valid but empty list)
-    # The implementation returns from API if results is list, even empty — that's correct
-    assert isinstance(devs, list)
+    assert len(devs) == 1
 
 
-def test_fetch_rp_page_no_fetcher_returns_empty(wedrowiec):
-    with patch.object(wedrowiec, "_get_fetcher", return_value=None):
+def test_fetch_rp_page_request_failure_returns_empty(wedrowiec):
+    with patch("requests.get", side_effect=Exception("timeout")):
         assert wedrowiec._fetch_rp_page(1) == []
 
 
 # ── Page parser: OTO ──────────────────────────────────────────────────────────
 
-def _oto_html(agencies: list) -> str:
-    page_props = {"agencies": agencies}
-    nd = json.dumps({"props": {"pageProps": page_props}})
-    return f'<script id="__NEXT_DATA__" type="application/json">{nd}</script>'
+def _oto_html(agencies: list[tuple]) -> str:
+    """Build fake OTO legacy HTML with /pl/firmy/deweloperzy/{slug}-ID{id} links."""
+    links = "".join(
+        f'<a href="/pl/firmy/deweloperzy/{slug}-ID{aid}">{name}</a>'
+        for slug, aid, name in agencies
+    )
+    return f"<html><body>{links}</body></html>"
 
 
 def test_fetch_oto_page_parses_agencies(wedrowiec):
     html = _oto_html([
-        {"id": "10", "name": "Alpha Deweloper"},
-        {"id": "20", "name": "Beta Deweloper"},
+        ("alpha-deweloper", "10", "Alpha Deweloper"),
+        ("beta-deweloper", "20", "Beta Deweloper"),
     ])
     mock_fetcher = MagicMock()
     mock_fetcher.fetch.return_value = html
@@ -159,9 +168,9 @@ def test_fetch_oto_page_parses_agencies(wedrowiec):
     assert devs[0] == {"name": "Alpha Deweloper", "agency_id": "10"}
 
 
-def test_fetch_oto_page_no_next_data_returns_empty(wedrowiec):
+def test_fetch_oto_page_no_links_returns_empty(wedrowiec):
     mock_fetcher = MagicMock()
-    mock_fetcher.fetch.return_value = "<html><body>No JS here</body></html>"
+    mock_fetcher.fetch.return_value = "<html><body>brak deweloperow</body></html>"
     with patch.object(wedrowiec, "_get_fetcher", return_value=mock_fetcher):
         devs = wedrowiec._fetch_oto_page(1)
     assert devs == []
