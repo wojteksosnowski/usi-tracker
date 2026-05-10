@@ -67,6 +67,23 @@ def test_discover_for_developer_no_portals_returns_zero(svc):
     assert count == 0
 
 
+def test_discover_for_developer_null_portal_mapping_values(svc):
+    """portal_mapping z wartościami null (z JSONa) nie powinien rzucać wyjątku."""
+    _write_dev(svc.data_dir, "platforma", portal_mapping={"rp": None, "oto": None, "to": None})
+    count = svc.discover_for_developer("job-001", "platforma")
+    assert count == 0
+
+
+def test_discover_for_developer_null_portal_mapping_updates_progress(svc):
+    """Przy null portal_mapping job osiąga 100% z komunikatem o braku powiązań."""
+    _write_dev(svc.data_dir, "platforma", portal_mapping={"rp": None, "oto": None, "to": None})
+    mock_jm = MagicMock()
+    svc.discover_for_developer("job-001", "platforma", job_manager=mock_jm)
+    final_call = mock_jm.update_progress.call_args_list[-1]
+    assert final_call[0][1] == 100
+    assert "Brak" in final_call[0][2]
+
+
 def test_discover_for_developer_registers_new_items(svc):
     _write_dev(svc.data_dir, "acme-dev", portal_mapping={"rp": {"id": "DEV-001"}})
     new_items = [{"slug": "inv-a", "name": "Inv A", "id": "1", "is_new": True}]

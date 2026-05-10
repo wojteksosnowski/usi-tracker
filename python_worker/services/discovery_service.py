@@ -30,16 +30,24 @@ class DiscoveryService:
         mapping = dev.get("portal_mapping", {})
         if job_manager and job_id:
             job_manager.update_progress(job_id, 10, "Starting discovery...")
-        
+
         found_total = 0
         new_items = []
-        
-        # Portals to scan
+
+        # Portals to scan — use `or {}` to handle null values stored in JSON
+        rp_m  = mapping.get("rp")  or {}
+        oto_m = mapping.get("oto") or {}
+        to_m  = mapping.get("to")  or {}
         portals = [
-            ("rp", mapping.get("rp", {}).get("id") or mapping.get("rp", {}).get("slug")),
-            ("oto", mapping.get("oto", {}).get("agency_ids", []) or ([mapping["oto"]["agency_id"]] if mapping.get("oto", {}).get("agency_id") else [])),
-            ("to", mapping.get("to", {}).get("agency_id") or mapping.get("to", {}).get("slug"))
+            ("rp",  rp_m.get("id") or rp_m.get("slug")),
+            ("oto", oto_m.get("agency_ids", []) or ([oto_m["agency_id"]] if oto_m.get("agency_id") else [])),
+            ("to",  to_m.get("agency_id") or to_m.get("slug")),
         ]
+
+        if all(not ident for _, ident in portals):
+            if job_manager and job_id:
+                job_manager.update_progress(job_id, 100, "Brak powiązań portalowych — nic do sprawdzenia.")
+            return 0
 
         progress_step = 80 / len(portals) if portals else 0
         current_progress = 10

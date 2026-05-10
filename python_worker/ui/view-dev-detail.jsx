@@ -70,8 +70,8 @@ function DeveloperDetail({
   const activeJob = useJobStatus(activeJobId, (finishedJob) => {
     if (finishedJob.status === 'completed') {
       load();
-      setTimeout(() => setActiveJobId(null), 3000);
     }
+    setTimeout(() => setActiveJobId(null), 3000);
   });
 
   const handleUpdate = React.useCallback(() => {
