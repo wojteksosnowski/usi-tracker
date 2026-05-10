@@ -166,8 +166,9 @@ function DeveloperDetail({
     );
   }
 
-  const filteredInvestments = filterCity 
-    ? (developer.investments || []).filter(inv => (inv.address || '').includes(filterCity))
+  const filteredInvestments = filterCity
+    ? (developer.investments || []).filter(inv =>
+        inv.city === filterCity || (inv.address || '').includes(filterCity))
     : (developer.investments || []);
 
   const toolbar = (
@@ -267,7 +268,7 @@ function DeveloperStats({ dev, onCityClick, activeCity }) {
   const cityStats = React.useMemo(() => {
     const stats = {};
     investments.forEach(inv => {
-      const city = inv.address?.split(',')[0]?.trim() || 'Nieokreślone';
+      const city = inv.city || inv.address?.split(',')[0]?.trim() || 'Nieokreślone';
       if (!stats[city]) stats[city] = { count: 0, units: 0, scores: [] };
       stats[city].count += 1;
       stats[city].units += (inv.units || 0);

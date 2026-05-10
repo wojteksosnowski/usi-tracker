@@ -1,3 +1,4 @@
+import re
 from .merger import Merger
 
 
@@ -157,6 +158,7 @@ class OtodomAdapter:
         if isinstance(addr_obj, dict):
             street = (addr_obj.get("street") or {}).get("name") or ""
             street_num = (addr_obj.get("street") or {}).get("number") or ""
+            street = re.sub(r'^ul\.\s*', '', street, flags=re.IGNORECASE).strip()
             street_full = f"ul. {street} {street_num}".strip() if street else None
             u["location"]["address"] = street_full or None
             u["location"]["city"] = (addr_obj.get("city") or {}).get("name")
@@ -211,6 +213,15 @@ class OtodomAdapter:
                           ad.get("title"), developer=agency_name)
         u["sources"]["oto"] = {"url": url or ""}
         u["location"]["coords"] = [lat, lng]
+        addr_obj = (ad.get("location") or {}).get("address") or {}
+        if isinstance(addr_obj, dict) and addr_obj:
+            street = (addr_obj.get("street") or {}).get("name") or ""
+            street_num = (addr_obj.get("street") or {}).get("number") or ""
+            street = re.sub(r'^ul\.\s*', '', street, flags=re.IGNORECASE).strip()
+            street_full = f"ul. {street} {street_num}".strip() if street else None
+            u["location"]["address"] = street_full or None
+            u["location"]["city"] = (addr_obj.get("city") or {}).get("name")
+            u["location"]["district"] = (addr_obj.get("district") or {}).get("name")
         u["specifications"].update({
             "delivery_quarter": dq,
             "delivery_year": dy,

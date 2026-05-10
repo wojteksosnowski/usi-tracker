@@ -161,6 +161,12 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path = None, public
     lng = loc.get("coords", [0, 0])[1] or 0
     
     address = loc.get("address") or ""
+    city = loc.get("city")
+    # RP addresses start with city: "Warszawa, District, Street" — extract when city not set
+    if not city and address:
+        first_part = address.split(",")[0].strip()
+        if first_part and not first_part.lower().startswith(("ul.", "al.", "os.", "pl.")):
+            city = first_part
     district = loc.get("district")
     if not district:
         parts = [p.strip() for p in address.split(",")]
@@ -173,7 +179,7 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path = None, public
         "name": usi.get("name", inv_slug.title()),
         "developer": usi.get("developer", dev_slug.title()),
         "address": address,
-        "city": loc.get("city"),
+        "city": city,
         "district": district,
         "source": source,
         "source_url": source_url,
