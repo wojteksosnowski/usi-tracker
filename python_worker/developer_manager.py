@@ -117,10 +117,15 @@ class DeveloperManager:
 
                 # TabelaOfert
                 to_src = sources.get("to", {})
-                if to_src and to_src.get("id"):
-                    val = str(to_src["id"])
-                    if val and val != "None":
-                        to_ids.add(val)
+                if to_src:
+                    if to_src.get("id"):
+                        val = str(to_src["id"])
+                        if val and val != "None":
+                            to_ids.add(val)
+                    elif to_src.get("url"):
+                        m = re.search(r",i(\d+)$", to_src["url"].rstrip("/"))
+                        if m:
+                            to_ids.add(m.group(1))
             except Exception as e:
                 logger.warning(f"Error reading {json_file}: {e}")
 
