@@ -90,6 +90,14 @@ pip install -r python_worker/requirements.txt
 - **Raw Data Integrity**: Every registered investment must include a `raw_{portal}.json` file containing the complete original payload from the portal API.
 - **Slug Consistency**: Maintain strict consistency between `USIdata` folder names and `USI` asset folders.
 
+## 🏗️ Core Architectural Mandates
+
+1.  **Future Repo Split (Frontend/Backend)**: All design decisions must facilitate a future clean separation of the Python backend (API server) and the React frontend. Avoid tight coupling and ensure the API is pure REST.
+2.  **Immutability of Portal Slugs**: Raw slugs and identifiers obtained from portals (RP, OTO, TO) are sacred and MUST NOT be modified within the USI system.
+3.  **Scraper Delegation**: ALL data fetching from external portals MUST be performed exclusively through the `usi-scrapers` library. No direct portal I/O is allowed in `usi-tracker`.
+4.  **Immutability of Raw Files**: Raw investment and developer JSON files downloaded from portals are immutable reference data. They must never be edited.
+5.  **Precedence of Organized Files**: The system relies on "Umbrella" files (canonical unified JSONs) that organize and aggregate information. These files take precedence over raw portal data for all business logic and UI presentation.
+
 ### Testing
 - Use `pytest` for all backend logic.
 - Mock all network calls using `requests-mock` or `curl_cffi` mocks.
