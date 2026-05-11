@@ -237,14 +237,7 @@ class Wedrowiec:
 
         # If we already know total_pages and have finished, start next cycle
         if saved_total and current_page >= saved_total:
-            next_cycle = _now_utc() + timedelta(days=_EXPLORATION_CYCLE_PAUSE_DAYS)
-            ps["page"] = 0
-            ps["total_pages"] = None
-            ps["next_at"] = _iso(next_cycle)
-            ps["cycle_start"] = None
-            state[portal] = ps
-            self._save_exploration_state(state)
-            logger.info("Wędrowiec: %s exploration cycle complete — next cycle at %s", portal, _iso(next_cycle))
+            self._save_exploration_state(self._mark_cycle_done(state, portal, ps))
             return
 
         next_page = current_page + 1
@@ -276,9 +269,10 @@ class Wedrowiec:
                 portal,
             )
 
+        known_ids = self._build_known_dev_ids()
         new_reg = 0
         for dev_info in devs:
-            if self._register_if_new(portal, dev_info):
+            if self._register_if_new(portal, dev_info, known_ids):
                 new_reg += 1
 
         total_seen = ps.get("total_seen", 0) + len(devs)
@@ -286,19 +280,13 @@ class Wedrowiec:
         ps["total_seen"] = total_seen
         ps["new_reg"] = ps.get("new_reg", 0) + new_reg
 
-        # If this was the last page, schedule next cycle; otherwise schedule next page
         if next_page >= total_pages:
-            next_cycle = _now_utc() + timedelta(days=_EXPLORATION_CYCLE_PAUSE_DAYS)
-            ps["page"] = 0
-            ps["total_pages"] = None
-            ps["next_at"] = _iso(next_cycle)
-            ps["cycle_start"] = None
-            logger.info("Wędrowiec: %s exploration cycle complete — next cycle at %s", portal, _iso(next_cycle))
+            state = self._mark_cycle_done(state, portal, ps)
         else:
             gap_min = random.uniform(cfg["min_gap_min"], cfg["max_gap_min"])
             ps["next_at"] = _iso(_now_utc() + timedelta(minutes=gap_min))
+            state[portal] = ps
 
-        state[portal] = ps
         self._save_exploration_state(state)
         logger.info(
             "Wędrowiec: %s page %d/%d → %d devs, %d new registered",
@@ -306,12 +294,6 @@ class Wedrowiec:
         )
 
     # ── Portal page fetcher ───────────────────────────────────────────────────
-
-    def _get_fetcher(self):
-        from python_worker.config import get_scraper_config
-        from usi_scrapers.fetcher import Fetcher
-        config = get_scraper_config()
-        return Fetcher(config) if config else None
 
     def _fetch_dev_page(self, portal: str, page: int):
         """Fetch one page of developer catalogue via usi-scrapers library.
@@ -321,54 +303,78 @@ class Wedrowiec:
         """
         from python_worker.config import get_scraper_config
         from usi_scrapers import api as scraper_api
+        from usi_scrapers.fetcher import Fetcher
 
         config = get_scraper_config()
-        fetcher = self._get_fetcher()
-        if not config or not fetcher:
+        if not config:
             return None
 
         portal_name = {"rp": "rp", "oto": "otodom", "to": "tabelaofert"}.get(portal)
         if not portal_name:
             return None
 
-        return scraper_api.list_developers(config, fetcher, portal_name, page=page)
+        return scraper_api.list_developers(config, Fetcher(config), portal_name, page=page)
 
     # ── Developer registration ─────────────────────────────────────────────────
 
-    def _register_if_new(self, portal: str, dev_info: dict) -> bool:
-        """Register dev_info as a new developer if not already known. Returns True if new.
+    def _build_known_dev_ids(self) -> dict:
+        """Scan all developer files once; return sets for O(1) dedup in _register_if_new."""
+        rp: set = set()
+        oto: set = set()
+        to: set = set()
+        for f in self.dev_dir.glob("usi_dev_*.json"):
+            try:
+                pm = json.loads(f.read_text(encoding="utf-8")).get("portal_mapping") or {}
+                rp_m = pm.get("rp") or {}
+                if rp_m.get("slug"): rp.add(str(rp_m["slug"]))
+                if rp_m.get("id"): rp.add(str(rp_m["id"]))
+                oto_m = pm.get("oto") or {}
+                if oto_m.get("agency_id"): oto.add(str(oto_m["agency_id"]))
+                for aid in oto_m.get("agency_ids", []): oto.add(str(aid))
+                to_m = pm.get("to") or {}
+                if to_m.get("slug"): to.add(str(to_m["slug"]))
+                if to_m.get("id"): to.add(str(to_m["id"]))
+            except Exception:
+                continue
+        return {"rp": rp, "oto": oto, "to": to}
 
-        dev_info comes from usi-scrapers list_developers(): {"url", "name", "slug"}.
+    def _mark_cycle_done(self, state: dict, portal: str, ps: dict) -> dict:
+        next_cycle = _now_utc() + timedelta(days=_EXPLORATION_CYCLE_PAUSE_DAYS)
+        ps["page"] = 0
+        ps["total_pages"] = None
+        ps["next_at"] = _iso(next_cycle)
+        ps["cycle_start"] = None
+        state[portal] = ps
+        logger.info("Wędrowiec: %s exploration cycle complete — next cycle at %s", portal, _iso(next_cycle))
+        return state
+
+    def _register_if_new(self, portal: str, dev_info: dict, known_ids: dict) -> bool:
+        """Register dev as new if not in known_ids. Updates known_ids on registration.
+
+        dev_info from usi-scrapers list_developers(): {"url", "name", "slug"}.
         name may be None (TabelaOfert doesn't expose names on the listing page).
+        developer_slug comes directly from the portal slug — never slugify(name).
         """
         from python_worker.developer_manager import DeveloperManager
-        from python_worker.csv_importer import slugify
-
-        dm = DeveloperManager(self.data_dir, self.dev_dir)
 
         if portal == "rp":
             portal_id = dev_info.get("slug")
-            lookup_portal = "rp"
         elif portal == "oto":
             # Extract numeric agency_id from URL: .../deweloperzy/{slug}-ID{id}
             m = re.search(r"-ID(\d+)$", (dev_info.get("url") or "").rstrip("/"))
             portal_id = m.group(1) if m else None
-            lookup_portal = "oto"
         else:  # to
             portal_id = dev_info.get("slug")
-            lookup_portal = "to"
 
-        if not portal_id:
+        if not portal_id or str(portal_id) in known_ids[portal]:
             return False
 
-        existing = dm.find_by_portal_id(lookup_portal, str(portal_id))
-        if existing:
-            return False
-
-        display_name = dev_info.get("name") or dev_info.get("slug", "")
-        dev_slug = slugify(display_name)
+        # Slug comes from the portal — never derived from company name.
+        dev_slug = dev_info.get("slug")
         if not dev_slug:
             return False
+
+        display_name = dev_info.get("name") or dev_slug
 
         if portal == "rp":
             portal_mapping = {"rp": {"slug": dev_info["slug"]}}
@@ -383,7 +389,9 @@ class Wedrowiec:
             "portal_mapping": portal_mapping,
         }
         try:
+            dm = DeveloperManager(self.data_dir, self.dev_dir)
             dm.create_developer_file(developer_data)
+            known_ids[portal].add(str(portal_id))
             logger.info("Wędrowiec: registered new developer %s (%s) from %s", display_name, dev_slug, portal)
             return True
         except Exception as e:

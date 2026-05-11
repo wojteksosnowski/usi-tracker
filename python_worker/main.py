@@ -215,6 +215,11 @@ def main():
     # Command: backfill-ids
     parser_backfill = subparsers.add_parser("backfill-ids", help="Generate and assign missing USI IDs for all records")
 
+    # Command: backfill-portals
+    parser_bp = subparsers.add_parser("backfill-portals", help="Fill portal_mapping.rp/oto from Konkurenci.csv for existing dev files")
+    parser_bp.add_argument("--csv", default="reference-data/coda/Konkurenci.csv", help="Path to Konkurenci.csv")
+    parser_bp.add_argument("--dry-run", action="store_true", help="Show what would be updated without writing")
+
     # Command: suggest
     parser_suggest = subparsers.add_parser("suggest", help="Run the developer suggestion algorithm (similarity & location)")
 
@@ -337,6 +342,15 @@ def main():
 
     elif args.command == "backfill-ids":
         backfill_usi_ids()
+
+    elif args.command == "backfill-portals":
+        from .init_developers import backfill_from_konkurenci
+        from pathlib import Path
+        updated, skipped = backfill_from_konkurenci(
+            konkurenci_path=Path(args.csv),
+            dry_run=args.dry_run,
+        )
+        logger.info("backfill-portals done: %d updated, %d skipped", updated, skipped)
 
     elif args.command == "suggest":
         logger.info("Starting developer suggestion algorithm...")

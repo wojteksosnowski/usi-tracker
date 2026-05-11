@@ -1,5 +1,7 @@
+import csv
 import json
 import logging
+import re
 from pathlib import Path
 from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
 from python_worker.developer_manager import DeveloperManager
@@ -58,18 +60,91 @@ def migrate_developers():
         else:
             created_count += 1
             
+        existing_pm = None
+        if dev_file.exists():
+            try:
+                existing_pm = json.loads(dev_file.read_text(encoding="utf-8")).get("portal_mapping")
+            except Exception:
+                pass
+
         dev_data = {
             "developer_slug": dev_slug,
             "name": dev_name,
-            "portal_mapping": {
-                "rp": None,
-                "oto": None,
-                "to": None
-            }
+            "portal_mapping": existing_pm or {"rp": None, "oto": None, "to": None},
         }
         dm.create_developer_file(dev_data)
-        
+
     logger.info(f"Migration complete: {created_count} new, {updated_count} updated.")
+
+
+def backfill_from_konkurenci(
+    konkurenci_path: Path | None = None,
+    dev_dir: Path | None = None,
+    dry_run: bool = False,
+) -> tuple[int, int]:
+    """Populate portal_mapping.rp / .oto from Konkurenci.csv for existing dev files.
+
+    Konkurenci.csv columns used: usiFolder, rpID, rpSlug, otoID.
+    Only fills in data that is currently missing (null) — never overwrites.
+    Returns (updated, skipped) counts.
+    """
+    csv_path = konkurenci_path or (Path(__file__).parent.parent / "reference-data" / "coda" / "Konkurenci.csv")
+    target_dir = dev_dir or USI_DEV_DIR
+
+    updated = 0
+    skipped = 0
+
+    with open(csv_path, newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            dev_slug = row.get("usiFolder", "").strip()
+            rp_id = row.get("rpID", "").strip()
+            rp_slug = row.get("rpSlug", "").strip()
+            oto_raw = row.get("otoID", "").strip()
+
+            if not dev_slug:
+                continue
+
+            dev_file = target_dir / f"usi_dev_{dev_slug}.json"
+            if not dev_file.exists():
+                logger.debug("backfill: no file for %s — skipping", dev_slug)
+                skipped += 1
+                continue
+
+            try:
+                data = json.loads(dev_file.read_text(encoding="utf-8"))
+            except Exception as e:
+                logger.warning("backfill: could not read %s: %s", dev_file.name, e)
+                skipped += 1
+                continue
+
+            pm = data.get("portal_mapping") or {}
+            changed = False
+
+            if not pm.get("rp") and (rp_id or rp_slug):
+                pm["rp"] = {"id": rp_id, "slug": rp_slug}
+                changed = True
+
+            # otoID in CSV has format "ID8495786" — strip the "ID" prefix
+            oto_id_numeric = re.sub(r"^ID", "", oto_raw) if oto_raw else ""
+            if not pm.get("oto") and oto_id_numeric:
+                pm["oto"] = {"agency_id": oto_id_numeric}
+                changed = True
+
+            if not changed:
+                skipped += 1
+                continue
+
+            data["portal_mapping"] = pm
+            if not dry_run:
+                dm = DeveloperManager(USI_DATA_DIR, target_dir)
+                dm.create_developer_file(data)
+            logger.info("backfill: %s → rp=%s oto=%s%s", dev_slug, pm.get("rp"), pm.get("oto"), " [dry]" if dry_run else "")
+            updated += 1
+
+    logger.info("backfill_from_konkurenci: %d updated, %d skipped%s", updated, skipped, " (dry run)" if dry_run else "")
+    return updated, skipped
+
 
 if __name__ == "__main__":
     migrate_developers()

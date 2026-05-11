@@ -6,7 +6,6 @@ Tests for Wędrowiec (unified crawler):
   - Exploration state: persisted and incremented correctly
 """
 import json
-import re
 import pytest
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
@@ -114,7 +113,7 @@ def test_fetch_dev_page_returns_developer_page(wedrowiec):
         page=1,
     )
     with patch("python_worker.config.get_scraper_config", return_value=MagicMock()), \
-         patch.object(wedrowiec, "_get_fetcher", return_value=MagicMock()), \
+         patch("usi_scrapers.fetcher.Fetcher"), \
          patch("usi_scrapers.api.list_developers", return_value=fake_page):
         result = wedrowiec._fetch_dev_page("rp", 1)
     assert result is not None
@@ -133,13 +132,17 @@ def test_fetch_dev_page_returns_none_without_config(wedrowiec):
 # ── _register_if_new ──────────────────────────────────────────────────────────
 # dev_info format from usi-scrapers list_developers(): {"url", "name", "slug"}
 
+def _empty_known() -> dict:
+    return {"rp": set(), "oto": set(), "to": set()}
+
+
 def test_register_new_dev_from_rp(wedrowiec):
     dev_info = {
         "url": "https://rynekpierwotny.pl/deweloperzy/nowy-deweloper/",
         "name": "Nowy Deweloper",
         "slug": "nowy-deweloper",
     }
-    result = wedrowiec._register_if_new("rp", dev_info)
+    result = wedrowiec._register_if_new("rp", dev_info, _empty_known())
     assert result is True
     created = wedrowiec.dev_dir / "usi_dev_nowy-deweloper.json"
     assert created.exists()
@@ -148,13 +151,13 @@ def test_register_new_dev_from_rp(wedrowiec):
 
 
 def test_register_skips_existing_dev(wedrowiec):
-    _write_dev(wedrowiec.dev_dir, "nowy-deweloper", {"rp": {"slug": "nowy-deweloper"}})
+    known = {"rp": {"nowy-deweloper"}, "oto": set(), "to": set()}
     dev_info = {
         "url": "https://rynekpierwotny.pl/deweloperzy/nowy-deweloper/",
         "name": "Nowy Deweloper",
         "slug": "nowy-deweloper",
     }
-    result = wedrowiec._register_if_new("rp", dev_info)
+    result = wedrowiec._register_if_new("rp", dev_info, known)
     assert result is False
 
 
@@ -164,7 +167,7 @@ def test_register_new_dev_from_oto(wedrowiec):
         "name": "Otodom Deweloper",
         "slug": "otodom-deweloper",
     }
-    result = wedrowiec._register_if_new("oto", dev_info)
+    result = wedrowiec._register_if_new("oto", dev_info, _empty_known())
     assert result is True
     files = list(wedrowiec.dev_dir.glob("usi_dev_*.json"))
     assert len(files) == 1
@@ -179,10 +182,24 @@ def test_register_new_dev_from_to(wedrowiec):
         "name": None,
         "slug": "tabela-dev",
     }
-    result = wedrowiec._register_if_new("to", dev_info)
+    result = wedrowiec._register_if_new("to", dev_info, _empty_known())
     assert result is True
     created = wedrowiec.dev_dir / "usi_dev_tabela-dev.json"
     assert created.exists()
+
+
+def test_register_updates_known_ids(wedrowiec):
+    """known_ids is updated after registration, preventing same-batch duplicates."""
+    known = _empty_known()
+    dev_info = {
+        "url": "https://rynekpierwotny.pl/deweloperzy/alpha/",
+        "name": "Alpha Dev",
+        "slug": "alpha",
+    }
+    wedrowiec._register_if_new("rp", dev_info, known)
+    assert "alpha" in known["rp"]
+    result = wedrowiec._register_if_new("rp", dev_info, known)
+    assert result is False
 
 
 # ── Exploration state persistence ─────────────────────────────────────────────
@@ -199,6 +216,7 @@ def test_exploration_state_persists_after_page(wedrowiec):
         total_pages=5,
     )
     with patch.object(wedrowiec, "_fetch_dev_page", return_value=fake_page), \
+         patch.object(wedrowiec, "_build_known_dev_ids", return_value={"rp": set(), "oto": set(), "to": set()}), \
          patch.object(wedrowiec, "_register_if_new", return_value=True):
         wedrowiec._explore_one_page("rp")
 
@@ -216,6 +234,7 @@ def test_exploration_state_increments_across_pages(wedrowiec):
         total_pages=5,
     )
     with patch.object(wedrowiec, "_fetch_dev_page", return_value=fake_page), \
+         patch.object(wedrowiec, "_build_known_dev_ids", return_value={"rp": set(), "oto": set(), "to": set()}), \
          patch.object(wedrowiec, "_register_if_new", return_value=False):
         wedrowiec._explore_one_page("rp")
         wedrowiec._explore_one_page("rp")
