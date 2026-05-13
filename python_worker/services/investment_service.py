@@ -32,10 +32,22 @@ class InvestmentService:
         from python_worker.api.utils import _load_investment
         return _load_investment(dev_slug, inv_slug, data_dir=self.data_dir, public_usi_dir=self.public_usi_dir)
 
-    def register_investment(self, portal, developer_name, inv_slug, name, item_id=None, url=None):
+    def register_investment(self, portal, developer_name, inv_slug, name, item_id=None, url=None, allow_existing=False):
         from python_worker.csv_importer import slugify
         from python_worker.developer_manager import DeveloperManager
         from usi_scrapers import api as scraper_api
+        from python_worker.url_parser import parse_url
+
+        # Canonical Slug Extraction via library parser
+        if url:
+            parsed = parse_url(url)
+            if parsed.get("investment_slug") and parsed["investment_slug"] != "unknown":
+                inv_slug = parsed["investment_slug"]
+            if parsed.get("developer_slug") and parsed["developer_slug"] != "unknown":
+                # Only overwrite if we don't have a better name already
+                # or if we are dealing with 'Nieznany Deweloper'
+                if not developer_name or slugify(developer_name) == "nieznany-deweloper":
+                    developer_name = parsed["developer_slug"].replace("-", " ").title()
 
         # Identification pre-scrapes (Otodom/TabelaOfert) via API
         if (not developer_name or slugify(developer_name) == "nieznany-deweloper") and portal in ("oto", "to") and url:
@@ -66,7 +78,9 @@ class InvestmentService:
 
         # 1. Check if EXACT path exists
         if usi_path.exists():
-            return dev_slug, inv_slug # Silent return if exactly the same
+            if allow_existing:
+                return dev_slug, inv_slug
+            raise ValueError(f"Investment already exists: {dev_slug}/{inv_slug}")
 
         # 2. Check for ID-based duplication across all investments
         # This prevents 500 errors when portal changes slug/dev but ID remains same
@@ -102,6 +116,7 @@ class InvestmentService:
             "investment_slug": inv_slug,
             "developer_slug": dev_slug,
             "name": name,
+            "reviewed": False,
             "sources": sources,
             "status": "Brak",
             "usi_inv_id": usi_inv_id,
@@ -181,7 +196,7 @@ class InvestmentService:
                     log_to_processing_log(dev_slug, inv_slug, f"Skipped {portal_name}: no identifier in sources")
                     continue
                 try:
-                    res = scraper_api.fetch_investment(self.lib_config, self.fetcher, portal, identifier, dev_slug, inv_slug)
+                    res = scraper_api.fetch_investment(self.lib_config, self.fetcher, portal, identifier)
                 except Exception as e:
                     error_msg = f"Exception during fetch: {e}"
                     logger.error(f"[{portal_name}] {inv_slug}: {error_msg}")
@@ -190,6 +205,10 @@ class InvestmentService:
                     continue
 
                 if res and "raw_details" in res:
+                    # Capture library-detected canonical slugs
+                    canonical_inv_slug = res.get("investment_slug") or inv_slug
+                    canonical_dev_slug = res.get("developer_slug") or dev_slug
+
                     if self.tech_manager:
                         self.tech_manager.save_raw_data(res["raw_details"], dev_slug, inv_slug, raw_prefix)
                     else:
@@ -198,7 +217,8 @@ class InvestmentService:
                         with open(raw_path, "w", encoding="utf-8") as f:
                             json.dump(res["raw_details"], f, indent=2, ensure_ascii=False)
 
-                    rp_oto_to_unified = AdapterFactory.get_adapter(raw_prefix).transform(res, inv_slug, dev_slug)
+                    # Pass canonical slugs to adapter for transformation
+                    rp_oto_to_unified = AdapterFactory.get_adapter(raw_prefix).transform(res["raw_details"], canonical_inv_slug, canonical_dev_slug)
                     if portal == "rp": rp_unified = rp_oto_to_unified
                     elif portal == "oto": oto_unified = rp_oto_to_unified
                     elif portal == "to": to_unified = rp_oto_to_unified
@@ -321,6 +341,151 @@ class InvestmentService:
 
         ratings_file.write_text(json.dumps(existing_ratings, ensure_ascii=False, indent=2))
         return True
+
+    def process_batch(self, portal, investments, on_progress_callback=None):
+        """
+        Processes a batch of investments using the library's process_batch function.
+        Downloads data first, then registers and unifies only successful ones.
+        """
+        from usi_scrapers import api as scraper_api
+        from python_worker.csv_importer import slugify
+        from python_worker.url_parser import parse_url
+
+        # 1. Prepare identifiers and metadata without registering skeletons yet
+        to_process = []
+        identifiers = []
+        
+        for item in investments:
+            # We need slugs to know where to check for raw data later
+            url = item.get("url")
+            inv_slug = item.get("inv_slug") or item.get("slug")
+            dev_name = item.get("developer_name") or item.get("developer")
+            
+            if url:
+                parsed = parse_url(url)
+                if parsed.get("investment_slug") and parsed["investment_slug"] != "unknown":
+                    inv_slug = parsed["investment_slug"]
+                if not dev_name or slugify(dev_name) == "nieznany-deweloper":
+                    if parsed.get("developer_slug") and parsed["developer_slug"] != "unknown":
+                        dev_name = parsed["developer_slug"].replace("-", " ").title()
+            
+            if not inv_slug or not dev_name:
+                continue
+                
+            dev_slug = slugify(dev_name)
+            ident = url if portal != "rp" else item.get("id")
+            
+            if ident:
+                identifiers.append(ident)
+                to_process.append({
+                    "ident": ident,
+                    "dev_slug": dev_slug,
+                    "inv_slug": inv_slug,
+                    "name": item.get("name"),
+                    "item_id": item.get("id"),
+                    "url": url,
+                    "portal": portal,
+                    "dev_name": dev_name
+                })
+
+        if not identifiers:
+            return False
+
+        # 2. Call library process_batch
+        # This will save raw_*.json files to disk for successful items
+        scraper_api.process_batch(
+            self.lib_config, self.fetcher, portal, identifiers, on_progress=on_progress_callback
+        )
+
+        # 3. Finalize: Register and Update ONLY if raw data exists
+        success_count = 0
+        for info in to_process:
+            try:
+                # Check if raw data was saved (library does this)
+                raw_prefix = "rp" if portal == "rp" else ("oto" if portal == "oto" else "to")
+                inv_dir = self.data_dir / info["dev_slug"] / info["inv_slug"]
+                raw_files = list(inv_dir.glob(f"raw_{raw_prefix}_*.json"))
+                
+                if not raw_files:
+                    logger.warning(f"Batch download failed for {info['inv_slug']} (no raw data) - skipping registration.")
+                    continue
+                
+                # Register (creates usi_*.json skeleton and ID)
+                res = self.register_investment(
+                    portal=info["portal"],
+                    developer_name=info["dev_name"],
+                    inv_slug=info["inv_slug"],
+                    name=info["name"],
+                    item_id=info["item_id"],
+                    url=info["url"],
+                    allow_existing=True
+                )
+                
+                if res and res[0]: # res is (dev_slug, inv_slug)
+                    # Unify and Sync images
+                    if self.update_investment(res[0], res[1], use_local_raw=True):
+                        success_count += 1
+                else:
+                    logger.info(f"Investment {info['inv_slug']} already exists or duplicate ID - skipping batch update.")
+                    
+            except Exception as e:
+                logger.error(f"Post-batch processing failed for {info['inv_slug']}: {e}")
+
+        logger.info(f"Batch processing complete: {success_count}/{len(to_process)} investments fully ingested.")
+        return success_count > 0
+
+    def mark_as_reviewed(self, dev_slug, inv_slug):
+        """Sets the reviewed flag to true for the specified investment."""
+        inv_dir = self.data_dir / dev_slug / inv_slug
+        usi_file = inv_dir / f"usi_{inv_slug}.json"
+        
+        if not usi_file.exists():
+            return False
+            
+        try:
+            with open(usi_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            data["reviewed"] = True
+            data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
+            
+            with open(usi_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            
+            log_to_processing_log(dev_slug, inv_slug, "Investment marked as reviewed by analyst.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to mark as reviewed: {e}")
+            return False
+
+    def add_report(self, dev_slug, inv_slug, note):
+        """Adds a problem report note to the investment record."""
+        inv_dir = self.data_dir / dev_slug / inv_slug
+        usi_file = inv_dir / f"usi_{inv_slug}.json"
+        
+        if not usi_file.exists():
+            return False
+            
+        try:
+            with open(usi_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            reports = data.setdefault("issue_reports", [])
+            reports.insert(0, {
+                "note": note,
+                "at": datetime.now().isoformat()
+            })
+            
+            data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
+            
+            with open(usi_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            
+            log_to_processing_log(dev_slug, inv_slug, f"Issue reported: {note[:50]}...")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to add report for {inv_slug}: {e}")
+            return False
 
     def mark_deleted_photos(self, dev_slug, inv_slug, paths):
         inv_dir = self.data_dir / dev_slug / inv_slug

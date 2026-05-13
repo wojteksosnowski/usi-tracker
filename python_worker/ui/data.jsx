@@ -49,8 +49,14 @@ function DataBusProvider({ children }) {
       search: '',
       dev: '',
       status: '',
+      onlyUnreviewed: false,
       sources: new Set(['RP', 'OTO', 'TO']),
       cities: new Set()
+    },
+    devFilters: {
+      onlyActive: false,
+      onlyMerged: false,
+      onlySuggestions: false
     },
     download: {
       activePortals: new Set(['rp']),
@@ -174,10 +180,12 @@ function DataBusProvider({ children }) {
   }, [isDebug]);
 
   // Automatic filtering
-  const visibleInvestments = React.useMemo(() => {
+  const { visibleInvestments, unreviewedCount } = React.useMemo(() => {
     const { investments, filters } = bus;
-    const { search, dev, status, sources, cities } = filters;
-    return investments.filter(inv => {
+    const { search, dev, status, sources, cities, onlyUnreviewed } = filters;
+    
+    const filtered = investments.filter(inv => {
+      if (onlyUnreviewed && inv.reviewed !== false) return false;
       if (search) {
         const s = search.toLowerCase();
         const match = (inv.name?.toLowerCase().includes(s) ||
@@ -196,10 +204,13 @@ function DataBusProvider({ children }) {
       }
       return true;
     });
+
+    const count = investments.filter(i => i.reviewed === false).length;
+    return { visibleInvestments: filtered, unreviewedCount: count };
   }, [bus.investments, bus.filters]);
 
   // Add visibleInvestments to the bus object for selectors
-  busRef.current = { ...bus, visibleInvestments };
+  busRef.current = { ...bus, visibleInvestments, unreviewedCount };
 
   const dispatchValue = React.useMemo(() => ({ 
     setVariable, 

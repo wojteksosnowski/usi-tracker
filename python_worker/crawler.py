@@ -27,7 +27,8 @@ _SPREAD_DAYS = 14
 _REVISIT_DAYS = 30
 _REVISIT_JITTER_DAYS = 5
 _MIN_VISIT_GAP_MINUTES = 10
-_MAX_VISIT_GAP_MINUTES = 20
+_MAX_VISIT_GAP_MINUTES = 60
+_INGESTION_PAUSE_SECONDS = 15  # Delay after full ingestion to avoid portal pressure
 
 # ── Eksploracja constants ──────────────────────────────────────────────────────
 _EXPLORATION_CONFIG = {
@@ -150,18 +151,7 @@ class Wedrowiec:
     def _tick(self):
         now = _now_utc()
 
-        # 1. Periodic suggestion algorithm (every 24h)
-        if not self._last_suggest_at or (now - self._last_suggest_at).total_seconds() > 86400:
-            logger.info("Wędrowiec: triggering periodic developer similarity detection")
-            from python_worker.detect_similar_devs import detect_similar
-            try:
-                # Run similarity detection
-                detect_similar()
-                self._last_suggest_at = now
-            except Exception as e:
-                logger.error("Wędrowiec: periodic similarity detection failed: %s", e)
-
-        # 2. Which exploration portal is most overdue?
+        # 1. Which exploration portal is most overdue?
         exp_portal, exp_overdue_since = self._most_overdue_exploration(now)
         # Which developer visit is most overdue?
         visit_dev, visit_overdue_since = self._most_overdue_visit(now)
@@ -469,14 +459,15 @@ class Wedrowiec:
                 logger.warning("Failed to schedule %s: %s", dev_file.name, e)
 
     def _do_visit(self, dev_slug: str):
-        logger.info("Wędrowiec: visiting %s", dev_slug)
+        logger.info("Wędrowiec: visiting %s (Full Ingestion enabled)", dev_slug)
         with self._lock:
             self._current_dev = dev_slug
 
         from python_worker.services.discovery_service import DiscoveryService
         svc = DiscoveryService(self.data_dir)
         try:
-            new_count = svc.discover_for_developer(None, dev_slug)
+            # Deep Visit: auto_register=True creates skeletons, download=True triggers process_batch
+            new_count = svc.discover_for_developer(None, dev_slug, download=True, auto_register=True)
         except Exception as e:
             logger.error("Wędrowiec: visit failed for %s: %s", dev_slug, e)
             new_count = 0
@@ -487,7 +478,7 @@ class Wedrowiec:
                 self._next_visit_at = _now_utc() + timedelta(minutes=gap_min)
 
         self._record_visit(dev_slug, new_count)
-        logger.info("Wędrowiec: done visiting %s — %d new investments", dev_slug, new_count)
+        logger.info("Wędrowiec: done visiting %s — %d new investments processed", dev_slug, new_count)
 
     def _record_visit(self, dev_slug: str, new_count: int):
         dev_file = self.dev_dir / f"usi_dev_{dev_slug}.json"

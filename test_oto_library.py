@@ -10,7 +10,7 @@ fetcher = Fetcher(config)
 
 url = "https://www.otodom.pl/pl/inwestycja/poczatek-polnocy-ID4mYvY"
 print(f"Testing URL: {url}")
-res = scraper_api.fetch_investment(config, fetcher, "oto", url, "yit-development", "poczatek-polnocy")
+res = scraper_api.fetch_investment(config, fetcher, "oto", url)
 if "error" in res:
     print(f"Error: {res['error']}")
 else:

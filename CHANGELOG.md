@@ -1,15 +1,30 @@
-## Inwestycje — 2026-05-11
-- Reorganizacja układu widoku szczegółowego A na 4 kolumny (40/20/20/20).
-- Rozszerzenie schematu USI o wysokość mieszkań (ceiling_height) i link do strony inwestycji (website).
-- Implementacja ekstrakcji wysokości (RP) i strony WWW w adapterach.
-- Aktualizacja interfejsu (MetadataPanel, SourceLinks) w celu prezentacji nowych danych.
+## Deweloperzy — 2026-05-11
+
+- **Filtr "Tylko powiązane"**: Zaimplementowano filtr `only_merged` w backendzie (`DeveloperManager`), API oraz interfejsie użytkownika (`ActionBar`), umożliwiający szybkie odfiltrowanie deweloperów posiadających mapowania lub rekordy potomne.
+- **Ulepszona Heurystyka Sugestii**: Rozbudowano algorytm sugestii deweloperów o zbieżność czasową (lata oddania inwestycji) oraz zaawansowany fuzzy matching nazw (> 85%).
+- **Prezentacja Sugestii**: Dodano pole `reason` do sugestii, co pozwala na przejrzyste wyświetlanie uzasadnienia powiązania bezpośrednio w interfejsie użytkownika.
 
 
-- Rozszerzenie algorytmu sugestii o lokalizację (Haversine distance) z optymalizacją bounding box.
-- Implementacja globalnego licznika inwestycji oczekujących na dodanie.
-- Pełna automatyzacja: wyzwalanie sugestii przy starcie UI, ręczna komenda CLI oraz cykliczne zadanie w tle (co 24h).
-- Integracja UI: wyświetlanie liczników w ActionBar oraz automatyczne odświeżanie sugestii w widoku dewelopera.
-- Zestaw testów jednostkowych i integracyjnych dla nowej logiki i API.
+- **System raportowania błędów**: Wdrożono mechanizm "Report", umożliwiający analitykom dodawanie notatek o błędach w danych inwestycji bezpośrednio z interfejsu UI.
+- **Backend Raportów**: Zaktualizowano schemat JSON o pole `issue_reports` oraz dodano endpoint API do bezpiecznego zapisywania zgłoszeń.
+- **Interfejs Użytkownika**: Dodano przycisk "Report" w widoku szczegółowym oraz dedykowane okno modalne do wprowadzania treści zgłoszenia.
+
+
+
+- **Deep Visit & Automatyzacja**: Wdrożono mechanizm automatycznej rejestracji i pobierania danych dla nowo odkrytych inwestycji podczas wizyt Wędrowca.
+- **Weryfikacja Rekordów**: Zaimplementowano flagę `reviewed` pozwalającą na oznaczanie stanu weryfikacji inwestycji (nowe vs zatwierdzone).
+- **UI - Wyróżniki "NOWE"**: Dodano wizualne oznaczenia ("NOWE") na listach oraz przycisk "Zatwierdź" w widoku szczegółowym.
+- **Dashboard & Filtrowanie**: Wdrożono licznik nieprzejrzanych inwestycji na Dashboardzie oraz filtr "Tylko nieprzejrzane" w widoku listy.
+- **Optymalizacja Operacyjna**: Zintegrowano system batching z raportowaniem postępu w `NotificationCenter`.
+
+## Pobieranie — 2026-05-11
+
+- **Przebudowa UI**: Wdrożono układ sekcyjny w `view-download.jsx` (Manualne skanowanie vs Wędrowiec) z integracją statusów operacyjnych i sterowaniem crawlerem.
+- **Zbiorcza rejestracja (Batching)**: Wdrożono `InvestmentService.process_batch` oraz endpoint `/api/register-bulk`, umożliwiając rejestrację paczek inwestycji z natywnym raportowaniem postępu w `NotificationCenter`.
+- **Standaryzacja statusów**: Ujednolicono nazewnictwo stanów rejestracji w całym systemie ("w kolejce") dla większej przejrzystości operacyjnej.
+- **Walidacja pełnego cyklu**: Zintegrowano i przetestowano przepływ pełnej rejestracji i synchronizacji zdjęć przy użyciu mechanizmu batching, potwierdzając stabilność dla procesów masowych.
+
+
 
 ## Dashboard — 2026-05-10
 - Refaktoryzacja Dashboardu: Naprawiono "rozsypany" układ strony głównej poprzez wdrożenie 12-kolumnowej siatki CSS Grid.

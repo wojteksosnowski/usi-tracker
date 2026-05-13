@@ -42,6 +42,7 @@ function DeveloperDetail({
   } = window;
   const [developer, setDeveloper] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
+  const [suggesting, setSuggesting] = React.useState(false);
   const [activeJobId, setActiveJobId] = React.useState(null);
   const [filterCity, setFilterCity] = React.useState(null);
   
@@ -65,9 +66,17 @@ function DeveloperDetail({
     load();
     // Reset crawler badge when user opens developer detail
     fetch(`/api/crawler/badge-reset/${dev_slug}`, { method: 'POST' }).catch(() => {});
-    // Trigger suggestion algorithm to find similar devs
-    fetch('/api/developer/suggest', { method: 'POST' }).then(() => refetch('developers')).catch(() => {});
-  }, [load, dev_slug, refetch]);
+  }, [load, dev_slug]);
+
+  const handleSuggest = () => {
+    setSuggesting(true);
+    request('/api/developer/suggest', { method: 'POST' })
+      .then(() => {
+        load(true);
+        refetch('developers');
+      })
+      .finally(() => setSuggesting(false));
+  };
 
   useJobStatus(activeJobId, (finishedJob) => {
     if (finishedJob.status === 'completed') {
@@ -235,7 +244,13 @@ function DeveloperDetail({
           </section>
 
           <aside className="developer-sidebar">
-            <DeveloperSuggestions suggestions={localSuggestions} onMerge={handleMerge} onDismiss={handleDismiss} />
+            <DeveloperSuggestions 
+                suggestions={localSuggestions} 
+                onMerge={handleMerge} 
+                onDismiss={handleDismiss} 
+                onSuggest={handleSuggest}
+                loading={suggesting}
+            />
             <MergedMembersPanel dev={developer} members={localMerged} arrivingSlug={arrivingSlug} onUnmerge={handleUnmerge} />
             <DeveloperStats dev={developer} onCityClick={setFilterCity} activeCity={filterCity} />
             <WedrowiecStatus dev={developer} />
@@ -447,14 +462,26 @@ function DevMiniCard({ name, slug, usiId, portalMapping = {}, website, invCount,
   );
 }
 
-function DeveloperSuggestions({ suggestions, onMerge, onDismiss }) {
-  if (!suggestions || suggestions.length === 0) return null;
+function DeveloperSuggestions({ suggestions, onMerge, onDismiss, onSuggest, loading }) {
+  const { Icon, Spinner } = window;
+  if (!suggestions) return null;
 
   return (
     <div className="usi-card usi-p-16 suggestions-card">
-      <h3 className="dev-panel-header usi-text-accent">
-        <Icon name="sparkle" size={12} /> Sugerowane powiązania
-      </h3>
+      <div className="usi-flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: suggestions.length > 0 ? 12 : 0 }}>
+        <h3 className="dev-panel-header usi-text-accent" style={{ marginBottom: 0 }}>
+          <Icon name="sparkle" size={12} /> Sugerowane powiązania
+        </h3>
+        <button 
+          className="usi-btn sm ghost" 
+          onClick={onSuggest} 
+          disabled={loading}
+          title="Szukaj podobnych deweloperów"
+        >
+          {loading ? <Spinner size={12} /> : <Icon name="search" size={12} />}
+        </button>
+      </div>
+
       <div className="usi-flex-col usi-gap-8">
         {suggestions.map(s => (
           <DevMiniCard
@@ -486,6 +513,10 @@ function DeveloperSuggestions({ suggestions, onMerge, onDismiss }) {
           />
         ))}
       </div>
+      
+      {suggestions.length === 0 && !loading && (
+        <div className="usi-tiny usi-text-secondary" style={{ marginTop: 8 }}>Brak aktywnych sugestii.</div>
+      )}
     </div>
   );
 }

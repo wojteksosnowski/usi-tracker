@@ -203,11 +203,13 @@ def list_developers():
     from pathlib import Path
     dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
     ds = DiscoveryService(USI_DATA_DIR)
-    
+
+    only_merged = request.args.get("only_merged", "false").lower() == "true"
+
     # Pre-fetch identifiers once for all developers
     identifiers = dm.get_existing_identifiers()
-    
-    developers = dm.list_developers()
+
+    developers = dm.list_developers(only_merged=only_merged)
     developers.sort(key=lambda x: x.get("name", "").lower())
     for dev in developers:
         slug = dev["developer_slug"]
@@ -233,7 +235,17 @@ def list_developers():
 
 @investments_bp.route("/developer/suggest", methods=["POST"])
 def trigger_suggestions():
-    """Triggers the developer similarity algorithm globally."""
+    """Triggers the developer similarity algorithm globally (via Doktor)."""
+    from python_worker.doktor import get_doktor
+    doktor = get_doktor()
+    if doktor:
+        import threading
+        # Run it in a separate thread so it doesn't block the UI response
+        # It's better than running the old O(N^2) detect_similar
+        threading.Thread(target=doktor._refresh_index, name="manual-doktor-refresh", daemon=True).start()
+        return jsonify({"ok": True, "message": "Doktor is refreshing the index and investigating."})
+    
+    # Fallback to old method if Doktor is not available
     from python_worker.detect_similar_devs import detect_similar
     try:
         detect_similar()
@@ -358,6 +370,52 @@ def dismiss_suggestion(dev_slug):
     if dm.dismiss_suggestion(dev_slug, suggested_id):
         return jsonify({"ok": True})
     return jsonify({"ok": False}), 500
+
+@investments_bp.route("/investment/<dev_slug>/<inv_slug>/report", methods=["POST"])
+def report_issue(dev_slug, inv_slug):
+    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
+        abort(400)
+    payload = request.get_json()
+    note = payload.get("note")
+    if not note:
+        return jsonify({"error": "Note is required"}), 400
+        
+    if investment_service.add_report(dev_slug, inv_slug, note):
+        return jsonify({"ok": True})
+    return jsonify({"ok": False}), 500
+
+@investments_bp.route("/investment/<dev_slug>/<inv_slug>/review", methods=["POST"])
+def mark_reviewed(dev_slug, inv_slug):
+    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
+        abort(400)
+    if investment_service.mark_as_reviewed(dev_slug, inv_slug):
+        return jsonify({"ok": True})
+    return jsonify({"ok": False}), 500
+
+@investments_bp.route("/register-bulk", methods=["POST"])
+def register_bulk():
+    payload = request.get_json()
+    portal = payload.get("portal")
+    investments = payload.get("investments", [])
+    
+    if not portal or not investments:
+        return jsonify({"error": "Missing portal or investments list"}), 400
+
+    def run_bulk_job(job_id, p, invs):
+        def progress_wrapper(report):
+            msg = report.get("message", "Pobieranie...")
+            percent = report.get("progress_percent", 0)
+            job_manager.update_progress(job_id, percent, msg)
+            
+        try:
+            investment_service.process_batch(p, invs, on_progress_callback=progress_wrapper)
+            job_manager.update_progress(job_id, 100, f"Zakończono pobieranie zbiorcze ({len(invs)} pozycji)")
+        except Exception as e:
+            logger.error(f"Bulk job error: {e}")
+            job_manager.update_progress(job_id, 100, f"Błąd zadania zbiorczego: {str(e)}", status="failed")
+
+    job_id = job_manager.start_job(f"Bulk Register: {portal.upper()} ({len(investments)})", run_bulk_job, portal, investments)
+    return jsonify({"ok": True, "job_id": job_id})
 
 @investments_bp.route("/register", methods=["POST"])
 def register():

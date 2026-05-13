@@ -131,7 +131,9 @@
       "Bash(node *)",
       "Bash(curl -s http://localhost:5000/api/ui-error)",
       "Bash(curl *)",
-      "Bash(grep -n '`\\\\${' python_worker/ui/view-dev-detail.jsx)"
+      "Bash(grep -n '`\\\\${' python_worker/ui/view-dev-detail.jsx)",
+      "Bash(xargs -I{} python3 -c \"import json,sys; d=json.load\\(open\\('{}'\\)\\);pm=d.get\\('portal_mapping',{}\\).get\\('to',{}\\); print\\(pm\\)\")",
+      "Bash(xargs -I{} sh -c 'echo \"=== {} ===\" && python3 -c \"import json; d=json.load\\(open\\(\\\\\"$1\\\\\"\\)\\); print\\(json.dumps\\(d.get\\(\\\\\"sources\\\\\",{}\\).get\\(\\\\\"to\\\\\",{}\\), indent=2\\)\\)\" -- {}')"
     ]
   }
 }

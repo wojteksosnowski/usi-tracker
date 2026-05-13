@@ -221,7 +221,7 @@ class DeveloperManager:
             logger.error(f"Error reading developer file {file_path}: {e}")
             return None
 
-    def list_developers(self) -> list:
+    def list_developers(self, only_merged: bool = False) -> list:
         """Returns top-level developer data objects (children with parent_id excluded)."""
         developers = []
         for json_file in self.dev_dir.glob("usi_dev_*.json"):
@@ -229,6 +229,12 @@ class DeveloperManager:
                 with open(json_file, "r", encoding="utf-8") as f:
                     dev = json.load(f)
                 if not dev.get("parent_id"):
+                    if only_merged:
+                        has_children = len(dev.get("merged_from", [])) > 0
+                        pm = dev.get("portal_mapping", {})
+                        has_mapping = any(pm.get(p) for p in ("rp", "oto", "to"))
+                        if not (has_children or has_mapping):
+                            continue
                     developers.append(dev)
             except Exception as e:
                 logger.warning(f"Error reading {json_file}: {e}")

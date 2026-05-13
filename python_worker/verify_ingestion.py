@@ -60,7 +60,7 @@ def check_portal(portal_key, temp_data_dir, temp_assets_dir):
     try:
         # 1. Scrape (Network via library API)
         res = scraper_api.fetch_investment(
-            config, fetcher, portal_key, test["id"], test["dev_slug"], test["inv_slug"]
+            config, fetcher, portal_key, test["id"]
         )
 
         if not res or "error" in res:

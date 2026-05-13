@@ -8,7 +8,12 @@ from unittest.mock import patch, MagicMock
 def svc(tmp_path):
     data_dir = tmp_path / "USIdata"
     data_dir.mkdir()
-    with patch("python_worker.config.get_scraper_config", return_value=None):
+    
+    mock_config = MagicMock()
+    mock_config.public_dir = tmp_path
+    
+    with patch("python_worker.config.get_scraper_config", return_value=mock_config), \
+         patch("usi_scrapers.fetcher.Fetcher", return_value=MagicMock()):
         from python_worker.services.discovery_service import DiscoveryService
         return DiscoveryService(data_dir=data_dir)
 
@@ -117,17 +122,18 @@ def test_discover_for_developer_portal_error_continues(svc):
 
 def test_discovery_by_portal_returns_filtered_results(svc):
     raw = [{"slug": "inv-x", "name": "Inv X", "is_new": True}]
-    with patch("python_worker.services.discovery_service.scraper_api.list_investments",
+    with patch("python_worker.services.discovery_service.scraper_api.discover_rp_investments",
                return_value=raw), \
          patch("python_worker.portal_matcher.filter_new_investments",
                return_value=raw):
         results = svc.discovery_by_portal("rp", "DEV-001")
+
     assert len(results) == 1
     assert results[0]["slug"] == "inv-x"
 
 
 def test_discovery_by_portal_propagates_exceptions(svc):
-    with patch("python_worker.services.discovery_service.scraper_api.list_investments",
+    with patch("python_worker.services.discovery_service.scraper_api.discover_rp_investments",
                side_effect=RuntimeError("API down")):
         with pytest.raises(RuntimeError):
             svc.discovery_by_portal("rp", "DEV-001")

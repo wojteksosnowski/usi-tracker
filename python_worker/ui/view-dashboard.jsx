@@ -33,10 +33,23 @@ function DashboardGrid({ accent, dark, hereApiKey }) {
     ? ratedWithAvg.reduce((a, i) => a + avgRating(i), 0) / ratedWithAvg.length
     : 0;
 
+  const unreviewedCount = bus.unreviewedCount || 0;
+
   return (
     <div data-component="DashboardGrid" className="dashboard-content usi-scroll usi-h-full usi-p-24 usi-overflow-auto">
         {/* Row 1: KPI Cards */}
         <KPI title="Inwestycji" value={total} sub="w bazie" col={3} />
+        <KPI 
+          title="Nieprzejrzane" 
+          value={unreviewedCount} 
+          sub="nowości do weryfikacji" 
+          col={3} 
+          accent="var(--usi-accent)" 
+          onClick={() => {
+            setVariable('view', 'list');
+            setVariable('filters.onlyUnreviewed', true);
+          }}
+        />
         <KPI title="Ocenione" value={rated} sub={`${partial} częściowo`} col={3} accent="var(--usi-success)" />
         <KPI title="Zdjęć" value={photos.toLocaleString('pl-PL')} sub={`${toDelete} do usunięcia`} col={3} />
         <KPI title="Średnia ★" value={globalAvg > 0 ? globalAvg.toFixed(2) : '—'} sub="ze wszystkich" col={3} accent={accent || 'var(--usi-accent)'} />
@@ -183,10 +196,15 @@ function CrawlerStatusCard({ status }) {
   );
 }
 
-function KPI({ title, value, sub, col = 3, accent }) {
+function KPI({ title, value, sub, col = 3, accent, onClick }) {
   const { React } = window;
   return (
-    <div data-component="KPI" className="usi-card kpi-card" style={{ gridColumn: `span ${col}` }}>
+    <div 
+      data-component="KPI" 
+      className={`usi-card kpi-card ${onClick ? 'clickable' : ''}`} 
+      style={{ gridColumn: `span ${col}`, cursor: onClick ? 'pointer' : 'default' }}
+      onClick={onClick}
+    >
       <div className="usi-tiny kpi-title">{title}</div>
       <div className="usi-mono kpi-value" style={{ color: accent || 'var(--usi-ink)' }}>{value}</div>
       <div className="usi-small kpi-sub">{sub}</div>

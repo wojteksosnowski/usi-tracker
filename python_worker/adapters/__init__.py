@@ -116,7 +116,7 @@ class RPAdapter:
             "address": _get_val(raw, "address") or raw.get("address"),
         })
 
-        # Extract height from stats if available
+        # Extract height and prices from stats if available
         stats = _get_val(raw, "stats")
         height = None
         if isinstance(stats, dict):
@@ -124,6 +124,21 @@ class RPAdapter:
             if h_cm:
                 try:
                     height = round(float(h_cm) / 100, 2)
+                except (ValueError, TypeError):
+                    pass
+            
+            p_min = stats.get("ranges_price_min")
+            p_max = stats.get("ranges_price_max")
+            pm2_min = stats.get("ranges_price_m2_min")
+            pm2_max = stats.get("ranges_price_m2_max")
+            if p_min is not None or p_max is not None:
+                try:
+                    u["financials"].update({
+                        "price_min": float(p_min) if p_min is not None else None,
+                        "price_max": float(p_max) if p_max is not None else None,
+                        "price_m2_min": float(pm2_min) if pm2_min is not None else None,
+                        "price_m2_max": float(pm2_max) if pm2_max is not None else None,
+                    })
                 except (ValueError, TypeError):
                     pass
 

@@ -24,6 +24,23 @@
       "enum": ["Brak", "AI", "Wstępna", "Poszerzona", "Pełna", "Aktualizacja", "Ukończona"],
       "default": "Brak"
     },
+    "reviewed": {
+      "type": "boolean",
+      "default": false,
+      "description": "Czy rekord został przejrzany i zatwierdzony przez analityka."
+    },
+    "issue_reports": {
+      "type": "array",
+      "description": "Zgłoszenia problemów i notatki analityka dotyczące błędów w danych.",
+      "items": {
+        "type": "object",
+        "required": ["note", "at"],
+        "properties": {
+          "note": { "type": "string" },
+          "at": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
     "sources": {
       "type": "object",
       "description": "KRYTYCZNE: Mapowanie identyfikatorów portalowych (rpID, otoID). Nigdy nie usuwać.",

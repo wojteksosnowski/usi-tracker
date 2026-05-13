@@ -317,6 +317,12 @@
                   {view === 'list' && (
                     <>
                       <div className="usi-divider-v" />
+                      <FilterGroup label="Opcje">
+                        <label className="usi-label-clickable">
+                          <input type="checkbox" checked={bus.filters?.onlyUnreviewed || false} onChange={e => setVariable('filters.onlyUnreviewed', e.target.checked)} />
+                          Tylko nieprzejrzane
+                        </label>
+                      </FilterGroup>
                       <FilterGroup label="Miasta">
                         {MAIN_CITIES.map(city => (
                           <FilterChip key={city} label={city} active={activeCities.has(city)} onClick={(isShift) => toggleCity(city, isShift)} />
@@ -332,6 +338,11 @@
                           label="Aktywni"
                           active={bus.devFilters?.onlyActive || false}
                           onClick={() => setVariable('devFilters.onlyActive', v => !v)}
+                        />
+                        <FilterChip
+                          label="Powiązane"
+                          active={bus.devFilters?.onlyMerged || false}
+                          onClick={() => setVariable('devFilters.onlyMerged', v => !v)}
                         />
                         {(bus.devSuggestionsTotal || 0) > 0 && (
                           <FilterChip
@@ -415,7 +426,7 @@
                   <div className="usi-divider-v" />
                   {view === 'download' && bus.pendingTotal > 0 && (
                     <div className="usi-flex-row usi-gap-8 usi-text-accent" style={{ fontSize: 12, fontWeight: 600 }}>
-                      <Icon name="sparkle" size={14} /> {bus.pendingTotal} oczekujących
+                      <Icon name="sparkle" size={14} /> {bus.pendingTotal} w kolejce
                     </div>
                   )}
                   <div className="usi-flex-row usi-gap-8">

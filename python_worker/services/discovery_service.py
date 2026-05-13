@@ -8,6 +8,8 @@ from python_worker.url_parser import parse_url
 from python_worker.portal_matcher import filter_new_investments
 from python_worker.logger_utils import log_to_processing_log
 
+from python_worker.services.investment_service import InvestmentService
+
 logger = logging.getLogger(__name__)
 
 class DiscoveryService:
@@ -15,6 +17,7 @@ class DiscoveryService:
         self.data_dir = data_dir
         self.config = get_scraper_config()
         self.fetcher = Fetcher(self.config) if self.config else None
+        self.isvc = InvestmentService(data_dir=data_dir)
 
     def discover_for_developer(self, job_id=None, dev_slug=None, job_manager=None, download=False, auto_register=True):
         """
@@ -80,9 +83,16 @@ class DiscoveryService:
                 new_found = [item for item in filtered if item.get("is_new")]
                 
                 for item in new_found:
-                    if auto_register:
+                    # If we are going to download immediately, skip pre-registration
+                    # process_batch will handle registration ONLY after successful download.
+                    # This prevents 'skeleton' fragments if download fails.
+                    if auto_register and not download:
                         self._register_new_investment(dev_slug, item, portal_key)
-                        item["registered"] = True # Mark as registered in snapshot too
+                        item["registered"] = True # Mark as registered in snapshot
+                    elif auto_register and download:
+                        # We mark as registered in snapshot because they are targeted for immediate ingestion
+                        item["registered"] = True
+                        
                     new_items_to_download.append((portal, item))
                 found_total += len(new_found)
             except Exception as e:
@@ -94,11 +104,24 @@ class DiscoveryService:
         self._save_discovery_snapshot(dev_slug, all_discovered)
 
         if download and new_items_to_download:
-            logger.info(f"Downloading raw JSONs for {len(new_items_to_download)} new investments...")
-            from python_worker.main import download_raw_json
+            logger.info(f"Triggering bulk download for {len(new_items_to_download)} new investments...")
+            
+            # Group by portal
+            by_portal = {}
             for portal, item in new_items_to_download:
-                identifier = item.get("id") if portal == "rp" else item.get("url")
-                download_raw_json(portal, identifier, dev_slug, item["slug"])
+                if portal not in by_portal: by_portal[portal] = []
+                by_portal[portal].append(item)
+            
+            for p, items in by_portal.items():
+                def progress_wrapper(report):
+                    if job_manager and job_id:
+                        msg = f"[{p.upper()}] {report['message']}"
+                        job_manager.update_progress(job_id, int(current_progress), msg)
+                
+                try:
+                    self.isvc.process_batch(p, items, on_progress_callback=progress_wrapper)
+                except Exception as e:
+                    logger.error(f"Bulk download for {p} failed: {e}")
 
         if job_manager and job_id:
             msg = f"Zarejestrowano {found_total} nowych inwestycji." if found_total else "Brak nowych inwestycji."
@@ -168,37 +191,32 @@ class DiscoveryService:
 
     def _register_new_investment(self, dev_slug, item, portal):
         """Helper to create a skeleton usi_*.json for a newly discovered investment."""
-        inv_slug = item["slug"]
-        inv_dir = self.data_dir / dev_slug / inv_slug
-        inv_dir.mkdir(parents=True, exist_ok=True)
+        inv_slug = item.get("slug")
+        url = item.get("url")
         
-        usi_file = inv_dir / f"usi_{inv_slug}.json"
-        
+        # If slug is missing in discovery result, try to parse it from URL
+        if not inv_slug and url:
+            parsed = parse_url(url)
+            inv_slug = parsed.get("investment_slug")
+            
+        if not inv_slug:
+            # Last resort fallback if both discovery and parsing failed
+            from python_worker.csv_importer import slugify
+            inv_slug = slugify(item["name"])
+
         # Determine source key
         portal_key = "rp" if portal == "rp" else ("oto" if portal == "otodom" else "to")
-        identifier_key = "id" if portal == "rp" else "url"
-        identifier_val = item.get("id") if portal == "rp" else item.get("url")
         
-        import json
-        if usi_file.exists():
-            with open(usi_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        else:
-            data = {
-                "investment_slug": inv_slug,
-                "developer_slug": dev_slug,
-                "name": item["name"],
-                "sources": {},
-                "audit": {"created_at": datetime.now().isoformat()}
-            }
-        
-        if portal_key not in data["sources"]:
-            data["sources"][portal_key] = {identifier_key: identifier_val}
-            with open(usi_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-            
-            log_to_processing_log(dev_slug, inv_slug, f"Discovered and registered from {portal} ({identifier_key}: {identifier_val})")
-            logger.info(f"REGISTERED NEW {portal} Investment: {item['name']} in {dev_slug}/{inv_slug}")
+        # Delegate registration to InvestmentService (which now handles canonical slugs from library)
+        return self.isvc.register_investment(
+            portal=portal_key,
+            developer_name=dev_slug.replace("-", " ").title(), # Folder name as dev name hint
+            inv_slug=inv_slug,
+            name=item["name"],
+            item_id=item.get("id"),
+            url=url,
+            allow_existing=True
+        )
 
     def discovery_by_portal(self, portal, identifier=None, limit=None):
         """

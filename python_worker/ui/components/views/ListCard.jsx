@@ -27,7 +27,7 @@
         badges={
           <div className="usi-flex-row usi-gap-8">
             <SourceBadge source={inv.source} />
-            {inv.is_new && <span className="usi-pill success usi-tiny">NOWE</span>}
+            {(inv.is_new || inv.reviewed === false) && <span className="usi-pill success usi-tiny">NOWE</span>}
           </div>
         }
         footerLeft={<CategoryStripe ratings={inv.ratings || {}} />}

@@ -81,12 +81,12 @@ class IgnorePollingFilter(logging.Filter):
 logging.getLogger("werkzeug").addFilter(IgnorePollingFilter())
 
 def run():
-    # Trigger similarity detection in the background on startup
-    import threading
-    threading.Thread(target=detect_similar, name="startup-suggest", daemon=True).start()
+    # Start the Doktor daemon (silent similarity investigation)
+    from python_worker.doktor import init_doktor
+    doktor = init_doktor(USI_DATA_DIR, USI_DEV_DIR)
+    doktor.start()
 
     from python_worker.crawler import init_crawler
-    from python_worker.config import USI_DEV_DIR
     crawler = init_crawler(USI_DATA_DIR, USI_DEV_DIR)
     crawler.start()
 
