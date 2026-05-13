@@ -80,7 +80,7 @@ def get_scraper_config():
     """Returns a ScraperConfig object for use with the usi-scrapers library."""
     try:
         import usi_scrapers
-        required_version = "0.4.5"
+        required_version = "0.4.6"
         current_version = getattr(usi_scrapers, "__version__", "unknown")
 
         if current_version != required_version:
@@ -94,7 +94,6 @@ def get_scraper_config():
         return ScraperConfig(
             public_dir=USI_DATA_DIR.parent, # Public folder containing USIdata and USI
             scraperapi_key=SCRAPERAPI_KEY,
-            here_api_key=HERE_API_KEY,
             rp_discovery_urls=RP_DISCOVERY_URLS,
             otodom_discovery_urls=OTODOM_DISCOVERY_URLS,
             to_discovery_urls=TABELA_OFERT_DISCOVERY_URLS

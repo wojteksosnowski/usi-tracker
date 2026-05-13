@@ -93,12 +93,21 @@ def _calculate_distance(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
 
-def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path = None, public_usi_dir: Path = None) -> dict | None:
+def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path = None, public_usi_dir: Path = None, portal: str = None) -> dict | None:
     if data_dir is None: data_dir = Path(USI_DATA_DIR)
     if public_usi_dir is None: public_usi_dir = Path(PUBLIC_USI_DIR)
     
     inv_dir = data_dir / dev_slug / inv_slug
-    usi_file = inv_dir / f"usi_{inv_slug}.json"
+    
+    if portal:
+        usi_file = inv_dir / f"usi_{portal}_{inv_slug}.json"
+    else:
+        # Try portal-specific first, then legacy
+        usi_file = inv_dir / f"usi_rp_{inv_slug}.json"
+        if not usi_file.exists():
+            usi_file = inv_dir / f"usi_oto_{inv_slug}.json"
+        if not usi_file.exists():
+            usi_file = inv_dir / f"usi_{inv_slug}.json"
     
     if not usi_file.exists():
         return None

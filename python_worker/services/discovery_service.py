@@ -207,6 +207,13 @@ class DiscoveryService:
         # Determine source key
         portal_key = "rp" if portal == "rp" else ("oto" if portal == "otodom" else "to")
         
+        # Extract vendor ID for ID-first registration
+        vendor_id = None
+        if portal == "rp":
+            vendor = item.get("vendor")
+            if isinstance(vendor, dict):
+                vendor_id = vendor.get("id")
+        
         # Delegate registration to InvestmentService (which now handles canonical slugs from library)
         return self.isvc.register_investment(
             portal=portal_key,
@@ -215,7 +222,8 @@ class DiscoveryService:
             name=item["name"],
             item_id=item.get("id"),
             url=url,
-            allow_existing=True
+            allow_existing=True,
+            vendor_id=vendor_id
         )
 
     def discovery_by_portal(self, portal, identifier=None, limit=None):

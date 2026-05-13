@@ -255,6 +255,27 @@ class DeveloperManager:
         """Standardizes a developer name into a slug."""
         return slugify(name)
 
+    def find_developer_by_id(self, portal: str, portal_id: str) -> dict | None:
+        """Finds a developer by its portal-specific ID (e.g., rp id, oto agency_id)."""
+        if not portal or not portal_id:
+            return None
+            
+        clean_id = str(portal_id).strip()
+        if portal == "oto":
+            clean_id = re.sub(r"^ID", "", clean_id)
+            
+        for dev in self.list_developers(only_merged=False):
+            pm = dev.get("portal_mapping", {})
+            p_data = pm.get(portal)
+            if not p_data:
+                continue
+                
+            # RP: {id: "123", ...}, OTO: {agency_id: "123", ...}
+            existing_id = p_data.get("id") or p_data.get("agency_id")
+            if str(existing_id) == clean_id:
+                return dev
+        return None
+
     def _append_event(self, dev: dict, event: dict):
         """Append to dev['events'] (newest first, max 100 entries)."""
         events = dev.setdefault("events", [])

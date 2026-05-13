@@ -28,18 +28,29 @@ class InvestmentService:
             self.fetcher = None
             self.tech_manager = None
 
-    def get_investment(self, dev_slug, inv_slug):
+    def get_investment(self, dev_slug, inv_slug, portal: str = None):
         from python_worker.api.utils import _load_investment
-        return _load_investment(dev_slug, inv_slug, data_dir=self.data_dir, public_usi_dir=self.public_usi_dir)
+        return _load_investment(dev_slug, inv_slug, data_dir=self.data_dir, public_usi_dir=self.public_usi_dir, portal=portal)
 
-    def register_investment(self, portal, developer_name, inv_slug, name, item_id=None, url=None, allow_existing=False):
+    def register_investment(self, portal, developer_name, inv_slug, name, item_id=None, url=None, allow_existing=False, vendor_id=None):
         from python_worker.csv_importer import slugify
         from python_worker.developer_manager import DeveloperManager
         from usi_scrapers import api as scraper_api
         from python_worker.url_parser import parse_url
 
-        # Canonical Slug Extraction via library parser
-        if url:
+        dm = DeveloperManager(self.data_dir)
+        developer_record = None
+
+        # PRIORITY 1: Identify by Vendor ID (if provided)
+        if vendor_id:
+            developer_record = dm.find_developer_by_id(portal, str(vendor_id))
+            if developer_record:
+                dev_slug = developer_record["developer_slug"]
+                developer_name = developer_record["name"]
+                logger.info(f"Found developer by ID {vendor_id} ({portal}): {developer_name} ({dev_slug})")
+
+        # PRIORITY 2: Canonical Slug Extraction via library parser
+        if not developer_record and url:
             parsed = parse_url(url)
             if parsed.get("investment_slug") and parsed["investment_slug"] != "unknown":
                 inv_slug = parsed["investment_slug"]
@@ -50,7 +61,7 @@ class InvestmentService:
                     developer_name = parsed["developer_slug"].replace("-", " ").title()
 
         # Identification pre-scrapes (Otodom/TabelaOfert) via API
-        if (not developer_name or slugify(developer_name) == "nieznany-deweloper") and portal in ("oto", "to") and url:
+        if not developer_record and (not developer_name or slugify(developer_name) == "nieznany-deweloper") and portal in ("oto", "to") and url:
             logger.info(f"Developer unknown for {url}, performing pre-scrape identification ({portal})...")
             try:
                 identified_name = scraper_api.identify_developer(self.fetcher, portal, url)
@@ -59,12 +70,12 @@ class InvestmentService:
             except Exception as e:
                 logger.error(f"Pre-scrape identification failed ({portal}): {e}")
 
-        if not developer_name or slugify(developer_name) == "nieznany-deweloper":
+        if not developer_record and (not developer_name or slugify(developer_name) == "nieznany-deweloper"):
             logger.error(f"Attempted to register investment with missing or invalid developer: {developer_name}")
             raise ValueError("Registration failed: Real developer identity is required. Cannot use 'Nieznany Deweloper'.")
 
-        dev_slug = slugify(developer_name)
-        dm = DeveloperManager(self.data_dir)
+        if not developer_record:
+            dev_slug = slugify(developer_name)
         
         # Auto-create developer profile if it doesn't exist (semantic layer)
         dev_path = dm.dev_dir / f"usi_dev_{dev_slug}.json"

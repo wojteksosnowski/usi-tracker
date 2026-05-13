@@ -9,6 +9,62 @@ from python_worker.developer_manager import DeveloperManager
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
+def init_developers_from_konkurenci(
+    konkurenci_path: Path | None = None,
+    dev_dir: Path | None = None,
+    dry_run: bool = False,
+) -> tuple[int, int]:
+    """Initialize developers from Konkurenci.csv with split logic for dual records.
+    
+    If a row has both RP and OTO identifiers, it creates two separate developer profiles.
+    """
+    csv_path = konkurenci_path or (Path(__file__).parent.parent / "reference-data" / "coda" / "Konkurenci.csv")
+    target_dir = dev_dir or USI_DEV_DIR
+    dm = DeveloperManager(USI_DATA_DIR, target_dir)
+
+    created = 0
+    skipped = 0
+
+    if not csv_path.exists():
+        logger.error(f"Konkurenci.csv not found: {csv_path}")
+        return 0, 0
+
+    with open(csv_path, newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            dev_name = row.get("Deweloper", "").strip()
+            dev_slug = row.get("usiFolder", "").strip()
+            rp_id = row.get("rpID", "").strip()
+            rp_slug = row.get("rpSlug", "").strip()
+            oto_raw = row.get("otoID", "").strip()
+
+            if not dev_slug or not dev_name:
+                continue
+
+            has_rp = bool(rp_id or rp_slug)
+            has_oto = bool(oto_raw)
+
+            if has_rp or has_oto:
+                dev_data = {
+                    "developer_slug": dev_slug,
+                    "name": dev_name,
+                    "portal_mapping": {
+                        "rp": {"id": rp_id, "slug": rp_slug} if has_rp else None,
+                        "oto": {"agency_id": re.sub(r"^ID", "", oto_raw)} if has_oto else None,
+                        "to": None
+                    }
+                }
+                
+                if not dry_run:
+                    dm.create_developer_file(dev_data)
+                created += 1
+                logger.info(f"Created developer: {dev_slug} (RP: {has_rp}, OTO: {has_oto})")
+            else:
+                skipped += 1
+
+    return created, skipped
+
+
 def migrate_developers():
     """
     Scans USI_DATA_DIR for unique developers and creates metadata files in USI_DEV_DIR.

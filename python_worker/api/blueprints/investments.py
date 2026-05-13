@@ -57,8 +57,21 @@ def list_investments():
         if not dev_dir.is_dir(): continue
         for inv_dir in sorted(dev_dir.iterdir()):
             if not inv_dir.is_dir(): continue
-            inv = investment_service.get_investment(dev_dir.name, inv_dir.name)
-            if inv: investments.append(inv)
+            
+            # Find all usi_*.json files in this folder
+            usi_files = list(inv_dir.glob("usi_*.json"))
+            for usi_file in usi_files:
+                # Extract portal from filename: usi_{portal}_{inv_slug}.json
+                # or usi_{inv_slug}.json (legacy)
+                parts = usi_file.name.split("_")
+                if len(parts) == 3:
+                    portal = parts[1]
+                    inv = investment_service.get_investment(dev_dir.name, inv_dir.name, portal=portal)
+                else:
+                    inv = investment_service.get_investment(dev_dir.name, inv_dir.name)
+                
+                if inv:
+                    investments.append(inv)
     return jsonify(investments)
 
 @investments_bp.route("/data/<dev_slug>/<inv_slug>")
@@ -212,24 +225,29 @@ def list_developers():
     developers = dm.list_developers(only_merged=only_merged)
     developers.sort(key=lambda x: x.get("name", "").lower())
     for dev in developers:
-        slug = dev["developer_slug"]
-        inv_dir = Path(USI_DATA_DIR) / slug
-        if inv_dir.exists():
-            valid_dirs = [d for d in inv_dir.iterdir() if d.is_dir() and not d.name.startswith('.')]
-            mtimes = []
-            for d in valid_dirs:
-                usi_files = list(d.glob("usi_*.json"))
-                if usi_files:
-                    mtimes.append(usi_files[0].stat().st_mtime)
-            dev["investments_count"] = len(mtimes)
-            dev["last_updated"] = max(mtimes) if mtimes else None
-        else:
-            dev["investments_count"] = 0
-            dev["last_updated"] = None
+        slugs = [dev["developer_slug"]]
+        slugs.extend([m["slug"] for m in dev.get("merged_from", []) if m.get("slug")])
+        
+        total_count = 0
+        all_mtimes = []
+        
+        for slug in slugs:
+            inv_dir = Path(USI_DATA_DIR) / slug
+            if inv_dir.exists():
+                valid_dirs = [d for d in inv_dir.iterdir() if d.is_dir() and not d.name.startswith('.')]
+                for d in valid_dirs:
+                    usi_files = list(d.glob("usi_*.json"))
+                    if usi_files:
+                        total_count += 1
+                        all_mtimes.append(usi_files[0].stat().st_mtime)
+        
+        dev["investments_count"] = total_count
+        dev["last_updated"] = max(all_mtimes) if all_mtimes else None
+        
         # Crawler badge
         dev["new_since_review"] = dev.get("crawler", {}).get("new_since_review", 0)
         # Discovery snapshot badge
-        dev["unregistered_count"] = ds.get_unregistered_count(slug, identifiers)
+        dev["unregistered_count"] = ds.get_unregistered_count(dev["developer_slug"], identifiers)
         
     return jsonify(developers)
 
@@ -275,8 +293,14 @@ def get_developer_detail(dev_slug):
         if d.exists():
             for inv_dir in d.iterdir():
                 if inv_dir.is_dir() and not inv_dir.name.startswith("."):
-                    inv = _load_investment(d_slug, inv_dir.name)
-                    if inv: result.append(inv)
+                    # Find all usi_*.json files in this folder
+                    usi_files = list(inv_dir.glob("usi_*.json"))
+                    for usi_file in usi_files:
+                        # Extract portal from filename: usi_{portal}_{inv_slug}.json
+                        parts = usi_file.name.split("_")
+                        portal = parts[1] if len(parts) == 3 else None
+                        inv = _load_investment(d_slug, inv_dir.name, portal=portal)
+                        if inv: result.append(inv)
         return result
 
     investments = _load_inv_dir(dev_slug)
@@ -313,7 +337,7 @@ def get_developer_detail(dev_slug):
             s["investments_count"] = _count_valid_investments(s_dir)
 
     dev["investments"] = investments
-    dev["investments_count"] = _count_valid_investments(Path(USI_DATA_DIR) / dev_slug)
+    dev["investments_count"] = len(investments)
     return jsonify(dev)
 
 @investments_bp.route("/developer/<dev_slug>/merge", methods=["POST"])
@@ -432,7 +456,8 @@ def register():
             inv_slug=payload.get("inv_slug"),
             name=payload.get("name"),
             item_id=payload.get("id"),
-            url=payload.get("url")
+            url=payload.get("url"),
+            vendor_id=payload.get("vendor_id")
         )
 
         if result == (None, None):

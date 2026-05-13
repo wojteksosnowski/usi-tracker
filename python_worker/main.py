@@ -220,6 +220,11 @@ def main():
     parser_bp.add_argument("--csv", default="reference-data/coda/Konkurenci.csv", help="Path to Konkurenci.csv")
     parser_bp.add_argument("--dry-run", action="store_true", help="Show what would be updated without writing")
 
+    # Command: init-devs
+    parser_init_devs = subparsers.add_parser("init-devs", help="Initialize developers from Konkurenci.csv")
+    parser_init_devs.add_argument("--csv", help="Path to Konkurenci.csv", default="reference-data/coda/Konkurenci.csv")
+    parser_init_devs.add_argument("--dry-run", action="store_true", help="Dry run without writing files")
+
     # Command: suggest
     parser_suggest = subparsers.add_parser("suggest", help="Run the developer suggestion algorithm (similarity & location)")
 
@@ -345,12 +350,20 @@ def main():
 
     elif args.command == "backfill-portals":
         from .init_developers import backfill_from_konkurenci
-        from pathlib import Path
         updated, skipped = backfill_from_konkurenci(
             konkurenci_path=Path(args.csv),
             dry_run=args.dry_run,
         )
         logger.info("backfill-portals done: %d updated, %d skipped", updated, skipped)
+
+    elif args.command == "init-devs":
+        logger.info(f"Initializing developers from: {args.csv}")
+        from .init_developers import init_developers_from_konkurenci
+        created, skipped = init_developers_from_konkurenci(
+            konkurenci_path=Path(args.csv),
+            dry_run=args.dry_run
+        )
+        logger.info(f"Developer initialization finished: {created} created, {skipped} skipped.")
 
     elif args.command == "suggest":
         logger.info("Starting developer suggestion algorithm...")

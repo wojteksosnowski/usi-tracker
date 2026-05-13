@@ -41,13 +41,65 @@ def parse_imglist(imglist_str: str) -> list:
     return [p.strip() for p in parts if p.strip().startswith("/Public/")]
 
 
-def extract_developer_slug(row: dict) -> str:
-    # PRIORYTET 1: Zawsze bierzemy nazwę od użytkownika (Coda) z kolumny "Deweloper"
+def load_developer_mapping(konkurenci_path: Path) -> dict:
+    """Loads mappings from portal IDs and names to canonical usiFolder slugs."""
+    id_mapping = {
+        "rp": {},
+        "oto": {}
+    }
+    name_mapping = {} # Name -> List[slug]
+
+    if not konkurenci_path.exists():
+        return {"id": id_mapping, "name": name_mapping}
+
+    with open(konkurenci_path, encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            name = row.get("Deweloper", "").strip()
+            slug = row.get("usiFolder", "").strip()
+            rp_id = row.get("rpID", "").strip()
+            oto_id = row.get("otoID", "").strip()
+            
+            if not slug:
+                continue
+
+            if rp_id:
+                id_mapping["rp"][rp_id] = slug
+            if oto_id:
+                # Handle both "ID123" and "123" formats
+                clean_oto = re.sub(r"^ID", "", oto_id)
+                if clean_oto:
+                    id_mapping["oto"][clean_oto] = slug
+            
+            if name:
+                name_mapping.setdefault(name, []).append(slug)
+
+    return {"id": id_mapping, "name": name_mapping}
+
+
+def extract_developer_slug(row: dict, dev_mapping: dict = None) -> str:
+    # PRIORYTET 1: Rozpoznawanie po ID (najpewniejsze)
+    if dev_mapping and "id" in dev_mapping:
+        row_rp_id = row.get("rpID", "").strip()
+        if row_rp_id and row_rp_id in dev_mapping["id"]["rp"]:
+            return dev_mapping["id"]["rp"][row_rp_id]
+
+        row_oto_id = row.get("otoID", "").strip()
+        if row_oto_id:
+            clean_row_oto = re.sub(r"^ID", "", row_oto_id)
+            if clean_row_oto in dev_mapping["id"]["oto"]:
+                return dev_mapping["id"]["oto"][clean_row_oto]
+
+    # PRIORYTET 2: Dopasowanie po nazwie (Coda "Deweloper")
     dev_name = row.get("Deweloper", "").strip()
+    if dev_mapping and "name" in dev_mapping and dev_name in dev_mapping["name"]:
+        candidates = dev_mapping["name"][dev_name]
+        return candidates[0] # Jeśli jest kolizja nazw a nie ma ID, bierzemy pierwszego
+
     if dev_name:
         return slugify(dev_name)
 
-    # PRIORYTET 2: Z imgList (tylko jako ostateczność, gdy brakuje w CSV)
+    # PRIORYTET 3: Z imgList (tylko jako ostateczność)
     imglist = row.get("imgList", "").strip()
     if imglist:
         paths = parse_imglist(imglist)
@@ -55,20 +107,6 @@ def extract_developer_slug(row: dict) -> str:
             parts = paths[0].split("/")
             if len(parts) >= 4 and parts[1] == "Public" and parts[2] == "USI":
                 return parts[3]
-
-    # PRIORYTET 3: Ze zrzutu JSON portalu (najmniej wiarygodne np. "Platforma Mieszkaniowa")
-    rp_raw = row.get("rpJSON", "").strip()
-    if rp_raw.startswith("{"):
-        try:
-            rp = json.loads(rp_raw)
-            vendor = rp.get("vendor", {})
-            if isinstance(vendor, dict) and "value" in vendor:
-                vendor = vendor["value"]
-            slug = vendor.get("slug", "") if isinstance(vendor, dict) else ""
-            if slug:
-                return slug
-        except (json.JSONDecodeError, AttributeError):
-            pass
 
     return "unknown"
 
@@ -97,11 +135,46 @@ def extract_native_slugs(row: dict) -> tuple[str | None, str | None]:
     return rp_slug or fallback, oto_slug or fallback
 
 
-def build_rp_result(row: dict, investment_slug: str = None) -> dict:
+def parse_stars(stars_str):
+    """Maps ★ symbols to numbers."""
+    if not stars_str: return None
+    mapping = {
+        "★": 1, "★★": 2, "★★★": 3, "★★★★": 4,
+        "⓿¾": 0.75, "★¼": 1.25, "★½": 1.5, "★¾": 1.75,
+        "★★¼": 2.25, "★★½": 2.5, "★★¾": 2.75,
+        "★★★¼": 3.25, "★★★½": 3.5, "★★★¾": 3.75
+    }
+    return mapping.get(stars_str.strip())
+
+
+def safe_float(val):
+    if not val: return None
+    try:
+        return float(str(val).replace(',', '.'))
+    except ValueError:
+        return None
+
+
+def extract_ratings(row: dict) -> dict:
+    """Extracts analytical ratings from CSV row."""
+    return {
+        "status": row.get("Ocena", "Brak"),
+        "Gwiazdki": parse_stars(row.get("Gwiazdki")),
+        "Balkony": safe_float(row.get("Balkony")),
+        "Fasady": safe_float(row.get("Fasady")),
+        "Wnętrza": safe_float(row.get("Wnętrza")),
+        "Teren": safe_float(row.get("Teren")),
+        "Mieszkania": safe_float(row.get("Mieszkania")),
+        "Udogodnienia": safe_float(row.get("Udogodnienia")),
+        "komentarz": row.get("komentarz", "").strip()
+    }
+
+
+def build_rp_result(row: dict, investment_slug: str = None, ratings: dict = None, dev_mapping: dict = None) -> dict:
     rp_raw = row.get("rpJSON", "").strip()
     rp = json.loads(rp_raw) if rp_raw.startswith("{") else {}
 
-    developer_slug = extract_developer_slug(row)
+    developer_slug = extract_developer_slug(row, dev_mapping=dev_mapping)
     if not investment_slug:
         investment_slug = row.get("USIfolder", "").strip()
 
@@ -124,8 +197,17 @@ def build_rp_result(row: dict, investment_slug: str = None) -> dict:
     construction_date = get_rp_val(rp, "construction_date_range")
     const_upper = get_rp_val(construction_date, "upper") if construction_date else None
 
+    # IMAGE PATHS: Preserve original folder structure from imgList
     image_paths_raw = parse_imglist(row.get("imgList", ""))
-    image_paths = [f"/Public/USI/{developer_slug}/{investment_slug}/{Path(p).name}" for p in image_paths_raw]
+    image_paths = image_paths_raw # KEEP ORIGINAL PATHS FROM CSV
+    
+    # Extract original usi_folder_path from image_paths if possible
+    usi_folder_path = f"/Public/USI/{developer_slug}/{investment_slug}/"
+    if image_paths:
+        sample = Path(image_paths[0])
+        if len(sample.parts) >= 5:
+             # parts: ('/', 'Public', 'USI', 'dev', 'inv', 'file.jpg')
+             usi_folder_path = f"/Public/USI/{sample.parts[3]}/{sample.parts[4]}/"
 
     stages = extract_stages(rp)
     groups_id = extract_groups_id(rp)
@@ -145,13 +227,13 @@ def build_rp_result(row: dict, investment_slug: str = None) -> dict:
             stage_is_current = s["current"]
             break
 
-    return {
+    result = {
         "source": "rynekpierwotny.pl",
         "id": offer_id,
         "url": row.get("strona_rynek", "").strip(),
         "developer_slug": developer_slug,
         "investment_slug": investment_slug,
-        "usi_folder_path": f"/Public/USI/{developer_slug}/{investment_slug}/",
+        "usi_folder_path": usi_folder_path,
         "name": rp.get("name"),
         "address": rp.get("address"),
         "geo_point": coords,
@@ -169,14 +251,17 @@ def build_rp_result(row: dict, investment_slug: str = None) -> dict:
         "sibling_stages": stages,
         "sibling_stage_folders": sibling_stage_folders,
     }
+    if ratings:
+        result["ratings"] = ratings
+    return result
 
 
-def build_oto_result(row: dict, investment_slug: str = None) -> dict:
+def build_oto_result(row: dict, investment_slug: str = None, ratings: dict = None, dev_mapping: dict = None) -> dict:
     oto_raw = row.get("otoJSON", "").strip()
     page_props = json.loads(oto_raw) if oto_raw.startswith("{") else {}
     ad_data = page_props.get("ad", {})
 
-    developer_slug = extract_developer_slug(row)
+    developer_slug = extract_developer_slug(row, dev_mapping=dev_mapping)
     if not investment_slug:
         investment_slug = row.get("USIfolder", "").strip()
 
@@ -193,15 +278,24 @@ def build_oto_result(row: dict, investment_slug: str = None) -> dict:
 
     agency = ad_data.get("agency", {}) or {}
     delivery = ad_data.get("investmentEstimatedDelivery", {}) or {}
+    
+    # IMAGE PATHS: Preserve original folder structure from imgList
     image_paths_raw = parse_imglist(row.get("imgList", ""))
-    image_paths = [f"/Public/USI/{developer_slug}/{investment_slug}/{Path(p).name}" for p in image_paths_raw]
+    image_paths = image_paths_raw # KEEP ORIGINAL PATHS FROM CSV
+    
+    # Extract original usi_folder_path from image_paths if possible
+    usi_folder_path = f"/Public/USI/{developer_slug}/{investment_slug}/"
+    if image_paths:
+        sample = Path(image_paths[0])
+        if len(sample.parts) >= 5:
+             usi_folder_path = f"/Public/USI/{sample.parts[3]}/{sample.parts[4]}/"
 
-    return {
+    result = {
         "source": "otodom.pl",
         "url": row.get("strona_otodom", "").strip(),
         "developer_slug": developer_slug,
         "investment_slug": investment_slug,
-        "usi_folder_path": f"/Public/USI/{developer_slug}/{investment_slug}/",
+        "usi_folder_path": usi_folder_path,
         "title": ad_data.get("title"),
         "agency_name": agency.get("name"),
         "agency_id": agency.get("id"),
@@ -212,6 +306,9 @@ def build_oto_result(row: dict, investment_slug: str = None) -> dict:
         "images_count": len(image_paths),
         "image_paths": image_paths,
     }
+    if ratings:
+        result["ratings"] = ratings
+    return result
 
 
 def import_csv(
@@ -225,11 +322,18 @@ def import_csv(
     """Import investments from USImaster.csv into the USIdata directory tree.
 
     When split_dual=True, rows with both rpJSON and otoJSON produce two separate
-    app_result files: app_result_imported_rp.json and app_result_imported_oto.json.
-    Single-portal rows always produce app_result_imported.json (unchanged behaviour).
+    investment folders. Ratings from the CSV are preserved in BOTH resulting records.
     """
+    from .adapters import RPAdapter, OtodomAdapter, Merger
+    
     csv_path = Path(csv_path)
     output_dir = Path(output_dir)
+
+    # Try to load developer mapping from Konkurenci.csv (expected in same dir)
+    konkurenci_path = csv_path.parent / "Konkurenci.csv"
+    dev_mapping = load_developer_mapping(konkurenci_path)
+    if dev_mapping:
+        logger.info(f"Loaded {len(dev_mapping)} developer slug mappings from {konkurenci_path}")
 
     if not csv_path.exists():
         logger.error(f"CSV not found: {csv_path}")
@@ -250,14 +354,7 @@ def import_csv(
                 continue
             if folder_filter and inv_slug != folder_filter:
                 continue
-            if inv_slug in seen_folders:
-                oto_id = row.get("otoID", "").strip()
-                logger.warning(
-                    f"Duplicate USIfolder '{inv_slug}' (otoID={oto_id!r} → Otodom zmienił ID). "
-                    f"Poprzedni rekord zostanie nadpisany."
-                )
-            seen_folders[inv_slug] = True
-
+            
             has_rp = row.get("rpJSON", "").strip().startswith("{")
             has_oto = row.get("otoJSON", "").strip().startswith("{")
 
@@ -265,117 +362,89 @@ def import_csv(
                 continue
 
             try:
+                ratings = extract_ratings(row)
                 is_dual = split_dual and has_rp and has_oto
+                
                 if is_dual:
-                    # Wyciągamy natywne slugi zamiast doklejać -oto
                     rp_slug, oto_slug = extract_native_slugs(row)
-                    
-                    # Jeśli slugi są identyczne (kolizja), musimy je rozróżnić, 
-                    # ale zgodnie z planem zakładamy, że natywne slugi portalowe zazwyczaj się różnią.
-                    if rp_slug == oto_slug:
-                        oto_slug = f"{oto_slug}-oto" # Jedyny przypadek kolizji
-                    
-                    rp_result = build_rp_result(row, investment_slug=rp_slug)
-                    oto_result = build_oto_result(row, investment_slug=oto_slug)
+                    rp_result = build_rp_result(row, investment_slug=rp_slug, ratings=ratings, dev_mapping=dev_mapping)
+                    oto_result = build_oto_result(row, investment_slug=oto_slug, ratings=ratings, dev_mapping=dev_mapping)
                 elif has_rp:
-                    rp_result = build_rp_result(row)
+                    rp_result = build_rp_result(row, ratings=ratings, dev_mapping=dev_mapping)
                     oto_result = None
                 else:
                     rp_result = None
-                    oto_result = build_oto_result(row)
+                    oto_result = build_oto_result(row, ratings=ratings, dev_mapping=dev_mapping)
             except Exception as e:
                 logger.warning(f"Skipping {inv_slug}: {e}")
                 continue
 
-            dev_slug = (rp_result or oto_result)["developer_slug"]
-
             if not dry_run:
-                if is_dual:
-                    # Create two separate directories (DATA)
-                    inv_dir_rp = output_dir / dev_slug / rp_slug
-                    inv_dir_oto = output_dir / dev_slug / oto_slug
+                # ── RP Processing ─────────────────────────────────────────────
+                if rp_result:
+                    dev_slug = rp_result["developer_slug"]
+                    inv_slug_rp = rp_result["investment_slug"]
+                    inv_dir_rp = output_dir / dev_slug / inv_slug_rp
                     inv_dir_rp.mkdir(parents=True, exist_ok=True)
-                    inv_dir_oto.mkdir(parents=True, exist_ok=True)
-
-                    # Create two separate directories (IMAGES - SYMMETRY)
-                    # Zakładamy, że Public/USI jest w tej samej strukturze co Public/USIdata
-                    # (wyjście poziom wyżej z Public/USIdata do Public/ i potem do USI/)
-                    usi_base = output_dir.parent / "USI"
-                    usi_dir_rp = usi_base / dev_slug / rp_slug
-                    usi_dir_oto = usi_base / dev_slug / oto_slug
-                    usi_dir_rp.mkdir(parents=True, exist_ok=True)
-                    usi_dir_oto.mkdir(parents=True, exist_ok=True)
-
-                    # Kopiowanie/Synchronizacja zdjęć ze starego USIfolder (jeśli wskazany w CSV)
-                    # aby oba nowe foldery miały dostęp do pobranych wcześniej zasobów.
-                    usi_folder_raw = row.get("USIfolder", "")
-                    if usi_folder_raw:
-                        old_usi_folder = usi_base / usi_folder_raw
-                        if old_usi_folder.exists() and old_usi_folder.is_dir():
-                            for img_file in old_usi_folder.glob("*"):
-                                if img_file.is_file():
-                                    # Kopiujemy tylko jeśli ścieżka docelowa jest inna niż źródłowa
-                                    dst_rp = usi_dir_rp / img_file.name
-                                    if old_usi_folder != usi_dir_rp:
-                                        shutil.copy2(img_file, dst_rp)
-                                    
-                                    dst_oto = usi_dir_oto / img_file.name
-                                    if old_usi_folder != usi_dir_oto:
-                                        shutil.copy2(img_file, dst_oto)
-                        else:
-                            # Fallback do obecnej logiki (jeśli USIfolder nie podano lub nie istnieje)
-                            fallback_old = usi_base / dev_slug / inv_slug
-                            if fallback_old.exists() and fallback_old.is_dir():
-                                for img_file in fallback_old.glob("*"):
-                                    if img_file.is_file():
-                                        if fallback_old != usi_dir_rp:
-                                            shutil.copy2(img_file, usi_dir_rp / img_file.name)
-                                        if fallback_old != usi_dir_oto:
-                                            shutil.copy2(img_file, usi_dir_oto / img_file.name)
-
+                    
+                    # Save raw details
                     rp_raw = row.get("rpJSON", "").strip()
-                    with open(inv_dir_rp / "rp_details.json", "w", encoding="utf-8") as out:
+                    with open(inv_dir_rp / f"raw_rp_{inv_slug_rp}.json", "w", encoding="utf-8") as out:
                         out.write(rp_raw)
                     
-                    oto_raw = row.get("otoJSON", "").strip()
-                    with open(inv_dir_oto / "oto_details.json", "w", encoding="utf-8") as out:
-                        out.write(oto_raw)
-
-                    with open(inv_dir_rp / "app_result_imported.json", "w", encoding="utf-8") as out:
-                        json.dump(rp_result, out, indent=4, ensure_ascii=False)
-                    log_to_processing_log(dev_slug, rp_slug, "Imported from CSV (RP side of dual)")
+                    # Save ratings
+                    with open(inv_dir_rp / f"meta_rp_{inv_slug_rp}_ratings.json", "w", encoding="utf-8") as out:
+                        json.dump(ratings, out, indent=2, ensure_ascii=False)
                     
-                    with open(inv_dir_oto / "app_result_imported.json", "w", encoding="utf-8") as out:
-                        json.dump(oto_result, out, indent=4, ensure_ascii=False)
-                    log_to_processing_log(dev_slug, oto_slug, "Imported from CSV (OTO side of dual)")
-                else:
-                    inv_dir = output_dir / dev_slug / inv_slug
-                    inv_dir.mkdir(parents=True, exist_ok=True)
+                    # Save app_result
+                    with open(inv_dir_rp / f"app_result_rp.json", "w", encoding="utf-8") as out:
+                        json.dump(rp_result, out, indent=4, ensure_ascii=False)
+                    
+                    # Unified JSON
+                    rp_unified = RPAdapter.transform(json.loads(rp_raw), inv_slug_rp, dev_slug)
+                    rp_unified["image_paths"] = rp_result["image_paths"]
+                    rp_unified["images_count"] = rp_result["images_count"]
+                    
+                    final_rp = Merger.merge(rp_data=rp_unified, meta_ratings=ratings)
+                    with open(inv_dir_rp / f"usi_rp_{inv_slug_rp}.json", "w", encoding="utf-8") as out:
+                        json.dump(final_rp, out, indent=2, ensure_ascii=False)
+                        
+                    log_to_processing_log(dev_slug, inv_slug_rp, "Imported from CSV (RP)")
 
-                    rp_raw = row.get("rpJSON", "").strip()
-                    if rp_raw.startswith("{"):
-                        rp_path = inv_dir / "rp_details.json"
-                        with open(rp_path, "w", encoding="utf-8") as out:
-                            out.write(rp_raw)
-                        logger.info(f"Wrote {rp_path}")
-
+                # ── OTO Processing ────────────────────────────────────────────
+                if oto_result:
+                    dev_slug = oto_result["developer_slug"]
+                    inv_slug_oto = oto_result["investment_slug"]
+                    inv_dir_oto = output_dir / dev_slug / inv_slug_oto
+                    inv_dir_oto.mkdir(parents=True, exist_ok=True)
+                    
+                    # Save raw details
                     oto_raw = row.get("otoJSON", "").strip()
-                    if oto_raw.startswith("{"):
-                        oto_path = inv_dir / "oto_details.json"
-                        with open(oto_path, "w", encoding="utf-8") as out:
-                            out.write(oto_raw)
-                        logger.info(f"Wrote {oto_path}")
-
-                    single = rp_result or oto_result
-                    result_path = inv_dir / "app_result_imported.json"
-                    with open(result_path, "w", encoding="utf-8") as out:
-                        json.dump(single, out, indent=4, ensure_ascii=False)
-                    log_to_processing_log(dev_slug, inv_slug, "Imported from CSV")
-                    logger.info(f"Wrote {result_path}")
+                    with open(inv_dir_oto / f"raw_oto_{inv_slug_oto}.json", "w", encoding="utf-8") as out:
+                        out.write(oto_raw)
+                    
+                    # Save ratings
+                    with open(inv_dir_oto / f"meta_oto_{inv_slug_oto}_ratings.json", "w", encoding="utf-8") as out:
+                        json.dump(ratings, out, indent=2, ensure_ascii=False)
+                    
+                    # Save app_result
+                    with open(inv_dir_oto / f"app_result_oto.json", "w", encoding="utf-8") as out:
+                        json.dump(oto_result, out, indent=4, ensure_ascii=False)
+                    
+                    # Unified JSON
+                    oto_unified = OtodomAdapter.transform(json.loads(oto_raw), inv_slug_oto, dev_slug)
+                    oto_unified["image_paths"] = oto_result["image_paths"]
+                    oto_unified["images_count"] = oto_result["images_count"]
+                    
+                    final_oto = Merger.merge(oto_data=oto_unified, meta_ratings=ratings)
+                    with open(inv_dir_oto / f"usi_oto_{inv_slug_oto}.json", "w", encoding="utf-8") as out:
+                        json.dump(final_oto, out, indent=2, ensure_ascii=False)
+                        
+                    log_to_processing_log(dev_slug, inv_slug_oto, "Imported from CSV (OTO)")
 
             if is_dual:
-                results.append({"developer_slug": dev_slug, "investment_slug": inv_slug, "result": rp_result})
-                results.append({"developer_slug": dev_slug, "investment_slug": inv_slug, "result": oto_result})
+                results.append({"developer_slug": dev_slug, "investment_slug": rp_slug, "result": rp_result})
+                results.append({"developer_slug": dev_slug, "investment_slug": oto_slug, "result": oto_result})
             else:
                 single = rp_result or oto_result
                 results.append({"developer_slug": dev_slug, "investment_slug": inv_slug, "result": single})
@@ -384,6 +453,7 @@ def import_csv(
 
     logger.info(f"import_csv: processed {rows_processed} rows, {len(results)} results (dry_run={dry_run})")
     return results
+
 
 
 def audit_dual(csv_path) -> dict:
