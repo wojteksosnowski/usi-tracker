@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify, abort, request, send_file
 from python_worker.services.investment_service import InvestmentService
 from python_worker.jobs import job_manager
 from python_worker.api.utils import _valid_slug, _valid_filename
+import python_worker.investment_index as inv_index
 
 logger = logging.getLogger(__name__)
 
@@ -48,31 +49,62 @@ def serve_image(dev_slug, inv_slug, filename):
 
 @investments_bp.route("/investments")
 def list_investments():
-    investments = []
     data_root = investment_service.data_dir
     if not data_root.exists():
         return jsonify([])
 
+    entries = inv_index.load(data_root)
+    if entries is not None:
+        return jsonify(entries)
+
+    # Index missing — build it in background and fall back to full scan this time
+    logger.info("Investment index not found; triggering rebuild in background")
+    public_usi_dir = investment_service.public_usi_dir
+
+    def _rebuild():
+        try:
+            inv_index.rebuild(data_root, public_usi_dir)
+        except Exception as e:
+            logger.error(f"Background index rebuild failed: {e}")
+
+    import threading
+    threading.Thread(target=_rebuild, daemon=True).start()
+
+    investments = []
     for dev_dir in sorted(data_root.iterdir()):
         if not dev_dir.is_dir(): continue
         for inv_dir in sorted(dev_dir.iterdir()):
             if not inv_dir.is_dir(): continue
-            
-            # Find all usi_*.json files in this folder
             usi_files = list(inv_dir.glob("usi_*.json"))
             for usi_file in usi_files:
-                # Extract portal from filename: usi_{portal}_{inv_slug}.json
-                # or usi_{inv_slug}.json (legacy)
                 parts = usi_file.name.split("_")
                 if len(parts) == 3:
                     portal = parts[1]
                     inv = investment_service.get_investment(dev_dir.name, inv_dir.name, portal=portal)
                 else:
                     inv = investment_service.get_investment(dev_dir.name, inv_dir.name)
-                
                 if inv:
                     investments.append(inv)
     return jsonify(investments)
+
+
+@investments_bp.route("/investments/rebuild-index", methods=["POST"])
+def rebuild_index():
+    data_root = investment_service.data_dir
+    public_usi_dir = investment_service.public_usi_dir
+
+    def _run(job_id):
+        try:
+            job_manager.update_job(job_id, status="running", message="Budowanie indeksu inwestycji...")
+            count = inv_index.rebuild(data_root, public_usi_dir)
+            job_manager.update_job(job_id, status="done", message=f"Indeks gotowy: {count} inwestycji")
+        except Exception as e:
+            job_manager.update_job(job_id, status="error", message=str(e))
+
+    job_id = job_manager.create_job("rebuild-index", "Rebuild investment index")
+    import threading
+    threading.Thread(target=_run, args=(job_id,), daemon=True).start()
+    return jsonify({"job_id": job_id})
 
 @investments_bp.route("/data/<dev_slug>/<inv_slug>")
 def investment_data(dev_slug, inv_slug):

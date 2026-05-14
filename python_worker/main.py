@@ -228,6 +228,9 @@ def main():
     # Command: suggest
     parser_suggest = subparsers.add_parser("suggest", help="Run the developer suggestion algorithm (similarity & location)")
 
+    # Command: rebuild-index
+    subparsers.add_parser("rebuild-index", help="Rebuild the investment list index (_index.json in USIdata)")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -369,6 +372,13 @@ def main():
         logger.info("Starting developer suggestion algorithm...")
         detect_similar()
         logger.info("Suggestion algorithm finished.")
+
+    elif args.command == "rebuild-index":
+        from .investment_index import rebuild as rebuild_index
+        from .config import PUBLIC_USI_DIR
+        logger.info("Rebuilding investment index...")
+        count = rebuild_index(USI_DATA_DIR, Path(PUBLIC_USI_DIR))
+        logger.info(f"Done. {count} investments indexed.")
 
 if __name__ == "__main__":
     main()

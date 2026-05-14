@@ -137,6 +137,12 @@ class InvestmentService:
         with open(usi_path, "w", encoding="utf-8") as f:
             json.dump(skeleton, f, indent=2, ensure_ascii=False)
 
+        try:
+            import python_worker.investment_index as inv_index
+            inv_index.upsert(self.data_dir, self.public_usi_dir, dev_slug, inv_slug)
+        except Exception as _ie:
+            logger.debug(f"Index upsert skipped for {inv_slug}: {_ie}")
+
         log_to_processing_log(dev_slug, inv_slug, f"Registered from discovery ({portal})")
         return dev_slug, inv_slug
 
@@ -158,13 +164,24 @@ class InvestmentService:
                    (self.data_dir / dev_slug / inv_slug / f"usi_{inv_slug}.json")
         inv_dir = usi_path.parent
 
-        if not usi_path.exists() and not use_local_raw:
+        # Legacy: some investments have portal-prefixed files (usi_oto_*.json, usi_rp_*.json)
+        # Load from legacy path if canonical doesn't exist; always save to canonical (auto-migration)
+        legacy_path = None
+        if not usi_path.exists():
+            for _prefix in ["rp", "oto", "to"]:
+                _candidate = inv_dir / f"usi_{_prefix}_{inv_slug}.json"
+                if _candidate.exists():
+                    legacy_path = _candidate
+                    break
+
+        if not usi_path.exists() and not legacy_path and not use_local_raw:
             logger.warning(f"Investment file not found skipping: {usi_path}")
             return False
 
         usi_data = {}
-        if usi_path.exists():
-            with open(usi_path, "r", encoding="utf-8") as f:
+        _load_from = legacy_path if legacy_path and not usi_path.exists() else usi_path
+        if _load_from and _load_from.exists():
+            with open(_load_from, "r", encoding="utf-8") as f:
                 usi_data = json.load(f)
 
         sources = usi_data.get("sources", {})
@@ -216,8 +233,6 @@ class InvestmentService:
                     continue
 
                 if res and "raw_details" in res:
-                    # Capture library-detected canonical slugs
-                    canonical_inv_slug = res.get("investment_slug") or inv_slug
                     canonical_dev_slug = res.get("developer_slug") or dev_slug
 
                     if self.tech_manager:
@@ -228,8 +243,7 @@ class InvestmentService:
                         with open(raw_path, "w", encoding="utf-8") as f:
                             json.dump(res["raw_details"], f, indent=2, ensure_ascii=False)
 
-                    # Pass canonical slugs to adapter for transformation
-                    rp_oto_to_unified = AdapterFactory.get_adapter(raw_prefix).transform(res["raw_details"], canonical_inv_slug, canonical_dev_slug)
+                    rp_oto_to_unified = AdapterFactory.get_adapter(raw_prefix).transform(res["raw_details"], inv_slug, canonical_dev_slug)
                     if portal == "rp": rp_unified = rp_oto_to_unified
                     elif portal == "oto": oto_unified = rp_oto_to_unified
                     elif portal == "to": to_unified = rp_oto_to_unified
@@ -279,6 +293,12 @@ class InvestmentService:
 
             with open(usi_path, "w", encoding="utf-8") as f_out:
                 json.dump(new_unified, f_out, indent=2, ensure_ascii=False)
+
+            try:
+                import python_worker.investment_index as inv_index
+                inv_index.upsert(self.data_dir, self.public_usi_dir, dev_slug, inv_slug)
+            except Exception as _ie:
+                logger.debug(f"Index upsert skipped for {inv_slug}: {_ie}")
 
             summary = f"Updated: {', '.join(fetched_sources)}"
             if failed_sources:
