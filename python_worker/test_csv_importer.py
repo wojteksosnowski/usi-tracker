@@ -58,28 +58,35 @@ def test_parse_imglist_empty():
 
 # --- extract_developer_slug ---
 
-def test_extract_slug_from_imglist():
+def test_extract_slug_no_mapping_returns_none():
+    # Without a Konkurenci mapping, unknown developers return None — never slugify
     row = {
         "imgList": "/Public/USI/spravia/supernova-gdynia-redlowo/img.jpg",
         "rpJSON": "",
         "otoJSON": "",
         "Deweloper": "Spravia SA",
     }
-    assert extract_developer_slug(row) == "spravia"
+    assert extract_developer_slug(row) is None
 
-def test_extract_slug_from_rp_json():
+def test_extract_slug_no_mapping_empty_dev_returns_none():
+    row = {
+        "imgList": "/Public/USI/spravia/supernova-gdynia-redlowo/img.jpg",
+        "rpJSON": "",
+        "otoJSON": "",
+        "Deweloper": "",
+    }
+    assert extract_developer_slug(row) is None
+
+def test_extract_slug_from_rp_json_no_mapping_returns_none():
+    # Without a Konkurenci mapping, rpJSON vendor slug is NOT used — return None
     rp = {"vendor": {"type": "obj", "value": {"slug": "test-developer"}}}
     row = {"imgList": "", "rpJSON": json.dumps(rp), "otoJSON": "", "Deweloper": "Test Dev"}
-    assert extract_developer_slug(row) == "test-developer"
+    assert extract_developer_slug(row) is None
 
-def test_extract_slug_from_rp_json_flat():
-    rp = {"vendor": {"slug": "flat-slug"}}
-    row = {"imgList": "", "rpJSON": json.dumps(rp), "otoJSON": "", "Deweloper": "X"}
-    assert extract_developer_slug(row) == "flat-slug"
-
-def test_extract_slug_fallback():
+def test_extract_slug_fallback_returns_none():
+    # Polish company names without a Konkurenci entry return None, never slugified
     row = {"imgList": "", "rpJSON": "", "otoJSON": "", "Deweloper": "Deweloper Ąęó Sp. z o.o."}
-    assert extract_developer_slug(row) == "deweloper-aeo-sp-z-o-o"
+    assert extract_developer_slug(row) is None
 
 
 # --- build_rp_result ---
@@ -198,6 +205,28 @@ def test_build_oto_result_coords():
     assert result["longitude"] == 19.46
 
 
+# --- import_csv helpers ---
+
+def _write_csv(csv_path: Path, row: dict) -> None:
+    """Write a single-row CSV to csv_path."""
+    import csv as csv_mod, io
+    buf = io.StringIO()
+    w = csv_mod.DictWriter(buf, fieldnames=list(row.keys()))
+    w.writeheader()
+    w.writerow(row)
+    csv_path.write_text(buf.getvalue(), encoding="utf-8")
+
+
+def _write_konkurenci(csv_dir: Path) -> None:
+    """Write a minimal Konkurenci.csv mapping the test developer."""
+    import csv as csv_mod
+    path = csv_dir / "Konkurenci.csv"
+    with path.open("w", newline="", encoding="utf-8") as f:
+        w = csv_mod.DictWriter(f, fieldnames=["Deweloper", "usiFolder", "rpID", "otoID"])
+        w.writeheader()
+        w.writerow({"Deweloper": "Test Dev", "usiFolder": "test-dev", "rpID": "99", "otoID": "4uvqs"})
+
+
 # --- import_csv ---
 
 @pytest.mark.skipif(not CSV_PATH.exists(), reason="CSV not present")
@@ -265,16 +294,9 @@ def test_dual_split_oto_result_correct():
 
 
 def test_dual_split_creates_two_results(tmp_path):
-    row = _make_dual_row()
-    import csv as csv_mod, io
-    header = list(row.keys())
-    buf = io.StringIO()
-    w = csv_mod.DictWriter(buf, fieldnames=header)
-    w.writeheader()
-    w.writerow(row)
-    buf.seek(0)
     csv_file = tmp_path / "test.csv"
-    csv_file.write_text(buf.getvalue(), encoding="utf-8")
+    _write_csv(csv_file, _make_dual_row())
+    _write_konkurenci(tmp_path)
 
     results = import_csv(csv_file, tmp_path / "out", dry_run=True, split_dual=True)
     assert len(results) == 2
@@ -283,15 +305,9 @@ def test_dual_split_creates_two_results(tmp_path):
 
 
 def test_single_rp_unaffected_by_split(tmp_path):
-    row = _make_rp_row()
-    import csv as csv_mod, io
-    buf = io.StringIO()
-    w = csv_mod.DictWriter(buf, fieldnames=list(row.keys()))
-    w.writeheader()
-    w.writerow(row)
-    buf.seek(0)
     csv_file = tmp_path / "test.csv"
-    csv_file.write_text(buf.getvalue(), encoding="utf-8")
+    _write_csv(csv_file, _make_rp_row())
+    _write_konkurenci(tmp_path)
 
     results = import_csv(csv_file, tmp_path / "out", dry_run=True, split_dual=True)
     assert len(results) == 1
@@ -299,15 +315,9 @@ def test_single_rp_unaffected_by_split(tmp_path):
 
 
 def test_single_oto_unaffected_by_split(tmp_path):
-    row = _make_oto_row()
-    import csv as csv_mod, io
-    buf = io.StringIO()
-    w = csv_mod.DictWriter(buf, fieldnames=list(row.keys()))
-    w.writeheader()
-    w.writerow(row)
-    buf.seek(0)
     csv_file = tmp_path / "test.csv"
-    csv_file.write_text(buf.getvalue(), encoding="utf-8")
+    _write_csv(csv_file, _make_oto_row())
+    _write_konkurenci(tmp_path)
 
     results = import_csv(csv_file, tmp_path / "out", dry_run=True, split_dual=True)
     assert len(results) == 1
@@ -315,15 +325,9 @@ def test_single_oto_unaffected_by_split(tmp_path):
 
 
 def test_dry_run_dual_no_files_written(tmp_path):
-    row = _make_dual_row()
-    import csv as csv_mod, io
-    buf = io.StringIO()
-    w = csv_mod.DictWriter(buf, fieldnames=list(row.keys()))
-    w.writeheader()
-    w.writerow(row)
-    buf.seek(0)
     csv_file = tmp_path / "test.csv"
-    csv_file.write_text(buf.getvalue(), encoding="utf-8")
+    _write_csv(csv_file, _make_dual_row())
+    _write_konkurenci(tmp_path)
     out_dir = tmp_path / "out"
 
     results = import_csv(csv_file, out_dir, dry_run=True, split_dual=True)
@@ -332,25 +336,20 @@ def test_dry_run_dual_no_files_written(tmp_path):
 
 
 def test_dual_filenames_written(tmp_path):
-    row = _make_dual_row()
-    import csv as csv_mod, io
-    buf = io.StringIO()
-    w = csv_mod.DictWriter(buf, fieldnames=list(row.keys()))
-    w.writeheader()
-    w.writerow(row)
-    buf.seek(0)
     csv_file = tmp_path / "test.csv"
-    csv_file.write_text(buf.getvalue(), encoding="utf-8")
+    _write_csv(csv_file, _make_dual_row())
+    _write_konkurenci(tmp_path)
     out_dir = tmp_path / "out"
 
     import_csv(csv_file, out_dir, dry_run=False, split_dual=True)
 
-    dev_slug = "test-developer"
+    dev_slug = "test-dev"
     inv_slug = "dual-test-investment"
     inv_dir = out_dir / dev_slug / inv_slug
-    assert (inv_dir / "app_result_imported_rp.json").exists()
-    assert (inv_dir / "app_result_imported_oto.json").exists()
-    assert not (inv_dir / "app_result_imported.json").exists()
+    assert (inv_dir / "app_result_rp.json").exists()
+    assert (inv_dir / "app_result_oto.json").exists()
+    assert (inv_dir / "raw_rp_dual-test-investment.json").exists()
+    assert (inv_dir / "raw_oto_dual-test-investment.json").exists()
 
 
 @pytest.mark.skipif(not CSV_PATH.exists(), reason="CSV not present")

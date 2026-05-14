@@ -12,9 +12,9 @@ def test_job_manager_lifecycle():
 
     job_id = jm.start_job("Test Job", mock_task, duration=0.2)
     
-    # Check initial state
+    # Check initial state — job is queued until worker thread picks it up
     job = jm.get_job(job_id)
-    assert job["status"] == "running"
+    assert job["status"] in ("queued", "running")
     assert job["name"] == "Test Job"
     
     # Wait for completion

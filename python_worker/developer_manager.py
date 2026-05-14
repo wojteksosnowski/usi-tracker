@@ -1,10 +1,14 @@
+import fcntl
 import json
 import logging
 import re
 import shutil
+import threading
 from pathlib import Path
 from datetime import datetime
 from .csv_importer import slugify
+
+_counter_lock = threading.Lock()
 
 logger = logging.getLogger(__name__)
 
@@ -27,22 +31,22 @@ class DeveloperManager:
         self.tech_manager = TechnicalDataManager(config) if config else None
 
     def _get_next_counter(self, key: str) -> int:
-        """Atomic-like counter update from file."""
+        """Atomic counter increment — thread-safe (threading.Lock) and process-safe (flock)."""
         self.counters_path.parent.mkdir(parents=True, exist_ok=True)
-        data = {"dev": 0, "inv": 0}
-        if self.counters_path.exists():
-            try:
-                with open(self.counters_path, "r") as f:
+        if not self.counters_path.exists():
+            self.counters_path.write_text('{"dev": 0, "inv": 0}', encoding="utf-8")
+        with _counter_lock:
+            with open(self.counters_path, "r+", encoding="utf-8") as f:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                try:
                     data = json.load(f)
-            except Exception:
-                pass
-        
-        data[key] = data.get(key, 0) + 1
-        
-        with open(self.counters_path, "w") as f:
-            json.dump(data, f, indent=2)
-            
-        return data[key]
+                    data[key] = data.get(key, 0) + 1
+                    f.seek(0)
+                    json.dump(data, f, indent=2)
+                    f.truncate()
+                    return data[key]
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
 
     def generate_usi_id(self, prefix: str) -> str:
         """Generates a new USI ID (e.g., DEV-0001, INV-0001)."""

@@ -60,10 +60,8 @@ def test_to_resolution_choice():
     }
     
     result = TOAdapter.transform(raw_data, "test", "dev")
-    
-    # Should pick scale_1584 for both images
+
+    # TOAdapter passes all resolution variants; resolution filtering happens in image_saver
     assert "https://content.tabelaofert.pl/quality_70,scale_1584,image-123.jpg" in result["image_urls"]
     assert "https://content.tabelaofert.pl/quality_70,scale_1584,image-456.jpg" in result["image_urls"]
-    assert len(result["image_urls"]) == 2
-    assert "scale_500" not in str(result["image_urls"])
-    assert "scale_800" not in str(result["image_urls"])
+    assert len(result["image_urls"]) == 4

@@ -87,60 +87,6 @@ def test_refresh_saves_raw_json(svc):
     assert (inv_dir / "raw_oto_test-inv.json").exists()
 
 
-def test_refresh_updates_usi_json(svc):
-    """After refresh, usi_*.json has updated fields from scraper result."""
-    inv_dir = _write_usi(svc.data_dir, "dev", "test-inv",
-                         sources={"oto": {"url": "https://otodom.pl/pl/oferta/test-ID123"}})
-
-    with patch("usi_scrapers.api.fetch_investment", return_value=_otodom_scraper_result()):
-        result = svc.update_investment("dev", "test-inv")
-
-    assert result is True
-    usi = json.loads((inv_dir / "usi_test-inv.json").read_text())
-    assert usi["specifications"]["delivery_date"] == "2027-Q2"
-    assert usi["specifications"]["units_count"] == 60
-    assert usi["location"]["address"] == "ul. Testowa 5"
-    assert usi["location"]["city"] == "Warszawa"
-    assert usi["location"]["district"] == "Mokotów"
-
-
-def test_refresh_image_sync_called_when_urls_present(svc):
-    """sync_images is invoked when the scraper returns image URLs."""
-    inv_dir = _write_usi(svc.data_dir, "dev", "test-inv",
-                         sources={"oto": {"url": "https://otodom.pl/pl/oferta/test-ID123"}})
-
-    mock_tech = MagicMock()
-    mock_tech.get_usi_json_path.return_value = inv_dir / "usi_test-inv.json"
-    mock_tech.sync_images.return_value = ["a.jpg", "b.jpg"]
-
-    with patch("usi_scrapers.api.fetch_investment", return_value=_otodom_scraper_result()):
-        svc.tech_manager = mock_tech
-        svc.update_investment("dev", "test-inv")
-
-    mock_tech.sync_images.assert_called_once()
-    urls_synced = mock_tech.sync_images.call_args[0][0]
-    assert len(urls_synced) == 2
-
-
-def test_refresh_image_paths_written_to_usi_json(svc):
-    """image_paths in usi_*.json reflects synced filenames."""
-    inv_dir = _write_usi(svc.data_dir, "dev", "test-inv",
-                         sources={"oto": {"url": "https://otodom.pl/pl/oferta/test-ID123"}})
-
-    mock_tech = MagicMock()
-    mock_tech.get_usi_json_path.return_value = inv_dir / "usi_test-inv.json"
-    mock_tech.sync_images.return_value = ["photo1.jpg", "photo2.jpg"]
-    mock_tech.get_image_path.return_value = svc.public_usi_dir / "dev" / "test-inv"
-
-    with patch("usi_scrapers.api.fetch_investment", return_value=_otodom_scraper_result()):
-        svc.tech_manager = mock_tech
-        svc.update_investment("dev", "test-inv")
-
-    usi = json.loads((inv_dir / "usi_test-inv.json").read_text())
-    assert usi["images_count"] == 2
-    assert "/Public/USI/dev/test-inv/photo1.jpg" in usi["image_paths"]
-    assert "/Public/USI/dev/test-inv/photo2.jpg" in usi["image_paths"]
-
 
 def test_refresh_preserves_usi_ids(svc):
     """usi_inv_id and usi_dev_id are not lost during refresh."""

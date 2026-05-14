@@ -77,8 +77,13 @@ def load_developer_mapping(konkurenci_path: Path) -> dict:
     return {"id": id_mapping, "name": name_mapping}
 
 
-def extract_developer_slug(row: dict, dev_mapping: dict = None) -> str:
-    # PRIORYTET 1: Rozpoznawanie po ID (najpewniejsze)
+def extract_developer_slug(row: dict, dev_mapping: dict = None) -> str | None:
+    """Return the canonical usiFolder slug from Konkurenci.csv.
+
+    Returns None (never slugifies) when the developer has no entry in Konkurenci —
+    the caller must skip the row in that case.
+    """
+    # PRIORYTET 1: Rozpoznawanie po ID portalowym (najpewniejsze)
     if dev_mapping and "id" in dev_mapping:
         row_rp_id = row.get("rpID", "").strip()
         if row_rp_id and row_rp_id in dev_mapping["id"]["rp"]:
@@ -90,25 +95,20 @@ def extract_developer_slug(row: dict, dev_mapping: dict = None) -> str:
             if clean_row_oto in dev_mapping["id"]["oto"]:
                 return dev_mapping["id"]["oto"][clean_row_oto]
 
-    # PRIORYTET 2: Dopasowanie po nazwie (Coda "Deweloper")
+    # PRIORYTET 2: Dopasowanie po nazwie dewelopera
     dev_name = row.get("Deweloper", "").strip()
     if dev_mapping and "name" in dev_mapping and dev_name in dev_mapping["name"]:
         candidates = dev_mapping["name"][dev_name]
-        return candidates[0] # Jeśli jest kolizja nazw a nie ma ID, bierzemy pierwszego
+        return candidates[0]
 
-    if dev_name:
-        return slugify(dev_name)
-
-    # PRIORYTET 3: Z imgList (tylko jako ostateczność)
-    imglist = row.get("imgList", "").strip()
-    if imglist:
-        paths = parse_imglist(imglist)
-        if paths:
-            parts = paths[0].split("/")
-            if len(parts) >= 4 and parts[1] == "Public" and parts[2] == "USI":
-                return parts[3]
-
-    return "unknown"
+    # Brak dopasowania — zwróć None, nie slugifikuj
+    inv_slug = row.get("USIfolder", "").strip()
+    logger.warning(
+        "Brak wpisu w Konkurenci.csv dla dewelopera %r (inwestycja %r, rpID=%r, otoID=%r) — wiersz pominięty",
+        dev_name, inv_slug,
+        row.get("rpID", ""), row.get("otoID", ""),
+    )
+    return None
 
 
 def extract_native_slugs(row: dict) -> tuple[str | None, str | None]:
@@ -333,7 +333,9 @@ def import_csv(
     konkurenci_path = csv_path.parent / "Konkurenci.csv"
     dev_mapping = load_developer_mapping(konkurenci_path)
     if dev_mapping:
-        logger.info(f"Loaded {len(dev_mapping)} developer slug mappings from {konkurenci_path}")
+        n_id = sum(len(v) for v in dev_mapping["id"].values())
+        n_name = len(dev_mapping["name"])
+        logger.info(f"Loaded {n_id} portal-ID mappings and {n_name} name mappings from {konkurenci_path}")
 
     if not csv_path.exists():
         logger.error(f"CSV not found: {csv_path}")
@@ -379,6 +381,11 @@ def import_csv(
                 logger.warning(f"Skipping {inv_slug}: {e}")
                 continue
 
+            _any_result = rp_result or oto_result
+            dev_slug = _any_result["developer_slug"] if _any_result else ""
+            if not dev_slug:
+                continue
+
             if not dry_run:
                 # ── RP Processing ─────────────────────────────────────────────
                 if rp_result:
@@ -393,7 +400,7 @@ def import_csv(
                         out.write(rp_raw)
                     
                     # Save ratings
-                    with open(inv_dir_rp / f"meta_rp_{inv_slug_rp}_ratings.json", "w", encoding="utf-8") as out:
+                    with open(inv_dir_rp / f"meta_{inv_slug_rp}_ratings.json", "w", encoding="utf-8") as out:
                         json.dump(ratings, out, indent=2, ensure_ascii=False)
                     
                     # Save app_result
@@ -424,7 +431,7 @@ def import_csv(
                         out.write(oto_raw)
                     
                     # Save ratings
-                    with open(inv_dir_oto / f"meta_oto_{inv_slug_oto}_ratings.json", "w", encoding="utf-8") as out:
+                    with open(inv_dir_oto / f"meta_{inv_slug_oto}_ratings.json", "w", encoding="utf-8") as out:
                         json.dump(ratings, out, indent=2, ensure_ascii=False)
                     
                     # Save app_result

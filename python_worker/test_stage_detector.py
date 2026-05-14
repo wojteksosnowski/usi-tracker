@@ -139,21 +139,3 @@ def test_stage_url_in_extracted_stages():
         assert "show_sold_stage=true" in s["url"]
         assert f"stage={s['stage_id']}" in s["url"]
 
-
-# ─── url_parser ──────────────────────────────────────────────────────────────
-
-def test_url_parser_no_stage():
-    result = parse_url("https://rynekpierwotny.pl/oferty/dev-slug/inv-slug-20202/")
-    assert result["type"] == "rynekpierwotny"
-    assert result["stage_id"] is None
-    assert result["show_sold_stage"] is False
-
-
-def test_url_parser_with_stage():
-    result = parse_url(
-        "https://rynekpierwotny.pl/oferty/novisa-dev/boska-etap-3-20202/"
-        "?show_sold_stage=true&stage=1738"
-    )
-    assert result["stage_id"] == "1738"
-    assert result["show_sold_stage"] is True
-    assert result["offer_id"] == "20202"

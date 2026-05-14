@@ -133,7 +133,20 @@
       "Bash(curl *)",
       "Bash(grep -n '`\\\\${' python_worker/ui/view-dev-detail.jsx)",
       "Bash(xargs -I{} python3 -c \"import json,sys; d=json.load\\(open\\('{}'\\)\\);pm=d.get\\('portal_mapping',{}\\).get\\('to',{}\\); print\\(pm\\)\")",
-      "Bash(xargs -I{} sh -c 'echo \"=== {} ===\" && python3 -c \"import json; d=json.load\\(open\\(\\\\\"$1\\\\\"\\)\\); print\\(json.dumps\\(d.get\\(\\\\\"sources\\\\\",{}\\).get\\(\\\\\"to\\\\\",{}\\), indent=2\\)\\)\" -- {}')"
+      "Bash(xargs -I{} sh -c 'echo \"=== {} ===\" && python3 -c \"import json; d=json.load\\(open\\(\\\\\"$1\\\\\"\\)\\); print\\(json.dumps\\(d.get\\(\\\\\"sources\\\\\",{}\\).get\\(\\\\\"to\\\\\",{}\\), indent=2\\)\\)\" -- {}')",
+      "Bash(grep -E \"^[^/]*\\\\.py$|adapters|manager\")",
+      "Bash(xargs -I {} basename {} .py)",
+      "Bash(rm -rf Public/USIdata/4estetica-sp-z-o-o/osiedle-hallera-zabrze)",
+      "Bash(rm -rf Public/USIdata/4estetica-sp-z-o-o/osiedle-hallera-grzybowice)",
+      "Bash(mv Public/USI/5th-avenue-holding-s-a/5th-avenue-apartments/ Public/USI/5th-avenue-holding-sa/5th-avenue-apartments/)",
+      "Bash(rm -rf Public/USIdata/5th-avenue-apartments-holding/5th-avenue-apartments)",
+      "Bash(mkdir -p Public/USI/5th-avenue-holding-s-a/5th-avenue-apartments)",
+      "Bash(mv 'Public/USI/5th-avenue-holding-sa/5th-avenue-apartments/*' Public/USI/5th-avenue-holding-s-a/5th-avenue-apartments/)",
+      "Bash(rmdir Public/USI/5th-avenue-holding-sa/5th-avenue-apartments)",
+      "Read(//Volumes/Samsam/claude-py/usi-tracker/Public/USI/5th-avenue-holding-s-a/**)",
+      "Bash(xargs -I {} sh -c 'echo \"=== {} ===\" && head -c 100 {}')",
+      "Bash(grep -E \"\\\\-ID[a-zA-Z0-9]+$\")",
+      "Bash(grep -E '-ID[A-Za-z0-9]+\\(/|$\\)')"
     ]
   }
 }

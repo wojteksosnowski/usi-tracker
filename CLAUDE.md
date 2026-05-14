@@ -13,6 +13,16 @@ USI Tracker is a Python worker that scrapes Polish real estate portals (RynekPie
 4. `Merger` combines all portal results and writes `usi_{inv_slug}.json`
 5. Images are downloaded into `Public/USI/{dev_slug}/{inv_slug}/`
 
+## Architectural Mandates
+
+These rules govern all design decisions — they override convenience:
+
+1. **Scraper delegation** — All portal I/O must go through the `usi_scrapers` library. No direct portal fetching in the tracker.
+2. **Raw file immutability** — `raw_rp_*.json`, `raw_oto_*.json`, `raw_to_*.json` are reference data; never edit them after download.
+3. **Portal slug immutability** — Raw slugs and IDs received from portals must never be modified by tracker code.
+4. **Umbrella file precedence** — `usi_*.json` canonical files govern all business logic and UI; raw files are inputs only.
+5. **Future repo split** — API must stay pure REST; avoid tight Python/React coupling to enable a clean frontend/backend separation later.
+
 ## Setup
 
 ```bash
@@ -60,7 +70,7 @@ python3 -m python_worker.main download-raw dom-development-sa/dzielna-one --port
 # Rebuild usi_*.json from already-downloaded raw_*.json files (no network requests)
 python3 -m python_worker.main rebuild-from-raw dom-development-sa/dzielna-one
 
-# Import all investments from USImaster.csv into USIdata/
+# Import all investments from USImaster.csv into USIdata/ [LEGACY — pending removal]
 python3 -m python_worker.main import-csv
 python3 -m python_worker.main import-csv --limit 10 --dry-run
 python3 -m python_worker.main import-csv --no-split   # keep dual-portal rows as single record
@@ -107,7 +117,7 @@ logs/            Runtime logs (worker.log)
 |---|---|
 | `main.py` | CLI entry point; dispatches to ui, update-dev, update-inv, discover, download-raw, rebuild-from-raw, import-csv, backfill-ids |
 | `adapters/` | Package exposing `AdapterFactory`, `Merger`, and re-exporting the adapter classes from `usi_scrapers` (`RPAdapter`, `OtodomAdapter`, `TOAdapter`). `Merger.merge()` in `adapters/merger.py` combines portal results into the unified schema. |
-| `developer_manager.py` | `DeveloperManager` — reads/writes `usi_dev_*.json` profiles, generates `DEV-NNNN`/`INV-NNNN` IDs, saves raw portal JSONs |
+| `developer_manager.py` | `DeveloperManager` — reads/writes `usi_dev_*.json` profiles, generates `DEV-NNNN`/`INV-NNNN` IDs, saves raw portal JSONs. Use `find_developer_by_id(portal, id)` for lookups — portal IDs are authoritative, never match by slug similarity. |
 | `fetcher.py` | `Fetcher` class + module-level `fetch_html`/`fetch_json` — shared HTTP utilities with rate-limiting |
 | `scraper_rp.py` | RynekPierwotny.pl scraper — hits their REST API directly; exports `scrape_rynek_pierwotny`, `discover_rp_investments`, `download_raw_rp_json` |
 | `scraper_otodom.py` | Otodom.pl scraper — fetches HTML via ScraperAPI, extracts `__NEXT_DATA__` JSON |
@@ -117,7 +127,7 @@ logs/            Runtime logs (worker.log)
 | `api/` | Flask blueprints (`investments`, `discovery`, `jobs`, `reports`, `poi`, `crawler_api`) mounted by `ui_server.py`; thin HTTP layer that delegates to service classes |
 | `jobs.py` | `JobManager` — runs long scrape/update operations in background threads; tracks progress/status so the UI can poll `/api/jobs/<id>`. Any operation taking >1 s must go through `JobManager`. |
 | `crawler.py` | `Wędrowiec` — background daemon (60 s tick) running two alternating modes: **Wizyta** (visits a known developer and runs discovery) and **Eksploracja** (pages portal catalogues to find new developers). Mounted by `ui_server.py` and exposed via `crawler_api` blueprint. |
-| `csv_importer.py` | Bulk importer from USImaster.csv; exports `slugify()` used across the codebase |
+| `csv_importer.py` | **Legacy** bulk importer from USImaster.csv (pending removal); exports `slugify()` used across the codebase |
 | `listings.py` | Batch fetch of recent investments from both portals; produces `app_latest_results*.json` |
 | `image_saver.py` | Downloads and deduplicates images into `Public/USI/{dev_slug}/{inv_slug}/` |
 | `grabber.py` | Generic regex-based link extractor for arbitrary developer sites |
@@ -136,6 +146,8 @@ The `usi_scrapers` PyPI library (`from usi_scrapers import api as scraper_api`) 
 **Scraper Library Convention — critical:** Do NOT add new `scraper_*.py` files to this repo. All new portal interaction logic must live in the `usi_scrapers` library. Use `TechnicalDataManager` from that library for all raw-data saves and image syncs — never write portal data directly to `Public/USIdata` from tracker code. This prevents path drift between environments.
 
 **Developer merging:** Developer profiles use a `parent_id` model — child records are filtered from main lists but retained for raw-data integrity. Use `DeveloperManager` for all reads/writes to `usi_dev_*.json`; never access those files directly.
+
+**Portal identifier normalization:** Normalize all portal identifiers to `rp`, `oto`, or `to` in the API layer before any routing, persistence, or branching. Raw payloads may use different internal names — translate at the boundary.
 
 ## UI JSX Architecture
 
