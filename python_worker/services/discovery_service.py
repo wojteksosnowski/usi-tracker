@@ -203,6 +203,7 @@ class DiscoveryService:
             # Last resort fallback if both discovery and parsing failed
             from python_worker.csv_importer import slugify
             inv_slug = slugify(item["name"])
+            logger.warning(f"[slugify] _register_new_investment: no slug from URL/discovery for '{item['name']}' (portal={portal}) → inv_slug='{inv_slug}'")
 
         # Determine source key
         portal_key = "rp" if portal == "rp" else ("oto" if portal == "otodom" else "to")
@@ -213,7 +214,9 @@ class DiscoveryService:
             vendor = item.get("vendor")
             if isinstance(vendor, dict):
                 vendor_id = vendor.get("id")
-        
+        elif portal in ("otodom", "oto"):
+            vendor_id = item.get("agency_id") or item.get("developer_id") or item.get("vendor_id")
+
         # Delegate registration to InvestmentService (which now handles canonical slugs from library)
         return self.isvc.register_investment(
             portal=portal_key,

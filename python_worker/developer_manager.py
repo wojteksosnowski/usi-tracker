@@ -257,7 +257,9 @@ class DeveloperManager:
 
     def resolve_dev_slug(self, name: str) -> str:
         """Standardizes a developer name into a slug."""
-        return slugify(name)
+        slug = slugify(name)
+        logger.warning(f"[slugify] resolve_dev_slug called for '{name}' → '{slug}'")
+        return slug
 
     def find_developer_by_id(self, portal: str, portal_id: str) -> dict | None:
         """Finds a developer by its portal-specific ID (e.g., rp id, oto agency_id)."""
