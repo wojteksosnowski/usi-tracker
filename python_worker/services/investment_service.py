@@ -182,7 +182,7 @@ class InvestmentService:
 
         return portal_slug or fallback
 
-    def update_investment(self, dev_slug, inv_slug, use_local_raw=False):
+    def update_investment(self, dev_slug, inv_slug, use_local_raw=False, skip_images=False, skip_index=False):
         """
         Orchestrates the update of an investment:
         1. Scrapes raw data (or loads local)
@@ -259,6 +259,9 @@ class InvestmentService:
                 elif portal == "oto": oto_unified = rp_oto_to_unified
                 elif portal == "to": to_unified = rp_oto_to_unified
                 fetched_sources.append(f"{portal_name} (local)")
+            elif use_local_raw:
+                logger.debug(f"[local-raw] {portal_name}: no raw file in {inv_dir}, skipping")
+                continue
             else:
                 # RP uses numeric ID; Otodom and TO require a full URL
                 if portal == "rp":
@@ -305,14 +308,22 @@ class InvestmentService:
 
         if rp_unified or oto_unified or to_unified:
             # Semantic layer: Ratings and Merging
-            ratings_path = inv_dir / f"meta_{inv_slug}_ratings.json"
+            # Try canonical name first, then portal-prefixed variants from bulk imports
+            ratings_candidates = [
+                inv_dir / f"meta_{inv_slug}_ratings.json",
+                inv_dir / f"meta_rp_{inv_slug}.json",
+                inv_dir / f"meta_oto_{inv_slug}.json",
+                inv_dir / f"meta_to_{inv_slug}.json",
+            ]
             ratings = {}
-            if ratings_path.exists():
-                try:
-                    with open(ratings_path, "r", encoding="utf-8") as f:
-                        ratings = json.load(f)
-                except Exception as e:
-                    logger.error(f"Error reading ratings file: {e}")
+            for ratings_path in ratings_candidates:
+                if ratings_path.exists():
+                    try:
+                        with open(ratings_path, "r", encoding="utf-8") as f:
+                            ratings = json.load(f)
+                        break
+                    except Exception as e:
+                        logger.error(f"Error reading ratings file: {e}")
 
             event = f"Sync: {', '.join(fetched_sources)}" if fetched_sources else "Manual Update"
             new_unified = Merger.merge(rp_unified, oto_unified, to_unified, ratings, existing_data=usi_data, event=event)
@@ -320,6 +331,8 @@ class InvestmentService:
             # Technical layer: Image synchronization via library
             # img_dev_slug comes from portal raw data, not from slugify — canonical per the portal.
             all_urls = new_unified.get("image_urls", [])
+            if skip_images:
+                all_urls = []  # skip download; existing on-disk images are picked up below
             if all_urls and self.tech_manager:
                 logger.info(f"Synchronizing images for {inv_slug} ({len(all_urls)} URLs)")
                 saved_filenames = self.tech_manager.sync_images(all_urls, img_dev_slug, inv_slug)
@@ -344,11 +357,12 @@ class InvestmentService:
             with open(usi_path, "w", encoding="utf-8") as f_out:
                 json.dump(new_unified, f_out, indent=2, ensure_ascii=False)
 
-            try:
-                import python_worker.investment_index as inv_index
-                inv_index.upsert(self.data_dir, self.public_usi_dir, dev_slug, inv_slug)
-            except Exception as _ie:
-                logger.debug(f"Index upsert skipped for {inv_slug}: {_ie}")
+            if not skip_index:
+                try:
+                    import python_worker.investment_index as inv_index
+                    inv_index.upsert(self.data_dir, self.public_usi_dir, dev_slug, inv_slug)
+                except Exception as _ie:
+                    logger.debug(f"Index upsert skipped for {inv_slug}: {_ie}")
 
             summary = f"Updated: {', '.join(fetched_sources)}"
             if failed_sources:

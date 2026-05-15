@@ -222,6 +222,10 @@ def main():
     parser_rebuild_devs.add_argument("--force", action="store_true", help="Rebuild even if usi_dev_*.json already exists")
     parser_rebuild_devs.add_argument("--dry-run", action="store_true", help="Show what would be built without writing")
 
+    # Command: rebuild-all
+    parser_rebuild_all = subparsers.add_parser("rebuild-all", help="Build usi_*.json from local raw files for every investment in USIdata")
+    parser_rebuild_all.add_argument("--force", action="store_true", help="Rebuild even if usi_*.json already exists")
+
     # Command: suggest
     parser_suggest = subparsers.add_parser("suggest", help="Run the developer suggestion algorithm (similarity & location)")
 
@@ -359,6 +363,40 @@ def main():
         from .init_developers import rebuild_devs_from_raws
         built, skipped = rebuild_devs_from_raws(force=args.force, dry_run=args.dry_run)
         logger.info(f"rebuild-devs finished: {built} built, {skipped} skipped.")
+
+    elif args.command == "rebuild-all":
+        logger.info("Rebuilding usi_*.json from local raw files for all investments...")
+        from .services.investment_service import InvestmentService
+        svc = InvestmentService()
+        built = failed = skipped = 0
+        for dev_dir in sorted(USI_DATA_DIR.iterdir()):
+            if not dev_dir.is_dir() or dev_dir.name.startswith("_"):
+                continue
+            for inv_dir in sorted(dev_dir.iterdir()):
+                if not inv_dir.is_dir():
+                    continue
+                dev_slug = dev_dir.name
+                inv_slug = inv_dir.name
+                has_raw = any(inv_dir.glob("raw_*.json"))
+                if not has_raw:
+                    skipped += 1
+                    continue
+                has_usi = any(inv_dir.glob("usi_*.json"))
+                if has_usi and not args.force:
+                    skipped += 1
+                    continue
+                try:
+                    ok = svc.update_investment(dev_slug, inv_slug, use_local_raw=True, skip_images=True, skip_index=True)
+                    if ok:
+                        built += 1
+                    else:
+                        failed += 1
+                except Exception as e:
+                    logger.error(f"Failed {dev_slug}/{inv_slug}: {e}")
+                    failed += 1
+            if built % 500 == 0 and built > 0:
+                logger.info(f"Progress: {built} built, {failed} failed, {skipped} skipped...")
+        logger.info(f"rebuild-all finished: {built} built, {failed} failed, {skipped} skipped.")
 
     elif args.command == "suggest":
         logger.info("Starting developer suggestion algorithm...")
