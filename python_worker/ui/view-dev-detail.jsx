@@ -113,14 +113,15 @@ function DeveloperDetail({
   }, [developer]);
 
   const handleMerge = (suggestion) => {
+    const source_id = suggestion.usi_dev_id;
     const source_slug = suggestion.developer_slug;
 
     // Optimistic: move card immediately from suggestions → connected
-    setLocalSuggestions(prev => prev.filter(s => s.developer_slug !== source_slug));
+    setLocalSuggestions(prev => prev.filter(s => s.usi_dev_id !== source_id));
     const arriving = {
       slug: source_slug,
       name: suggestion.name || source_slug,
-      usi_dev_id: suggestion.usi_dev_id,
+      usi_dev_id: source_id,
       portal_mapping: suggestion.portal_mapping || {},
       investments_count: suggestion.investments_count || 0,
       merged_at: new Date().toISOString(),
@@ -132,7 +133,7 @@ function DeveloperDetail({
     fetch(`/api/developer/${dev_slug}/merge`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source_slug })
+      body: JSON.stringify({ source_id })
     })
     .then(r => r.json())
     .then(data => {
@@ -141,23 +142,23 @@ function DeveloperDetail({
         refetch('developers'); // remove merged child from global list
       } else {
         // Revert optimistic update
-        setLocalMerged(prev => prev.filter(m => m.slug !== source_slug));
+        setLocalMerged(prev => prev.filter(m => m.usi_dev_id !== source_id));
         setLocalSuggestions(prev => [suggestion, ...prev]);
       }
     })
     .catch(() => {
-      setLocalMerged(prev => prev.filter(m => m.slug !== source_slug));
+      setLocalMerged(prev => prev.filter(m => m.usi_dev_id !== source_id));
       setLocalSuggestions(prev => [suggestion, ...prev]);
     });
   };
 
-  const handleUnmerge = (memberSlug) => {
-    const leaving = localMerged.find(m => m.slug === memberSlug);
-    setLocalMerged(prev => prev.filter(m => m.slug !== memberSlug));
+  const handleUnmerge = (memberId) => {
+    const leaving = localMerged.find(m => m.usi_dev_id === memberId);
+    setLocalMerged(prev => prev.filter(m => m.usi_dev_id !== memberId));
     fetch(`/api/developer/${dev_slug}/unmerge`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source_slug: memberSlug })
+      body: JSON.stringify({ source_id: memberId })
     })
     .then(r => r.json())
     .then(data => {
@@ -172,6 +173,7 @@ function DeveloperDetail({
       if (leaving) setLocalMerged(prev => [leaving, ...prev]);
     });
   };
+
 
   const handleDismiss = (usi_dev_id) => {
     const dismissed = localSuggestions.find(s => s.usi_dev_id === usi_dev_id);
@@ -560,7 +562,7 @@ function MergedMembersPanel({ dev, members, arrivingSlug, onUnmerge }) {
               <button
                 className="usi-btn sm ghost"
                 title="Odłącz dewelopera"
-                onClick={() => onUnmerge(m.slug)}
+                onClick={() => onUnmerge(m.usi_dev_id)}
               >
                 <Icon name="x" size={12} />
               </button>

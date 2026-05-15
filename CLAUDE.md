@@ -77,6 +77,19 @@ python3 -m python_worker.main import-csv --no-split   # keep dual-portal rows as
 
 # Assign missing usi_dev_id / usi_inv_id across all records
 python3 -m python_worker.main backfill-ids
+
+# Initialize/update developer records from Konkurenci.csv (creates mock raw files + builds usi_dev_*.json)
+python3 -m python_worker.main init-devs
+
+# Run developer similarity/deduplication algorithm (writes suggestions[] to dev files)
+python3 -m python_worker.main suggest
+
+# Rebuild the fast investment list index (run after any bulk import or structural change)
+python3 -m python_worker.main rebuild-index
+
+# Audit developer duplicates and missing portal IDs
+python3 python_worker/audit_dev_duplicates.py
+python3 python_worker/audit_dev_duplicates.py --min-score 0.85
 ```
 
 ## Configuration
@@ -107,7 +120,7 @@ reference-data/  Static reference files: coda/ (CSV + request samples), rynekpie
 Public/          Dropbox-synced folder (do not rename)
   USI/           Downloaded images: {dev_slug}/{inv_slug}/{file}
   USIdata/       Investment JSON data: {dev_slug}/{inv_slug}/
-  USIdev/        Developer profile JSONs: usi_dev_{dev_slug}.json; raw/ for portal raw profiles
+  USIdev/        Developer profile JSONs: {dev_slug}/usi_dev_{dev_slug}.json + raw portal files per dev
 logs/            Runtime logs (worker.log)
 ```
 
@@ -117,7 +130,10 @@ logs/            Runtime logs (worker.log)
 |---|---|
 | `main.py` | CLI entry point; dispatches to ui, update-dev, update-inv, discover, download-raw, rebuild-from-raw, import-csv, backfill-ids |
 | `adapters/` | Package exposing `AdapterFactory`, `Merger`, and re-exporting the adapter classes from `usi_scrapers` (`RPAdapter`, `OtodomAdapter`, `TOAdapter`). `Merger.merge()` in `adapters/merger.py` combines portal results into the unified schema. |
-| `developer_manager.py` | `DeveloperManager` — reads/writes `usi_dev_*.json` profiles, generates `DEV-NNNN`/`INV-NNNN` IDs, saves raw portal JSONs. Use `find_developer_by_id(portal, id)` for lookups — portal IDs are authoritative, never match by slug similarity. |
+| `developer_manager.py` | `DeveloperManager` — reads/writes `usi_dev_*.json` profiles under `USIdev/{slug}/`, generates `DEV-NNNN`/`INV-NNNN` IDs. Key lookup methods: `get_developer(slug)` for URL-routing only; `get_developer_by_id(usi_dev_id)` for all cross-record references; `find_developer_by_id(portal, portal_id)` for portal ID lookups. Merge operations: `merge_by_id(target_id, source_id)` / `unmerge_by_id(target_id, source_id)` — always use IDs, never slugs. |
+| `init_developers.py` | `init_developers_from_konkurenci()` — seeds `USIdev/` from Konkurenci.csv by writing mock raw files then calling `_build_dev_from_raws()`. Split rule: rows with both `rpID` and `otoID` produce two separate records (RP-only + OTO-only) when `otoSlug` ≠ `usiFolder`. |
+| `detect_similar_devs.py` | `detect_similar()` — scans all dev records for name/geo similarity, writes `suggestions[]` array via `create_developer_file()` (never direct file writes). |
+| `audit_dev_duplicates.py` | Standalone audit: Section A = unmerged suggestion pairs; Section B = dev records with portal IDs in Konkurenci.csv not yet in the file (split-aware — checks `otoSlug` column before flagging). |
 | `fetcher.py` | `Fetcher` class + module-level `fetch_html`/`fetch_json` — shared HTTP utilities with rate-limiting |
 | `scraper_rp.py` | RynekPierwotny.pl scraper — hits their REST API directly; exports `scrape_rynek_pierwotny`, `discover_rp_investments`, `download_raw_rp_json` |
 | `scraper_otodom.py` | Otodom.pl scraper — fetches HTML via ScraperAPI, extracts `__NEXT_DATA__` JSON |
@@ -146,6 +162,10 @@ The `usi_scrapers` PyPI library (`from usi_scrapers import api as scraper_api`) 
 **Scraper Library Convention — critical:** Do NOT add new `scraper_*.py` files to this repo. All new portal interaction logic must live in the `usi_scrapers` library. Use `TechnicalDataManager` from that library for all raw-data saves and image syncs — never write portal data directly to `Public/USIdata` from tracker code. This prevents path drift between environments.
 
 **Developer merging:** Developer profiles use a `parent_id` model — child records are filtered from main lists but retained for raw-data integrity. Use `DeveloperManager` for all reads/writes to `usi_dev_*.json`; never access those files directly.
+
+**Developer ID-first rule:** All cross-references between developer records (suggestions, merged_from, API payloads) must use `usi_dev_id` as the foreign key — never `developer_slug`. Slugs are acceptable only for URL routing and display. The API merge/unmerge endpoints accept `source_id` (not `source_slug`) in the request body.
+
+**Developer file layout:** `USIdev/{slug}/` is a per-developer directory. The canonical file is `usi_dev_{slug}.json`; raw portal files (`raw_rp_*`, `raw_oto_*`, `raw_to_*`) live alongside it. `portal_mapping` in the canonical file is always rebuilt from raw files by `_build_dev_from_raws()` — do not write `portal_mapping` directly.
 
 **Portal identifier normalization:** Normalize all portal identifiers to `rp`, `oto`, or `to` in the API layer before any routing, persistence, or branching. Raw payloads may use different internal names — translate at the boundary.
 
@@ -220,9 +240,13 @@ Each investment folder `Public/USIdata/{dev_slug}/{inv_slug}/` contains:
 - `meta_{inv_slug}_ratings.json` — user-entered ratings metadata (preserved across re-syncs)
 - `processing_log_{slug}.txt` — per-investment append-only log written on each update
 
-Developer profiles are stored separately under `Public/USIdev/`:
-- `usi_dev_{dev_slug}.json` — developer profile including `portal_mapping` (RP/Oto/TO IDs)
-- `raw/` — raw portal developer profile JSONs
+Developer profiles are stored under `Public/USIdev/{dev_slug}/`:
+- `usi_dev_{dev_slug}.json` — developer profile; `portal_mapping` is **derived from raw files** by `_build_dev_from_raws()`
+- `raw_rp_{dev_slug}.json` — raw RP developer profile (or mock with `_mock: true` when seeded from CSV)
+- `raw_oto_{dev_slug}.json` — raw Otodom developer profile (or mock)
+- `raw_to_{dev_slug}.json` — raw TabelaOfert developer profile (or mock)
+
+Mock raw files (created by `init-devs`) contain only the portal IDs from Konkurenci.csv plus `"_mock": true`. When `update-dev` runs a real scrape, it overwrites the mock with the full portal response at the same path — the flag disappears automatically. `_build_dev_from_raws()` handles both mock and real formats when building `portal_mapping`.
 
 `usi_{inv_slug}.json` `sources` field structure:
 ```json
@@ -246,3 +270,5 @@ Otodom.pl changes `otoID` (and sometimes the URL slug) for the same investment w
 - **Coordinate order in RP API**: `geo_point` from the RynekPierwotny API is `[longitude, latitude]` (GeoJSON order). CSV columns are separate `Latitude`/`Longitude` fields. Don't mix the two read paths.
 - **Polish `ł` / `Ł` in slugs**: Python's `unicodedata.normalize("NFKD", ...)` does not decompose the Polish stroke letter. Both `csv_importer.py` and `portal_matcher.py` apply `str.maketrans("łŁ", "lL")` first. Omitting that step silently produces slugs containing literal `ł`.
 - **Test fixtures are optional**: Tests guarded by `@pytest.mark.skipif(not PATH.exists(), ...)` are silently skipped when HTML/JSON reference files under `reference-data/` are absent. A fully green test run does not mean all tests ran.
+- **`detect_similar_devs.py` must save via `DeveloperManager`**: Never write dev files directly (e.g. `open(path, "w")`); always use `dm.create_developer_file()`. Direct writes go to the wrong path after the USIdev subdirectory migration.
+- **Real OTO dev profile shape**: The real Otodom developer JSON has `owner.id` and `filterAttributes.sellerId` for the agency ID — not a top-level `agency_id`. `_build_dev_from_raws()` handles both mock and real formats; see the extraction logic there before adding new portal adapters.

@@ -170,26 +170,37 @@ class DeveloperManager:
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
         return file_path
+    def _dev_file_path(self, dev_slug: str) -> Path:
+        """Canonical path: USIdev/{dev_slug}/usi_dev_{dev_slug}.json"""
+        return self.dev_dir / dev_slug / f"usi_dev_{dev_slug}.json"
+
+    def _dev_file_path_legacy(self, dev_slug: str) -> Path:
+        """Legacy flat path: USIdev/usi_dev_{dev_slug}.json"""
+        return self.dev_dir / f"usi_dev_{dev_slug}.json"
+
     def create_developer_file(self, developer_data: dict):
         """
-        Creates or updates a usi_dev_{slug}.json file in self.dev_dir.
+        Creates or updates usi_dev_{slug}.json in USIdev/{slug}/ subdirectory.
         Expects keys: developer_slug, name, website, portal_mapping.
         """
         dev_slug = developer_data.get("developer_slug")
         if not dev_slug:
             raise ValueError("developer_slug is required")
 
-        # Save directly in central USIdev directory
-        file_path = self.dev_dir / f"usi_dev_{dev_slug}.json"
-        
-        # Load existing data to preserve fields or audit info if needed
+        file_path = self._dev_file_path(dev_slug)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Check new path first, then legacy flat path for existing data
+        legacy_path = self._dev_file_path_legacy(dev_slug)
         existing_data = {}
-        if file_path.exists():
-            try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    existing_data = json.load(f)
-            except Exception as e:
-                logger.warning(f"Could not read existing dev file {file_path}: {e}")
+        for candidate in (file_path, legacy_path):
+            if candidate.exists():
+                try:
+                    with open(candidate, "r", encoding="utf-8") as f:
+                        existing_data = json.load(f)
+                    break
+                except Exception as e:
+                    logger.warning(f"Could not read existing dev file {candidate}: {e}")
 
         # Update data
         developer_data["audit"] = existing_data.get("audit", {
@@ -211,27 +222,70 @@ class DeveloperManager:
         return file_path
 
     def get_developer(self, dev_slug: str) -> dict:
-        """Loads developer data from USIdev directory, with fallback to USIdata legacy location."""
-        file_path = self.dev_dir / f"usi_dev_{dev_slug}.json"
-        if not file_path.exists():
-            # Fallback: legacy usi_dev_*.json stored inside USIdata/{slug}/
-            file_path = self.data_dir / dev_slug / f"usi_dev_{dev_slug}.json"
-        if not file_path.exists():
+        """Loads developer data. Checks canonical subdir path, then flat legacy, then USIdata legacy."""
+        candidates = [
+            self._dev_file_path(dev_slug),
+            self._dev_file_path_legacy(dev_slug),
+            self.data_dir / dev_slug / f"usi_dev_{dev_slug}.json",
+        ]
+        for file_path in candidates:
+            if file_path.exists():
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        return json.load(f)
+                except Exception as e:
+                    logger.error(f"Error reading developer file {file_path}: {e}")
+                    return None
+        return None
+
+    def get_developer_by_id(self, usi_dev_id: str) -> dict | None:
+        """Find developer by usi_dev_id. Authoritative lookup — never use slug for cross-references."""
+        if not usi_dev_id:
             return None
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception as e:
-            logger.error(f"Error reading developer file {file_path}: {e}")
-            return None
+        for dev_file in self.dev_dir.glob("*/usi_dev_*.json"):
+            try:
+                data = json.loads(dev_file.read_text(encoding="utf-8"))
+                if data.get("usi_dev_id") == usi_dev_id:
+                    return data
+            except Exception:
+                continue
+        return None
+
+    def resolve_id_to_slug(self, usi_dev_id: str) -> str | None:
+        """Return developer_slug for a given usi_dev_id, or None if not found."""
+        dev = self.get_developer_by_id(usi_dev_id)
+        return dev.get("developer_slug") if dev else None
 
     def list_developers(self, only_merged: bool = False) -> list:
         """Returns top-level developer data objects (children with parent_id excluded)."""
         developers = []
+        seen_slugs = set()
+        # New canonical location: USIdev/{slug}/usi_dev_{slug}.json
+        for json_file in self.dev_dir.glob("*/usi_dev_*.json"):
+            try:
+                with open(json_file, "r", encoding="utf-8") as f:
+                    dev = json.load(f)
+                slug = dev.get("developer_slug", "")
+                seen_slugs.add(slug)
+                if not dev.get("parent_id"):
+                    if only_merged:
+                        has_children = len(dev.get("merged_from", [])) > 0
+                        pm = dev.get("portal_mapping", {})
+                        has_mapping = any(pm.get(p) for p in ("rp", "oto", "to"))
+                        if not (has_children or has_mapping):
+                            continue
+                    developers.append(dev)
+            except Exception as e:
+                logger.warning(f"Error reading {json_file}: {e}")
+        # Legacy flat files not yet migrated
         for json_file in self.dev_dir.glob("usi_dev_*.json"):
             try:
                 with open(json_file, "r", encoding="utf-8") as f:
                     dev = json.load(f)
+                slug = dev.get("developer_slug", "")
+                if slug in seen_slugs:
+                    continue
+                seen_slugs.add(slug)
                 if not dev.get("parent_id"):
                     if only_merged:
                         has_children = len(dev.get("merged_from", [])) > 0
@@ -254,6 +308,24 @@ class DeveloperManager:
         for dev in self.list_developers():
             total += ds.get_unregistered_count(dev["developer_slug"], identifiers)
         return total
+
+    def merge_by_id(self, target_id: str, source_id: str) -> bool:
+        """Merge two developers by usi_dev_id. Resolves slugs internally."""
+        target_slug = self.resolve_id_to_slug(target_id)
+        source_slug = self.resolve_id_to_slug(source_id)
+        if not target_slug or not source_slug:
+            logger.error(f"merge_by_id: could not resolve slugs for {target_id}/{source_id}")
+            return False
+        return self.merge_developers(target_slug, source_slug)
+
+    def unmerge_by_id(self, target_id: str, source_id: str) -> bool:
+        """Unmerge two developers by usi_dev_id. Resolves slugs internally."""
+        target_slug = self.resolve_id_to_slug(target_id)
+        source_slug = self.resolve_id_to_slug(source_id)
+        if not target_slug or not source_slug:
+            logger.error(f"unmerge_by_id: could not resolve slugs for {target_id}/{source_id}")
+            return False
+        return self.unmerge_developer(target_slug, source_slug)
 
     def resolve_dev_slug(self, name: str) -> str:
         """Standardizes a developer name into a slug."""
@@ -354,17 +426,21 @@ class DeveloperManager:
         # Save target
         self.create_developer_file(target_dev)
 
-        # Save source with parent_id set.
-        # If source was in legacy USIdata location, normalize it to USIdev.
-        legacy_path = self.data_dir / source_slug / f"usi_dev_{source_slug}.json"
-        canonical_path = self.dev_dir / f"usi_dev_{source_slug}.json"
+        # Save source with parent_id set (normalize to canonical subdir location).
+        legacy_paths = [
+            self.data_dir / source_slug / f"usi_dev_{source_slug}.json",
+            self._dev_file_path_legacy(source_slug),
+        ]
+        canonical_path = self._dev_file_path(source_slug)
+        canonical_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             canonical_path.write_text(
                 json.dumps(source_dev, ensure_ascii=False, indent=2), encoding="utf-8"
             )
-            if legacy_path.exists() and legacy_path != canonical_path:
-                legacy_path.unlink()
-                logger.info(f"Normalized {source_slug} dev file from USIdata to USIdev")
+            for lp in legacy_paths:
+                if lp.exists() and lp != canonical_path:
+                    lp.unlink()
+                    logger.info(f"Removed legacy dev file {lp}")
         except Exception as e:
             logger.error(f"Failed to save source {source_slug} with parent_id: {e}")
 
@@ -419,13 +495,7 @@ class DeveloperManager:
         })
 
         self.create_developer_file(target_dev)
-        canonical_path = self.dev_dir / f"usi_dev_{source_slug}.json"
-        try:
-            canonical_path.write_text(
-                json.dumps(source_dev, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
-        except Exception as e:
-            logger.error(f"Failed to save unmerged source {source_slug}: {e}")
+        self.create_developer_file(source_dev)
 
         logger.info(f"Unlinked {source_slug} from {target_slug}")
         return True
@@ -433,19 +503,24 @@ class DeveloperManager:
     def find_by_portal_id(self, portal: str, portal_id: str) -> dict | None:
         """O(n) scan — finds developer with matching portal_mapping id/slug/agency_id."""
         pid = str(portal_id)
-        for dev_file in self.dev_dir.glob("usi_dev_*.json"):
-            try:
-                data = json.loads(dev_file.read_text(encoding="utf-8"))
-            except Exception:
-                continue
-            pm = (data.get("portal_mapping") or {}).get(portal) or {}
-            if (str(pm.get("id", "")) == pid
-                    or str(pm.get("slug", "")) == pid
-                    or str(pm.get("agency_id", "")) == pid):
-                return data
-            for aid in pm.get("agency_ids", []):
-                if str(aid) == pid:
+        seen = set()
+        for pattern in ("*/usi_dev_*.json", "usi_dev_*.json"):
+            for dev_file in self.dev_dir.glob(pattern):
+                if dev_file in seen:
+                    continue
+                seen.add(dev_file)
+                try:
+                    data = json.loads(dev_file.read_text(encoding="utf-8"))
+                except Exception:
+                    continue
+                pm = (data.get("portal_mapping") or {}).get(portal) or {}
+                if (str(pm.get("id", "")) == pid
+                        or str(pm.get("slug", "")) == pid
+                        or str(pm.get("agency_id", "")) == pid):
                     return data
+                for aid in pm.get("agency_ids", []):
+                    if str(aid) == pid:
+                        return data
         return None
 
     def log_event(self, dev_slug: str, event: dict) -> bool:

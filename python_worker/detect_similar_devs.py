@@ -193,9 +193,7 @@ def detect_similar():
 
         if suggestions_map:
             d1["data"]["suggestions"] = list(suggestions_map.values())
-            file_path = USI_DEV_DIR / f"usi_dev_{d1['slug']}.json"
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(d1["data"], f, indent=2, ensure_ascii=False)
+            dm.create_developer_file(d1["data"])
             suggestions_count += 1
 
     logger.info(f"Finished. Found suggestions for {suggestions_count} developers.")

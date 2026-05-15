@@ -337,35 +337,39 @@ def get_developer_detail(dev_slug):
 
     investments = _load_inv_dir(dev_slug)
 
-    # Enrich merged_from entries with portal_mapping, investments_count and inv_list
+    # Enrich merged_from entries — resolve child by usi_dev_id (not slug)
     for member in dev.get("merged_from", []):
+        child_id = member.get("usi_dev_id")
         child_slug = member.get("slug")
-        if not child_slug or child_slug == dev_slug:
+        child_dev = (dm.get_developer_by_id(child_id) if child_id
+                     else (dm.get_developer(child_slug) if child_slug else None))
+        if not child_dev or child_dev.get("developer_slug") == dev_slug:
             continue
+        child_slug = child_dev["developer_slug"]
+        member["slug"] = child_slug  # keep for UI display
         child_invs = _load_inv_dir(child_slug)
         investments.extend(child_invs)
-        child_dev = dm.get_developer(child_slug)
-        if child_dev:
-            member["portal_mapping"] = child_dev.get("portal_mapping", {})
-            member["website"] = child_dev.get("website")
-            child_dir = Path(USI_DATA_DIR) / child_slug
-            member["investments_count"] = _count_valid_investments(child_dir)
+        member["portal_mapping"] = child_dev.get("portal_mapping", {})
+        member["website"] = child_dev.get("website")
+        child_dir = Path(USI_DATA_DIR) / child_slug
+        member["investments_count"] = _count_valid_investments(child_dir)
         member["inv_list"] = [
             {"name": inv.get("name", inv.get("investment_slug", "")), "slug": inv.get("investment_slug", "")}
             for inv in child_invs[:10]
         ]
 
-    # Enrich suggestions with portal_mapping, name, investments_count
+    # Enrich suggestions — resolve suggested dev by usi_dev_id (not slug)
     for s in dev.get("suggestions", []):
+        s_id = s.get("usi_dev_id")
         s_slug = s.get("developer_slug")
-        if not s_slug:
-            continue
-        s_dev = dm.get_developer(s_slug)
+        s_dev = (dm.get_developer_by_id(s_id) if s_id
+                 else (dm.get_developer(s_slug) if s_slug else None))
         if s_dev:
+            s["developer_slug"] = s_dev.get("developer_slug", s_slug)  # refresh slug
             s["name"] = s_dev.get("name", s_slug)
             s["portal_mapping"] = s_dev.get("portal_mapping", {})
             s["website"] = s_dev.get("website")
-            s_dir = Path(USI_DATA_DIR) / s_slug
+            s_dir = Path(USI_DATA_DIR) / s_dev["developer_slug"]
             s["investments_count"] = _count_valid_investments(s_dir)
 
     dev["investments"] = investments
@@ -380,12 +384,16 @@ def merge_developer(dev_slug):
     from python_worker.config import USI_DATA_DIR
     from pathlib import Path
     payload = request.get_json() or {}
-    source_slug = payload.get("source_slug")
-    if not source_slug or not _valid_slug(source_slug):
+    source_id = payload.get("source_id")
+    if not source_id:
         abort(400)
     try:
         dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
-        if dm.merge_developers(dev_slug, source_slug):
+        target_dev = dm.get_developer(dev_slug)
+        if not target_dev:
+            abort(404)
+        target_id = target_dev.get("usi_dev_id")
+        if dm.merge_by_id(target_id, source_id):
             return jsonify({"ok": True})
         return jsonify({"ok": False, "error": "Merge failed — check server logs"}), 422
     except Exception as e:
@@ -400,12 +408,16 @@ def unmerge_developer(dev_slug):
     from python_worker.config import USI_DATA_DIR
     from pathlib import Path
     payload = request.get_json() or {}
-    source_slug = payload.get("source_slug")
-    if not source_slug or not _valid_slug(source_slug):
+    source_id = payload.get("source_id")
+    if not source_id:
         abort(400)
     try:
         dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
-        if dm.unmerge_developer(dev_slug, source_slug):
+        target_dev = dm.get_developer(dev_slug)
+        if not target_dev:
+            abort(404)
+        target_id = target_dev.get("usi_dev_id")
+        if dm.unmerge_by_id(target_id, source_id):
             return jsonify({"ok": True})
         return jsonify({"ok": False, "error": "Unmerge failed"}), 422
     except Exception as e:
