@@ -245,7 +245,8 @@ class InvestmentService:
             raw_files = list(inv_dir.glob(f"raw_{raw_prefix}_*.json"))
 
             if use_local_raw and raw_files:
-                raw_path = sorted(raw_files)[-1]  # newest file (by name, which includes timestamp)
+                canonical = inv_dir / f"raw_{raw_prefix}_{inv_slug}.json"
+                raw_path = canonical if canonical.exists() else sorted(raw_files)[-1]
                 with open(raw_path, "r") as f:
                     raw_details = json.load(f)
                 canonical_dev_slug = self._canonical_slug_from_raw(raw_prefix, raw_details, dev_slug)
