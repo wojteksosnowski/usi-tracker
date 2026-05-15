@@ -76,6 +76,11 @@ python3 -m python_worker.main backfill-ids
 # Initialize/update developer records from Konkurenci.csv (creates mock raw files + builds usi_dev_*.json)
 python3 -m python_worker.main init-devs
 
+# Rebuild usi_dev_*.json from existing raw files (no CSV needed — covers all USIdev subdirs)
+python3 -m python_worker.main rebuild-devs
+python3 -m python_worker.main rebuild-devs --force   # overwrite existing usi_dev_*.json too
+python3 -m python_worker.main rebuild-devs --dry-run
+
 # Run developer similarity/deduplication algorithm (writes suggestions[] to dev files)
 python3 -m python_worker.main suggest
 
@@ -123,10 +128,10 @@ logs/            Runtime logs (worker.log)
 
 | Module | Role |
 |---|---|
-| `main.py` | CLI entry point; dispatches to ui, update-dev, update-inv, discover, download-raw, rebuild-from-raw, backfill-ids |
+| `main.py` | CLI entry point; dispatches to ui, update-dev, update-inv, discover, download-raw, rebuild-from-raw, backfill-ids, rebuild-devs |
 | `adapters/` | Package exposing `AdapterFactory`, `Merger`, and re-exporting the adapter classes from `usi_scrapers` (`RPAdapter`, `OtodomAdapter`, `TOAdapter`). `Merger.merge()` in `adapters/merger.py` combines portal results into the unified schema. |
 | `developer_manager.py` | `DeveloperManager` — reads/writes `usi_dev_*.json` profiles under `USIdev/{slug}/`, generates `DEV-NNNN`/`INV-NNNN` IDs. Key lookup methods: `get_developer(slug)` for URL-routing only; `get_developer_by_id(usi_dev_id)` for all cross-record references; `find_developer_by_id(portal, portal_id)` for portal ID lookups. Merge operations: `merge_by_id(target_id, source_id)` / `unmerge_by_id(target_id, source_id)` — always use IDs, never slugs. |
-| `init_developers.py` | `init_developers_from_konkurenci()` — seeds `USIdev/` from Konkurenci.csv by writing mock raw files then calling `_build_dev_from_raws()`. Split rule: rows with both `rpID` and `otoID` produce two separate records (RP-only + OTO-only) when `otoSlug` ≠ `usiFolder`. |
+| `init_developers.py` | `init_developers_from_konkurenci()` — seeds `USIdev/` from Konkurenci.csv by writing mock raw files then calling `_build_dev_from_raws()`. Split rule: rows with both `rpID` and `otoID` produce two separate records (RP-only + OTO-only) when `otoSlug` ≠ `usiFolder`. `rebuild_devs_from_raws()` — scans all USIdev subdirs and builds `usi_dev_*.json` from whichever raw files exist (no CSV needed). |
 | `detect_similar_devs.py` | `detect_similar()` — scans all dev records for name/geo similarity, writes `suggestions[]` array via `create_developer_file()` (never direct file writes). |
 | `audit_dev_duplicates.py` | Standalone audit: Section A = unmerged suggestion pairs; Section B = dev records with portal IDs in Konkurenci.csv not yet in the file (split-aware — checks `otoSlug` column before flagging). |
 | `fetcher.py` | `Fetcher` class + module-level `fetch_html`/`fetch_json` — shared HTTP utilities with rate-limiting |

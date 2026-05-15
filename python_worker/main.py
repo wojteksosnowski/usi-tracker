@@ -217,6 +217,11 @@ def main():
     parser_init_devs.add_argument("--csv", help="Path to Konkurenci.csv", default="reference-data/coda/Konkurenci.csv")
     parser_init_devs.add_argument("--dry-run", action="store_true", help="Dry run without writing files")
 
+    # Command: rebuild-devs
+    parser_rebuild_devs = subparsers.add_parser("rebuild-devs", help="Build usi_dev_*.json from raw files for all USIdev directories")
+    parser_rebuild_devs.add_argument("--force", action="store_true", help="Rebuild even if usi_dev_*.json already exists")
+    parser_rebuild_devs.add_argument("--dry-run", action="store_true", help="Show what would be built without writing")
+
     # Command: suggest
     parser_suggest = subparsers.add_parser("suggest", help="Run the developer suggestion algorithm (similarity & location)")
 
@@ -348,6 +353,12 @@ def main():
             dry_run=args.dry_run
         )
         logger.info(f"Developer initialization finished: {created} created, {skipped} skipped.")
+
+    elif args.command == "rebuild-devs":
+        logger.info("Rebuilding usi_dev_*.json from raw files...")
+        from .init_developers import rebuild_devs_from_raws
+        built, skipped = rebuild_devs_from_raws(force=args.force, dry_run=args.dry_run)
+        logger.info(f"rebuild-devs finished: {built} built, {skipped} skipped.")
 
     elif args.command == "suggest":
         logger.info("Starting developer suggestion algorithm...")

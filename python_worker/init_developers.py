@@ -52,8 +52,26 @@ def _write_or_merge_mock_oto(dev_dir: Path, slug: str, oto_id: str) -> bool:
     return True
 
 
-def _build_dev_from_raws(dev_dir: Path, slug: str, name: str, dm: DeveloperManager) -> None:
+def _extract_name_from_raw(dev_dir: Path, slug: str) -> str:
+    """Extract developer name from available raw files; fall back to slug."""
+    for prefix in ("raw_rp_", "raw_oto_", "raw_to_"):
+        candidate = dev_dir / f"{prefix}{slug}.json"
+        if candidate.exists():
+            try:
+                raw = json.loads(candidate.read_text(encoding="utf-8"))
+                n = raw.get("name")
+                if n:
+                    return n
+            except Exception:
+                continue
+    return slug  # last resort
+
+
+def _build_dev_from_raws(dev_dir: Path, slug: str, name: str | None, dm: DeveloperManager) -> None:
     """Rebuild usi_dev_{slug}.json portal_mapping from raw portal files in USIdev/{slug}/."""
+    if not name:
+        name = _extract_name_from_raw(dev_dir, slug)
+
     pm: dict = {"rp": None, "oto": None, "to": None}
 
     rp_file = dev_dir / f"raw_rp_{slug}.json"
@@ -91,6 +109,47 @@ def _build_dev_from_raws(dev_dir: Path, slug: str, name: str, dm: DeveloperManag
             pm["to"] = {"agency_id": str(aid)}
 
     dm.create_developer_file({"developer_slug": slug, "name": name, "portal_mapping": pm})
+
+
+def rebuild_devs_from_raws(
+    dev_dir: Path | None = None,
+    force: bool = False,
+    dry_run: bool = False,
+) -> tuple[int, int]:
+    """Build usi_dev_*.json for every USIdev subdirectory that contains raw files.
+
+    Skips directories that already have usi_dev_*.json unless force=True.
+    Returns (built, skipped).
+    """
+    target_dir = dev_dir or USI_DEV_DIR
+    dm = DeveloperManager(USI_DATA_DIR, target_dir)
+    built = skipped = 0
+
+    for sub in sorted(target_dir.iterdir()):
+        if not sub.is_dir():
+            continue
+        slug = sub.name
+        has_raws = any(sub.glob("raw_*.json"))
+        if not has_raws:
+            skipped += 1
+            continue
+        dev_file = sub / f"usi_dev_{slug}.json"
+        if dev_file.exists() and not force:
+            skipped += 1
+            continue
+        if dry_run:
+            logger.info(f"[dry-run] would build: {slug}")
+            built += 1
+            continue
+        try:
+            _build_dev_from_raws(sub, slug, None, dm)
+            built += 1
+            logger.info(f"Built: {slug}")
+        except Exception as e:
+            logger.error(f"Failed to build {slug}: {e}")
+            skipped += 1
+
+    return built, skipped
 
 
 # ---------------------------------------------------------------------------
