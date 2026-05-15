@@ -182,7 +182,7 @@ class InvestmentService:
 
         return portal_slug or fallback
 
-    def update_investment(self, dev_slug, inv_slug, use_local_raw=False, skip_images=False, skip_index=False):
+    def update_investment(self, dev_slug, inv_slug, use_local_raw=False, skip_images=False, skip_index=False, skip_log=False):
         """
         Orchestrates the update of an investment:
         1. Scrapes raw data (or loads local)
@@ -364,10 +364,11 @@ class InvestmentService:
                 except Exception as _ie:
                     logger.debug(f"Index upsert skipped for {inv_slug}: {_ie}")
 
-            summary = f"Updated: {', '.join(fetched_sources)}"
-            if failed_sources:
-                summary += f". Failed: {', '.join(failed_sources)}"
-            log_to_processing_log(dev_slug, inv_slug, summary)
+            if not skip_log:
+                summary = f"Updated: {', '.join(fetched_sources)}"
+                if failed_sources:
+                    summary += f". Failed: {', '.join(failed_sources)}"
+                log_to_processing_log(dev_slug, inv_slug, summary)
             return True
 
         # All portals failed

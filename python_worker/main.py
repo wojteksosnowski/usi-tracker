@@ -386,7 +386,7 @@ def main():
                     skipped += 1
                     continue
                 try:
-                    ok = svc.update_investment(dev_slug, inv_slug, use_local_raw=True, skip_images=True, skip_index=True)
+                    ok = svc.update_investment(dev_slug, inv_slug, use_local_raw=True, skip_images=True, skip_index=True, skip_log=True)
                     if ok:
                         built += 1
                     else:
