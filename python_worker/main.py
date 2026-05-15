@@ -9,7 +9,6 @@ from .config import USI_DATA_DIR, USI_DEV_DIR, get_scraper_config
 from .adapters import RPAdapter, OtodomAdapter, TOAdapter, Merger
 from usi_scrapers.fetcher import Fetcher
 from usi_scrapers import api as scraper_api
-from .csv_importer import import_csv
 from .logger_utils import log_to_processing_log
 from .developer_manager import DeveloperManager
 from .detect_similar_devs import detect_similar
@@ -205,13 +204,6 @@ def main():
     parser_rebuild.add_argument("inv_path", help="Investment path (e.g., dev_slug/inv_slug)")
     parser_rebuild.add_argument("--use-local-raw", action="store_true", help="Use local raw JSON if available")
 
-    # Command: import-csv
-    parser_import_csv = subparsers.add_parser("import-csv", help="Import investments from USImaster.csv")
-    parser_import_csv.add_argument("--csv", default="reference-data/coda/USImaster.csv", help="Path to CSV file")
-    parser_import_csv.add_argument("--limit", type=int, help="Limit number of rows to process")
-    parser_import_csv.add_argument("--dry-run", action="store_true", help="Do not write files")
-    parser_import_csv.add_argument("--no-split", action="store_true", help="Do not split dual RP+OTO records")
-
     # Command: backfill-ids
     parser_backfill = subparsers.add_parser("backfill-ids", help="Generate and assign missing USI IDs for all records")
 
@@ -336,17 +328,6 @@ def main():
             logger.error(f"Discovery failed: {e}")
             sys.exit(1)
         logger.info("Discovery finished.")
-
-    elif args.command == "import-csv":
-        logger.info(f"Starting CSV import from: {args.csv}")
-        import_csv(
-            csv_path=args.csv,
-            output_dir=USI_DATA_DIR,
-            limit=args.limit,
-            dry_run=args.dry_run,
-            split_dual=not args.no_split
-        )
-        logger.info("CSV import finished.")
 
     elif args.command == "backfill-ids":
         backfill_usi_ids()

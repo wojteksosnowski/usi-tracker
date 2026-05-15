@@ -21,7 +21,7 @@ def sync_images(csv_path: Path, usi_dir: Path):
                 if d_name and d_slug:
                     dev_lookup[d_name] = d_slug
 
-    from python_worker.csv_importer import slugify
+    from python_worker.slug_utils import slugify
 
     # 2. Build mapping: filename -> correct target directory
     file_to_target_dir = {}

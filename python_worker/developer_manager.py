@@ -6,7 +6,7 @@ import shutil
 import threading
 from pathlib import Path
 from datetime import datetime
-from .csv_importer import slugify
+from .slug_utils import slugify
 
 _counter_lock = threading.Lock()
 

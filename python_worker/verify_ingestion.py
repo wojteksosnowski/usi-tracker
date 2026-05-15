@@ -9,7 +9,7 @@ from usi_scrapers import api as scraper_api
 from usi_scrapers.fetcher import Fetcher
 from python_worker.adapters import AdapterFactory
 from python_worker.config import get_scraper_config
-from python_worker.csv_importer import slugify
+from python_worker.slug_utils import slugify
 
 # Configure logging to be concise
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')

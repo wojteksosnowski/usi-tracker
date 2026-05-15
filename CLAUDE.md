@@ -70,11 +70,6 @@ python3 -m python_worker.main download-raw dom-development-sa/dzielna-one --port
 # Rebuild usi_*.json from already-downloaded raw_*.json files (no network requests)
 python3 -m python_worker.main rebuild-from-raw dom-development-sa/dzielna-one
 
-# Import all investments from USImaster.csv into USIdata/ [LEGACY — pending removal]
-python3 -m python_worker.main import-csv
-python3 -m python_worker.main import-csv --limit 10 --dry-run
-python3 -m python_worker.main import-csv --no-split   # keep dual-portal rows as single record
-
 # Assign missing usi_dev_id / usi_inv_id across all records
 python3 -m python_worker.main backfill-ids
 
@@ -128,7 +123,7 @@ logs/            Runtime logs (worker.log)
 
 | Module | Role |
 |---|---|
-| `main.py` | CLI entry point; dispatches to ui, update-dev, update-inv, discover, download-raw, rebuild-from-raw, import-csv, backfill-ids |
+| `main.py` | CLI entry point; dispatches to ui, update-dev, update-inv, discover, download-raw, rebuild-from-raw, backfill-ids |
 | `adapters/` | Package exposing `AdapterFactory`, `Merger`, and re-exporting the adapter classes from `usi_scrapers` (`RPAdapter`, `OtodomAdapter`, `TOAdapter`). `Merger.merge()` in `adapters/merger.py` combines portal results into the unified schema. |
 | `developer_manager.py` | `DeveloperManager` — reads/writes `usi_dev_*.json` profiles under `USIdev/{slug}/`, generates `DEV-NNNN`/`INV-NNNN` IDs. Key lookup methods: `get_developer(slug)` for URL-routing only; `get_developer_by_id(usi_dev_id)` for all cross-record references; `find_developer_by_id(portal, portal_id)` for portal ID lookups. Merge operations: `merge_by_id(target_id, source_id)` / `unmerge_by_id(target_id, source_id)` — always use IDs, never slugs. |
 | `init_developers.py` | `init_developers_from_konkurenci()` — seeds `USIdev/` from Konkurenci.csv by writing mock raw files then calling `_build_dev_from_raws()`. Split rule: rows with both `rpID` and `otoID` produce two separate records (RP-only + OTO-only) when `otoSlug` ≠ `usiFolder`. |
@@ -143,7 +138,7 @@ logs/            Runtime logs (worker.log)
 | `api/` | Flask blueprints (`investments`, `discovery`, `jobs`, `reports`, `poi`, `crawler_api`) mounted by `ui_server.py`; thin HTTP layer that delegates to service classes |
 | `jobs.py` | `JobManager` — runs long scrape/update operations in background threads; tracks progress/status so the UI can poll `/api/jobs/<id>`. Any operation taking >1 s must go through `JobManager`. |
 | `crawler.py` | `Wędrowiec` — background daemon (60 s tick) running two alternating modes: **Wizyta** (visits a known developer and runs discovery) and **Eksploracja** (pages portal catalogues to find new developers). Mounted by `ui_server.py` and exposed via `crawler_api` blueprint. |
-| `csv_importer.py` | **Legacy** bulk importer from USImaster.csv (pending removal); exports `slugify()` used across the codebase |
+| `slug_utils.py` | `slugify(text)` — converts Polish text to URL slugs; handles `ł/Ł` transliteration that NFKD alone cannot decompose |
 | `listings.py` | Batch fetch of recent investments from both portals; produces `app_latest_results*.json` |
 | `image_saver.py` | Downloads and deduplicates images into `Public/USI/{dev_slug}/{inv_slug}/` |
 | `grabber.py` | Generic regex-based link extractor for arbitrary developer sites |
@@ -266,9 +261,9 @@ Otodom.pl changes `otoID` (and sometimes the URL slug) for the same investment w
 ## Known Gotchas
 
 - **`get_val()` for RP API responses**: The RynekPierwotny API wraps scalar values in `{"type": "...", "value": ...}` dicts. `adapters.py` exports `get_val(data, key, default=None)` to unwrap them. Any code reading RP API responses (raw or via `raw_rp_*.json`) must use this helper — plain `data[key]` returns the wrapper dict, not the scalar.
-- **CSV nested JSON wrapper**: The `rpJSON`/`otoJSON` CSV columns wrap the full API response in `{"type": "obj", "value": {...}}`. Always unwrap with `data["value"]` before using the payload.
-- **Coordinate order in RP API**: `geo_point` from the RynekPierwotny API is `[longitude, latitude]` (GeoJSON order). CSV columns are separate `Latitude`/`Longitude` fields. Don't mix the two read paths.
-- **Polish `ł` / `Ł` in slugs**: Python's `unicodedata.normalize("NFKD", ...)` does not decompose the Polish stroke letter. Both `csv_importer.py` and `portal_matcher.py` apply `str.maketrans("łŁ", "lL")` first. Omitting that step silently produces slugs containing literal `ł`.
+- **Coordinate order in RP API**: `geo_point` from the RynekPierwotny API is `[longitude, latitude]` (GeoJSON order). Don't mix this with separate `Latitude`/`Longitude` fields.
+- **Polish `ł` / `Ł` in slugs**: Python's `unicodedata.normalize("NFKD", ...)` does not decompose the Polish stroke letter. `slug_utils.slugify()` applies `str.maketrans("łŁ", "lL")` first. Omitting that step silently produces slugs containing literal `ł`.
 - **Test fixtures are optional**: Tests guarded by `@pytest.mark.skipif(not PATH.exists(), ...)` are silently skipped when HTML/JSON reference files under `reference-data/` are absent. A fully green test run does not mean all tests ran.
 - **`detect_similar_devs.py` must save via `DeveloperManager`**: Never write dev files directly (e.g. `open(path, "w")`); always use `dm.create_developer_file()`. Direct writes go to the wrong path after the USIdev subdirectory migration.
 - **Real OTO dev profile shape**: The real Otodom developer JSON has `owner.id` and `filterAttributes.sellerId` for the agency ID — not a top-level `agency_id`. `_build_dev_from_raws()` handles both mock and real formats; see the extraction logic there before adding new portal adapters.
+- **Legacy portal-prefixed unified files**: Some older investments have `usi_rp_{inv_slug}.json` / `usi_oto_{inv_slug}.json` instead of the canonical `usi_{inv_slug}.json`. `_load_investment()` in `api/utils.py` tries all three forms in order (rp → oto → unified). `_load_inv_dir()` in the developer detail endpoint loads each investment directory exactly once — it does not iterate per `usi_*.json` file.

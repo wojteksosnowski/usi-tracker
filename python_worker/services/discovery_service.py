@@ -201,7 +201,7 @@ class DiscoveryService:
             
         if not inv_slug:
             # Last resort fallback if both discovery and parsing failed
-            from python_worker.csv_importer import slugify
+            from python_worker.slug_utils import slugify
             inv_slug = slugify(item["name"])
             logger.warning(f"[slugify] _register_new_investment: no slug from URL/discovery for '{item['name']}' (portal={portal}) → inv_slug='{inv_slug}'")
 

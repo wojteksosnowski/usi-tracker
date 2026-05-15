@@ -46,7 +46,7 @@ def migrate(csv_path: Path, data_dir: Path, limit=None):
             if d_name and d_slug:
                 dev_lookup[d_name] = d_slug
 
-    from python_worker.csv_importer import slugify
+    from python_worker.slug_utils import slugify
 
     # 2. Process USImaster.csv
     logger.info(f"Step 2: Migrating investments from {csv_path}...")

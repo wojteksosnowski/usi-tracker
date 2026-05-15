@@ -33,7 +33,7 @@ class InvestmentService:
         return _load_investment(dev_slug, inv_slug, data_dir=self.data_dir, public_usi_dir=self.public_usi_dir, portal=portal)
 
     def register_investment(self, portal, developer_name, inv_slug, name, item_id=None, url=None, allow_existing=False, vendor_id=None):
-        from python_worker.csv_importer import slugify
+        from python_worker.slug_utils import slugify
         from python_worker.developer_manager import DeveloperManager
         from usi_scrapers import api as scraper_api
         from python_worker.url_parser import parse_url
@@ -428,7 +428,7 @@ class InvestmentService:
         Downloads data first, then registers and unifies only successful ones.
         """
         from usi_scrapers import api as scraper_api
-        from python_worker.csv_importer import slugify
+        from python_worker.slug_utils import slugify
         from python_worker.url_parser import parse_url
         from python_worker.developer_manager import DeveloperManager
 
