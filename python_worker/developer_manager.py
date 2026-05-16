@@ -261,20 +261,35 @@ class DeveloperManager:
         subdir = self.dev_dir / dev_slug
         subdir.mkdir(parents=True, exist_ok=True)
 
-        # Load existing data from whichever format is present (for audit/id preservation)
+        # Load existing data for audit/id preservation.
+        # When incoming data targets a specific portal, match by that portal to avoid
+        # reusing the DEV ID from a different portal's file (1:1 rule).
         existing_data = {}
-        for candidate in [
-            self._dev_file_path(dev_slug),           # new format (glob)
-            self._dev_file_path_old_canonical(dev_slug),  # pre-ID canonical
-            self._dev_file_path_legacy(dev_slug),    # flat legacy
-            self.data_dir / dev_slug / f"usi_dev_{dev_slug}.json",
-        ]:
-            if candidate and candidate.exists():
+        incoming_pm = developer_data.get("portal_mapping") or {}
+        incoming_portal = next((p for p in ("rp", "oto", "to") if incoming_pm.get(p)), None)
+
+        if incoming_portal:
+            for f in sorted(subdir.glob(f"usi_dev_*_{dev_slug}.json")):
                 try:
-                    existing_data = json.loads(candidate.read_text(encoding="utf-8"))
-                    break
+                    d = json.loads(f.read_text(encoding="utf-8"))
+                    if d.get("portal_mapping", {}).get(incoming_portal):
+                        existing_data = d
+                        break
                 except Exception as e:
-                    logger.warning(f"Could not read existing dev file {candidate}: {e}")
+                    logger.warning(f"Could not read existing dev file {f}: {e}")
+        else:
+            for candidate in [
+                self._dev_file_path(dev_slug),           # new format (glob)
+                self._dev_file_path_old_canonical(dev_slug),  # pre-ID canonical
+                self._dev_file_path_legacy(dev_slug),    # flat legacy
+                self.data_dir / dev_slug / f"usi_dev_{dev_slug}.json",
+            ]:
+                if candidate and candidate.exists():
+                    try:
+                        existing_data = json.loads(candidate.read_text(encoding="utf-8"))
+                        break
+                    except Exception as e:
+                        logger.warning(f"Could not read existing dev file {candidate}: {e}")
 
         # Preserve audit timestamps
         developer_data["audit"] = existing_data.get("audit", {
