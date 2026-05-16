@@ -65,10 +65,29 @@ def normalize_name(name: str) -> str:
     n = " ".join(n.split())
     return n
 
+def _build_dismissed_cache(dev_dir: Path) -> dict[str, set[str]]:
+    """Returns {usi_dev_id → set of dismissed usi_dev_ids} from all dev_master_*.json files."""
+    cache: dict[str, set[str]] = {}
+    for master_file in dev_dir.glob("*/dev_master_*.json"):
+        try:
+            master = json.loads(master_file.read_text(encoding="utf-8"))
+            owner_id = master.get("master_usi_dev_id")
+            if owner_id:
+                cache[owner_id] = {
+                    d["usi_dev_id"] for d in master.get("dismissed", [])
+                    if d.get("usi_dev_id")
+                }
+        except Exception:
+            continue
+    return cache
+
+
 def detect_similar():
     dm = DeveloperManager(USI_DATA_DIR, USI_DEV_DIR)
     devs = dm.list_developers()
-    
+
+    dismissed_cache = _build_dismissed_cache(Path(USI_DEV_DIR))
+
     logger.info(f"Analyzing {len(devs)} developers for similarities (Optimized)...")
     
     # 1. Build Index (Buckets)
@@ -187,6 +206,13 @@ def detect_similar():
                     if max_depth == 4: reason += " z b. dużą precyzją geo"
                     
                     best_s = {"usi_dev_id": d2["id"], "developer_slug": d2["slug"], "reason": reason, "score": final_score}
+
+            if best_s:
+                # Skip if either side has dismissed the other
+                d1_dismissed = dismissed_cache.get(d1["id"], set())
+                d2_dismissed = dismissed_cache.get(d2["id"], set())
+                if d2["id"] in d1_dismissed or d1["id"] in d2_dismissed:
+                    best_s = None
 
             if best_s:
                 suggestions_map[d2["id"]] = best_s

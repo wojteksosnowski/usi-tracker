@@ -29,12 +29,15 @@ def test_detect_similar_name_match(tmp_path, monkeypatch):
     dev2 = {"usi_dev_id": "DEV-002", "developer_slug": "dev-2", "name": "Budimex Sp. z o.o."}
 
     for d in [dev1, dev2]:
-        with open(dev_dir / f"usi_dev_{d['developer_slug']}.json", "w") as f:
+        subdir = dev_dir / d["developer_slug"]
+        subdir.mkdir()
+        with open(subdir / f"usi_dev_{d['developer_slug']}.json", "w") as f:
             json.dump(d, f)
 
     detect_similar()
 
-    with open(dev_dir / "usi_dev_dev-1.json") as f:
-        d1 = json.load(f)
+    from python_worker.developer_manager import DeveloperManager as DM2
+    dm2 = DM2(data_dir, dev_dir)
+    d1 = dm2.get_developer("dev-1")
     slugs = [s["developer_slug"] for s in d1.get("suggestions", [])]
     assert "dev-2" in slugs

@@ -108,7 +108,11 @@ def _build_dev_from_raws(dev_dir: Path, slug: str, name: str | None, dm: Develop
         if aid:
             pm["to"] = {"agency_id": str(aid)}
 
-    dm.create_developer_file({"developer_slug": slug, "name": name, "portal_mapping": pm})
+    for portal in ("rp", "oto", "to"):
+        if pm[portal] is not None:
+            pm_single: dict = {"rp": None, "oto": None, "to": None}
+            pm_single[portal] = pm[portal]
+            dm.create_developer_file({"developer_slug": slug, "name": name, "portal_mapping": pm_single})
 
 
 def rebuild_devs_from_raws(

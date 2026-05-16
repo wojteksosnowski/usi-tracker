@@ -3,6 +3,13 @@ Tests for DeveloperManager.merge_developers and related methods.
 
 All tests use tmp_path for isolation — no real Dropbox data is touched.
 Raw JSON files (raw_rp_*.json etc.) are never modified by merge operations.
+
+Architecture notes (Level 2 / Level 3 split):
+- Level 2: usi_dev_{usi_dev_id}_{slug}.json — identity/definition only
+- Level 3: dev_master_{DM-NNNNN}.json     — merged_from[], dismissed[]
+- Log:     dev_log_{slug}.txt              — event history (JSONL)
+- merged_from and events are NOT stored in Level 2 anymore.
+  Use dm.get_developer() to get the merged view, or read the log/master files directly.
 """
 import json
 import pytest
@@ -27,8 +34,12 @@ def _make_dev(slug: str, name: str, usi_dev_id: str, portal_mapping: dict = None
 
 
 def _write_dev(dev_dir: Path, dev: dict) -> Path:
+    """Writes dev file in new canonical format: USIdev/{slug}/usi_dev_{id}_{slug}.json"""
     slug = dev["developer_slug"]
-    p = dev_dir / f"usi_dev_{slug}.json"
+    usi_dev_id = dev.get("usi_dev_id", "DEV-0000")
+    subdir = dev_dir / slug
+    subdir.mkdir(parents=True, exist_ok=True)
+    p = subdir / f"usi_dev_{usi_dev_id}_{slug}.json"
     p.write_text(json.dumps(dev, ensure_ascii=False, indent=2), encoding="utf-8")
     return p
 
@@ -42,6 +53,18 @@ def _dm(tmp_path: Path):
     return DeveloperManager(data_dir, dev_dir)
 
 
+def _read_dev_log(dev_dir: Path, slug: str) -> list[dict]:
+    log_path = dev_dir / slug / f"dev_log_{slug}.txt"
+    if not log_path.exists():
+        return []
+    events = []
+    for line in log_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line:
+            events.append(json.loads(line))
+    return events
+
+
 # ── get_developer ─────────────────────────────────────────────────────────────
 
 def test_get_developer_from_usitev(tmp_path):
@@ -53,13 +76,12 @@ def test_get_developer_from_usitev(tmp_path):
     assert result["usi_dev_id"] == "DEV-0001"
 
 
-def test_get_developer_fallback_legacy_usidata(tmp_path):
-    """Dev file stored inside USIdata/{slug}/ (legacy location) must be found."""
+def test_get_developer_fallback_legacy_flat(tmp_path):
+    """Dev file stored flat in USIdev/ (legacy) must be found."""
     dm = _dm(tmp_path)
     dev = _make_dev("beta", "Beta", "DEV-0002")
-    legacy_dir = tmp_path / "USIdata" / "beta"
-    legacy_dir.mkdir()
-    (legacy_dir / "usi_dev_beta.json").write_text(
+    # Write to flat legacy path
+    (tmp_path / "USIdev" / "usi_dev_beta.json").write_text(
         json.dumps(dev, ensure_ascii=False), encoding="utf-8"
     )
     result = dm.get_developer("beta")
@@ -67,9 +89,38 @@ def test_get_developer_fallback_legacy_usidata(tmp_path):
     assert result["name"] == "Beta"
 
 
+def test_get_developer_fallback_legacy_usidata(tmp_path):
+    """Dev file stored inside USIdata/{slug}/ (legacy location) must be found."""
+    dm = _dm(tmp_path)
+    dev = _make_dev("gamma", "Gamma", "DEV-0003")
+    legacy_dir = tmp_path / "USIdata" / "gamma"
+    legacy_dir.mkdir()
+    (legacy_dir / "usi_dev_gamma.json").write_text(
+        json.dumps(dev, ensure_ascii=False), encoding="utf-8"
+    )
+    result = dm.get_developer("gamma")
+    assert result is not None
+    assert result["name"] == "Gamma"
+
+
 def test_get_developer_missing_returns_none(tmp_path):
     dm = _dm(tmp_path)
     assert dm.get_developer("no-such-dev") is None
+
+
+def test_get_developer_returns_merged_from_from_level3(tmp_path):
+    """get_developer must include merged_from from the dev_master file."""
+    dm = _dm(tmp_path)
+    dev_dir = tmp_path / "USIdev"
+    target = _make_dev("target-co", "Target", "DEV-0040")
+    source = _make_dev("source-co", "Source", "DEV-0041")
+    _write_dev(dev_dir, target)
+    _write_dev(dev_dir, source)
+
+    dm.merge_developers("target-co", "source-co")
+
+    view = dm.get_developer("target-co")
+    assert any(m["slug"] == "source-co" for m in view.get("merged_from", []))
 
 
 # ── list_developers ───────────────────────────────────────────────────────────
@@ -104,11 +155,12 @@ def test_merge_sets_parent_id_on_source(tmp_path):
     result = dm.merge_developers("target-dev", "source-dev")
     assert result is True
 
-    saved_source = json.loads((dev_dir / "usi_dev_source-dev.json").read_text())
+    saved_source = dm.get_developer("source-dev")
     assert saved_source["parent_id"] == "DEV-0020"
 
 
-def test_merge_enriches_target_portal_mapping(tmp_path):
+def test_merge_does_not_copy_portal_mapping_to_target(tmp_path):
+    """portal_mapping must NOT be copied from source to target — 1:1 rule with raw files."""
     dm = _dm(tmp_path)
     dev_dir = tmp_path / "USIdev"
     target = _make_dev("target-dev", "Target Dev", "DEV-0020",
@@ -120,29 +172,13 @@ def test_merge_enriches_target_portal_mapping(tmp_path):
 
     dm.merge_developers("target-dev", "source-dev")
 
-    saved_target = json.loads((dev_dir / "usi_dev_target-dev.json").read_text())
+    saved_target = dm.get_developer("target-dev")
     assert "rp" in saved_target["portal_mapping"]
-    assert "oto" in saved_target["portal_mapping"]
+    assert "oto" not in saved_target["portal_mapping"], "Source portal_mapping must not be copied to target"
 
 
-def test_merge_does_not_overwrite_existing_target_portal(tmp_path):
-    """Source portal mapping must NOT overwrite target's existing mapping."""
-    dm = _dm(tmp_path)
-    dev_dir = tmp_path / "USIdev"
-    target = _make_dev("target-dev", "Target", "DEV-0020",
-                        portal_mapping={"rp": {"id": "ORIGINAL"}})
-    source = _make_dev("source-dev", "Source", "DEV-0021",
-                        portal_mapping={"rp": {"id": "SHOULD-NOT-WIN"}})
-    _write_dev(dev_dir, target)
-    _write_dev(dev_dir, source)
-
-    dm.merge_developers("target-dev", "source-dev")
-
-    saved_target = json.loads((dev_dir / "usi_dev_target-dev.json").read_text())
-    assert saved_target["portal_mapping"]["rp"]["id"] == "ORIGINAL"
-
-
-def test_merge_records_merged_from_on_target(tmp_path):
+def test_merge_records_merged_from_in_level3(tmp_path):
+    """merged_from is stored in dev_master_*.json (Level 3), returned via get_developer."""
     dm = _dm(tmp_path)
     dev_dir = tmp_path / "USIdev"
     target = _make_dev("target-dev", "Target", "DEV-0020")
@@ -152,12 +188,18 @@ def test_merge_records_merged_from_on_target(tmp_path):
 
     dm.merge_developers("target-dev", "source-dev")
 
-    saved_target = json.loads((dev_dir / "usi_dev_target-dev.json").read_text())
-    merged_from = saved_target.get("merged_from", [])
-    assert any(m["slug"] == "source-dev" for m in merged_from)
+    # Level 2 must NOT contain merged_from
+    level2_file = next((dev_dir / "target-dev").glob("usi_dev_*.json"))
+    level2 = json.loads(level2_file.read_text())
+    assert "merged_from" not in level2
+
+    # get_developer returns merged view including merged_from from Level 3
+    view = dm.get_developer("target-dev")
+    assert any(m["slug"] == "source-dev" for m in view.get("merged_from", []))
 
 
-def test_merge_appends_event_to_target(tmp_path):
+def test_merge_appends_event_to_log(tmp_path):
+    """merge_in event must be written to dev_log_{slug}.txt, not Level 2."""
     dm = _dm(tmp_path)
     dev_dir = tmp_path / "USIdev"
     target = _make_dev("target-dev", "Target", "DEV-0020")
@@ -167,9 +209,13 @@ def test_merge_appends_event_to_target(tmp_path):
 
     dm.merge_developers("target-dev", "source-dev")
 
-    saved_target = json.loads((dev_dir / "usi_dev_target-dev.json").read_text())
-    events = saved_target.get("events", [])
+    events = _read_dev_log(dev_dir, "target-dev")
     assert any(e["type"] == "merge_in" and e["source_slug"] == "source-dev" for e in events)
+
+    # Level 2 must NOT contain events[]
+    level2_file = next((dev_dir / "target-dev").glob("usi_dev_*.json"))
+    level2 = json.loads(level2_file.read_text())
+    assert "events" not in level2
 
 
 def test_merge_removes_suggestion_from_target(tmp_path):
@@ -184,13 +230,13 @@ def test_merge_removes_suggestion_from_target(tmp_path):
 
     dm.merge_developers("target-dev", "source-dev")
 
-    saved_target = json.loads((dev_dir / "usi_dev_target-dev.json").read_text())
+    saved_target = dm.get_developer("target-dev")
     remaining = [s["developer_slug"] for s in saved_target.get("suggestions", [])]
     assert "source-dev" not in remaining
 
 
 def test_merge_normalizes_legacy_source_to_usitev(tmp_path):
-    """Source file in USIdata/{slug}/ must be moved to USIdev/ after merge."""
+    """Source file in USIdata/{slug}/ must be saved to USIdev/{slug}/ after merge."""
     dm = _dm(tmp_path)
     dev_dir = tmp_path / "USIdev"
     data_dir = tmp_path / "USIdata"
@@ -198,7 +244,7 @@ def test_merge_normalizes_legacy_source_to_usitev(tmp_path):
     target = _make_dev("target-dev", "Target", "DEV-0020")
     _write_dev(dev_dir, target)
 
-    # Source is in legacy location
+    # Source is in legacy USIdata location
     source = _make_dev("source-dev", "Source", "DEV-0021")
     legacy_dir = data_dir / "source-dev"
     legacy_dir.mkdir()
@@ -207,13 +253,17 @@ def test_merge_normalizes_legacy_source_to_usitev(tmp_path):
 
     dm.merge_developers("target-dev", "source-dev")
 
-    # Should now exist in USIdev/
-    canonical = dev_dir / "usi_dev_source-dev.json"
-    assert canonical.exists()
-    # Legacy file should be removed
+    # Should now exist in USIdev/source-dev/ with new format
+    canonical_dir = dev_dir / "source-dev"
+    assert canonical_dir.exists()
+    new_format_files = list(canonical_dir.glob("usi_dev_DEV-0021_source-dev.json"))
+    assert new_format_files, f"Expected usi_dev_DEV-0021_source-dev.json in {canonical_dir}"
+
+    # Legacy USIdata file should be removed
     assert not legacy_file.exists()
+
     # parent_id must be set
-    saved = json.loads(canonical.read_text())
+    saved = dm.get_developer("source-dev")
     assert saved["parent_id"] == "DEV-0020"
 
 
@@ -247,7 +297,6 @@ def test_merge_source_raw_files_untouched(tmp_path):
 
     dm.merge_developers("target-dev", "source-dev")
 
-    # Raw file must be byte-for-byte identical after merge
     assert raw_file.read_text(encoding="utf-8") == raw_content
 
 
@@ -265,11 +314,12 @@ def test_dismiss_removes_suggestion(tmp_path):
     result = dm.dismiss_suggestion("dev-a", "DEV-0099")
     assert result is True
 
-    saved = json.loads((dev_dir / "usi_dev_dev-a.json").read_text())
+    saved = dm.get_developer("dev-a")
     assert not any(s["usi_dev_id"] == "DEV-0099" for s in saved.get("suggestions", []))
 
 
-def test_dismiss_appends_event(tmp_path):
+def test_dismiss_persists_in_level3(tmp_path):
+    """Dismissed pair must be stored in dev_master (Level 3) so it survives re-suggest."""
     dm = _dm(tmp_path)
     dev_dir = tmp_path / "USIdev"
     dev = _make_dev("dev-a", "Dev A", "DEV-0030")
@@ -280,8 +330,33 @@ def test_dismiss_appends_event(tmp_path):
 
     dm.dismiss_suggestion("dev-a", "DEV-0099")
 
-    saved = json.loads((dev_dir / "usi_dev_dev-a.json").read_text())
-    assert any(e["type"] == "dismiss_suggestion" for e in saved.get("events", []))
+    # Level 2 must NOT have events[]
+    level2_file = next((dev_dir / "dev-a").glob("usi_dev_*.json"))
+    level2 = json.loads(level2_file.read_text())
+    assert "events" not in level2
+
+    # Level 3 master file must have the dismissed entry
+    master_id = level2.get("master_id")
+    assert master_id, "master_id must be set in Level 2 after dismiss"
+    master_file = dev_dir / "dev-a" / f"dev_master_{master_id}.json"
+    assert master_file.exists()
+    master = json.loads(master_file.read_text())
+    assert any(d["usi_dev_id"] == "DEV-0099" for d in master.get("dismissed", []))
+
+
+def test_dismiss_appends_event_to_log(tmp_path):
+    dm = _dm(tmp_path)
+    dev_dir = tmp_path / "USIdev"
+    dev = _make_dev("dev-a", "Dev A", "DEV-0030")
+    dev["suggestions"] = [
+        {"usi_dev_id": "DEV-0099", "developer_slug": "some-other", "reason": "x", "score": 0.5}
+    ]
+    _write_dev(dev_dir, dev)
+
+    dm.dismiss_suggestion("dev-a", "DEV-0099")
+
+    events = _read_dev_log(dev_dir, "dev-a")
+    assert any(e["type"] == "dismiss_suggestion" for e in events)
 
 
 # ── unmerge_developer ─────────────────────────────────────────────────────────
@@ -291,16 +366,15 @@ def test_unmerge_removes_from_merged_from(tmp_path):
     dev_dir = tmp_path / "USIdev"
     target = _make_dev("target-co", "Target", "DEV-0040")
     source = _make_dev("source-co", "Source", "DEV-0041")
-    source["parent_id"] = "DEV-0040"
-    target["merged_from"] = [{"slug": "source-co", "name": "Source", "usi_dev_id": "DEV-0041"}]
     _write_dev(dev_dir, target)
     _write_dev(dev_dir, source)
 
+    dm.merge_developers("target-co", "source-co")
     result = dm.unmerge_developer("target-co", "source-co")
     assert result is True
 
-    saved_target = json.loads((dev_dir / "usi_dev_target-co.json").read_text())
-    assert not any(m["slug"] == "source-co" for m in saved_target.get("merged_from", []))
+    view = dm.get_developer("target-co")
+    assert not any(m["slug"] == "source-co" for m in view.get("merged_from", []))
 
 
 def test_unmerge_clears_parent_id_on_source(tmp_path):
@@ -308,31 +382,29 @@ def test_unmerge_clears_parent_id_on_source(tmp_path):
     dev_dir = tmp_path / "USIdev"
     target = _make_dev("target-co", "Target", "DEV-0040")
     source = _make_dev("source-co", "Source", "DEV-0041")
-    source["parent_id"] = "DEV-0040"
-    target["merged_from"] = [{"slug": "source-co", "name": "Source", "usi_dev_id": "DEV-0041"}]
     _write_dev(dev_dir, target)
     _write_dev(dev_dir, source)
 
+    dm.merge_developers("target-co", "source-co")
     dm.unmerge_developer("target-co", "source-co")
 
-    saved_source = json.loads((dev_dir / "usi_dev_source-co.json").read_text())
+    saved_source = dm.get_developer("source-co")
     assert "parent_id" not in saved_source
 
 
-def test_unmerge_appends_event(tmp_path):
+def test_unmerge_appends_event_to_log(tmp_path):
     dm = _dm(tmp_path)
     dev_dir = tmp_path / "USIdev"
     target = _make_dev("target-co", "Target", "DEV-0040")
     source = _make_dev("source-co", "Source", "DEV-0041")
-    source["parent_id"] = "DEV-0040"
-    target["merged_from"] = [{"slug": "source-co", "name": "Source", "usi_dev_id": "DEV-0041"}]
     _write_dev(dev_dir, target)
     _write_dev(dev_dir, source)
 
+    dm.merge_developers("target-co", "source-co")
     dm.unmerge_developer("target-co", "source-co")
 
-    saved_target = json.loads((dev_dir / "usi_dev_target-co.json").read_text())
-    assert any(e["type"] == "unmerge" for e in saved_target.get("events", []))
+    events = _read_dev_log(dev_dir, "target-co")
+    assert any(e["type"] == "unmerge" for e in events)
 
 
 def test_unmerge_fails_if_not_merged(tmp_path):
@@ -340,7 +412,6 @@ def test_unmerge_fails_if_not_merged(tmp_path):
     dev_dir = tmp_path / "USIdev"
     target = _make_dev("target-co", "Target", "DEV-0040")
     source = _make_dev("not-child", "NotChild", "DEV-0042")
-    target["merged_from"] = []
     _write_dev(dev_dir, target)
     _write_dev(dev_dir, source)
 
@@ -354,45 +425,35 @@ def test_get_total_pending_count(tmp_path):
     dm = _dm(tmp_path)
     dev_dir = tmp_path / "USIdev"
     data_dir = tmp_path / "USIdata"
-    
-    # 1. Setup developers
+
     dev1 = _make_dev("dev-1", "Dev 1", "DEV-001")
     dev2 = _make_dev("dev-2", "Dev 2", "DEV-002")
     _write_dev(dev_dir, dev1)
     _write_dev(dev_dir, dev2)
-    
-    # 2. Setup discovery files
-    # dev-1 has 2 items, 1 is registered (by ID match)
+
     d1_dir = dev_dir / "dev-1"
-    d1_dir.mkdir()
     (d1_dir / "discovery.json").write_text(json.dumps({
         "items": [
             {"portal": "rp", "id": "101", "slug": "inv-101"},
             {"portal": "rp", "id": "102", "slug": "inv-102"}
         ]
     }))
-    
-    # dev-2 has 1 item, unregistered
+
     d2_dir = dev_dir / "dev-2"
-    d2_dir.mkdir()
     (d2_dir / "discovery.json").write_text(json.dumps({
         "items": [
             {"portal": "oto", "id": "hash999", "slug": "slug-999"}
         ]
     }))
-    
-    # 3. Register one investment for dev-1 (id 101)
+
     inv_dir = data_dir / "dev-1" / "inv-101"
     inv_dir.mkdir(parents=True)
     (inv_dir / "usi_inv-101.json").write_text(json.dumps({
         "sources": {"rp": {"id": "101"}}
     }))
-    
-    # 4. Calculate count
-    # dev-1: 2 items - 1 registered = 1 pending
-    # dev-2: 1 item - 0 registered = 1 pending
-    # Total = 2
+
     assert dm.get_total_pending_count() == 2
+
 
 def test_get_total_pending_count_empty(tmp_path):
     dm = _dm(tmp_path)

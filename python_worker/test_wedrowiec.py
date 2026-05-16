@@ -144,9 +144,9 @@ def test_register_new_dev_from_rp(wedrowiec):
     }
     result = wedrowiec._register_if_new("rp", dev_info, _empty_known())
     assert result is True
-    created = wedrowiec.dev_dir / "usi_dev_nowy-deweloper.json"
-    assert created.exists()
-    data = json.loads(created.read_text())
+    files = list(wedrowiec.dev_dir.glob("*/usi_dev_*_nowy-deweloper.json"))
+    assert files, "Expected usi_dev_*_nowy-deweloper.json in a subdirectory"
+    data = json.loads(files[0].read_text())
     assert data["portal_mapping"]["rp"]["slug"] == "nowy-deweloper"
 
 
@@ -169,7 +169,7 @@ def test_register_new_dev_from_oto(wedrowiec):
     }
     result = wedrowiec._register_if_new("oto", dev_info, _empty_known())
     assert result is True
-    files = list(wedrowiec.dev_dir.glob("usi_dev_*.json"))
+    files = list(wedrowiec.dev_dir.glob("*/usi_dev_*.json"))
     assert len(files) == 1
     data = json.loads(files[0].read_text())
     assert data["portal_mapping"]["oto"]["agency_id"] == "555"
@@ -184,8 +184,8 @@ def test_register_new_dev_from_to(wedrowiec):
     }
     result = wedrowiec._register_if_new("to", dev_info, _empty_known())
     assert result is True
-    created = wedrowiec.dev_dir / "usi_dev_tabela-dev.json"
-    assert created.exists()
+    files = list(wedrowiec.dev_dir.glob("*/usi_dev_*_tabela-dev.json"))
+    assert files, "Expected usi_dev_*_tabela-dev.json in a subdirectory"
 
 
 def test_register_updates_known_ids(wedrowiec):

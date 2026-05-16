@@ -126,14 +126,30 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path = None, public
         except Exception:
             pass
 
-    img_dir = public_usi_dir / dev_slug / inv_slug
     images = []
-    if img_dir.is_dir():
-        images = sorted(
-            f"/api/image/{dev_slug}/{inv_slug}/{p.name}"
-            for p in img_dir.iterdir()
-            if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"} and not p.name.startswith('.')
-        )
+    image_paths = usi.get("image_paths") or []
+    if image_paths:
+        from python_worker.config import DROPBOX_PATH
+        for p in image_paths:
+            full = DROPBOX_PATH / p.lstrip("/")
+            if not full.exists():
+                continue
+            try:
+                rel = full.relative_to(public_usi_dir)
+                parts = rel.parts
+                if len(parts) == 3:
+                    images.append(f"/api/image/{parts[0]}/{parts[1]}/{parts[2]}")
+            except ValueError:
+                pass
+        images = sorted(images)
+    else:
+        img_dir = public_usi_dir / dev_slug / inv_slug
+        if img_dir.is_dir():
+            images = sorted(
+                f"/api/image/{dev_slug}/{inv_slug}/{p.name}"
+                for p in img_dir.iterdir()
+                if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"} and not p.name.startswith('.')
+            )
 
     am_data = usi.get("amenities", {})
     labels = am_data.get("labels", [])

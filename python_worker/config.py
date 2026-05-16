@@ -25,7 +25,8 @@ if not os.getenv("DROPBOX_PATH") and not os.getenv("USI_DATA_DIR"):
         "Set them in .env for correct operation.",
         stacklevel=2,
     )
-DROPBOX_PATH = Path(os.getenv("DROPBOX_PATH", "."))
+_BASE_DIR = Path(__file__).resolve().parent.parent  # usi-tracker/ root
+DROPBOX_PATH = Path(os.getenv("DROPBOX_PATH", str(_BASE_DIR)))
 
 # Paths for Public/USIdata and Public/USI
 # Can be overridden individually in .env
