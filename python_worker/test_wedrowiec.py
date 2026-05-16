@@ -32,14 +32,17 @@ def wedrowiec(dirs):
 
 
 def _write_dev(dev_dir: Path, slug: str, portal_mapping: dict) -> Path:
+    dev_id = f"DEV-TEST-{slug}"
     profile = {
         "developer_slug": slug,
         "name": slug.title(),
-        "usi_dev_id": f"DEV-TEST-{slug}",
+        "usi_dev_id": dev_id,
         "portal_mapping": portal_mapping,
         "audit": {"created_at": datetime.now().isoformat()},
     }
-    p = dev_dir / f"usi_dev_{slug}.json"
+    subdir = dev_dir / slug
+    subdir.mkdir(parents=True, exist_ok=True)
+    p = subdir / f"usi_dev_{dev_id}_{slug}.json"
     p.write_text(json.dumps(profile))
     return p
 
@@ -148,6 +151,8 @@ def test_register_new_dev_from_rp(wedrowiec):
     assert files, "Expected usi_dev_*_nowy-deweloper.json in a subdirectory"
     data = json.loads(files[0].read_text())
     assert data["portal_mapping"]["rp"]["slug"] == "nowy-deweloper"
+    raw_file = wedrowiec.dev_dir / "nowy-deweloper" / "raw_rp_nowy-deweloper.json"
+    assert raw_file.exists(), "Expected raw_rp_nowy-deweloper.json mock file"
 
 
 def test_register_skips_existing_dev(wedrowiec):
@@ -173,6 +178,8 @@ def test_register_new_dev_from_oto(wedrowiec):
     assert len(files) == 1
     data = json.loads(files[0].read_text())
     assert data["portal_mapping"]["oto"]["agency_id"] == "555"
+    raw_file = wedrowiec.dev_dir / "otodom-deweloper" / "raw_oto_otodom-deweloper.json"
+    assert raw_file.exists(), "Expected raw_oto_otodom-deweloper.json mock file"
 
 
 def test_register_new_dev_from_to(wedrowiec):
@@ -186,6 +193,8 @@ def test_register_new_dev_from_to(wedrowiec):
     assert result is True
     files = list(wedrowiec.dev_dir.glob("*/usi_dev_*_tabela-dev.json"))
     assert files, "Expected usi_dev_*_tabela-dev.json in a subdirectory"
+    raw_file = wedrowiec.dev_dir / "tabela-dev" / "raw_to_tabela-dev.json"
+    assert raw_file.exists(), "Expected raw_to_tabela-dev.json mock file"
 
 
 def test_register_updates_known_ids(wedrowiec):
@@ -260,14 +269,17 @@ def test_exploration_cycle_resets_when_max_pages_reached(wedrowiec):
 # ── _record_visit dev_log ─────────────────────────────────────────────────────
 
 def _write_simple_dev(dev_dir: Path, slug: str) -> Path:
+    dev_id = f"DEV-TEST-{slug}"
     profile = {
         "developer_slug": slug,
         "name": slug.title(),
-        "usi_dev_id": f"DEV-TEST-{slug}",
+        "usi_dev_id": dev_id,
         "portal_mapping": {},
         "audit": {"created_at": datetime.now().isoformat()},
     }
-    p = dev_dir / f"usi_dev_{slug}.json"
+    subdir = dev_dir / slug
+    subdir.mkdir(parents=True, exist_ok=True)
+    p = subdir / f"usi_dev_{dev_id}_{slug}.json"
     p.write_text(json.dumps(profile))
     return p
 

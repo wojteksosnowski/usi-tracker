@@ -52,6 +52,18 @@ def _write_or_merge_mock_oto(dev_dir: Path, slug: str, oto_id: str) -> bool:
     return True
 
 
+def _write_mock_to(dev_dir: Path, slug: str, to_id: str) -> None:
+    """Write raw_to_{slug}.json mock (skipped if a real raw already exists)."""
+    path = dev_dir / f"raw_to_{slug}.json"
+    if path.exists() and not json.loads(path.read_text(encoding="utf-8")).get("_mock"):
+        return
+    dev_dir.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"agency_id": to_id, "_mock": True}, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
 def _extract_name_from_raw(dev_dir: Path, slug: str) -> str:
     """Extract developer name from available raw files; fall back to slug."""
     for prefix in ("raw_rp_", "raw_oto_", "raw_to_"):

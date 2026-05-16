@@ -20,6 +20,8 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from python_worker.developer_manager import DeveloperManager
+
 logger = logging.getLogger(__name__)
 
 # ── Wizyta constants ───────────────────────────────────────────────────────────
@@ -119,17 +121,27 @@ class Wedrowiec:
             }
         return result
 
+    def _find_dev_file(self, dev_slug: str) -> "Path | None":
+        """Return path to primary usi_dev_*.json for slug (lowest DEV-ID), or None."""
+        subdir = self.dev_dir / dev_slug
+        if subdir.is_dir():
+            hits = sorted(subdir.glob(f"usi_dev_*_{dev_slug}.json"))
+            if hits:
+                return hits[0]
+        return None
+
     def reset_badge(self, dev_slug: str):
-        dev_file = self.dev_dir / f"usi_dev_{dev_slug}.json"
-        if not dev_file.exists():
+        dev_file = self._find_dev_file(dev_slug)
+        if not dev_file:
             return
         try:
+            from python_worker.developer_manager import DeveloperManager
             data = json.loads(dev_file.read_text(encoding="utf-8"))
             crawler = data.get("crawler", {})
             if crawler.get("new_since_review", 0):
                 crawler["new_since_review"] = 0
                 data["crawler"] = crawler
-                dev_file.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+                DeveloperManager(self.data_dir, self.dev_dir).create_developer_file(data)
         except Exception as e:
             logger.warning("reset_badge(%s) failed: %s", dev_slug, e)
 
@@ -312,7 +324,7 @@ class Wedrowiec:
         rp: set = set()
         oto: set = set()
         to: set = set()
-        for f in self.dev_dir.glob("usi_dev_*.json"):
+        for f in self.dev_dir.glob("*/usi_dev_*.json"):
             try:
                 pm = json.loads(f.read_text(encoding="utf-8")).get("portal_mapping") or {}
                 rp_m = pm.get("rp") or {}
@@ -344,8 +356,14 @@ class Wedrowiec:
         dev_info from usi-scrapers list_developers(): {"url", "name", "slug"}.
         name may be None (TabelaOfert doesn't expose names on the listing page).
         developer_slug comes directly from the portal slug — never slugify(name).
+        Writes a mock raw_{portal}_{slug}.json first, then builds usi_dev via
+        _build_dev_from_raws() — maintains the 1:1 raw↔usi_dev rule.
         """
         from python_worker.developer_manager import DeveloperManager
+        from python_worker.init_developers import (
+            _write_mock_rp, _write_or_merge_mock_oto, _write_mock_to,
+            _build_dev_from_raws,
+        )
 
         if portal == "rp":
             portal_id = dev_info.get("slug")
@@ -366,21 +384,16 @@ class Wedrowiec:
 
         display_name = dev_info.get("name") or dev_slug
 
-        if portal == "rp":
-            portal_mapping = {"rp": {"slug": dev_info["slug"]}}
-        elif portal == "oto":
-            portal_mapping = {"oto": {"agency_id": portal_id}}
-        else:
-            portal_mapping = {"to": {"slug": dev_info["slug"]}}
-
-        developer_data = {
-            "developer_slug": dev_slug,
-            "name": display_name,
-            "portal_mapping": portal_mapping,
-        }
         try:
             dm = DeveloperManager(self.data_dir, self.dev_dir)
-            dm.create_developer_file(developer_data)
+            dev_subdir = self.dev_dir / dev_slug
+            if portal == "rp":
+                _write_mock_rp(dev_subdir, dev_slug, rp_id="", rp_slug=dev_info["slug"])
+            elif portal == "oto":
+                _write_or_merge_mock_oto(dev_subdir, dev_slug, portal_id)
+            else:  # to
+                _write_mock_to(dev_subdir, dev_slug, portal_id)
+            _build_dev_from_raws(dev_subdir, dev_slug, display_name, dm)
             known_ids[portal].add(str(portal_id))
             logger.info("Wędrowiec: registered new developer %s (%s) from %s", display_name, dev_slug, portal)
             return True
@@ -395,11 +408,17 @@ class Wedrowiec:
         oldest_slug = None
         oldest_overdue = 0
 
-        for dev_file in self.dev_dir.glob("usi_dev_*.json"):
+        seen_slugs: set = set()
+        for dev_file in sorted(self.dev_dir.glob("*/usi_dev_*.json")):
             try:
                 data = json.loads(dev_file.read_text(encoding="utf-8"))
             except Exception:
                 continue
+
+            slug = data.get("developer_slug") or dev_file.parent.name
+            if slug in seen_slugs:
+                continue
+            seen_slugs.add(slug)
 
             mapping = data.get("portal_mapping", {})
             if not any(mapping.get(p) for p in ("rp", "oto", "to")):
@@ -421,17 +440,22 @@ class Wedrowiec:
             overdue = (now - next_visit).total_seconds()
             if overdue > oldest_overdue:
                 oldest_overdue = overdue
-                oldest_slug = data.get("developer_slug") or dev_file.stem.removeprefix("usi_dev_")
+                oldest_slug = slug
 
         return oldest_slug, oldest_overdue
 
     def _schedule_all_unvisited(self):
         devs_to_schedule = []
-        for dev_file in self.dev_dir.glob("usi_dev_*.json"):
+        seen_slugs: set = set()
+        for dev_file in sorted(self.dev_dir.glob("*/usi_dev_*.json")):
             try:
                 data = json.loads(dev_file.read_text(encoding="utf-8"))
             except Exception:
                 continue
+            slug = data.get("developer_slug") or dev_file.parent.name
+            if slug in seen_slugs:
+                continue
+            seen_slugs.add(slug)
             mapping = data.get("portal_mapping", {})
             if not any(mapping.get(p) for p in ("rp", "oto", "to")):
                 continue
@@ -447,6 +471,7 @@ class Wedrowiec:
         spread_seconds = _SPREAD_DAYS * 86400
         random.shuffle(devs_to_schedule)
 
+        dm = DeveloperManager(self.data_dir, self.dev_dir)
         for i, dev_file in enumerate(devs_to_schedule):
             offset = (i / len(devs_to_schedule)) * spread_seconds + random.uniform(-3600, 3600)
             offset = max(0, offset)
@@ -454,7 +479,7 @@ class Wedrowiec:
             try:
                 data = json.loads(dev_file.read_text(encoding="utf-8"))
                 data.setdefault("crawler", {})["next_visit"] = _iso(next_visit)
-                dev_file.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+                dm.create_developer_file(data)
             except Exception as e:
                 logger.warning("Failed to schedule %s: %s", dev_file.name, e)
 
@@ -481,8 +506,8 @@ class Wedrowiec:
         logger.info("Wędrowiec: done visiting %s — %d new investments processed", dev_slug, new_count)
 
     def _record_visit(self, dev_slug: str, new_count: int):
-        dev_file = self.dev_dir / f"usi_dev_{dev_slug}.json"
-        if not dev_file.exists():
+        dev_file = self._find_dev_file(dev_slug)
+        if not dev_file:
             return
         try:
             data = json.loads(dev_file.read_text(encoding="utf-8"))
@@ -493,10 +518,7 @@ class Wedrowiec:
             crawler["last_new_count"] = new_count
             crawler["new_since_review"] = crawler.get("new_since_review", 0) + new_count
             data["crawler"] = crawler
-            events = data.setdefault("events", [])
-            events.insert(0, {"at": _iso(_now_utc()), "type": "discover", "by": "wedrowiec", "found": new_count})
-            data["events"] = events[:100]
-            dev_file.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            DeveloperManager(self.data_dir, self.dev_dir).create_developer_file(data)
             from python_worker.logger_utils import log_to_dev_log
             log_to_dev_log(dev_slug,
                 f"Wędrowiec — wizyta zakończona. Znaleziono: {new_count} nowych inwestycji. "
