@@ -109,7 +109,12 @@ class RPAdapter:
                 if vendor_slug and offer_slug:
                     url = f"https://rynekpierwotny.pl/oferty/{vendor_slug}/{offer_slug}-{offer_id}/"
 
-        u["sources"]["rp"] = {"id": offer_id, "url": url}
+        rp_src = {"id": offer_id, "url": url}
+        if isinstance(vendor, dict):
+            vid = _get_val(vendor, "id")
+            if vid:
+                rp_src["vendor_id"] = str(vid)
+        u["sources"]["rp"] = rp_src
         u["website"] = website
         u["location"].update({
             "coords": [lat, lng],
@@ -242,7 +247,11 @@ class OtodomAdapter:
 
         u = _unified_base(inv_slug, dev_slug,
                           ad.get("title"), developer=agency_name)
-        u["sources"]["oto"] = {"url": url or ""}
+        oto_src = {"url": url or ""}
+        agency_id = agency.get("id") or (ad.get("owner") or {}).get("id")
+        if agency_id:
+            oto_src["agency_id"] = str(agency_id)
+        u["sources"]["oto"] = oto_src
         u["location"]["coords"] = [lat, lng]
         addr_obj = (ad.get("location") or {}).get("address") or {}
         if isinstance(addr_obj, dict) and addr_obj:

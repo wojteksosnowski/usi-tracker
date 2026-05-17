@@ -81,6 +81,8 @@ class Merger:
             result["sources"]["rp"] = rp_data["sources"].get("rp") or {}
             if not result["sources"]["rp"].get("url") and existing_sources.get("rp", {}).get("url"):
                 result["sources"]["rp"]["url"] = existing_sources["rp"]["url"]
+            if not result["sources"]["rp"].get("vendor_id") and existing_sources.get("rp", {}).get("vendor_id"):
+                result["sources"]["rp"]["vendor_id"] = existing_sources["rp"]["vendor_id"]
             if "image_urls" in rp_data:
                 all_image_urls.update(rp_data["image_urls"])
         elif "rp" in existing_sources:
@@ -90,6 +92,8 @@ class Merger:
             result["sources"]["oto"] = oto_data["sources"].get("oto") or {}
             if not result["sources"]["oto"].get("url") and existing_sources.get("oto", {}).get("url"):
                 result["sources"]["oto"]["url"] = existing_sources["oto"]["url"]
+            if not result["sources"]["oto"].get("agency_id") and existing_sources.get("oto", {}).get("agency_id"):
+                result["sources"]["oto"]["agency_id"] = existing_sources["oto"]["agency_id"]
             if "image_urls" in oto_data:
                 all_image_urls.update(oto_data["image_urls"])
         elif "oto" in existing_sources:

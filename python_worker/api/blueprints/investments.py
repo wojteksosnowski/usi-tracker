@@ -18,6 +18,51 @@ def _count_valid_investments(dev_dir: Path) -> int:
         if d.is_dir() and not d.name.startswith('.') and list(d.glob("usi_*.json"))
     )
 
+
+def _count_portal_investments(inv_dir: Path, dev_portals: set) -> int:
+    """Count investments whose sources match at least one of dev_portals."""
+    if not dev_portals:
+        return _count_valid_investments(inv_dir)
+    if not inv_dir.exists():
+        return 0
+    count = 0
+    for sub in inv_dir.iterdir():
+        if not sub.is_dir() or sub.name.startswith("."):
+            continue
+        for uf in sub.glob("usi_*.json"):
+            try:
+                src = json.loads(uf.read_text(encoding="utf-8")).get("sources") or {}
+                if any(src.get(p) for p in dev_portals):
+                    count += 1
+                    break
+            except Exception:
+                pass
+    return count
+
+
+def _inv_matches_dev(inv: dict, dev: dict) -> bool:
+    """Return True only when a portal developer ID from sources exactly matches portal_mapping.
+    No fallback guessing — missing ID means no match."""
+    pm = dev.get("portal_mapping") or {}
+    src = inv.get("sources") or {}
+    for portal in ("rp", "oto", "to"):
+        if not pm.get(portal) or not src.get(portal):
+            continue
+        pm_p = pm[portal]
+        src_p = src[portal]
+        if portal == "rp":
+            pm_id = str(pm_p.get("id", ""))
+            src_vid = str(src_p.get("vendor_id", ""))
+            if pm_id and src_vid and pm_id == src_vid:
+                return True
+        elif portal == "oto":
+            pm_aids = {str(a) for a in (pm_p.get("agency_ids") or [pm_p.get("agency_id", "")]) if a}
+            src_aid = str(src_p.get("agency_id", ""))
+            if pm_aids and src_aid and src_aid in pm_aids:
+                return True
+        # to: no developer ID available yet
+    return False
+
 investments_bp = Blueprint('investments', __name__)
 investment_service = InvestmentService()
 
@@ -262,17 +307,18 @@ def list_developers():
         
         total_count = 0
         all_mtimes = []
-        
+        dev_portals = {p for p in ("rp", "oto", "to") if (dev.get("portal_mapping") or {}).get(p)}
+
         for slug in slugs:
             inv_dir = Path(USI_DATA_DIR) / slug
             if inv_dir.exists():
-                valid_dirs = [d for d in inv_dir.iterdir() if d.is_dir() and not d.name.startswith('.')]
-                for d in valid_dirs:
-                    usi_files = list(d.glob("usi_*.json"))
-                    if usi_files:
-                        total_count += 1
-                        all_mtimes.append(usi_files[0].stat().st_mtime)
-        
+                total_count += _count_portal_investments(inv_dir, dev_portals)
+                for d in inv_dir.iterdir():
+                    if d.is_dir() and not d.name.startswith('.'):
+                        for uf in d.glob("usi_*.json"):
+                            all_mtimes.append(uf.stat().st_mtime)
+                            break
+
         dev["investments_count"] = total_count
         dev["last_updated"] = max(all_mtimes) if all_mtimes else None
         
@@ -322,12 +368,7 @@ def get_developer_detail(dev_slug):
 
     target_id = dev.get("usi_dev_id")
 
-    # Active portals for this developer record (for investment filtering)
     dev_portals = {p for p in ("rp", "oto", "to") if (dev.get("portal_mapping") or {}).get(p)}
-
-    def _inv_matches_dev(inv: dict) -> bool:
-        src = inv.get("sources") or {}
-        return bool({p for p in dev_portals if src.get(p)})
 
     # Collect investments from this dev and all children (merged_from)
     def _load_inv_dir(d_slug: str) -> list:
@@ -346,7 +387,7 @@ def get_developer_detail(dev_slug):
                         if inv: result.append(inv)
         return result
 
-    investments = [i for i in _load_inv_dir(dev_slug) if not dev_portals or _inv_matches_dev(i)]
+    investments = [i for i in _load_inv_dir(dev_slug) if not dev_portals or _inv_matches_dev(i, dev)]
 
     # Enrich merged_from entries — resolve child by usi_dev_id (not slug)
     for member in dev.get("merged_from", []):
