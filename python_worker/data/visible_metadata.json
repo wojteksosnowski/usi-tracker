@@ -1,7 +1,8 @@
 [
   {"key": "address", "label": "Adres", "path": "address", "type": "string"},
   {"key": "units", "label": "Mieszkania", "path": "units", "type": "number"},
-  {"key": "ceiling_height", "label": "Wys. mieszkań", "path": "specifications.ceiling_height", "type": "number"},
+  {"key": "ceiling_height_min", "label": "Wysokość min.", "path": "specifications.ceiling_height_min", "type": "number"},
+  {"key": "ceiling_height_max", "label": "Wysokość max.", "path": "specifications.ceiling_height_max", "type": "number"},
   {"key": "delivery", "label": "Termin", "path": "delivery", "type": "string"},
   {"key": "price_m2_min", "label": "Cena m2 min.", "path": "price_m2_min", "type": "currency"},
   {"key": "price_m2_max", "label": "Cena m2 max.", "path": "price_m2_max", "type": "currency"},

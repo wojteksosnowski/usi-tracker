@@ -133,8 +133,10 @@ class Merger:
                 curr_spec["delivery_year"] = other_spec.get("delivery_year")
             if not curr_spec.get("units_count") and other_spec.get("units_count"):
                 curr_spec["units_count"] = other_spec["units_count"]
-            if not curr_spec.get("ceiling_height") and other_spec.get("ceiling_height"):
-                curr_spec["ceiling_height"] = other_spec["ceiling_height"]
+            if not curr_spec.get("ceiling_height_min") and other_spec.get("ceiling_height_min"):
+                curr_spec["ceiling_height_min"] = other_spec["ceiling_height_min"]
+            if not curr_spec.get("ceiling_height_max") and other_spec.get("ceiling_height_max"):
+                curr_spec["ceiling_height_max"] = other_spec["ceiling_height_max"]
 
             other_fin = other.get("financials", {})
             curr_fin = result["financials"]
@@ -235,5 +237,8 @@ class Merger:
                     "event": event,
                     "changes": []
                 })
+
+        return result
+
 
         return result

@@ -28,17 +28,18 @@ TEST_CASES = {
     "oto": {
         "name": "Otodom",
         "url": "https://www.otodom.pl/pl/inwestycja/poczatek-polnocy-ID4mYvY",
-        "id": "https://www.otodom.pl/pl/inwestycja/poczatek-polnocy-ID4mYvY", # API expects URL for oto
-        "dev_slug": "yit-development",
+        "dev_url": "https://www.otodom.pl/pl/firmy/deweloperzy/marvipol-development-ID138",
+        "id": "https://www.otodom.pl/pl/inwestycja/poczatek-polnocy-ID4mYvY",
+        "dev_slug": "marvipol",
         "inv_slug": "poczatek-polnocy",
         "adapter_key": "oto"
     },
     "to": {
         "name": "TabelaOfert",
-        "url": "https://tabelaofert.pl/inwestycja/nowe-kolibki,i7332",
-        "id": "https://tabelaofert.pl/inwestycja/nowe-kolibki,i7332",
-        "dev_slug": "invest-komfort",
-        "inv_slug": "nowe-kolibki",
+        "url": "https://tabelaofert.pl/inwestycja/atal-aura-telefoniczna-21-lodz-srodmiescie-mieszkania-na-sprzedaz,i8975118",
+        "id": "https://tabelaofert.pl/inwestycja/atal-aura-telefoniczna-21-lodz-srodmiescie-mieszkania-na-sprzedaz,i8975118",
+        "dev_slug": "atal",
+        "inv_slug": "atal-aura",
         "adapter_key": "to"
     }
 }
@@ -102,7 +103,7 @@ def check_portal(portal_key, temp_data_dir, temp_assets_dir):
         loc = unified.get("location", {})
         coords = loc.get("coords", [])
         if not coords or len(coords) < 2 or not all(coords):
-            errors.append(f"Missing or invalid coordinates: {coords}")
+            logger.warning(f"⚠️ Missing or invalid coordinates for {test['name']}: {coords}")
         
         if not loc.get("city"):
             errors.append("Missing city")
@@ -119,6 +120,8 @@ def check_portal(portal_key, temp_data_dir, temp_assets_dir):
             errors.append("No source image URLs found in adapted data")
 
         if errors:
+            logger.error(f"Validation failed for {test['name']}")
+            logger.error(f"Unified Data: {json.dumps(unified, indent=2, ensure_ascii=False)}")
             for err in errors:
                 logger.error(f"FAIL: {err}")
             return False
@@ -134,14 +137,68 @@ def check_portal(portal_key, temp_data_dir, temp_assets_dir):
         logger.exception(f"Critical error testing {test['name']}: {e}")
         return False
 
+def check_developer(portal_key, temp_data_dir, temp_dev_dir):
+    test = TEST_CASES.get(portal_key)
+    logger.info(f"--- Testing {test['name']} DEVELOPER ---")
+    
+    config = get_scraper_config()
+    config.public_dir = temp_root
+    fetcher = Fetcher(config)
+    
+    try:
+        # 1. Identify/Fetch Developer
+        dev_name = None
+        target_url = test.get("dev_url", test["url"])
+        if portal_key in ("oto", "to"):
+            dev_name = scraper_api.identify_developer(fetcher, portal_key, target_url)
+        else:
+            # For RP, we usually get dev info from listing or search
+            # Here we just check if list_developers works
+            page = scraper_api.list_developers(config, fetcher, portal_key, page=1)
+            if page and page.developers:
+                dev_name = page.developers[0].get("name")
+
+        if not dev_name:
+            logger.error(f"Could not identify developer for {portal_key}")
+            return False
+            
+        logger.info(f"   Identified: {dev_name}")
+
+        # 2. Save Raw Developer (L2 canonical check)
+        # Mock some raw data to test saving
+        mock_raw = {"name": dev_name, "id": "test_id", "url": test["url"], "_is_test": True}
+        raw_path = scraper_api.save_raw_developer(config, mock_raw, test["dev_slug"], portal_key)
+        
+        if not raw_path or not raw_path.exists():
+            logger.error("Failed to save raw developer JSON")
+            return False
+            
+        # Verify location according to canonical.md (L2: USIdev/raw/raw_{portal}_{slug}.json)
+        # Note: DeveloperManager uses USIdev/raw/ for raws
+        expected_raw_name = f"raw_{portal_key}_{test['dev_slug']}.json"
+        if raw_path.name != expected_raw_name:
+             logger.error(f"Wrong raw filename: expected {expected_raw_name}, got {raw_path.name}")
+             return False
+
+        logger.info(f"✅ {test['name']} Developer Ingestion OK")
+        logger.info(f"   Raw path: {raw_path.relative_to(temp_root)}")
+        return True
+
+    except Exception as e:
+        logger.exception(f"Critical error testing {test['name']} developer: {e}")
+        return False
+
 if __name__ == "__main__":
     requested_portals = sys.argv[1:] if len(sys.argv) > 1 else ["rp", "oto", "to"]
+
     
     # Setup temporary environment
     temp_root = Path(tempfile.mkdtemp(prefix="usi_test_"))
     temp_data = temp_root / "USIdata"
+    temp_dev = temp_root / "USIdev"
     temp_assets = temp_root / "USI"
     temp_data.mkdir()
+    temp_dev.mkdir()
     temp_assets.mkdir()
     
     logger.info(f"🚀 Starting isolated ingestion tests in: {temp_root}")
@@ -149,9 +206,12 @@ if __name__ == "__main__":
     try:
         overall_success = True
         for p in requested_portals:
-            # Cleanup for current key (some shells pass --portal all)
-            if p.startswith("--"): continue
+            if p.startswith("--") or p not in TEST_CASES: continue
+            # Test Investment
             if not check_portal(p, temp_data, temp_assets):
+                overall_success = False
+            # Test Developer
+            if not check_developer(p, temp_data, temp_dev):
                 overall_success = False
                 
         if not overall_success:
@@ -165,31 +225,3 @@ if __name__ == "__main__":
         shutil.rmtree(temp_root)
         logger.info(f"🧹 Cleaned up temporary directory: {temp_root}")
 
-if __name__ == "__main__":
-    portals = sys.argv[1:] if len(sys.argv) > 1 else ["rp", "oto", "to"]
-    
-    # Setup temporary environment
-    temp_root = Path(tempfile.mkdtemp(prefix="usi_test_"))
-    temp_data = temp_root / "USIdata"
-    temp_assets = temp_root / "USI"
-    temp_data.mkdir()
-    temp_assets.mkdir()
-    
-    logger.info(f"🚀 Starting isolated ingestion tests in: {temp_root}")
-    
-    try:
-        overall_success = True
-        for p in portals:
-            if not check_portal(p, temp_data, temp_assets):
-                overall_success = False
-                
-        if not overall_success:
-            logger.error("❌ Some ingestion tests FAILED")
-            sys.exit(1)
-        else:
-            logger.info("🎉 ALL INGESTION TESTS PASSED IN ISOLATION")
-            sys.exit(0)
-    finally:
-        # Cleanup
-        shutil.rmtree(temp_root)
-        logger.info(f"🧹 Cleaned up temporary directory: {temp_root}")

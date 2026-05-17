@@ -146,7 +146,14 @@
       "Read(//Volumes/Samsam/claude-py/usi-tracker/Public/USI/5th-avenue-holding-s-a/**)",
       "Bash(xargs -I {} sh -c 'echo \"=== {} ===\" && head -c 100 {}')",
       "Bash(grep -E \"\\\\-ID[a-zA-Z0-9]+$\")",
-      "Bash(grep -E '-ID[A-Za-z0-9]+\\(/|$\\)')"
+      "Bash(grep -E '-ID[A-Za-z0-9]+\\(/|$\\)')",
+      "Bash(xargs -I {} cat {})",
+      "Bash(grep -v \"^/Volumes/Samsam/Public/USIdev$\")",
+      "Bash(grep -oE '\\\\.[^.]+$')",
+      "Bash(grep -E \"\\(investments|developer_manager|utils\\)\\\\.py$\")",
+      "Bash(xargs -I {} sh -c 'echo \"FILE: {}\" && head -10 {}')",
+      "Bash(cat)",
+      "Bash(bash /tmp/search_calls.sh)"
     ]
   }
 }

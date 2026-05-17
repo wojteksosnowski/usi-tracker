@@ -90,7 +90,8 @@
       "properties": {
         "units_count": { "type": "integer", "minimum": 0 },
         "floors_count": { "type": "integer", "minimum": 0 },
-        "ceiling_height": { "type": ["number", "null"], "description": "Wysokość mieszkań w metrach (np. 2.70)." },
+        "ceiling_height_min": { "type": ["number", "null"], "description": "Minimalna wysokość mieszkań w metrach (np. 2.60)." },
+        "ceiling_height_max": { "type": ["number", "null"], "description": "Maksymalna wysokość mieszkań w metrach (np. 3.00)." },
         "delivery_date": { "type": "string", "description": "Format: 'Q kw. YYYY' lub ISO date." },
         "delivery_quarter": { "type": "integer", "minimum": 1, "maximum": 4 },
         "delivery_year": { "type": "integer" }

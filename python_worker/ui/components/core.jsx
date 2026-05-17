@@ -46,6 +46,8 @@ const USI_INVESTMENT_SCHEMA = {
   price_m2_min: { type: 'number', fallback: null },
   price_m2_max: { type: 'number', fallback: null },
   delivery: { type: 'string', fallback: '—' },
+  ceiling_height_min: { type: 'number', fallback: null },
+  ceiling_height_max: { type: 'number', fallback: null },
   coords: { type: 'array', fallback: [0, 0] },
   photos: { type: 'array', fallback: [] },
   ratings: { type: 'object', fallback: {} },

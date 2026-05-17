@@ -21,7 +21,7 @@ def _unified_base(inv_slug, dev_slug, name, developer=None):
         "website": None,
         "sources": {},
         "location": {"coords": [None, None], "address": None, "city": None, "district": None},
-        "specifications": {"delivery_date": None, "delivery_quarter": None, "delivery_year": None, "units_count": None, "ceiling_height": None},
+        "specifications": {"delivery_date": None, "delivery_quarter": None, "delivery_year": None, "units_count": None, "ceiling_height_min": None, "ceiling_height_max": None},
         "financials": {"price_min": None, "price_max": None, "price_avg": None, "price_m2_min": None, "price_m2_max": None},
         "amenities": {"labels": [], "raw_codes": []},
         "image_urls": [],
@@ -116,21 +116,36 @@ class RPAdapter:
                 rp_src["vendor_id"] = str(vid)
         u["sources"]["rp"] = rp_src
         u["website"] = website
+        address = _get_val(raw, "address") or raw.get("address")
+        city = district = None
+        if address:
+            parts = [p.strip() for p in address.split(",")]
+            if len(parts) >= 1:
+                city = parts[0]
+            if len(parts) >= 3: # City, District, Street
+                district = parts[1]
+            elif len(parts) == 2: # City, Street or City, District? Usually City, Street
+                # We can't be sure, but let's assume City, Street if no 3rd part.
+                pass
+
         u["location"].update({
             "coords": [lat, lng],
-            "address": _get_val(raw, "address") or raw.get("address"),
+            "address": address,
+            "city": city,
+            "district": district,
         })
 
         # Extract height and prices from stats if available
         stats = _get_val(raw, "stats")
-        height = None
+        h_min = h_max = None
         if isinstance(stats, dict):
-            h_cm = stats.get("ranges_height_max")
-            if h_cm:
-                try:
-                    height = round(float(h_cm) / 100, 2)
-                except (ValueError, TypeError):
-                    pass
+            h_min_cm = stats.get("ranges_height_min")
+            h_max_cm = stats.get("ranges_height_max")
+            try:
+                if h_min_cm: h_min = round(float(h_min_cm) / 100, 2)
+                if h_max_cm: h_max = round(float(h_max_cm) / 100, 2)
+            except (ValueError, TypeError):
+                pass
             
             p_min = stats.get("ranges_price_min")
             p_max = stats.get("ranges_price_max")
@@ -150,7 +165,8 @@ class RPAdapter:
         u["specifications"].update({
             "delivery_date": delivery,
             "units_count": _get_val(raw, "properties") or raw.get("properties"),
-            "ceiling_height": height,
+            "ceiling_height_min": h_min,
+            "ceiling_height_max": h_max,
         })
         u["amenities"]["raw_codes"] = amenity_codes
         u["image_urls"] = gallery_urls
@@ -229,17 +245,37 @@ class OtodomAdapter:
         url = ad.get("url")
 
         dq = dy = None
+        units_count = None
+        h_min = h_max = None
         for item in (ad.get("topInformation") or []):
-            if item.get("label") == "project_finish_date":
-                vals = item.get("values", [])
-                if vals:
-                    try:
-                        parts = vals[0].split("-")
-                        dy = int(parts[0])
-                        dq = (int(parts[1]) - 1) // 3 + 1
-                    except Exception:
-                        pass
-                break
+            lbl = item.get("label")
+            vals = item.get("values", [])
+            if not vals:
+                continue
+
+            if lbl == "project_finish_date":
+                try:
+                    parts = vals[0].split("-")
+                    dy = int(parts[0])
+                    dq = (int(parts[1]) - 1) // 3 + 1
+                except Exception:
+                    pass
+            elif lbl == "number_of_units_in_project":
+                try:
+                    units_count = int(vals[0])
+                except (ValueError, TypeError):
+                    pass
+        
+        target = ad.get("target") or {}
+        if isinstance(target, dict):
+            h_min_cm = target.get("Ceiling_height_from")
+            h_max_cm = target.get("Ceiling_height_to")
+            try:
+                if h_min_cm: h_min = round(float(h_min_cm) / 100, 2)
+                if h_max_cm: h_max = round(float(h_max_cm) / 100, 2)
+            except (ValueError, TypeError):
+                pass
+
         if dq is None:
             old_del = ad.get("investmentEstimatedDelivery") or {}
             dq = old_del.get("quarter")
@@ -266,6 +302,9 @@ class OtodomAdapter:
             "delivery_quarter": dq,
             "delivery_year": dy,
             "delivery_date": f"{dy}-Q{dq}" if dy and dq else None,
+            "units_count": units_count,
+            "ceiling_height_min": h_min,
+            "ceiling_height_max": h_max,
         })
         u["image_urls"] = images
         u["images_count"] = len(images)
@@ -289,12 +328,25 @@ class TOAdapter:
     def _from_result(cls, res: dict, inv_slug: str, dev_slug: str) -> dict:
         u = _unified_base(inv_slug, dev_slug,
                           res.get("name"), developer=res.get("developer_name"))
+        
+        city = res.get("city")
+        address = res.get("address")
         lat, lng = res.get("latitude"), res.get("longitude")
+
+        # Fallback for location from description
+        desc = res.get("raw_details", {}).get("description") or ""
+        if (not city or not address) and desc:
+            # Matches: ✔️ Łódź, Śródmieście, ul. Telefoniczna 21 ✔️
+            m = re.search(r'✔️\s*([^,]+),\s*([^,]+),\s*(ul\.[^✔️]+)✔️', desc)
+            if m:
+                if not city: city = m.group(1).strip()
+                if not address: address = m.group(3).strip()
+
         u["sources"]["to"] = {"url": res.get("to_url") or ""}
         u["location"].update({
             "coords": [lat, lng],
-            "address": res.get("address"),
-            "city": res.get("city"),
+            "address": address,
+            "city": city,
         })
         u["specifications"]["delivery_date"] = res.get("construction_date_upper")
         u["specifications"]["units_count"] = res.get("properties_count")
@@ -326,6 +378,15 @@ class TOAdapter:
         ext_loc = raw.get("_extracted_location") or {}
         lat = ext_loc.get("latitude")
         lng = ext_loc.get("longitude")
+        city = ext_loc.get("city")
+        address = ext_loc.get("address")
+
+        desc = raw.get("description") or ""
+        if (not city or not address) and desc:
+            m = re.search(r'✔️\s*([^,]+),\s*([^,]+),\s*(ul\.[^✔️]+)✔️', desc)
+            if m:
+                if not city: city = m.group(1).strip()
+                if not address: address = m.group(3).strip()
 
         amenity_labels = []
         for prop in (raw.get("additionalProperty") or []):
@@ -335,7 +396,7 @@ class TOAdapter:
         u = _unified_base(inv_slug, dev_slug,
                           raw.get("name"), developer=developer_name)
         u["sources"]["to"] = {"url": raw.get("url") or raw.get("to_url") or ""}
-        u["location"].update({"coords": [lat, lng], "address": ext_loc.get("address"), "city": ext_loc.get("city")})
+        u["location"].update({"coords": [lat, lng], "address": address, "city": city})
         u["financials"].update({"price_min": price_min, "price_max": price_max})
         u["amenities"]["labels"] = amenity_labels
         u["image_urls"] = urls
