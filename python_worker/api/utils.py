@@ -230,4 +230,5 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path = None, public
         "photos_to_delete": photos_to_delete,
         "folder_path": str(inv_dir),
         "website": "",
+        "sources": sources,
     }
