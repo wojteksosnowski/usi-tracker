@@ -67,7 +67,8 @@ def test_register_investment_creates_skeleton(svc):
         )
     assert dev_slug == "acme-deweloper"
     assert inv_slug == "acme-flat"
-    usi_file = svc.data_dir / dev_slug / inv_slug / f"usi_{inv_slug}.json"
+    # New canonical filename: usi_{portal}_{portal_id}.json
+    usi_file = svc.data_dir / dev_slug / inv_slug / "usi_rp_999.json"
     assert usi_file.exists()
     data = json.loads(usi_file.read_text())
     assert data["sources"]["rp"]["id"] == "999"
@@ -176,7 +177,8 @@ def test_update_investment_rebuild_from_raw(svc, tmp_path):
         result = svc.update_investment("acme-dev", "test-inv", use_local_raw=True)
 
     assert result is True
-    saved = json.loads((inv_dir / "usi_test-inv.json").read_text())
+    # Output uses new canonical: usi_rp_{portal_id}.json (sources.rp.id = "123")
+    saved = json.loads((inv_dir / "usi_rp_123.json").read_text())
     assert saved["name"] == "Test Investment Updated"
 
 

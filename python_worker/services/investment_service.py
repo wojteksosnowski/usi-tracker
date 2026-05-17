@@ -9,6 +9,33 @@ from python_worker.logger_utils import log_to_processing_log
 
 logger = logging.getLogger(__name__)
 
+
+def _primary_portal_id(sources: dict) -> tuple[str, str | None]:
+    """Return (portal, id) for the highest-priority portal that has an ID."""
+    for portal in ("rp", "oto", "to"):
+        pid = (sources.get(portal) or {}).get("id")
+        if pid:
+            return portal, str(pid)
+    return "rp", None
+
+
+def _find_inv_file(inv_dir: Path, inv_slug: str) -> Path | None:
+    """Find the canonical investment JSON in inv_dir (new format first, then legacy)."""
+    for p in ("rp", "oto", "to"):
+        candidates = sorted(inv_dir.glob(f"usi_{p}_*.json"))
+        if candidates:
+            return candidates[0]
+    for legacy in (
+        inv_dir / f"usi_{inv_slug}.json",
+        inv_dir / f"usi_rp_{inv_slug}.json",
+        inv_dir / f"usi_oto_{inv_slug}.json",
+        inv_dir / f"usi_to_{inv_slug}.json",
+    ):
+        if legacy.exists():
+            return legacy
+    return None
+
+
 class InvestmentService:
     def __init__(self, data_dir: Path = None, public_usi_dir: Path = None):
         from python_worker.config import USI_DATA_DIR, PUBLIC_USI_DIR, get_scraper_config
@@ -79,17 +106,14 @@ class InvestmentService:
             logger.warning(f"[slugify] register_investment: no portal ID found for '{developer_name}' (portal={portal}, inv={inv_slug}) → slug='{dev_slug}'")
         
         # Auto-create developer profile if it doesn't exist (semantic layer)
-        dev_path = dm.dev_dir / f"usi_dev_{dev_slug}.json"
-        if not dev_path.exists():
+        if not dm.get_developer(dev_slug):
             logger.info(f"Auto-creating developer profile for: {developer_name} ({dev_slug})")
             dm.create_developer_file({"developer_slug": dev_slug, "name": developer_name})
 
-        # Path resolution via library
-        usi_path = self.tech_manager.get_usi_json_path(dev_slug, inv_slug) if self.tech_manager else \
-                   (self.data_dir / dev_slug / inv_slug / f"usi_{inv_slug}.json")
+        inv_dir = self.data_dir / dev_slug / inv_slug
 
-        # 1. Check if EXACT path exists
-        if usi_path.exists():
+        # 1. Check if investment already exists (any file format)
+        if _find_inv_file(inv_dir, inv_slug):
             if allow_existing:
                 return dev_slug, inv_slug
             raise ValueError(f"Investment already exists: {dev_slug}/{inv_slug}")
@@ -107,19 +131,33 @@ class InvestmentService:
 
         if id_exists:
             logger.info(f"Investment with ID {item_id} ({portal}) already exists in system. Skipping registration.")
-            # We don't have the exact dev/inv slug here easily without a full scan,
-            # but returning (None, None) or similar would signal "nothing to do"
             return None, None
 
-        usi_path.parent.mkdir(parents=True, exist_ok=True)
+        inv_dir.mkdir(parents=True, exist_ok=True)
 
-        sources = {}
-        if portal == "rp":
-            sources["rp"] = {"id": item_id, "url": url}
-        elif portal == "oto":
-            sources["oto"] = {"url": url}
-        elif portal == "to":
-            sources["to"] = {"url": url}
+        # Canonical filename: usi_{portal}_{portal_id}.json (new format)
+        if portal == "rp" and item_id:
+            filename = f"usi_rp_{item_id}.json"
+            sources = {"rp": {"id": str(item_id), "url": url}}
+            if vendor_id:
+                sources["rp"]["vendor_id"] = str(vendor_id)
+        elif portal == "oto" and item_id:
+            filename = f"usi_oto_{item_id}.json"
+            sources = {"oto": {"id": str(item_id), "url": url}}
+        elif portal == "to" and item_id:
+            filename = f"usi_to_{item_id}.json"
+            sources = {"to": {"id": str(item_id), "url": url}}
+        else:
+            filename = f"usi_{inv_slug}.json"
+            sources = {}
+            if portal == "rp":
+                sources["rp"] = {"url": url}
+            elif portal == "oto":
+                sources["oto"] = {"url": url}
+            elif portal == "to":
+                sources["to"] = {"url": url}
+
+        usi_path = inv_dir / filename
 
         # Use DeveloperManager for consistent ID generation
         usi_inv_id = dm.generate_usi_id("INV")
@@ -195,29 +233,16 @@ class InvestmentService:
         """
         from usi_scrapers import api as scraper_api
 
-        # Path resolution via library
-        usi_path = self.tech_manager.get_usi_json_path(dev_slug, inv_slug) if self.tech_manager else \
-                   (self.data_dir / dev_slug / inv_slug / f"usi_{inv_slug}.json")
-        inv_dir = usi_path.parent
+        inv_dir = self.data_dir / dev_slug / inv_slug
+        actual_file = _find_inv_file(inv_dir, inv_slug)
 
-        # Legacy: some investments have portal-prefixed files (usi_oto_*.json, usi_rp_*.json)
-        # Load from legacy path if canonical doesn't exist; always save to canonical (auto-migration)
-        legacy_path = None
-        if not usi_path.exists():
-            for _prefix in ["rp", "oto", "to"]:
-                _candidate = inv_dir / f"usi_{_prefix}_{inv_slug}.json"
-                if _candidate.exists():
-                    legacy_path = _candidate
-                    break
-
-        if not usi_path.exists() and not legacy_path and not use_local_raw:
-            logger.warning(f"Investment file not found skipping: {usi_path}")
+        if not actual_file and not use_local_raw:
+            logger.warning(f"Investment file not found skipping: {inv_dir}/usi_*.json")
             return False
 
         usi_data = {}
-        _load_from = legacy_path if legacy_path and not usi_path.exists() else usi_path
-        if _load_from and _load_from.exists():
-            with open(_load_from, "r", encoding="utf-8") as f:
+        if actual_file and actual_file.exists():
+            with open(actual_file, "r", encoding="utf-8") as f:
                 usi_data = json.load(f)
 
         sources = usi_data.get("sources", {})
@@ -354,7 +379,14 @@ class InvestmentService:
                         new_unified["image_paths"] = [f"/Public/USI/{img_dev_slug}/{inv_slug}/{fname}" for fname in on_disk]
                         new_unified["images_count"] = len(on_disk)
 
-            with open(usi_path, "w", encoding="utf-8") as f_out:
+            # Save to canonical new-format path; fall back to existing file path
+            primary_portal, primary_id = _primary_portal_id(new_unified.get("sources", {}))
+            if primary_id:
+                out_path = inv_dir / f"usi_{primary_portal}_{primary_id}.json"
+            else:
+                out_path = actual_file or (inv_dir / f"usi_{inv_slug}.json")
+
+            with open(out_path, "w", encoding="utf-8") as f_out:
                 json.dump(new_unified, f_out, indent=2, ensure_ascii=False)
 
             if not skip_index:
@@ -413,15 +445,15 @@ class InvestmentService:
                 raise ValueError(f"Invalid status: {new_status}")
             existing_ratings["status"] = new_status
 
-        usi_file = inv_dir / f"usi_{inv_slug}.json"
-        if usi_file.exists():
+        usi_file = _find_inv_file(inv_dir, inv_slug)
+        if usi_file:
             try:
                 usi_data = json.loads(usi_file.read_text())
                 old_score = _calculate_ocena_log(usi_data.get("ratings", {}))
                 usi_data["ratings"] = {**usi_data.get("ratings", {}), **existing_ratings}
                 usi_data["status"] = existing_ratings.get("status", usi_data.get("status", "Brak"))
                 new_score = _calculate_ocena_log(usi_data["ratings"])
-                
+
                 audit = usi_data.setdefault("audit", {})
                 audit["updated_at"] = datetime.now().isoformat()
                 if changes:
@@ -550,9 +582,9 @@ class InvestmentService:
     def mark_as_reviewed(self, dev_slug, inv_slug):
         """Sets the reviewed flag to true for the specified investment."""
         inv_dir = self.data_dir / dev_slug / inv_slug
-        usi_file = inv_dir / f"usi_{inv_slug}.json"
-        
-        if not usi_file.exists():
+        usi_file = _find_inv_file(inv_dir, inv_slug)
+
+        if not usi_file:
             return False
             
         try:
@@ -574,9 +606,9 @@ class InvestmentService:
     def add_report(self, dev_slug, inv_slug, note):
         """Adds a problem report note to the investment record."""
         inv_dir = self.data_dir / dev_slug / inv_slug
-        usi_file = inv_dir / f"usi_{inv_slug}.json"
-        
-        if not usi_file.exists():
+        usi_file = _find_inv_file(inv_dir, inv_slug)
+
+        if not usi_file:
             return False
             
         try:

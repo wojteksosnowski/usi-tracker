@@ -34,7 +34,8 @@ def _write_dev(data_dir, dev_slug, portal_mapping=None):
 def test_register_new_investment_creates_skeleton(svc):
     item = {"slug": "nowa-inwestycja", "name": "Nowa Inwestycja", "id": "555", "url": None}
     svc._register_new_investment("acme-dev", item, "rp")
-    usi_file = svc.data_dir / "acme-dev" / "nowa-inwestycja" / "usi_nowa-inwestycja.json"
+    # New canonical filename: usi_rp_{portal_id}.json
+    usi_file = svc.data_dir / "acme-dev" / "nowa-inwestycja" / "usi_rp_555.json"
     assert usi_file.exists()
     data = json.loads(usi_file.read_text())
     assert data["sources"]["rp"]["id"] == "555"
@@ -98,7 +99,8 @@ def test_discover_for_developer_registers_new_items(svc):
                return_value=new_items):
         count = svc.discover_for_developer("job-001", "acme-dev")
     assert count == 1
-    assert (svc.data_dir / "acme-dev" / "inv-a" / "usi_inv-a.json").exists()
+    # New canonical filename: usi_rp_{portal_id}.json (id="1")
+    assert (svc.data_dir / "acme-dev" / "inv-a" / "usi_rp_1.json").exists()
 
 
 def test_discover_for_developer_updates_job_progress(svc):

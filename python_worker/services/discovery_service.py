@@ -173,7 +173,8 @@ class DiscoveryService:
     def _save_discovery_snapshot(self, dev_slug, items):
         """Saves discovery results to a JSON file in the developer's directory."""
         try:
-            dev_dir = self.data_dir.parent / "USIdev" / dev_slug
+            from python_worker.config import USI_DEV_DIR
+            dev_dir = Path(USI_DEV_DIR) / dev_slug
             dev_dir.mkdir(parents=True, exist_ok=True)
             discovery_file = dev_dir / "discovery.json"
             

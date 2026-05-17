@@ -98,18 +98,31 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path = None, public
     if public_usi_dir is None: public_usi_dir = Path(PUBLIC_USI_DIR)
     
     inv_dir = data_dir / dev_slug / inv_slug
-    
+
     if portal:
-        usi_file = inv_dir / f"usi_{portal}_{inv_slug}.json"
+        # Known portal: prefer new format usi_{portal}_{id}.json, fallback to slug-based
+        candidates = sorted(inv_dir.glob(f"usi_{portal}_*.json"))
+        usi_file = candidates[0] if candidates else (inv_dir / f"usi_{portal}_{inv_slug}.json")
     else:
-        # Try portal-specific first, then legacy
-        usi_file = inv_dir / f"usi_rp_{inv_slug}.json"
-        if not usi_file.exists():
-            usi_file = inv_dir / f"usi_oto_{inv_slug}.json"
-        if not usi_file.exists():
-            usi_file = inv_dir / f"usi_{inv_slug}.json"
-    
-    if not usi_file.exists():
+        # Autodetect: new format (rp > oto > to) then legacy slug-based variants
+        usi_file = None
+        for p in ("rp", "oto", "to"):
+            candidates = sorted(inv_dir.glob(f"usi_{p}_*.json"))
+            if candidates:
+                usi_file = candidates[0]
+                break
+        if not usi_file:
+            for legacy in (
+                inv_dir / f"usi_{inv_slug}.json",
+                inv_dir / f"usi_rp_{inv_slug}.json",
+                inv_dir / f"usi_oto_{inv_slug}.json",
+                inv_dir / f"usi_to_{inv_slug}.json",
+            ):
+                if legacy.exists():
+                    usi_file = legacy
+                    break
+
+    if not usi_file or not usi_file.exists():
         return None
         
     try:

@@ -9,8 +9,8 @@ LIB_PATH = "/Volumes/Samsam/claude-py/usi-scrapers"
 if LIB_PATH not in sys.path:
     sys.path.append(LIB_PATH)
 
-# Load .env file
-load_dotenv()
+# Load .env file from python_worker/ directory (explicit path — CWD-independent)
+load_dotenv(Path(__file__).parent / ".env")
 
 # ScraperAPI Settings
 SCRAPERAPI_KEY = os.getenv("SCRAPERAPI_KEY")
