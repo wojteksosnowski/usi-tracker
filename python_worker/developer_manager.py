@@ -684,9 +684,17 @@ class DeveloperManager:
 
     def resolve_dev_slug(self, name: str) -> str:
         """Standardizes a developer name into a slug."""
-        slug = slugify(name)
-        logger.warning(f"[slugify] resolve_dev_slug called for '{name}' → '{slug}'")
-        return slug
+        if not name:
+            return "unknown"
+            
+        # Find by name in current index (case-insensitive)
+        for dev in self.list_developers(only_merged=False):
+            if dev.get("name") and dev["name"].lower() == name.lower():
+                return dev["developer_slug"]
+
+        # WE HAVE A NAME, BUT NO RECORD. 
+        # Mandate: Never slugify(name). Fallback to 'unknown' to force manual/ID link.
+        return "unknown"
 
     def find_developer_by_id(self, portal: str, portal_id: str) -> dict | None:
         """Finds a developer by its portal-specific ID (e.g., rp id, oto agency_id)."""

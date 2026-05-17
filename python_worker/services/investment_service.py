@@ -60,7 +60,6 @@ class InvestmentService:
         return _load_investment(dev_slug, inv_slug, data_dir=self.data_dir, public_usi_dir=self.public_usi_dir, portal=portal)
 
     def register_investment(self, portal, developer_name, inv_slug, name, item_id=None, url=None, allow_existing=False, vendor_id=None):
-        from python_worker.slug_utils import slugify
         from python_worker.developer_manager import DeveloperManager
         from usi_scrapers import api as scraper_api
         from python_worker.url_parser import parse_url
@@ -84,29 +83,40 @@ class InvestmentService:
             if parsed.get("developer_slug") and parsed["developer_slug"] != "unknown":
                 # Only overwrite if we don't have a better name already
                 # or if we are dealing with 'Nieznany Deweloper'
-                if not developer_name or slugify(developer_name) == "nieznany-deweloper":
+                is_unknown = not developer_name or developer_name.lower() in ("nieznany deweloper", "unknown", "nieznany-deweloper")
+                if is_unknown:
                     developer_name = parsed["developer_slug"].replace("-", " ").title()
 
         # Identification pre-scrapes (Otodom/TabelaOfert) via API
-        if not developer_record and (not developer_name or slugify(developer_name) == "nieznany-deweloper") and portal in ("oto", "to") and url:
+        is_unknown = not developer_name or developer_name.lower() in ("nieznany deweloper", "unknown", "nieznany-deweloper")
+        if not developer_record and is_unknown and portal in ("oto", "to") and url:
             logger.info(f"Developer unknown for {url}, performing pre-scrape identification ({portal})...")
             try:
                 identified_name = scraper_api.identify_developer(self.fetcher, portal, url)
                 if identified_name:
                     developer_name = identified_name
+                    is_unknown = False
             except Exception as e:
                 logger.error(f"Pre-scrape identification failed ({portal}): {e}")
 
-        if not developer_record and (not developer_name or slugify(developer_name) == "nieznany-deweloper"):
-            logger.error(f"Attempted to register investment with missing or invalid developer: {developer_name}")
-            raise ValueError("Registration failed: Real developer identity is required. Cannot use 'Nieznany Deweloper'.")
-
         if not developer_record:
-            dev_slug = slugify(developer_name)
-            logger.warning(f"[slugify] register_investment: no portal ID found for '{developer_name}' (portal={portal}, inv={inv_slug}) → slug='{dev_slug}'")
+            if is_unknown:
+                dev_slug = "unknown"
+            else:
+                # Try finding by name in local DB (case-insensitive name search)
+                developer_record = dm.get_developer_by_name(developer_name)
+                if developer_record:
+                    dev_slug = developer_record["developer_slug"]
+                else:
+                    # WE HAVE A NAME, BUT NO RECORD. 
+                    # Mandate: Never slugify(name). Fallback to 'unknown' to force manual/ID link.
+                    dev_slug = "unknown"
+                    logger.warning(f"No USI record for developer '{developer_name}' - placing in 'unknown' folder")
+        else:
+            dev_slug = developer_record["developer_slug"]
         
-        # Auto-create developer profile if it doesn't exist (semantic layer)
-        if not dm.get_developer(dev_slug):
+        # Auto-create developer profile ONLY if we have a real slug (not 'unknown')
+        if dev_slug != "unknown" and not dm.get_developer(dev_slug):
             logger.info(f"Auto-creating developer profile for: {developer_name} ({dev_slug})")
             dm.create_developer_file({"developer_slug": dev_slug, "name": developer_name})
 
@@ -257,9 +267,20 @@ class InvestmentService:
         to_unified = None
         fetched_sources = []
         failed_sources = []
-        # Canonical slug for image/raw I/O — resolved from portal raw data, not slugify.
-        # Tracks the most authoritative portal slug seen (RP > OTO > TO): set on first success, not overwritten.
+        # Initial guess for images is the current folder name
         img_dev_slug = dev_slug
+        
+        # Mandate: Trust recorded paths. Check where images WERE stored before.
+        existing_img_list = usi_data.get("ratings", {}).get("imgList")
+        if not existing_img_list and usi_data.get("image_paths"):
+            existing_img_list = usi_data["image_paths"][0]
+            
+        if existing_img_list:
+            import re
+            m = re.search(r'/Public/USI/([^/]+)/', str(existing_img_list))
+            if m:
+                img_dev_slug = m.group(1)
+                logger.info(f"Image folder for {inv_slug} pinned to recorded path: {img_dev_slug}")
 
         # Generic update loop using scraper_api
         for portal in ["rp", "oto", "to"]:
@@ -274,12 +295,9 @@ class InvestmentService:
                 raw_path = canonical if canonical.exists() else sorted(raw_files)[-1]
                 with open(raw_path, "r") as f:
                     raw_details = json.load(f)
-                canonical_dev_slug = self._canonical_slug_from_raw(raw_prefix, raw_details, dev_slug)
-                if canonical_dev_slug != dev_slug:
-                    logger.warning(f"[{portal_name}] {inv_slug}: portal slug '{canonical_dev_slug}' differs from folder '{dev_slug}'")
-                if img_dev_slug == dev_slug:
-                    img_dev_slug = canonical_dev_slug
-                rp_oto_to_unified = AdapterFactory.get_adapter(raw_prefix).transform(raw_details, inv_slug, canonical_dev_slug)
+                
+                # Transform using the FOLDER slug (dev_slug) to maintain consistency
+                rp_oto_to_unified = AdapterFactory.get_adapter(raw_prefix).transform(raw_details, inv_slug, dev_slug)
                 if portal == "rp": rp_unified = rp_oto_to_unified
                 elif portal == "oto": oto_unified = rp_oto_to_unified
                 elif portal == "to": to_unified = rp_oto_to_unified
@@ -306,21 +324,20 @@ class InvestmentService:
                     continue
 
                 if res and "raw_details" in res:
-                    canonical_dev_slug = self._canonical_slug_from_raw(raw_prefix, res["raw_details"], dev_slug)
-                    if canonical_dev_slug != dev_slug:
-                        logger.warning(f"[{portal_name}] {inv_slug}: portal slug '{canonical_dev_slug}' differs from folder '{dev_slug}'")
-                    if img_dev_slug == dev_slug:
-                        img_dev_slug = canonical_dev_slug
-
+                    raw_data = res["raw_details"]
+                    canonical_dev_slug = self._canonical_slug_from_raw(raw_prefix, raw_data, dev_slug)
+                    
                     if self.tech_manager:
-                        self.tech_manager.save_raw_data(res["raw_details"], canonical_dev_slug, inv_slug, raw_prefix)
+                        # Save raw data using canonical slug (for library mapping)
+                        self.tech_manager.save_raw_data(raw_data, canonical_dev_slug, inv_slug, raw_prefix)
                     else:
                         inv_dir.mkdir(parents=True, exist_ok=True)
                         raw_path = inv_dir / f"raw_{raw_prefix}_{inv_slug}.json"
                         with open(raw_path, "w", encoding="utf-8") as f:
-                            json.dump(res["raw_details"], f, indent=2, ensure_ascii=False)
+                            json.dump(raw_data, f, indent=2, ensure_ascii=False)
 
-                    rp_oto_to_unified = AdapterFactory.get_adapter(raw_prefix).transform(res["raw_details"], inv_slug, canonical_dev_slug)
+                    # Transform unified data using the FOLDER slug (dev_slug)
+                    rp_oto_to_unified = AdapterFactory.get_adapter(raw_prefix).transform(raw_data, inv_slug, dev_slug)
                     if portal == "rp": rp_unified = rp_oto_to_unified
                     elif portal == "oto": oto_unified = rp_oto_to_unified
                     elif portal == "to": to_unified = rp_oto_to_unified
@@ -330,6 +347,7 @@ class InvestmentService:
                     logger.error(f"[{portal_name}] {inv_slug}: {error_msg}")
                     log_to_processing_log(dev_slug, inv_slug, f"Fetch failed — {portal_name}: {error_msg}")
                     failed_sources.append(f"{portal_name} ({error_msg})")
+
 
         if rp_unified or oto_unified or to_unified:
             # Semantic layer: Ratings and Merging
@@ -487,40 +505,32 @@ class InvestmentService:
         identifiers = []
 
         for item in investments:
-            # We need slugs to know where to check for raw data later
-            url = item.get("url")
+            # We don't strictly need slugs or names here anymore, as usi-scrapers v0.5.0+ 
+            # resolves and saves everything to the correct folders in-flight.
+            ident = url = item.get("url")
             inv_slug = item.get("inv_slug") or item.get("slug")
             dev_name = item.get("developer_name") or item.get("developer")
-
-            if url:
-                parsed = parse_url(url)
-                if parsed.get("investment_slug") and parsed["investment_slug"] != "unknown":
-                    inv_slug = parsed["investment_slug"]
-                if not dev_name or slugify(dev_name) == "nieznany-deweloper":
-                    if parsed.get("developer_slug") and parsed["developer_slug"] != "unknown":
-                        dev_name = parsed["developer_slug"].replace("-", " ").title()
-
-            if not inv_slug or not dev_name:
-                continue
-
-            # PRIORITY 1: ID-based lookup — never use slugify to identify a developer
-            vendor_id = item.get("vendor_id") or item.get("agency_id") or item.get("developer_id")
-            if portal == "rp":
-                vendor = item.get("vendor")
-                if isinstance(vendor, dict):
-                    vendor_id = vendor.get("id")
-            dev_record = dm.find_developer_by_id(portal, str(vendor_id)) if vendor_id else None
-            if dev_record:
-                dev_slug = dev_record["developer_slug"]
-                dev_name = dev_record["name"]
-            else:
-                # Last resort: slugify (only when no portal ID is available)
-                dev_slug = slugify(dev_name)
-                logger.warning(f"[slugify] process_batch: no portal ID for '{dev_name}' (portal={portal}, inv={inv_slug}) → slug='{dev_slug}'")
-
-            ident = url if portal != "rp" else item.get("id")
             
             if ident:
+                # Try to resolve dev_slug if possible for faster post-processing, but don't block
+                dev_slug = None
+                vendor_id = item.get("vendor_id") or item.get("agency_id") or item.get("developer_id")
+                if portal == "rp" and isinstance(item.get("vendor"), dict):
+                    vendor_id = item["vendor"].get("id")
+                
+                dev_record = dm.find_developer_by_id(portal, str(vendor_id)) if vendor_id else None
+                if dev_record:
+                    dev_slug = dev_record["developer_slug"]
+                    dev_name = dev_record["name"]
+                elif dev_name and dev_name.lower() not in ("nieznany deweloper", "unknown", "nieznany-deweloper"):
+                    # Only use existing folder if we have a real name match
+                    matched_dev = dm.get_developer_by_name(dev_name)
+                    if matched_dev:
+                        dev_slug = matched_dev["developer_slug"]
+
+                if portal == "rp":
+                    ident = item.get("id") or url
+
                 identifiers.append(ident)
                 to_process.append({
                     "ident": ident,
@@ -544,34 +554,60 @@ class InvestmentService:
 
         # 3. Finalize: Register and Update ONLY if raw data exists
         success_count = 0
+        raw_prefix = "rp" if portal == "rp" else ("oto" if portal == "oto" else "to")
+
         for info in to_process:
             try:
-                # Check if raw data was saved (library does this)
-                raw_prefix = "rp" if portal == "rp" else ("oto" if portal == "oto" else "to")
-                inv_dir = self.data_dir / info["dev_slug"] / info["inv_slug"]
-                raw_files = list(inv_dir.glob(f"raw_{raw_prefix}_*.json"))
-                
-                if not raw_files:
-                    logger.warning(f"Batch download failed for {info['inv_slug']} (no raw data) - skipping registration.")
+                dev_slug = info["dev_slug"]
+                inv_slug = info["inv_slug"]
+
+                # If dev_slug is unknown or was not determined, find where the library saved the raw file.
+                # Scrapers v0.5.0+ resolves IDs and saves to correct (or 'unknown') folders.
+                if inv_slug:
+                    # We look for ANY folder containing this investment's raw data
+                    pattern = f"*/{inv_slug}/raw_{raw_prefix}_*.json"
+                    matches = list(self.data_dir.glob(pattern))
+                    if matches:
+                        # Found it! Let's trust the library's placement
+                        dev_slug = matches[0].parent.parent.name
+                        logger.info(f"Dynamically resolved dev_slug '{dev_slug}' for {inv_slug} via glob")
+                    else:
+                        # Try deep search if first level fails (maybe nested folders)
+                        matches = list(self.data_dir.glob(f"**/{inv_slug}/raw_{raw_prefix}_*.json"))
+                        if matches:
+                            dev_slug = matches[0].parent.parent.name
+                            logger.info(f"Dynamically resolved dev_slug '{dev_slug}' via deep glob for {inv_slug}")
+
+                if not dev_slug or not inv_slug:
+                    logger.warning(f"Could not finalize batch item {info['ident']} - missing slugs (dev={dev_slug}, inv={inv_slug}).")
                     continue
-                
+
+                inv_dir = self.data_dir / dev_slug / inv_slug
+                raw_files = list(inv_dir.glob(f"raw_{raw_prefix}_*.json"))
+
+                if not raw_files:
+                    logger.warning(f"Batch download failed for {inv_slug} (no raw data found in {dev_slug}/{inv_slug}) - skipping registration.")
+                    continue
+
                 # Register (creates usi_*.json skeleton and ID)
                 res = self.register_investment(
                     portal=info["portal"],
-                    developer_name=info["dev_name"],
-                    inv_slug=info["inv_slug"],
+                    developer_name=info["dev_name"] or dev_slug.replace("-", " ").title(),
+                    inv_slug=inv_slug,
                     name=info["name"],
                     item_id=info["item_id"],
                     url=info["url"],
                     allow_existing=True
                 )
+
                 
                 if res and res[0]: # res is (dev_slug, inv_slug)
                     # Unify and Sync images
                     if self.update_investment(res[0], res[1], use_local_raw=True):
                         success_count += 1
                 else:
-                    logger.info(f"Investment {info['inv_slug']} already exists or duplicate ID - skipping batch update.")
+                    logger.info(f"Investment {inv_slug} already exists or duplicate ID - skipping batch update.")
+
                     
             except Exception as e:
                 logger.error(f"Post-batch processing failed for {info['inv_slug']}: {e}")

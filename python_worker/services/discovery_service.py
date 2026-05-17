@@ -200,14 +200,14 @@ class DiscoveryService:
             parsed = parse_url(url)
             inv_slug = parsed.get("investment_slug")
             
-        if not inv_slug:
-            # Last resort fallback if both discovery and parsing failed
-            from python_worker.slug_utils import slugify
-            inv_slug = slugify(item["name"])
-            logger.warning(f"[slugify] _register_new_investment: no slug from URL/discovery for '{item['name']}' (portal={portal}) → inv_slug='{inv_slug}'")
-
         # Determine source key
         portal_key = "rp" if portal == "rp" else ("oto" if portal == "otodom" else "to")
+        
+        if not inv_slug:
+            # Last resort fallback if both discovery and parsing failed
+            # Mandate: Never slugify name. Use 'unknown' to avoid polluting DB with guessed slugs.
+            inv_slug = "unknown"
+            logger.warning(f"No slug from URL/discovery for '{item['name']}' (portal={portal}) - using 'unknown'")
         
         # Extract vendor ID for ID-first registration
         vendor_id = None

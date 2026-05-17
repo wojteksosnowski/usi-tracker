@@ -9,7 +9,6 @@ from usi_scrapers import api as scraper_api
 from usi_scrapers.fetcher import Fetcher
 from python_worker.adapters import AdapterFactory
 from python_worker.config import get_scraper_config
-from python_worker.slug_utils import slugify
 
 # Configure logging to be concise
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -96,7 +95,7 @@ def check_portal(portal_key, temp_data_dir, temp_assets_dir):
         if not unified.get("name"):
             errors.append("Missing investment name")
             
-        if not unified.get("developer") or slugify(unified.get("developer")) == "nieznany-deweloper":
+        if not unified.get("developer") or unified.get("developer").lower() in ("nieznany deweloper", "unknown", "nieznany-deweloper"):
             errors.append(f"Invalid developer: {unified.get('developer')}")
 
         # Location
