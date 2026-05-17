@@ -502,6 +502,7 @@
               {view === 'dev-detail' && selectedDev && (
                 <DeveloperDetail
                   dev_slug={selectedDev.developer_slug}
+                  usi_dev_id={selectedDev.usi_dev_id}
                   onBack={() => handleNav('developers')}
                   onSelectInv={handleSelectInv}
                   onRegisterDiscover={handleRegisterDiscover}

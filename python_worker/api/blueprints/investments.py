@@ -313,10 +313,21 @@ def get_developer_detail(dev_slug):
     from python_worker.api.utils import _load_investment
     from pathlib import Path
     dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
-    dev = dm.get_developer(dev_slug)
+    usi_dev_id = request.args.get("id")
+    if usi_dev_id:
+        dev = dm.get_developer_by_id(usi_dev_id)
+    else:
+        dev = dm.get_developer(dev_slug)
     if not dev: abort(404)
 
     target_id = dev.get("usi_dev_id")
+
+    # Active portals for this developer record (for investment filtering)
+    dev_portals = {p for p in ("rp", "oto", "to") if (dev.get("portal_mapping") or {}).get(p)}
+
+    def _inv_matches_dev(inv: dict) -> bool:
+        src = inv.get("sources") or {}
+        return bool({p for p in dev_portals if src.get(p)})
 
     # Collect investments from this dev and all children (merged_from)
     def _load_inv_dir(d_slug: str) -> list:
@@ -335,7 +346,7 @@ def get_developer_detail(dev_slug):
                         if inv: result.append(inv)
         return result
 
-    investments = _load_inv_dir(dev_slug)
+    investments = [i for i in _load_inv_dir(dev_slug) if not dev_portals or _inv_matches_dev(i)]
 
     # Enrich merged_from entries — resolve child by usi_dev_id (not slug)
     for member in dev.get("merged_from", []):

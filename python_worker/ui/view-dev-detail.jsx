@@ -31,6 +31,7 @@ function useJobStatus(jobId, onFinished) {
 
 function DeveloperDetail({
   dev_slug,
+  usi_dev_id,
   onBack,
   onSelectInv,
   onRegisterDiscover,
@@ -51,7 +52,10 @@ function DeveloperDetail({
 
   const load = React.useCallback((silent = false) => {
     if (!silent) setLoading(true);
-    request(`/api/developer/${dev_slug}`, { noCache: true })
+    const endpoint = usi_dev_id
+      ? `/api/developer/${dev_slug}?id=${usi_dev_id}`
+      : `/api/developer/${dev_slug}`;
+    request(endpoint, { noCache: true })
       .then(data => {
         setDeveloper(data);
         if (!silent) setLoading(false);
@@ -60,7 +64,7 @@ function DeveloperDetail({
         console.error("Failed to load developer", err);
         if (!silent) setLoading(false);
       });
-  }, [dev_slug, request]);
+  }, [dev_slug, usi_dev_id, request]);
 
   React.useEffect(() => {
     load();
