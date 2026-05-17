@@ -24,5 +24,6 @@ echo "→ USI Tracker UI: http://localhost:$PORT"
 echo "   Ctrl+C aby zatrzymać"
 echo ""
 
+mkdir -p "$SCRIPT_DIR/logs"
 cd "$SCRIPT_DIR"
-"$VENV/bin/python3" -m python_worker.main ui
+exec "$VENV/bin/python3" -m python_worker.main ui

@@ -14,14 +14,14 @@ from .developer_manager import DeveloperManager
 from .detect_similar_devs import detect_similar
 
 # Set up logging for the whole application
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("logs/worker.log")
-    ]
-)
+_LOG_FILE = Path(__file__).parent.parent / "logs" / "worker.log"
+_LOG_FILE.parent.mkdir(exist_ok=True)
+_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+_root = logging.getLogger()
+_root.setLevel(logging.INFO)
+for _h in [logging.StreamHandler(), logging.FileHandler(_LOG_FILE)]:
+    _h.setFormatter(_formatter)
+    _root.addHandler(_h)
 logger = logging.getLogger("USIWorker")
 
 # Global config and fetcher for library operations

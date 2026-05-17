@@ -69,7 +69,7 @@ function DeveloperDetail({
   React.useEffect(() => {
     load();
     // Reset crawler badge when user opens developer detail
-    fetch(`/api/crawler/badge-reset/${dev_slug}`, { method: 'POST' }).catch(() => {});
+    fetch(`/api/crawler/badge-reset/${dev_slug}?id=${usi_dev_id}`, { method: 'POST' }).catch(() => {});
   }, [load, dev_slug]);
 
   const handleSuggest = () => {
@@ -94,7 +94,7 @@ function DeveloperDetail({
 
   const handleUpdate = React.useCallback(() => {
     if (activeJobId) return;
-    request(`/api/developer/${dev_slug}/discover`, { method: 'POST' })
+    request(`/api/developer/${dev_slug}/discover?id=${usi_dev_id}`, { method: 'POST' })
       .then(data => {
         if (data.job_id) setActiveJobId(data.job_id);
       });
@@ -137,7 +137,7 @@ function DeveloperDetail({
     fetch(`/api/developer/${dev_slug}/merge`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source_id })
+      body: JSON.stringify({ source_id, target_id: usi_dev_id })
     })
     .then(r => r.json())
     .then(data => {
@@ -162,7 +162,7 @@ function DeveloperDetail({
     fetch(`/api/developer/${dev_slug}/unmerge`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source_id: memberId })
+      body: JSON.stringify({ source_id: memberId, target_id: usi_dev_id })
     })
     .then(r => r.json())
     .then(data => {
@@ -179,13 +179,13 @@ function DeveloperDetail({
   };
 
 
-  const handleDismiss = (usi_dev_id) => {
-    const dismissed = localSuggestions.find(s => s.usi_dev_id === usi_dev_id);
-    setLocalSuggestions(prev => prev.filter(s => s.usi_dev_id !== usi_dev_id));
+  const handleDismiss = (suggested_id) => {
+    const dismissed = localSuggestions.find(s => s.usi_dev_id === suggested_id);
+    setLocalSuggestions(prev => prev.filter(s => s.usi_dev_id !== suggested_id));
     request(`/api/developer/${dev_slug}/dismiss-suggestion`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ usi_dev_id })
+      body: JSON.stringify({ target_id: usi_dev_id, usi_dev_id: suggested_id })
     })
     .catch(() => {
       if (dismissed) setLocalSuggestions(prev => [...prev, dismissed]);

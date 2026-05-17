@@ -66,19 +66,34 @@ def normalize_name(name: str) -> str:
     return n
 
 def _build_dismissed_cache(dev_dir: Path) -> dict[str, set[str]]:
-    """Returns {usi_dev_id → set of dismissed usi_dev_ids} from all dev_master_*.json files."""
+    """Returns {dismisser_usi_dev_id → set of dismissed usi_dev_ids}.
+
+    Reads from central dismissed_pairs.jsonl when present; falls back to per-dev-master scan.
+    """
     cache: dict[str, set[str]] = {}
-    for master_file in dev_dir.glob("*/dev_master_*.json"):
-        try:
-            master = json.loads(master_file.read_text(encoding="utf-8"))
-            owner_id = master.get("master_usi_dev_id")
-            if owner_id:
-                cache[owner_id] = {
-                    d["usi_dev_id"] for d in master.get("dismissed", [])
-                    if d.get("usi_dev_id")
-                }
-        except Exception:
-            continue
+    central = dev_dir / "dismissed_pairs.jsonl"
+    if central.exists():
+        for line in central.read_text(encoding="utf-8").splitlines():
+            try:
+                e = json.loads(line)
+                dismisser = e.get("dismisser_id")
+                dismissed = e.get("dismissed_id")
+                if dismisser and dismissed:
+                    cache.setdefault(dismisser, set()).add(dismissed)
+            except Exception:
+                continue
+    else:
+        for master_file in dev_dir.glob("*/dev_master_*.json"):
+            try:
+                master = json.loads(master_file.read_text(encoding="utf-8"))
+                owner_id = master.get("master_usi_dev_id")
+                if owner_id:
+                    cache[owner_id] = {
+                        d["usi_dev_id"] for d in master.get("dismissed", [])
+                        if d.get("usi_dev_id")
+                    }
+            except Exception:
+                continue
     return cache
 
 

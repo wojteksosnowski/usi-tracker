@@ -307,6 +307,7 @@ class DeveloperManager:
         # Strip Level 3 fields — they live in dev_master_*.json
         developer_data.pop("events", None)
         developer_data.pop("merged_from", None)
+        developer_data.pop("parent_id", None)
 
         usi_dev_id = developer_data["usi_dev_id"]
         file_path = subdir / f"usi_dev_{usi_dev_id}_{dev_slug}.json"
@@ -323,6 +324,19 @@ class DeveloperManager:
 
         logger.info(f"Saved developer file: {file_path}")
         return file_path
+
+    def _enrich_with_master(self, dev: dict) -> dict:
+        """Add merged_from from Level 3 for master developers (not for merged children)."""
+        master_id = dev.get("master_id")
+        if master_id:
+            master = self._read_dev_master(master_id, dev.get("developer_slug", ""))
+            if master and dev.get("usi_dev_id") == master.get("master_usi_dev_id"):
+                dev["merged_from"] = master.get("merged_from", [])
+            else:
+                dev.setdefault("merged_from", [])
+        else:
+            dev.setdefault("merged_from", [])
+        return dev
 
     def get_developer(self, dev_slug: str) -> dict | None:
         """Loads developer data. Returns merged view: Level 2 + merged_from from Level 3."""
@@ -344,17 +358,7 @@ class DeveloperManager:
         if dev is None:
             return None
 
-        # Enrich with merged_from from Level 3 (masters only)
-        if not dev.get("parent_id"):
-            master_id = dev.get("master_id")
-            if master_id:
-                master = self._read_dev_master(master_id, dev_slug)
-                if master:
-                    dev["merged_from"] = master.get("merged_from", [])
-            else:
-                dev.setdefault("merged_from", [])
-
-        return dev
+        return self._enrich_with_master(dev)
 
     def get_developer_by_id(self, usi_dev_id: str) -> dict | None:
         """Find developer by usi_dev_id. Fast path uses ID embedded in new filename."""
@@ -365,10 +369,10 @@ class DeveloperManager:
             try:
                 data = json.loads(dev_file.read_text(encoding="utf-8"))
                 if data.get("usi_dev_id") == usi_dev_id:
-                    return data
+                    return self._enrich_with_master(data)
             except Exception:
                 continue
-        # Fallback: legacy format (subdirs + flat)
+        # Fallback: legacy format in dev_dir (subdirs + flat)
         for pattern in ("*/usi_dev_*.json", "usi_dev_*.json"):
             for dev_file in self.dev_dir.glob(pattern):
                 if re.match(r"usi_dev_[A-Z]+-\d+_", dev_file.name):
@@ -376,9 +380,19 @@ class DeveloperManager:
                 try:
                     data = json.loads(dev_file.read_text(encoding="utf-8"))
                     if data.get("usi_dev_id") == usi_dev_id:
-                        return data
+                        return self._enrich_with_master(data)
                 except Exception:
                     continue
+        # Fallback: legacy location in data_dir (USIdata/{slug}/usi_dev_{slug}.json)
+        for dev_file in self.data_dir.glob("*/usi_dev_*.json"):
+            if re.match(r"usi_dev_[A-Z]+-\d+_", dev_file.name):
+                continue
+            try:
+                data = json.loads(dev_file.read_text(encoding="utf-8"))
+                if data.get("usi_dev_id") == usi_dev_id:
+                    return self._enrich_with_master(data)
+            except Exception:
+                continue
         return None
 
     def resolve_id_to_slug(self, usi_dev_id: str) -> str | None:
@@ -387,7 +401,18 @@ class DeveloperManager:
         return dev.get("developer_slug") if dev else None
 
     def list_developers(self, only_merged: bool = False) -> list:
-        """Returns top-level developer data objects (children with parent_id excluded)."""
+        """Returns top-level developer records; merged-source children excluded."""
+        # Build child IDs from all dev_master files — children are listed in merged_from[]
+        child_ids: set[str] = set()
+        for master_file in self.dev_dir.glob("*/dev_master_*.json"):
+            try:
+                master = json.loads(master_file.read_text(encoding="utf-8"))
+                for m in master.get("merged_from", []):
+                    if cid := m.get("usi_dev_id"):
+                        child_ids.add(cid)
+            except Exception:
+                pass
+
         developers = []
         seen_ids: set[str] = set()
 
@@ -396,7 +421,7 @@ class DeveloperManager:
             if dev_id in seen_ids:
                 return
             seen_ids.add(dev_id)
-            if dev.get("parent_id"):
+            if dev_id in child_ids:
                 return
             if only_merged:
                 has_master = bool(dev.get("master_id") or dev.get("merged_from"))
@@ -438,52 +463,40 @@ class DeveloperManager:
     # -------------------------------------------------------------------------
 
     def merge_by_id(self, target_id: str, source_id: str) -> bool:
-        """Merge two developers by usi_dev_id. Resolves slugs internally."""
-        target_slug = self.resolve_id_to_slug(target_id)
-        source_slug = self.resolve_id_to_slug(source_id)
-        if not target_slug or not source_slug:
-            logger.error(f"merge_by_id: could not resolve slugs for {target_id}/{source_id}")
+        """Merge two developers by usi_dev_id."""
+        target_dev = self.get_developer_by_id(target_id)
+        source_dev = self.get_developer_by_id(source_id)
+        if not target_dev or not source_dev:
+            logger.error(f"merge_by_id: not found — target={target_id}, source={source_id}")
             return False
-        return self.merge_developers(target_slug, source_slug)
+        return self._do_merge(target_dev, source_dev)
 
     def unmerge_by_id(self, target_id: str, source_id: str) -> bool:
-        """Unmerge two developers by usi_dev_id. Resolves slugs internally."""
-        target_slug = self.resolve_id_to_slug(target_id)
-        source_slug = self.resolve_id_to_slug(source_id)
-        if not target_slug or not source_slug:
-            logger.error(f"unmerge_by_id: could not resolve slugs for {target_id}/{source_id}")
-            return False
-        return self.unmerge_developer(target_slug, source_slug)
-
-    def merge_developers(self, target_slug: str, source_slug: str) -> bool:
-        """
-        Łączy source dewelopera z target deweloperem.
-
-        Model: pliki NIE są usuwane ani archiwizowane.
-        - source_dev.parent_id = target_dev.usi_dev_id  (hierarchia)
-        - portal_mapping source → target (non-destructive)
-        - merged_from zapisane w dev_master_*.json (Level 3)
-        - events zapisane w dev_log_*.txt (log)
-        - list_developers() filtruje po parent_id == null
-        """
-        target_dev = self.get_developer(target_slug)
-        source_dev = self.get_developer(source_slug)
-
+        """Unmerge two developers by usi_dev_id."""
+        target_dev = self.get_developer_by_id(target_id)
+        source_dev = self.get_developer_by_id(source_id)
         if not target_dev or not source_dev:
-            logger.error(f"Merge failed: target={target_slug} found={target_dev is not None}, "
-                         f"source={source_slug} found={source_dev is not None}")
+            logger.error(f"unmerge_by_id: not found — target={target_id}, source={source_id}")
             return False
+        return self._do_unmerge(target_dev, source_dev)
 
+    def dismiss_suggestion_by_id(self, target_id: str, suggested_id: str) -> bool:
+        """Dismiss a suggestion by target usi_dev_id."""
+        dev = self.get_developer_by_id(target_id)
+        if not dev:
+            logger.error(f"dismiss_suggestion_by_id: target not found — {target_id}")
+            return False
+        return self._do_dismiss(dev, suggested_id)
+
+    def _do_merge(self, target_dev: dict, source_dev: dict) -> bool:
+        """Core merge logic operating on pre-loaded developer objects — no slug-based lookups."""
         target_id = target_dev.get("usi_dev_id")
+        target_slug = target_dev.get("developer_slug", "")
+        source_slug = source_dev.get("developer_slug", "")
+
         if not target_id:
-            logger.error(f"Merge failed: target {target_slug} has no usi_dev_id")
+            logger.error(f"_do_merge: target has no usi_dev_id (slug={target_slug})")
             return False
-
-        # Set parent_id on source
-        source_dev["parent_id"] = target_id
-
-        # portal_mapping is NOT copied — each usi_dev_*.json corresponds 1:1 to its own
-        # raw_*.json files. Child's portal data is accessible via dev_master merged_from.
 
         # Enrich target metadata (non-destructive)
         target_meta = target_dev.setdefault("metadata", {})
@@ -491,20 +504,27 @@ class DeveloperManager:
             if not target_meta.get(k) and v:
                 target_meta[k] = v
 
-        # Remove source from suggestions on target
+        # Remove source from suggestions on target — by usi_dev_id, never by slug
+        source_id = source_dev.get("usi_dev_id")
         target_dev["suggestions"] = [
             s for s in target_dev.get("suggestions", [])
-            if s.get("developer_slug") != source_slug
+            if s.get("usi_dev_id") != source_id
+        ]
+
+        # Remove target from suggestions on source (reciprocal cleanup)
+        source_dev["suggestions"] = [
+            s for s in source_dev.get("suggestions", [])
+            if s.get("usi_dev_id") != target_id
         ]
 
         # Update Level 3 (dev_master)
         master = self._get_or_create_dev_master(target_slug, target_dev)
         merged_from = master.setdefault("merged_from", [])
-        if not any(m.get("slug") == source_slug for m in merged_from):
+        if not any(m.get("usi_dev_id") == source_id for m in merged_from):
             merged_from.append({
                 "slug": source_slug,
                 "name": source_dev.get("name", source_slug),
-                "usi_dev_id": source_dev.get("usi_dev_id"),
+                "usi_dev_id": source_id,
                 "merged_at": datetime.now().isoformat(),
             })
 
@@ -513,14 +533,25 @@ class DeveloperManager:
 
         self._save_dev_master(master, target_slug)
 
-        # Log event
+        dm_id = master["dev_master_id"]
+
+        # Log event on target
         self.append_dev_log(target_slug, {
             "type": "merge_in",
             "source_slug": source_slug,
+            "source_id": source_id,
             "source_name": source_dev.get("name", source_slug),
         })
 
-        # Save both Level 2 files (create_developer_file cleans up old-format files)
+        # Log event on source — DEV records are children of DM, include master_id
+        self.append_dev_log(source_slug, {
+            "type": "merged_into",
+            "target_id": target_id,
+            "target_slug": target_slug,
+            "target_name": target_dev.get("name", target_slug),
+            "master_id": dm_id,
+        })
+
         self.create_developer_file(target_dev)
         self.create_developer_file(source_dev)
 
@@ -533,20 +564,14 @@ class DeveloperManager:
                 except Exception as e:
                     logger.warning(f"Could not remove legacy file {lp}: {e}")
 
-        logger.info(f"Linked {source_slug} → parent={target_slug} ({target_id})")
+        logger.info(f"Merged {source_slug} ({source_id}) → {target_slug} ({target_id})")
         return True
 
-    def unmerge_developer(self, target_slug: str, source_slug: str) -> bool:
-        """
-        Odłącza source_slug od target_slug.
-        - Usuwa parent_id i master_id z rekordu source
-        - Usuwa wpis z merged_from[] w dev_master (Level 3)
-        - Portale przeniesione podczas merge NIE są cofane
-        """
-        target_dev = self.get_developer(target_slug)
-        source_dev = self.get_developer(source_slug)
-        if not target_dev or not source_dev:
-            return False
+    def _do_unmerge(self, target_dev: dict, source_dev: dict) -> bool:
+        """Core unmerge logic operating on pre-loaded developer objects — no slug-based lookups."""
+        target_slug = target_dev.get("developer_slug", "")
+        source_slug = source_dev.get("developer_slug", "")
+        source_id = source_dev.get("usi_dev_id")
 
         master_id = target_dev.get("master_id")
         if not master_id:
@@ -561,19 +586,18 @@ class DeveloperManager:
         before = len(master.get("merged_from", []))
         master["merged_from"] = [
             m for m in master.get("merged_from", [])
-            if m.get("slug") != source_slug
+            if m.get("usi_dev_id") != source_id
         ]
         if len(master["merged_from"]) == before:
-            logger.warning(f"unmerge: {source_slug} not found in merged_from of {target_slug}")
+            logger.warning(f"unmerge: {source_id} not found in merged_from of {target_slug}")
             return False
 
         self._save_dev_master(master, target_slug)
 
-        # Clear parent_id and master_id from source
-        source_dev.pop("parent_id", None)
+        # Clear master_id from source
         source_dev.pop("master_id", None)
 
-        # If master is now empty (no merges, no dismissals), clean up master_id on target
+        # If master is now empty, clean up master_id on target
         if not master.get("merged_from") and not master.get("dismissed"):
             target_dev.pop("master_id", None)
             master_path = self._dev_master_path(master_id, target_slug)
@@ -583,19 +607,21 @@ class DeveloperManager:
         self.append_dev_log(target_slug, {
             "type": "unmerge",
             "source_slug": source_slug,
+            "source_id": source_id,
             "source_name": source_dev.get("name", source_slug),
         })
 
         self.create_developer_file(target_dev)
         self.create_developer_file(source_dev)
 
-        logger.info(f"Unlinked {source_slug} from {target_slug}")
+        logger.info(f"Unmerged {source_slug} ({source_id}) from {target_slug}")
         return True
 
-    def dismiss_suggestion(self, dev_slug: str, suggested_id: str) -> bool:
-        """Removes a suggestion and records it as dismissed in dev_master (Level 3)."""
-        dev = self.get_developer(dev_slug)
-        if not dev or "suggestions" not in dev:
+    def _do_dismiss(self, dev: dict, suggested_id: str) -> bool:
+        """Core dismiss logic operating on a pre-loaded developer object — no slug-based lookups."""
+        dev_slug = dev.get("developer_slug", "")
+
+        if "suggestions" not in dev:
             return False
 
         dismissed_item = next(
@@ -607,21 +633,45 @@ class DeveloperManager:
 
         dev["suggestions"] = new_suggestions
 
-        # Persist dismissed pair in Level 3
+        dismissed_at = datetime.now().isoformat()
+        dismisser_id = dev.get("usi_dev_id")
+        dismissed_slug = dismissed_item.get("developer_slug") if dismissed_item else None
+        reason = dismissed_item.get("reason") if dismissed_item else None
+        score = dismissed_item.get("score") if dismissed_item else None
+
         master = self._get_or_create_dev_master(dev_slug, dev)
         dismissed_list = master.setdefault("dismissed", [])
         if not any(d.get("usi_dev_id") == suggested_id for d in dismissed_list):
             dismissed_list.append({
                 "usi_dev_id": suggested_id,
-                "slug": dismissed_item.get("developer_slug") if dismissed_item else None,
-                "dismissed_at": datetime.now().isoformat(),
+                "slug": dismissed_slug,
+                "dismisser_id": dismisser_id,
+                "reason": reason,
+                "score": score,
+                "dismissed_at": dismissed_at,
             })
         self._save_dev_master(master, dev_slug)
 
-        # Log event
+        # Central registry — append-only JSONL with full pair metadata
+        central_file = self.dev_dir / "dismissed_pairs.jsonl"
+        central_entry = {
+            "dismissed_at": dismissed_at,
+            "dismisser_id": dismisser_id,
+            "dismisser_slug": dev_slug,
+            "dismissed_id": suggested_id,
+            "dismissed_slug": dismissed_slug,
+            "reason": reason,
+            "score": score,
+        }
+        try:
+            with open(central_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(central_entry, ensure_ascii=False) + "\n")
+        except Exception as e:
+            logger.warning(f"_do_dismiss: failed to write central registry: {e}")
+
         self.append_dev_log(dev_slug, {
             "type": "dismiss_suggestion",
-            "dismissed_slug": dismissed_item.get("developer_slug") if dismissed_item else None,
+            "dismissed_slug": dismissed_slug,
             "dismissed_id": suggested_id,
         })
 

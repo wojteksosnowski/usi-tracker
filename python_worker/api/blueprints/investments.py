@@ -437,11 +437,12 @@ def merge_developer(dev_slug):
     from pathlib import Path
     payload = request.get_json() or {}
     source_id = payload.get("source_id")
-    if not source_id:
+    target_id_param = payload.get("target_id")
+    if not source_id or not target_id_param:
         abort(400)
     try:
         dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
-        target_dev = dm.get_developer(dev_slug)
+        target_dev = dm.get_developer_by_id(target_id_param)
         if not target_dev:
             abort(404)
         target_id = target_dev.get("usi_dev_id")
@@ -461,11 +462,12 @@ def unmerge_developer(dev_slug):
     from pathlib import Path
     payload = request.get_json() or {}
     source_id = payload.get("source_id")
-    if not source_id:
+    target_id_param = payload.get("target_id")
+    if not source_id or not target_id_param:
         abort(400)
     try:
         dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
-        target_dev = dm.get_developer(dev_slug)
+        target_dev = dm.get_developer_by_id(target_id_param)
         if not target_dev:
             abort(404)
         target_id = target_dev.get("usi_dev_id")
@@ -485,9 +487,10 @@ def dismiss_suggestion(dev_slug):
     from pathlib import Path
     payload = request.get_json() or {}
     suggested_id = payload.get("usi_dev_id")
-    if not suggested_id: abort(400)
+    target_id_param = payload.get("target_id")
+    if not suggested_id or not target_id_param: abort(400)
     dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
-    if dm.dismiss_suggestion(dev_slug, suggested_id):
+    if dm.dismiss_suggestion_by_id(target_id_param, suggested_id):
         return jsonify({"ok": True})
     return jsonify({"ok": False}), 500
 

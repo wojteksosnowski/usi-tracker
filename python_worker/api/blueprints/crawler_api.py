@@ -1,5 +1,5 @@
 import logging
-from flask import Blueprint, jsonify, abort
+from flask import Blueprint, jsonify, abort, request
 from python_worker.api.utils import _valid_slug
 
 logger = logging.getLogger(__name__)
@@ -40,6 +40,15 @@ def crawler_resume():
 def badge_reset(dev_slug):
     if not _valid_slug(dev_slug):
         abort(400)
+    usi_dev_id = request.args.get("id")
+    if usi_dev_id:
+        from python_worker.developer_manager import DeveloperManager
+        from python_worker.config import USI_DATA_DIR
+        from pathlib import Path
+        dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
+        dev = dm.get_developer_by_id(usi_dev_id)
+        if dev:
+            dev_slug = dev["developer_slug"]
     c = _get_crawler()
     if c:
         c.reset_badge(dev_slug)

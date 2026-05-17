@@ -19,18 +19,14 @@ from datetime import datetime
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
-def _make_dev(slug: str, name: str, usi_dev_id: str, portal_mapping: dict = None,
-              parent_id: str = None) -> dict:
-    d = {
+def _make_dev(slug: str, name: str, usi_dev_id: str, portal_mapping: dict = None) -> dict:
+    return {
         "developer_slug": slug,
         "name": name,
         "usi_dev_id": usi_dev_id,
         "portal_mapping": portal_mapping or {},
         "audit": {"created_at": datetime.now().isoformat()},
     }
-    if parent_id:
-        d["parent_id"] = parent_id
-    return d
 
 
 def _write_dev(dev_dir: Path, dev: dict) -> Path:
@@ -117,7 +113,7 @@ def test_get_developer_returns_merged_from_from_level3(tmp_path):
     _write_dev(dev_dir, target)
     _write_dev(dev_dir, source)
 
-    dm.merge_developers("target-co", "source-co")
+    dm.merge_by_id("DEV-0040", "DEV-0041")
 
     view = dm.get_developer("target-co")
     assert any(m["slug"] == "source-co" for m in view.get("merged_from", []))
@@ -126,13 +122,15 @@ def test_get_developer_returns_merged_from_from_level3(tmp_path):
 # ── list_developers ───────────────────────────────────────────────────────────
 
 def test_list_developers_excludes_children(tmp_path):
-    """Devs with parent_id set must NOT appear in list_developers."""
+    """Merged source records must NOT appear in list_developers (determined from dev_master)."""
     dm = _dm(tmp_path)
     dev_dir = tmp_path / "USIdev"
     parent = _make_dev("parent-co", "Parent Co", "DEV-0010")
-    child  = _make_dev("child-co",  "Child Co",  "DEV-0011", parent_id="DEV-0010")
+    child  = _make_dev("child-co",  "Child Co",  "DEV-0011")
     _write_dev(dev_dir, parent)
     _write_dev(dev_dir, child)
+
+    dm.merge_by_id("DEV-0010", "DEV-0011")
 
     devs = dm.list_developers()
     slugs = [d["developer_slug"] for d in devs]
@@ -142,7 +140,7 @@ def test_list_developers_excludes_children(tmp_path):
 
 # ── merge_developers ──────────────────────────────────────────────────────────
 
-def test_merge_sets_parent_id_on_source(tmp_path):
+def test_merge_sets_master_id_on_source(tmp_path):
     dm = _dm(tmp_path)
     dev_dir = tmp_path / "USIdev"
     target = _make_dev("target-dev", "Target Dev", "DEV-0020",
@@ -152,11 +150,18 @@ def test_merge_sets_parent_id_on_source(tmp_path):
     _write_dev(dev_dir, target)
     _write_dev(dev_dir, source)
 
-    result = dm.merge_developers("target-dev", "source-dev")
+    result = dm.merge_by_id("DEV-0020", "DEV-0021")
     assert result is True
 
-    saved_source = dm.get_developer("source-dev")
-    assert saved_source["parent_id"] == "DEV-0020"
+    # Source must have master_id pointing to the DM record; no parent_id (DEV→DEV is redundant)
+    saved_source_file = next((dev_dir / "source-dev").glob("usi_dev_DEV-0021_*.json"))
+    saved_source_raw = json.loads(saved_source_file.read_text())
+    assert saved_source_raw.get("master_id"), "source must have master_id"
+    assert "parent_id" not in saved_source_raw, "parent_id must not be written (redundant)"
+
+    # DM must list source in merged_from
+    target_view = dm.get_developer("target-dev")
+    assert any(m["usi_dev_id"] == "DEV-0021" for m in target_view.get("merged_from", []))
 
 
 def test_merge_does_not_copy_portal_mapping_to_target(tmp_path):
@@ -170,7 +175,7 @@ def test_merge_does_not_copy_portal_mapping_to_target(tmp_path):
     _write_dev(dev_dir, target)
     _write_dev(dev_dir, source)
 
-    dm.merge_developers("target-dev", "source-dev")
+    dm.merge_by_id("DEV-0020", "DEV-0021")
 
     saved_target = dm.get_developer("target-dev")
     assert "rp" in saved_target["portal_mapping"]
@@ -186,7 +191,7 @@ def test_merge_records_merged_from_in_level3(tmp_path):
     _write_dev(dev_dir, target)
     _write_dev(dev_dir, source)
 
-    dm.merge_developers("target-dev", "source-dev")
+    dm.merge_by_id("DEV-0020", "DEV-0021")
 
     # Level 2 must NOT contain merged_from
     level2_file = next((dev_dir / "target-dev").glob("usi_dev_*.json"))
@@ -207,7 +212,7 @@ def test_merge_appends_event_to_log(tmp_path):
     _write_dev(dev_dir, target)
     _write_dev(dev_dir, source)
 
-    dm.merge_developers("target-dev", "source-dev")
+    dm.merge_by_id("DEV-0020", "DEV-0021")
 
     events = _read_dev_log(dev_dir, "target-dev")
     assert any(e["type"] == "merge_in" and e["source_slug"] == "source-dev" for e in events)
@@ -228,7 +233,7 @@ def test_merge_removes_suggestion_from_target(tmp_path):
     _write_dev(dev_dir, target)
     _write_dev(dev_dir, source)
 
-    dm.merge_developers("target-dev", "source-dev")
+    dm.merge_by_id("DEV-0020", "DEV-0021")
 
     saved_target = dm.get_developer("target-dev")
     remaining = [s["developer_slug"] for s in saved_target.get("suggestions", [])]
@@ -251,7 +256,7 @@ def test_merge_normalizes_legacy_source_to_usitev(tmp_path):
     legacy_file = legacy_dir / "usi_dev_source-dev.json"
     legacy_file.write_text(json.dumps(source, ensure_ascii=False), encoding="utf-8")
 
-    dm.merge_developers("target-dev", "source-dev")
+    dm.merge_by_id("DEV-0020", "DEV-0021")
 
     # Should now exist in USIdev/source-dev/ with new format
     canonical_dir = dev_dir / "source-dev"
@@ -262,9 +267,10 @@ def test_merge_normalizes_legacy_source_to_usitev(tmp_path):
     # Legacy USIdata file should be removed
     assert not legacy_file.exists()
 
-    # parent_id must be set
+    # master_id must be set on source; no parent_id (redundant)
     saved = dm.get_developer("source-dev")
-    assert saved["parent_id"] == "DEV-0020"
+    assert saved.get("master_id"), "source must have master_id after legacy merge"
+    assert "parent_id" not in saved
 
 
 def test_merge_fails_gracefully_if_source_missing(tmp_path):
@@ -273,7 +279,7 @@ def test_merge_fails_gracefully_if_source_missing(tmp_path):
     target = _make_dev("target-dev", "Target", "DEV-0020")
     _write_dev(dev_dir, target)
 
-    result = dm.merge_developers("target-dev", "no-such-source")
+    result = dm.merge_by_id("DEV-0020", "DEV-DOES-NOT-EXIST")
     assert result is False
 
 
@@ -295,7 +301,7 @@ def test_merge_source_raw_files_untouched(tmp_path):
     raw_content = '{"portal": "rp", "id": "99999"}'
     raw_file.write_text(raw_content, encoding="utf-8")
 
-    dm.merge_developers("target-dev", "source-dev")
+    dm.merge_by_id("DEV-0020", "DEV-0021")
 
     assert raw_file.read_text(encoding="utf-8") == raw_content
 
@@ -311,7 +317,7 @@ def test_dismiss_removes_suggestion(tmp_path):
     ]
     _write_dev(dev_dir, dev)
 
-    result = dm.dismiss_suggestion("dev-a", "DEV-0099")
+    result = dm.dismiss_suggestion_by_id("DEV-0030", "DEV-0099")
     assert result is True
 
     saved = dm.get_developer("dev-a")
@@ -328,7 +334,7 @@ def test_dismiss_persists_in_level3(tmp_path):
     ]
     _write_dev(dev_dir, dev)
 
-    dm.dismiss_suggestion("dev-a", "DEV-0099")
+    dm.dismiss_suggestion_by_id("DEV-0030", "DEV-0099")
 
     # Level 2 must NOT have events[]
     level2_file = next((dev_dir / "dev-a").glob("usi_dev_*.json"))
@@ -353,7 +359,7 @@ def test_dismiss_appends_event_to_log(tmp_path):
     ]
     _write_dev(dev_dir, dev)
 
-    dm.dismiss_suggestion("dev-a", "DEV-0099")
+    dm.dismiss_suggestion_by_id("DEV-0030", "DEV-0099")
 
     events = _read_dev_log(dev_dir, "dev-a")
     assert any(e["type"] == "dismiss_suggestion" for e in events)
@@ -369,15 +375,15 @@ def test_unmerge_removes_from_merged_from(tmp_path):
     _write_dev(dev_dir, target)
     _write_dev(dev_dir, source)
 
-    dm.merge_developers("target-co", "source-co")
-    result = dm.unmerge_developer("target-co", "source-co")
+    dm.merge_by_id("DEV-0040", "DEV-0041")
+    result = dm.unmerge_by_id("DEV-0040", "DEV-0041")
     assert result is True
 
     view = dm.get_developer("target-co")
     assert not any(m["slug"] == "source-co" for m in view.get("merged_from", []))
 
 
-def test_unmerge_clears_parent_id_on_source(tmp_path):
+def test_unmerge_clears_master_id_on_source(tmp_path):
     dm = _dm(tmp_path)
     dev_dir = tmp_path / "USIdev"
     target = _make_dev("target-co", "Target", "DEV-0040")
@@ -385,10 +391,11 @@ def test_unmerge_clears_parent_id_on_source(tmp_path):
     _write_dev(dev_dir, target)
     _write_dev(dev_dir, source)
 
-    dm.merge_developers("target-co", "source-co")
-    dm.unmerge_developer("target-co", "source-co")
+    dm.merge_by_id("DEV-0040", "DEV-0041")
+    dm.unmerge_by_id("DEV-0040", "DEV-0041")
 
     saved_source = dm.get_developer("source-co")
+    assert "master_id" not in saved_source
     assert "parent_id" not in saved_source
 
 
@@ -400,8 +407,8 @@ def test_unmerge_appends_event_to_log(tmp_path):
     _write_dev(dev_dir, target)
     _write_dev(dev_dir, source)
 
-    dm.merge_developers("target-co", "source-co")
-    dm.unmerge_developer("target-co", "source-co")
+    dm.merge_by_id("DEV-0040", "DEV-0041")
+    dm.unmerge_by_id("DEV-0040", "DEV-0041")
 
     events = _read_dev_log(dev_dir, "target-co")
     assert any(e["type"] == "unmerge" for e in events)
@@ -415,7 +422,7 @@ def test_unmerge_fails_if_not_merged(tmp_path):
     _write_dev(dev_dir, target)
     _write_dev(dev_dir, source)
 
-    result = dm.unmerge_developer("target-co", "not-child")
+    result = dm.unmerge_by_id("DEV-0040", "DEV-0042")
     assert result is False
 
 

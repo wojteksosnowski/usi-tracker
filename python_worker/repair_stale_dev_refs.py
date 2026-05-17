@@ -131,14 +131,6 @@ def repair(dev_root: Path, apply: bool) -> None:
 
         changed = False
 
-        # parent_id
-        pid = dev.get("parent_id")
-        if pid and pid in stale_map:
-            print(f"  [dev] {dev_file.name}: parent_id {pid} → {stale_map[pid]}")
-            if apply:
-                dev["parent_id"] = stale_map[pid]
-            changed = True
-
         # master_id (unlikely but check)
         amid = dev.get("master_id")
         if amid and amid in stale_map:

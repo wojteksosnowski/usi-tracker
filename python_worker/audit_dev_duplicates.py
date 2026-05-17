@@ -1,7 +1,7 @@
 """
 Audit script: detect unmerged developer duplicates in USIdev/.
 
-Section A: Pairs in suggestions[] without parent_id set on either side.
+Section A: Pairs in suggestions[] where neither record is a merged child.
 Section B: Dev records missing OTO/RP that Konkurenci.csv could supply from another row.
 
 Usage:
@@ -37,16 +37,30 @@ def _inv_count(dev_slug: str) -> int:
     return sum(1 for p in d.iterdir() if p.is_dir())
 
 
+def _build_child_ids(dev_dir: Path) -> set[str]:
+    child_ids: set[str] = set()
+    for master_file in dev_dir.glob("*/dev_master_*.json"):
+        try:
+            m = json.loads(master_file.read_text(encoding="utf-8"))
+            for entry in m.get("merged_from", []):
+                if cid := entry.get("usi_dev_id"):
+                    child_ids.add(cid)
+        except Exception:
+            pass
+    return child_ids
+
+
 def section_a(devs: dict, min_score: float):
     print(f"\n{'═'*72}")
-    print(f"SEKCJA A — Niescalone pary (suggestions bez parent_id), score >= {min_score}")
+    print(f"SEKCJA A — Niescalone pary (suggestions, żadna nie jest dzieckiem DM), score >= {min_score}")
     print(f"{'═'*72}")
 
+    child_ids = _build_child_ids(USI_DEV_DIR)
     seen = set()
     pairs = []
 
     for dev_id, rec in devs.items():
-        if rec.get("parent_id"):
+        if dev_id in child_ids:
             continue
         for sug in rec.get("suggestions") or []:
             score = sug.get("score", 0)
@@ -54,7 +68,7 @@ def section_a(devs: dict, min_score: float):
                 continue
             other_id = sug.get("usi_dev_id")
             other = devs.get(other_id)
-            if not other or other.get("parent_id"):
+            if not other or other_id in child_ids:
                 continue
             key = tuple(sorted([dev_id, other_id]))
             if key in seen:
