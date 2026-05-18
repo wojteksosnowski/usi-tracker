@@ -103,31 +103,33 @@ class DiscoveryService:
         # Save snapshot of ALL items found in this run
         self._save_discovery_snapshot(dev_slug, all_discovered)
 
+        ingested_total = 0
         if download and new_items_to_download:
             logger.info(f"Triggering bulk download for {len(new_items_to_download)} new investments...")
-            
+
             # Group by portal
             by_portal = {}
             for portal, item in new_items_to_download:
                 if portal not in by_portal: by_portal[portal] = []
                 by_portal[portal].append(item)
-            
+
             for p, items in by_portal.items():
                 def progress_wrapper(report):
                     if job_manager and job_id:
                         msg = f"[{p.upper()}] {report['message']}"
                         job_manager.update_progress(job_id, int(current_progress), msg)
-                
+
                 try:
-                    self.isvc.process_batch(p, items, on_progress_callback=progress_wrapper)
+                    ingested_total += self.isvc.process_batch(p, items, on_progress_callback=progress_wrapper)
                 except Exception as e:
                     logger.error(f"Bulk download for {p} failed: {e}")
 
         if job_manager and job_id:
-            msg = f"Zarejestrowano {found_total} nowych inwestycji." if found_total else "Brak nowych inwestycji."
+            count = ingested_total if download else found_total
+            msg = f"Zarejestrowano {count} nowych inwestycji." if count else "Brak nowych inwestycji."
             job_manager.update_progress(job_id, 100, msg)
-        
-        return found_total
+
+        return ingested_total if download else found_total
 
     def get_unregistered_count(self, dev_slug: str, identifiers: dict = None) -> int:
         """Returns count of items in discovery.json that are not yet registered."""

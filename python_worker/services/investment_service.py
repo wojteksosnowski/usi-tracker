@@ -100,18 +100,9 @@ class InvestmentService:
                 logger.error(f"Pre-scrape identification failed ({portal}): {e}")
 
         if not developer_record:
-            if is_unknown:
-                dev_slug = "unknown"
-            else:
-                # Try finding by name in local DB (case-insensitive name search)
-                developer_record = dm.get_developer_by_name(developer_name)
-                if developer_record:
-                    dev_slug = developer_record["developer_slug"]
-                else:
-                    # WE HAVE A NAME, BUT NO RECORD. 
-                    # Mandate: Never slugify(name). Fallback to 'unknown' to force manual/ID link.
-                    dev_slug = "unknown"
-                    logger.warning(f"No USI record for developer '{developer_name}' - placing in 'unknown' folder")
+            dev_slug = "unknown"
+            if not is_unknown:
+                logger.warning(f"No USI record found by ID for developer '{developer_name}' - placing in 'unknown' folder")
         else:
             dev_slug = developer_record["developer_slug"]
         
@@ -486,6 +477,13 @@ class InvestmentService:
                 logger.error(f"Service ratings update error: {e}")
 
         ratings_file.write_text(json.dumps(existing_ratings, ensure_ascii=False, indent=2))
+
+        try:
+            import python_worker.investment_index as inv_index
+            inv_index.upsert(self.data_dir, self.public_usi_dir, dev_slug, inv_slug)
+        except Exception as _ie:
+            logger.debug(f"Index upsert skipped after ratings save for {inv_slug}: {_ie}")
+
         return True
 
     def process_batch(self, portal, investments, on_progress_callback=None):
@@ -509,6 +507,13 @@ class InvestmentService:
             # resolves and saves everything to the correct folders in-flight.
             ident = url = item.get("url")
             inv_slug = item.get("inv_slug") or item.get("slug")
+            if not inv_slug and url:
+                import re as _re
+                _parsed = parse_url(url)
+                _raw_slug = _parsed.get("investment_slug", "")
+                if _raw_slug:
+                    inv_slug = _re.sub(r'-ID[A-Za-z0-9]+$', '', _raw_slug) if portal == "oto" else _raw_slug
+                    inv_slug = inv_slug or None
             dev_name = item.get("developer_name") or item.get("developer")
             
             if ident:
@@ -613,7 +618,7 @@ class InvestmentService:
                 logger.error(f"Post-batch processing failed for {info['inv_slug']}: {e}")
 
         logger.info(f"Batch processing complete: {success_count}/{len(to_process)} investments fully ingested.")
-        return success_count > 0
+        return success_count
 
     def mark_as_reviewed(self, dev_slug, inv_slug):
         """Sets the reviewed flag to true for the specified investment."""
