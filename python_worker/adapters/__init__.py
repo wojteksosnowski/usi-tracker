@@ -1,15 +1,24 @@
 import re
+import json
+import logging
+from pathlib import Path
 from .merger import Merger
+from .utils import JsonPathExtractor
 
+logger = logging.getLogger(__name__)
+
+# Load portal mapping config
+try:
+    _MAPPING_PATH = Path(__file__).parent.parent / "schemas" / "portal_data_mapping.json"
+    with open(_MAPPING_PATH, "r") as f:
+        PORTAL_MAPPING = json.load(f)["portals"]
+except Exception as e:
+    logger.error(f"Failed to load portal_data_mapping.json: {e}")
+    PORTAL_MAPPING = {}
 
 def _get_val(data, key, default=None):
-    """Unwrap RP API wrapper dicts: {"type": ..., "value": ...}."""
-    if not data or key not in data:
-        return default
-    val = data[key]
-    if isinstance(val, dict) and "value" in val:
-        return val["value"]
-    return val
+    """Legacy helper (unwraps RP API wrapper dicts). Use JsonPathExtractor for new code."""
+    return JsonPathExtractor._unwrap_rp(data.get(key)) if isinstance(data, dict) else default
 
 
 def _unified_base(inv_slug, dev_slug, name, developer=None):
@@ -60,8 +69,11 @@ class RPAdapter:
 
     @classmethod
     def _from_raw(cls, raw: dict, inv_slug: str, dev_slug: str) -> dict:
-        u = _unified_base(inv_slug, dev_slug,
-                          _get_val(raw, "name") or raw.get("name"))
+        cfg = PORTAL_MAPPING.get("rp", {}).get("investment", {})
+        get = JsonPathExtractor.get_value
+        
+        name = get(raw, cfg.get("name")) or _get_val(raw, "name")
+        u = _unified_base(inv_slug, dev_slug, name)
 
         geo = _get_val(raw, "geo_point")
         coords = _get_val(geo, "coordinates") if isinstance(geo, dict) else None
@@ -95,25 +107,25 @@ class RPAdapter:
                 if code is not None:
                     amenity_codes.append(int(code))
 
-        offer_id = str(raw.get("id", ""))
+        offer_id = str(get(raw, cfg.get("id")) or raw.get("id", ""))
         url = raw.get("url")
         website = raw.get("website")
-        vendor = _get_val(raw, "vendor")
-        if isinstance(vendor, dict):
-            vendor_name = _get_val(vendor, "name")
-            if vendor_name:
-                u["developer"] = vendor_name
-            if not url:
-                vendor_slug = _get_val(vendor, "slug")
-                offer_slug = raw.get("slug", "")
-                if vendor_slug and offer_slug:
-                    url = f"https://rynekpierwotny.pl/oferty/{vendor_slug}/{offer_slug}-{offer_id}/"
+        
+        vendor_name = get(raw, cfg.get("developer_name"))
+        if vendor_name:
+            u["developer"] = vendor_name
+        
+        if not url:
+            vendor_slug = get(raw, cfg.get("slug")) or _get_val(raw.get("vendor"), "slug")
+            offer_slug = raw.get("slug", "")
+            if vendor_slug and offer_slug:
+                url = f"https://rynekpierwotny.pl/oferty/{vendor_slug}/{offer_slug}-{offer_id}/"
 
         rp_src = {"id": offer_id, "url": url}
-        if isinstance(vendor, dict):
-            vid = _get_val(vendor, "id")
-            if vid:
-                rp_src["vendor_id"] = str(vid)
+        vendor_id = get(raw, cfg.get("developer_id"))
+        if vendor_id:
+            rp_src["vendor_id"] = str(vendor_id)
+            
         u["sources"]["rp"] = rp_src
         u["website"] = website
         address = _get_val(raw, "address") or raw.get("address")
@@ -124,9 +136,6 @@ class RPAdapter:
                 city = parts[0]
             if len(parts) >= 3: # City, District, Street
                 district = parts[1]
-            elif len(parts) == 2: # City, Street or City, District? Usually City, Street
-                # We can't be sure, but let's assume City, Street if no 3rd part.
-                pass
 
         u["location"].update({
             "coords": [lat, lng],
@@ -135,36 +144,38 @@ class RPAdapter:
             "district": district,
         })
 
-        # Extract height and prices from stats if available
-        stats = _get_val(raw, "stats")
+        # Extract height and prices from config paths
         h_min = h_max = None
-        if isinstance(stats, dict):
-            h_min_cm = stats.get("ranges_height_min")
-            h_max_cm = stats.get("ranges_height_max")
-            try:
-                if h_min_cm: h_min = round(float(h_min_cm) / 100, 2)
-                if h_max_cm: h_max = round(float(h_max_cm) / 100, 2)
-            except (ValueError, TypeError):
-                pass
+        try:
+            h_min_cm = get(raw, cfg.get("ceiling_height_min"))
+            h_max_cm = get(raw, cfg.get("ceiling_height_max"))
+            if h_min_cm: h_min = round(float(h_min_cm) / 100, 2)
+            if h_max_cm: h_max = round(float(h_max_cm) / 100, 2)
+        except (ValueError, TypeError):
+            pass
             
-            p_min = stats.get("ranges_price_min")
-            p_max = stats.get("ranges_price_max")
-            pm2_min = stats.get("ranges_price_m2_min")
-            pm2_max = stats.get("ranges_price_m2_max")
-            if p_min is not None or p_max is not None:
-                try:
-                    u["financials"].update({
-                        "price_min": float(p_min) if p_min is not None else None,
-                        "price_max": float(p_max) if p_max is not None else None,
-                        "price_m2_min": float(pm2_min) if pm2_min is not None else None,
-                        "price_m2_max": float(pm2_max) if pm2_max is not None else None,
-                    })
-                except (ValueError, TypeError):
-                    pass
+        try:
+            p_min = get(raw, cfg.get("price_min"))
+            p_max = get(raw, cfg.get("price_max"))
+            # price_m2 paths not in fundamental config yet, keep for now if they are simple
+            pm2_min = raw.get("stats", {}).get("ranges_price_m2_min") # Fallback to manual for extra fields
+            pm2_max = raw.get("stats", {}).get("ranges_price_m2_max")
+            
+            u["financials"].update({
+                "price_min": float(p_min) if p_min is not None else None,
+                "price_max": float(p_max) if p_max is not None else None,
+            })
+            # Manual fallback for legacy extraction of extras
+            if isinstance(_get_val(raw, "stats"), dict):
+                s = _get_val(raw, "stats")
+                u["financials"]["price_m2_min"] = float(s.get("ranges_price_m2_min")) if s.get("ranges_price_m2_min") else None
+                u["financials"]["price_m2_max"] = float(s.get("ranges_price_m2_max")) if s.get("ranges_price_m2_max") else None
+        except (ValueError, TypeError):
+            pass
 
         u["specifications"].update({
             "delivery_date": delivery,
-            "units_count": _get_val(raw, "properties") or raw.get("properties"),
+            "units_count": get(raw, cfg.get("units_count")) or raw.get("properties"),
             "ceiling_height_min": h_min,
             "ceiling_height_max": h_max,
         })
@@ -231,6 +242,8 @@ class OtodomAdapter:
     def _from_raw(cls, raw: dict, inv_slug: str, dev_slug: str) -> dict:
         # raw is the ad_data dict saved by scraper_otodom
         ad = raw.get("ad") or raw  # old format had {"ad": {...}}
+        cfg = PORTAL_MAPPING.get("oto", {}).get("investment", {})
+        get = JsonPathExtractor.get_value
 
         images = [img.get("large") for img in (ad.get("images") or []) if img.get("large")]
         if not images:
@@ -240,13 +253,19 @@ class OtodomAdapter:
         lat = loc.get("latitude")
         lng = loc.get("longitude")
 
-        agency = ad.get("agency") or {}
-        agency_name = agency.get("name") or (ad.get("owner") or {}).get("name")
+        agency_name = get(ad, cfg.get("developer_name")) or (ad.get("owner") or {}).get("name")
         url = ad.get("url")
 
         dq = dy = None
         units_count = None
         h_min = h_max = None
+        
+        # Try config-based units count first
+        units_val = get(ad, cfg.get("units_count"))
+        if units_val:
+            try: units_count = int(units_val)
+            except (ValueError, TypeError): pass
+            
         for item in (ad.get("topInformation") or []):
             lbl = item.get("label")
             vals = item.get("values", [])
@@ -260,33 +279,35 @@ class OtodomAdapter:
                     dq = (int(parts[1]) - 1) // 3 + 1
                 except Exception:
                     pass
-            elif lbl == "number_of_units_in_project":
-                try:
-                    units_count = int(vals[0])
-                except (ValueError, TypeError):
-                    pass
+            elif lbl == "number_of_units_in_project" and units_count is None:
+                try: units_count = int(vals[0])
+                except (ValueError, TypeError): pass
         
-        target = ad.get("target") or {}
-        if isinstance(target, dict):
-            h_min_cm = target.get("Ceiling_height_from")
-            h_max_cm = target.get("Ceiling_height_to")
-            try:
-                if h_min_cm: h_min = round(float(h_min_cm) / 100, 2)
-                if h_max_cm: h_max = round(float(h_max_cm) / 100, 2)
-            except (ValueError, TypeError):
-                pass
+        try:
+            h_min_cm = get(ad, cfg.get("ceiling_height_min"))
+            h_max_cm = get(ad, cfg.get("ceiling_height_max"))
+            if h_min_cm: h_min = round(float(h_min_cm) / 100, 2)
+            if h_max_cm: h_max = round(float(h_max_cm) / 100, 2)
+        except (ValueError, TypeError):
+            pass
 
         if dq is None:
             old_del = ad.get("investmentEstimatedDelivery") or {}
             dq = old_del.get("quarter")
             dy = old_del.get("year")
 
-        u = _unified_base(inv_slug, dev_slug,
-                          ad.get("title"), developer=agency_name)
+        title = get(ad, cfg.get("name")) or ad.get("title")
+        u = _unified_base(inv_slug, dev_slug, title, developer=agency_name)
+        
         oto_src = {"url": url or ""}
-        agency_id = agency.get("id") or (ad.get("owner") or {}).get("id")
+        oto_id = get(ad, cfg.get("id"))
+        if oto_id:
+            oto_src["id"] = str(oto_id)
+        
+        agency_id = get(ad, cfg.get("developer_id")) or (ad.get("owner") or {}).get("id")
         if agency_id:
             oto_src["agency_id"] = str(agency_id)
+            
         u["sources"]["oto"] = oto_src
         u["location"]["coords"] = [lat, lng]
         addr_obj = (ad.get("location") or {}).get("address") or {}
@@ -298,6 +319,12 @@ class OtodomAdapter:
             u["location"]["address"] = street_full or None
             u["location"]["city"] = (addr_obj.get("city") or {}).get("name")
             u["location"]["district"] = (addr_obj.get("district") or {}).get("name")
+
+        price_min = get(ad, cfg.get("price_min"))
+        u["financials"].update({
+            "price_min": float(price_min) if price_min else None
+        })
+
         u["specifications"].update({
             "delivery_quarter": dq,
             "delivery_year": dy,
@@ -337,7 +364,8 @@ class TOAdapter:
         desc = res.get("raw_details", {}).get("description") or ""
         if (not city or not address) and desc:
             # Matches: ✔️ Łódź, Śródmieście, ul. Telefoniczna 21 ✔️
-            m = re.search(r'✔️\s*([^,]+),\s*([^,]+),\s*(ul\.[^✔️]+)✔️', desc)
+            # and variants like: Łódź, Śródmieście, ul. Telefoniczna 21
+            m = re.search(r'(?:✔️|✅|📍)?\s*([^,]+),\s*([^,]+),\s*(ul\.[^✔️✅📍\n]+)', desc)
             if m:
                 if not city: city = m.group(1).strip()
                 if not address: address = m.group(3).strip()
@@ -363,13 +391,24 @@ class TOAdapter:
 
     @classmethod
     def _from_raw(cls, raw: dict, inv_slug: str, dev_slug: str) -> dict:
-        brand = raw.get("brand") or {}
-        developer_name = brand.get("name") if isinstance(brand, dict) else None
+        cfg = PORTAL_MAPPING.get("to", {}).get("investment", {})
+        get = JsonPathExtractor.get_value
 
-        offers = raw.get("offers") or {}
+        developer_name = get(raw, cfg.get("developer_name"))
+        price_min = get(raw, cfg.get("price_min"))
+        price_max = get(raw, cfg.get("price_max"))
+        
+        # Fallback for multi-offer lists if JsonPathExtractor didn't handle it
+        # (though it should if the path matches)
+        if isinstance(raw.get("offers"), list) and raw.get("offers") and price_min is None:
+            off = raw["offers"][0]
+            if isinstance(off, dict):
+                price_min = off.get("lowPrice")
+                price_max = off.get("highPrice")
+
         try:
-            price_min = float(offers.get("lowPrice") or 0) or None
-            price_max = float(offers.get("highPrice") or 0) or None
+            price_min = float(price_min or 0) or None
+            price_max = float(price_max or 0) or None
         except (TypeError, ValueError):
             price_min = price_max = None
 
@@ -383,7 +422,7 @@ class TOAdapter:
 
         desc = raw.get("description") or ""
         if (not city or not address) and desc:
-            m = re.search(r'✔️\s*([^,]+),\s*([^,]+),\s*(ul\.[^✔️]+)✔️', desc)
+            m = re.search(r'(?:✔️|✅|📍)?\s*([^,]+),\s*([^,]+),\s*(ul\.[^✔️✅📍\n]+)', desc)
             if m:
                 if not city: city = m.group(1).strip()
                 if not address: address = m.group(3).strip()
@@ -393,12 +432,36 @@ class TOAdapter:
             if isinstance(prop, dict) and prop.get("name"):
                 amenity_labels.append(prop["name"])
 
-        u = _unified_base(inv_slug, dev_slug,
-                          raw.get("name"), developer=developer_name)
-        u["sources"]["to"] = {"url": raw.get("url") or raw.get("to_url") or ""}
+        h_min = h_max = None
+        height_val = get(raw, cfg.get("ceiling_height_min"))
+        if height_val and isinstance(height_val, str):
+            # Extract number from string like "270 cm"
+            h_match = re.search(r'(\d+)', height_val)
+            if h_match:
+                try: h_min = h_max = round(float(h_match.group(1)) / 100, 2)
+                except: pass
+
+        title = get(raw, cfg.get("name")) or raw.get("name")
+        u = _unified_base(inv_slug, dev_slug, title, developer=developer_name)
+        
+        to_src = {"url": raw.get("url") or raw.get("to_url") or ""}
+        to_id = get(raw, cfg.get("id"))
+        if to_id:
+            to_src["id"] = str(to_id)
+            
+        dev_id = get(raw, cfg.get("developer_id"))
+        if dev_id:
+            to_src["developer_id"] = str(dev_id)
+            
+        u["sources"]["to"] = to_src
         u["location"].update({"coords": [lat, lng], "address": address, "city": city})
         u["financials"].update({"price_min": price_min, "price_max": price_max})
         u["amenities"]["labels"] = amenity_labels
+        u["specifications"].update({
+            "units_count": get(raw, cfg.get("units_count")),
+            "ceiling_height_min": h_min,
+            "ceiling_height_max": h_max,
+        })
         u["image_urls"] = urls
         u["images_count"] = len(urls)
         return u

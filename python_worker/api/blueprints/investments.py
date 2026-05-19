@@ -60,7 +60,11 @@ def _inv_matches_dev(inv: dict, dev: dict) -> bool:
             src_aid = str(src_p.get("agency_id", ""))
             if pm_aids and src_aid and src_aid in pm_aids:
                 return True
-        # to: no developer ID available yet
+        elif portal == "to":
+            pm_id = str(pm_p.get("id") or pm_p.get("slug", ""))
+            src_id = str(src_p.get("id") or "")
+            if pm_id and src_id and pm_id == src_id:
+                return True
     return False
 
 investments_bp = Blueprint('investments', __name__)

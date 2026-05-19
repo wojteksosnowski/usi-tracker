@@ -20,7 +20,7 @@ def test_rp_adapter_extraction():
     u = RPAdapter.transform(raw_data, "inv-slug", "dev-slug")
     
     assert u["website"] == "http://test-inv.pl"
-    assert u["specifications"]["ceiling_height"] == 2.58
+    assert u["specifications"]["ceiling_height_max"] == 2.58
     assert u["sources"]["rp"]["id"] == "12345"
 
 def test_merger_ceiling_height():
@@ -30,26 +30,26 @@ def test_merger_ceiling_height():
         "name": "Inv",
         "website": "http://rp.pl",
         "sources": {"rp": {"id": "1"}},
-        "specifications": {"ceiling_height": 2.70}
+        "specifications": {"ceiling_height_max": 2.70}
     }
     
     merged = Merger.merge(rp_data=rp_data)
     
-    assert merged["specifications"]["ceiling_height"] == 2.70
+    assert merged["specifications"]["ceiling_height_max"] == 2.70
     assert merged["website"] == "http://rp.pl"
 
 def test_merger_preserves_ceiling_height():
     existing = {
         "investment_slug": "inv",
         "developer_slug": "dev",
-        "specifications": {"ceiling_height": 2.60}
+        "specifications": {"ceiling_height_max": 2.60}
     }
     new_rp = {
         "investment_slug": "inv",
         "developer_slug": "dev",
         "sources": {"rp": {"id": "1"}},
-        "specifications": {"ceiling_height": None}
+        "specifications": {"ceiling_height_max": None}
     }
     
     merged = Merger.merge(rp_data=new_rp, existing_data=existing)
-    assert merged["specifications"]["ceiling_height"] == 2.60
+    assert merged["specifications"]["ceiling_height_max"] == 2.60

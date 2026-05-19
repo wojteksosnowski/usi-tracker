@@ -17,6 +17,8 @@ class Merger:
             ("financials.price_m2_max", ["financials", "price_m2_max"]),
             ("specifications.units_count", ["specifications", "units_count"]),
             ("specifications.ceiling_height", ["specifications", "ceiling_height"]),
+            ("specifications.ceiling_height_min", ["specifications", "ceiling_height_min"]),
+            ("specifications.ceiling_height_max", ["specifications", "ceiling_height_max"]),
             ("specifications.delivery_date", ["specifications", "delivery_date"]),
             ("images_count", ["images_count"]),
             ("status", ["status"]),
@@ -188,6 +190,10 @@ class Merger:
                 result["specifications"]["units_count"] = ex_spec["units_count"]
             if not result["specifications"].get("ceiling_height") and ex_spec.get("ceiling_height"):
                 result["specifications"]["ceiling_height"] = ex_spec["ceiling_height"]
+            if not result["specifications"].get("ceiling_height_min") and ex_spec.get("ceiling_height_min"):
+                result["specifications"]["ceiling_height_min"] = ex_spec["ceiling_height_min"]
+            if not result["specifications"].get("ceiling_height_max") and ex_spec.get("ceiling_height_max"):
+                result["specifications"]["ceiling_height_max"] = ex_spec["ceiling_height_max"]
             if not result["specifications"].get("delivery_date") and ex_spec.get("delivery_date"):
                 result["specifications"]["delivery_date"] = ex_spec["delivery_date"]
                 result["specifications"]["delivery_quarter"] = ex_spec.get("delivery_quarter")
