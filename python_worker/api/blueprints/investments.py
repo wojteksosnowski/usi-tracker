@@ -526,7 +526,7 @@ def register_bulk():
 
     def run_bulk_job(job_id, p, invs):
         def progress_wrapper(report):
-            msg = report.get("message", "Pobieranie...")
+            msg = report.get("message", "Przetwarzanie danych...")
             percent = report.get("progress_percent", 0)
             job_manager.update_progress(job_id, percent, msg)
             

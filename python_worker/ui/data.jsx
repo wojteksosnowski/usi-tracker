@@ -50,6 +50,7 @@ function DataBusProvider({ children }) {
       dev: '',
       status: '',
       onlyUnreviewed: false,
+      onlyNoPhotos: false,
       sources: new Set(['RP', 'OTO', 'TO']),
       cities: new Set()
     },
@@ -182,10 +183,11 @@ function DataBusProvider({ children }) {
   // Automatic filtering
   const { visibleInvestments, unreviewedCount } = React.useMemo(() => {
     const { investments, filters } = bus;
-    const { search, dev, status, sources, cities, onlyUnreviewed } = filters;
-    
+    const { search, dev, status, sources, cities, onlyUnreviewed, onlyNoPhotos } = filters;
+
     const filtered = investments.filter(inv => {
       if (onlyUnreviewed && inv.reviewed !== false) return false;
+      if (onlyNoPhotos && inv.photos && inv.photos.length > 0) return false;
       if (search) {
         const s = search.toLowerCase();
         const match = (inv.name?.toLowerCase().includes(s) ||
@@ -228,11 +230,47 @@ function DataBusProvider({ children }) {
     refetch('developers');
   }, []);
 
-  // Polling for active jobs
+  // Polling for active jobs with "Sticky" logic for finished tasks
   React.useEffect(() => {
-    // Poll every 3 seconds always to catch background tasks
+    const STICKY_DURATION = 5000;
+    const stickyJobs = new Map(); // jobId -> timestamp
+
     const poll = setInterval(() => {
-      refetch('jobs');
+      fetch('/api/jobs')
+        .then(r => r.json())
+        .then(newJobs => {
+          const now = Date.now();
+          const currentActive = busRef.current.activeJobs || [];
+          
+          // 1. Identify jobs that just finished (present in local, but not in server response)
+          currentActive.forEach(job => {
+            const stillActive = newJobs.find(nj => nj.id === job.id);
+            if (!stillActive && !stickyJobs.has(job.id)) {
+              // Mark as sticky if it was running/queued
+              if (job.status === 'running' || job.status === 'queued') {
+                const finishedJob = { ...job, status: 'completed', message: 'Finished.' };
+                stickyJobs.set(job.id, { job: finishedJob, expires: now + STICKY_DURATION });
+              }
+            }
+          });
+
+          // 2. Filter out expired sticky jobs
+          for (const [id, data] of stickyJobs.entries()) {
+            if (now > data.expires) stickyJobs.delete(id);
+          }
+
+          // 3. Merge server active jobs with local sticky jobs
+          const merged = [...newJobs];
+          stickyJobs.forEach(data => {
+            if (!merged.find(mj => mj.id === data.job.id)) {
+              merged.push(data.job);
+            }
+          });
+
+          setVariable('activeJobs', merged);
+        })
+        .catch(() => {});
+
       // Also poll pending summary
       fetch('/api/reports/pending-summary')
         .then(r => r.json())
@@ -242,7 +280,7 @@ function DataBusProvider({ children }) {
         .catch(() => {});
     }, 3000);
     return () => clearInterval(poll);
-  }, [refetch, setVariable]);
+  }, [setVariable]);
 
   return (
     <DataBusDispatchContext.Provider value={dispatchValue}>

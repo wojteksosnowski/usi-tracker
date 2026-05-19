@@ -662,7 +662,9 @@ class InvestmentService:
                 "at": datetime.now().isoformat()
             })
             
-            data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
+            audit = data.setdefault("audit", {})
+            audit["updated_at"] = datetime.now().isoformat()
+            audit["audit_needed"] = True
             
             with open(usi_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)

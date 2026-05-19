@@ -262,9 +262,9 @@ function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
   const items = [
     { id: 'list', label: 'Inwestycje', icon: 'grid', desc: 'Lista wszystkich inwestycji' },
     { id: 'developers', label: 'Deweloperzy', icon: 'list', desc: 'Baza firm deweloperskich' },
+    { id: 'download', label: 'Pobieranie', icon: 'zap', desc: 'Skanowanie i status Wędrowca' },
     { id: 'reports', label: 'Raporty', icon: 'list', desc: 'Analizy i zestawienia' },
     { id: 'dashboard', label: 'Dashboard', icon: 'sparkle', desc: 'Podsumowania i wykresy' },
-    { id: 'download', label: 'Pobieranie', icon: 'zap', desc: 'Skanowanie i status Wędrowca' },
     { id: 'storyboard', label: 'Storyboard', icon: 'layout', desc: 'Izolowane środowisko testowe' },
     { id: 'library', label: 'Biblioteka', icon: 'box', desc: 'Przegląd komponentów systemowych' },
   ];
@@ -317,7 +317,7 @@ function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
             const health = useDataBusSelector(state => state.systemHealth);
             if (!health) return null;
             
-            const isOk = health.ok && (health.result?.status === 'ok' || health.result === true);
+            const isOk = health.ok && health.status === 'ok';
             const statusLabel = isOk ? 'Scrapers: Połączono' : 'Scrapers: Błąd spójności';
             const statusColor = isOk ? 'var(--usi-success)' : 'var(--usi-danger)';
             
@@ -343,7 +343,7 @@ function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
                   background: statusColor,
                   boxShadow: isOk ? '0 0 8px var(--usi-success)' : 'none'
                 }} />
-                <span style={{ fontWeight: 600, letterSpacing: '0.02em' }}>{statusLabel}</span>
+                <span className="usi-nav-drawer-health-label">{statusLabel}</span>
               </div>
             );
           })()}
@@ -379,17 +379,35 @@ function NotificationCenter() {
 
   if (jobs.length === 0) return null;
 
+  // Renderuje pasek kropkowy o stałej szerokości 10 znaków
+  const renderDotBar = (progress, total = 100) => {
+    const width = 10;
+    const percent = Math.min(100, Math.max(0, (progress / total) * 100));
+    const filled = Math.round((percent / 100) * width);
+    return '●'.repeat(filled) + '○'.repeat(width - filled);
+  };
+
   // Pokazujemy tylko pierwsze aktywne zadanie w formie tekstowej konsoli
   const job = jobs[0];
   const progress = job.progress || 0;
+  const total = job.total || 100;
   const message = job.message || 'Przetwarzanie...';
-  const name = (job.name || 'JOB').toUpperCase();
+  const name = job.name || 'Zadanie';
+  const isFinished = job.status === 'completed' || job.status === 'failed';
+
+  // Format licznika: [n/m] jeśli total != 100, w przeciwnym razie [XX%]
+  const counterStr = total !== 100 ? `[${progress}/${total}]` : `[${Math.round((progress/total)*100)}%]`;
+  const dotBar = renderDotBar(progress, total);
 
   return (
     <div data-component="NotificationCenter" className="usi-notification-center-minimal">
       <div className="usi-mono usi-notification-center-text">
-        &gt; {name}: {message} [{progress}%]
-        {jobs.length > 1 && <span style={{ opacity: 0.6 }}> (+{jobs.length - 1} zad.)</span>}
+        <span style={{ color: isFinished ? 'var(--usi-success)' : 'inherit' }}>
+          &gt; {name}: {message}
+        </span>
+        <span className="usi-notification-dotbar">{dotBar}</span>
+        <span className="usi-notification-counter">{counterStr}</span>
+        {jobs.length > 1 && <span className="usi-notification-extra"> (+{jobs.length - 1} zad.)</span>}
       </div>
     </div>
   );
@@ -486,6 +504,34 @@ function StatusMessenger() {
   );
 }
 window.usiRegister('StatusMessenger', StatusMessenger);
+
+function ReportModal({ isOpen, onClose, onConfirm }) {
+  const { React } = window;
+  const [note, setNote] = React.useState('');
+  if (!isOpen) return null;
+
+  return (
+    <div className="usi-modal-backdrop" onClick={onClose}>
+      <div className="usi-modal-content usi-card" onClick={e => e.stopPropagation()}>
+        <h2 className="usi-h2">Flaguj do audytu</h2>
+        <p className="usi-small usi-text-secondary usi-m-t-4">Opisz problemy ze zdjęciami, metadanymi lub danymi dewelopera.</p>
+        <textarea 
+          className="usi-input usi-m-t-16" 
+          style={{ width: '100%', minHeight: 120, resize: 'vertical', background: 'var(--usi-surface-2)' }}
+          placeholder="np. Błędne zdjęcie główne, brak współrzędnych..."
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          autoFocus
+        />
+        <div className="usi-flex-row usi-gap-12 usi-m-t-24" style={{ justifyContent: 'flex-end' }}>
+          <button className="usi-btn ghost" onClick={onClose}>Anuluj</button>
+          <button className="usi-btn primary" onClick={() => { onConfirm(note); setNote(''); }}>Flaguj Inwestycję</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+window.usiRegister('ReportModal', ReportModal);
 
 function NavbarTitle({ title, subtitle }) {
   return (

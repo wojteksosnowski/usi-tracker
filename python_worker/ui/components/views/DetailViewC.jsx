@@ -1,14 +1,14 @@
 // DetailViewC.jsx — widok szczegółowy tryb C (Media + pasek kategorii)
 
 (function() {
-  const { React, usiRegister, SlideShow, RatingsPanel, Icon } = window;
+  const { React, usiRegister, SlideShow, RatingsPanel, CategoryRatingRow, Icon } = window;
 
   const ModeC = ({ inv, marked, onToggleMark, onLightbox, ratings, handleRating, comment, handleComment, status, handleStatus, saved, focusedCat, onFocusedCatChange }) => {
     const [panelOpen, setPanelOpen] = React.useState(false);
     const categories = window.USI_CATEGORIES || [];
 
-    const handleCatClick = (key) => {
-      if (onFocusedCatChange) onFocusedCatChange(key);
+    const handleCatClick = (idx) => {
+      if (onFocusedCatChange) onFocusedCatChange(idx);
       setPanelOpen(true);
     };
 
@@ -26,20 +26,20 @@
 
         <div data-component="ModeC-Footer" className="mode-c-footer-panel">
           <div className="mode-c-catbar">
-            {categories.map(cat => {
-              const val = (ratings || {})[cat.key] || 0;
-              return (
-                <button
-                  key={cat.key}
-                  className={`mode-c-cat-chip${focusedCat === cat.key ? ' active' : ''}`}
-                  onClick={() => handleCatClick(cat.key)}
-                  title={cat.key}>
-                  <span className="mode-c-cat-dot" style={{ background: cat.color }} />
-                  <span className="mode-c-cat-short">{cat.short}</span>
-                  <span className="mode-c-cat-val">{val > 0 ? val : '—'}</span>
-                </button>
-              );
-            })}
+            {categories.map((cat, idx) => (
+              <CategoryRatingRow
+                key={cat.key}
+                category={cat}
+                index={idx}
+                focusedIndex={focusedCat}
+                onFocus={handleCatClick}
+                value={(ratings || {})[cat.key] ?? null}
+                onChange={v => handleRating(cat.key, v)}
+                variant="circles"
+                suggestedValue={cat.key === 'Udogodnienia' ? inv.suggested_udogodnienia : null}
+                className="mode-c-footer-row"
+              />
+            ))}
             <button
               className="mode-c-panel-toggle"
               onClick={() => setPanelOpen(v => !v)}

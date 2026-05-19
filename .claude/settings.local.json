@@ -153,7 +153,13 @@
       "Bash(grep -E \"\\(investments|developer_manager|utils\\)\\\\.py$\")",
       "Bash(xargs -I {} sh -c 'echo \"FILE: {}\" && head -10 {}')",
       "Bash(cat)",
-      "Bash(bash /tmp/search_calls.sh)"
+      "Bash(bash /tmp/search_calls.sh)",
+      "Read(//Volumes/Samsam/Public/USIdata/4estates-sp-z-o-o/apartamenty-sudetia/**)",
+      "Read(//Volumes/Samsam/Public/USI/4estates-sp-z-o-o/**)",
+      "Read(//Volumes/Samsam/Public/USIdata/acatom/langiewicza-37/**)",
+      "Read(//Volumes/Samsam/Public/USI/acatom/**)",
+      "Read(//Volumes/Samsam/Public/USIdata/develia/neo-praga-warszawa-grochow/**)",
+      "Read(//Volumes/Samsam/Public/USIdata/develia/**)"
     ]
   }
 }

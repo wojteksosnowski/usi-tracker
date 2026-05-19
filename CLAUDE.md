@@ -40,13 +40,13 @@ cp python_worker/.env python_worker/.env.local  # then edit with your keys
 ./lint-styles.sh
 
 # Run tests
-pytest python_worker/
+pytest tests/
 
 # Run a single test file
-pytest python_worker/test_scraper_rp.py
+pytest tests/test_scraper_rp.py
 
 # Run a single test function
-pytest python_worker/test_scraper_rp.py::test_function_name
+pytest tests/test_scraper_rp.py::test_function_name
 
 # Start local Flask web UI (browse investments, view maps/images)
 python3 -m python_worker.main ui
@@ -161,7 +161,6 @@ logs/            Runtime logs (worker.log)
 | `slug_utils.py` | `slugify(text)` — converts Polish text to URL slugs; handles `ł/Ł` transliteration that NFKD alone cannot decompose |
 | `listings.py` | Batch fetch of recent investments from both portals; produces `app_latest_results*.json` |
 | `image_saver.py` | Downloads and deduplicates images into `Public/USI/{dev_slug}/{inv_slug}/` |
-| `grabber.py` | Generic regex-based link extractor for arbitrary developer sites |
 | `url_parser.py` | Classifies URLs as RynekPierwotny or Otodom; extracts slugs and IDs |
 | `here_maps.py` | Generates HERE Maps satellite image URLs; `enrich_with_here_map` adds `map_url` |
 | `stage_detector.py` | Reads raw RP files, detects multi-stage investments, writes stage metadata back to `usi_*.json` |
@@ -300,3 +299,4 @@ Otodom.pl changes `otoID` (and sometimes the URL slug) for the same investment w
 - **`image_paths` in usi_*.json is the source of truth**: `_load_investment()` uses `image_paths` from the JSON to build image API URLs. Never modify or regenerate these paths — they are written by the scrapers and are exact. Guessing paths from `dev_slug` or directory structure is wrong and will produce broken images. Fallback to filesystem scan only when `image_paths` is absent.
 - **`list_developers()` deduplicates by `usi_dev_id`**: After the 1:1 portal split, the same slug can appear in multiple `usi_dev_*.json` files (one per portal). Deduplication is by ID, not slug — both are valid top-level records.
 - **`_build_dev_from_raws()` creates one file per portal**: It calls `create_developer_file()` once per non-null portal, producing separate Level 2 files. Do not call it expecting a single multi-portal output file.
+- **No name-based developer fallback in `InvestmentService`**: `InvestmentService` no longer calls `get_developer_by_name()`. If pre-scrape ID lookup fails and no record is found, the investment is placed in `"unknown"` folder immediately. There is no fuzzy-name resolution path — link the developer by ID first.

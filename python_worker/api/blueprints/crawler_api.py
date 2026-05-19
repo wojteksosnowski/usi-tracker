@@ -61,3 +61,12 @@ def crawler_exploration():
     if not c:
         return jsonify({})
     return jsonify(c.get_exploration_status())
+
+
+@crawler_bp.route("/doktor/status", methods=["GET"])
+def doktor_status():
+    from python_worker.doktor import get_doktor
+    d = get_doktor()
+    if not d:
+        return jsonify({"running": False})
+    return jsonify(d.get_status())

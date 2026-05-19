@@ -1,7 +1,7 @@
 // RatingsPanel.jsx — hook useRatings + komponent RatingsPanel
 
 (function() {
-  const { React, usiRegister, useDataBus, CategoryRating, UsiStarScore, ocenaLog, Icon, USI_CATEGORIES, USI_STATUSES, useRatings } = window;
+  const { React, usiRegister, useDataBus, CategoryRating, CategoryRatingRow, UsiStarScore, ocenaLog, Icon, USI_CATEGORIES, USI_STATUSES, useRatings } = window;
 
   const RatingsPanel = ({ inv, variant = 'circles', focusedCat = -1, onFocusedCatChange,
       ratings = {}, handleRating, comment = '', handleComment, status = 'Brak', handleStatus, saved = false }) => {
@@ -13,24 +13,17 @@
           <div className="usi-tiny usi-ratings-panel-cat-header">Ocena USI</div>
           <div className="usi-ratings-panel-cat-list">
             {USI_CATEGORIES.map((cat, idx) => (
-              <div key={cat.key}
-                data-component="CategoryRating-Row"
-                onClick={() => onFocusedCatChange && onFocusedCatChange(idx)}
-                className={`usi-ratings-panel-cat-row ${idx === focusedCat ? 'active' : ''}`}>
-                <div className="usi-ratings-panel-cat-info">
-                  <span className="usi-ratings-panel-cat-dot" style={{ background: cat.color }} />
-                  <span className="usi-body usi-weight-500">{cat.key}</span>
-                  {cat.key === 'Udogodnienia'
-                    && inv.suggested_udogodnienia != null
-                    && (ratings['Udogodnienia'] == null) && (
-                    <span className="usi-ratings-panel-cat-suggested">
-                      sugest.&nbsp;{inv.suggested_udogodnienia}
-                    </span>
-                  )}
-                </div>
-                <CategoryRating category={cat} value={ratings[cat.key] ?? null}
-                  onChange={v => handleRating(cat.key, v)} variant={variant} />
-              </div>
+              <CategoryRatingRow
+                key={cat.key}
+                category={cat}
+                index={idx}
+                focusedIndex={focusedCat}
+                onFocus={onFocusedCatChange}
+                value={ratings[cat.key] ?? null}
+                onChange={v => handleRating(cat.key, v)}
+                variant={variant}
+                suggestedValue={cat.key === 'Udogodnienia' ? inv.suggested_udogodnienia : null}
+              />
             ))}
           </div>
         </div>

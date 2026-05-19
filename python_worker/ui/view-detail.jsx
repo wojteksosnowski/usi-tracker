@@ -27,12 +27,7 @@
     const { ratings, handleRating, comment, handleComment, status, handleStatus, saved } = useRatings(inv);
     const metaConfig = useMetadataConfig();
     const [localReviewed, setLocalReviewed] = React.useState(inv.reviewed);
-    const [showReportModal, setShowReportModal] = React.useState(false);
     const { request } = window.useApi ? window.useApi() : { request: fetch };
-
-    React.useEffect(() => {
-        setLocalReviewed(inv.reviewed);
-    }, [inv.slug, inv.reviewed]);
 
     const handleApprove = async () => {
         try {
@@ -40,27 +35,10 @@
             if (data && data.ok) {
                 setLocalReviewed(true);
                 setVariable('appStatus', { type: 'success', msg: 'Inwestycja została zatwierdzona.' });
-                refetch('investments');
+                window.usiRefetch && window.usiRefetch('investments');
             }
         } catch (err) {
             console.error("Approval failed", err);
-        }
-    };
-
-    const handleReport = async (note) => {
-        if (!note) return;
-        try {
-            const data = await request(`/api/investment/${inv.developer_slug}/${inv.investment_slug}/report`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ note })
-            });
-            if (data && data.ok) {
-                setVariable('appStatus', { type: 'success', msg: 'Zgłoszenie zostało zapisane.' });
-                setShowReportModal(false);
-            }
-        } catch (err) {
-            console.error("Reporting failed", err);
         }
     };
 
@@ -116,19 +94,13 @@
           const containerClass = `detail-right-panel usi-scroll usi-p-24 ${detailMode === 'C' ? 'usi-overflow-hidden' : 'usi-overflow-auto'}`;
           return (
             <div data-component="DetailRightPanel" className={containerClass}>
-              <div className="usi-flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                 <div className="usi-flex-row usi-gap-12">
-                    {localReviewed === false && (
-                        <button className="usi-btn success" onClick={handleApprove}>
-                           <Icon name="check" size={12} /> Zatwierdź nową inwestycję
-                        </button>
-                    )}
-                    <button className="usi-btn ghost" onClick={() => setShowReportModal(true)}>
-                        <Icon name="info" size={12} /> Report
-                    </button>
-                 </div>
-                 <div />
-              </div>
+              {localReviewed === false && (
+                <div className="usi-flex-row usi-m-b-16">
+                  <button className="usi-btn success" onClick={handleApprove}>
+                    <Icon name="check" size={12} /> Zatwierdź nową inwestycję
+                  </button>
+                </div>
+              )}
 
               <HeroBand
                 inv={validInv}
@@ -174,60 +146,12 @@
 
               {lightbox !== null && <Lightbox inv={validInv} index={lightbox} onClose={() => setLightbox(null)} />}
 
-              <ReportModal 
-                isOpen={showReportModal} 
-                onClose={() => setShowReportModal(false)} 
-                onConfirm={handleReport} 
-              />
-
-              <style>{`
-                .usi-modal-backdrop {
-                  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-                  background: rgba(0,0,0,0.6);
-                  z-index: 10000;
-                  display: flex; align-items: center; justify-content: center;
-                }
-                .usi-modal-content {
-                  width: 100%; max-width: 500px;
-                  background: var(--usi-surface);
-                  padding: 24px;
-                  box-shadow: 0 20px 40px rgba(0,0,0,0.4);
-                  border-radius: 16px;
-                }
-              `}</style>
             </div>
           );
         }}
       </DataBoundary>
     );
   }
-
-  function ReportModal({ isOpen, onClose, onConfirm }) {
-    const { React } = window;
-    const [note, setNote] = React.useState('');
-    if (!isOpen) return null;
-
-    return (
-      <div className="usi-modal-backdrop" onClick={onClose}>
-        <div className="usi-modal-content usi-card" onClick={e => e.stopPropagation()}>
-          <h2 className="usi-h2">Zgłoś błąd / notatka</h2>
-          <textarea 
-            className="usi-input usi-m-t-16" 
-            style={{ width: '100%', minHeight: 120, resize: 'vertical', background: 'var(--usi-surface-2)' }}
-            placeholder="Opisz co jest nie tak z danymi tej inwestycji..."
-            value={note}
-            onChange={e => setNote(e.target.value)}
-            autoFocus
-          />
-          <div className="usi-flex-row usi-gap-12 usi-m-t-24" style={{ justifyContent: 'flex-end' }}>
-            <button className="usi-btn ghost" onClick={onClose}>Anuluj</button>
-            <button className="usi-btn primary" onClick={() => { onConfirm(note); setNote(''); }}>OK</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
 
   usiRegister('DetailRightPanel', DetailRightPanel);
 })();

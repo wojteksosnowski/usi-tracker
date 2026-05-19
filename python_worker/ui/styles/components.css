@@ -415,6 +415,7 @@
   padding: 16px;
   width: 100%;
   max-width: 100%;
+
   /* Dynamic values via CSS variables if needed, but here we set defaults */
   grid-template-columns: repeat(var(--usi-dg-cols, 1), minmax(0, 1fr));
   gap: var(--usi-dg-gap, 16px);
@@ -904,6 +905,7 @@
 
 .usi-analytics-progress-segment.complete { background: var(--usi-success); }
 .usi-analytics-progress-segment.partial { background: var(--usi-warn); }
+
 .usi-analytics-progress-segment.unrated { 
   background: var(--usi-surface-3); 
   color: var(--usi-ink-3); 
@@ -1186,7 +1188,30 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 450px;
+  max-width: 800px;
+}
+
+.usi-notification-dotbar {
+  margin-left: 12px;
+  letter-spacing: 2px;
+}
+
+.usi-notification-counter {
+  margin-left: 8px;
+  opacity: 0.8;
+}
+
+.usi-notification-extra {
+  opacity: 0.6;
+}
+
+.usi-nav-drawer-health-label {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.usi-align-self-center {
+  align-self: center;
 }
 
 .usi-global-search-container {
@@ -1686,7 +1711,31 @@
   color: var(--usi-accent);
   text-decoration: none;
 }
+
 .usi-link:hover {
   text-decoration: underline;
+}
+
+/* Modal */
+.usi-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.usi-modal-content {
+  width: 100%;
+  max-width: 500px;
+  background: var(--usi-surface);
+  padding: 24px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  border-radius: 16px;
 }
 

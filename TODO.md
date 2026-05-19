@@ -1,4 +1,3 @@
 # TODO
 
-## Pobieranie
-- klikniecie w pobierz wszystko powoduje ze wszystkie wskazniki sie zeruja
+Wszystkie zaplanowane kamienie milowe zostały ukończone. Baza kodu jest czysta i gotowa do dalszego rozwoju.

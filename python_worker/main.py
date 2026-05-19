@@ -12,6 +12,7 @@ from usi_scrapers import api as scraper_api
 from .logger_utils import log_to_processing_log
 from .developer_manager import DeveloperManager
 from .detect_similar_devs import detect_similar
+from .audit_worker import run_audit_cli
 
 # Set up logging for the whole application
 _LOG_FILE = Path(__file__).parent.parent / "logs" / "worker.log"
@@ -229,6 +230,9 @@ def main():
     # Command: suggest
     parser_suggest = subparsers.add_parser("suggest", help="Run the developer suggestion algorithm (similarity & location)")
 
+    # Command: run-audit
+    subparsers.add_parser("run-audit", help="Scan and process investments flagged for audit")
+
     # Command: rebuild-index
     subparsers.add_parser("rebuild-index", help="Rebuild the investment list index (_index.json in USIdata)")
 
@@ -402,6 +406,9 @@ def main():
         logger.info("Starting developer suggestion algorithm...")
         detect_similar()
         logger.info("Suggestion algorithm finished.")
+
+    elif args.command == "run-audit":
+        run_audit_cli()
 
     elif args.command == "rebuild-index":
         from .investment_index import rebuild as rebuild_index

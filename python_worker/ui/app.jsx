@@ -59,6 +59,7 @@
     const [selectedInv, setSelectedInv] = React.useState(null);
     const [selectedDev, setSelectedDev] = React.useState(null);
     const [selectedReport, setSelectedReport] = React.useState(null);
+    const [showReportModal, setShowReportModal] = React.useState(false);
     
     // Combined DataBus access
     const { bus, setVariable, refetch: busRefetch } = useDataBus();
@@ -103,6 +104,24 @@
       devDiscoverRef.current = fn;
       setDevDiscoverActive(active);
     }, []);
+
+    const handleReport = async (note) => {
+      if (!note || !selectedInv) return;
+      const { request } = window.useApi ? window.useApi() : { request: fetch };
+      try {
+          const data = await request(`/api/investment/${selectedInv.developer_slug}/${selectedInv.investment_slug}/report`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ note })
+          });
+          if (data && data.ok) {
+              setVariable('appStatus', { type: 'success', msg: 'Zgłoszenie audytu zostało zapisane.' });
+              setShowReportModal(false);
+          }
+      } catch (err) {
+          console.error("Reporting failed", err);
+      }
+    };
 
     try {
       const { 
@@ -322,6 +341,10 @@
                           <input type="checkbox" checked={bus.filters?.onlyUnreviewed || false} onChange={e => setVariable('filters.onlyUnreviewed', e.target.checked)} />
                           Tylko nieprzejrzane
                         </label>
+                        <label className="usi-label-clickable">
+                          <input type="checkbox" checked={bus.filters?.onlyNoPhotos || false} onChange={e => setVariable('filters.onlyNoPhotos', e.target.checked)} />
+                          Brak zdjęć
+                        </label>
                       </FilterGroup>
                       <FilterGroup label="Miasta">
                         {MAIN_CITIES.map(city => (
@@ -352,7 +375,7 @@
                           />
                         )}
                       </FilterGroup>
-                      <span className="usi-tiny usi-text-secondary" style={{ alignSelf: 'center' }}>
+                      <span className="usi-tiny usi-text-secondary usi-align-self-center">
                         {(bus.visibleDevelopers || []).length} deweloperów
                       </span>
                     </>
@@ -391,6 +414,10 @@
               ) : view === 'detail' && selectedInv ? (
                 <div className="usi-flex-row usi-gap-16">
                   {window.SourceLinks && <window.SourceLinks inv={selectedInv} />}
+                  <div className="usi-divider-v" />
+                  <button className="usi-btn sm ghost" onClick={() => setShowReportModal(true)}>
+                    <Icon name="info" size={12} /> Report
+                  </button>
                   <div className="usi-divider-v" />
                   <div className="mode-switch">
                     <button
@@ -519,6 +546,12 @@
 
           <NotificationConsole />
           {navOpen && <NavDrawer current={view} onClose={() => setNavOpen(false)} onNav={handleNav} dark={dark} onToggleTheme={handleToggleTheme} />}
+          
+          <ReportModal 
+            isOpen={showReportModal} 
+            onClose={() => setShowReportModal(false)} 
+            onConfirm={handleReport} 
+          />
         </div>
       );
     } catch (err) {

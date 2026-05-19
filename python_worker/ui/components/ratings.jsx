@@ -128,6 +128,35 @@
   };
   usiRegister('CategoryRating', CategoryRating);
 
+  const CategoryRatingRow = ({ category, index, focusedIndex, onFocus, value, onChange, variant = 'circles', suggestedValue, className = '' }) => {
+    const active = index === focusedIndex;
+    const { React, CategoryRating } = window;
+    return (
+      <div 
+        data-component="CategoryRating-Row"
+        onClick={() => onFocus && onFocus(index)}
+        className={`usi-ratings-panel-cat-row ${active ? 'active' : ''} ${className}`}
+      >
+        <div className="usi-ratings-panel-cat-info">
+          <span className="usi-ratings-panel-cat-dot" style={{ background: category.color }} />
+          <span className="usi-body usi-weight-500">{category.key}</span>
+          {suggestedValue !== undefined && suggestedValue !== null && (value === null || value === undefined) && (
+            <span className="usi-ratings-panel-cat-suggested">
+              sugest.&nbsp;{suggestedValue}
+            </span>
+          )}
+        </div>
+        <CategoryRating 
+          category={category} 
+          value={value}
+          onChange={onChange} 
+          variant={variant} 
+        />
+      </div>
+    );
+  };
+  usiRegister('CategoryRatingRow', CategoryRatingRow);
+
   const CategoryStripe = ({ ratings, height = 4 }) => {
     const categories = window.USI_CATEGORIES || [];
     return (

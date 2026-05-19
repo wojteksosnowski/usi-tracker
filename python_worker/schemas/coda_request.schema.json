@@ -7,7 +7,7 @@
   "properties": {
     "type": {
       "type": "string",
-      "enum": ["rynekpierwotny", "otodom", "tabelaofert", "grabber"],
+      "enum": ["rynekpierwotny", "otodom", "tabelaofert"],
       "description": "Explicit scraper type. When absent, bus.py infers from field presence: rpID → rynekpierwotny, otoID/strona_otodom → otodom."
     },
     "rpID": {
@@ -31,7 +31,7 @@
     "url": {
       "type": "string",
       "format": "uri",
-      "description": "Generic URL used for tabelaofert and grabber tasks."
+      "description": "Generic URL used for tabelaofert tasks."
     },
     "USIfolder": {
       "type": "string",
@@ -52,10 +52,6 @@
     "offer_id": {
       "type": "string",
       "description": "Alias for rpID used in some request formats."
-    },
-    "regex": {
-      "type": "string",
-      "description": "Regular expression for link extraction. Used only for grabber task type."
     }
   },
   "additionalProperties": true

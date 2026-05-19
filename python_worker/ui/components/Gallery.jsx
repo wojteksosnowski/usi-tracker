@@ -60,7 +60,7 @@
     const [idx, setIdx] = React.useState(0);
     const total = photos.length;
 
-    React.useEffect(() => { setIdx(0); }, [photos]);
+    React.useEffect(() => { setIdx(0); }, [photos && photos[0]]);
 
     React.useEffect(() => {
       const handler = (e) => {

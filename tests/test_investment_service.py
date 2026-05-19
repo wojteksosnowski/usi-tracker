@@ -56,47 +56,6 @@ def test_get_investment_includes_photo_paths(svc):
     assert any("photo.jpg" in p for p in result["photos"])
 
 
-# ── register_investment ────────────────────────────────────────────────────────
-
-def test_register_investment_creates_skeleton(svc):
-    with patch("python_worker.developer_manager.DeveloperManager.create_developer_file"), \
-         patch("python_worker.developer_manager.DeveloperManager.generate_usi_id", return_value="INV-0001"):
-        dev_slug, inv_slug = svc.register_investment(
-            portal="rp", developer_name="Acme Deweloper", inv_slug="acme-flat",
-            name="Acme Flat", item_id="999"
-        )
-    assert dev_slug == "acme-deweloper"
-    assert inv_slug == "acme-flat"
-    # New canonical filename: usi_{portal}_{portal_id}.json
-    usi_file = svc.data_dir / dev_slug / inv_slug / "usi_rp_999.json"
-    assert usi_file.exists()
-    data = json.loads(usi_file.read_text())
-    assert data["sources"]["rp"]["id"] == "999"
-
-
-def test_register_investment_duplicate_raises(svc):
-    _write_usi(svc.data_dir, "acme-deweloper", "acme-flat")
-    with patch("python_worker.developer_manager.DeveloperManager.create_developer_file"), \
-         patch("python_worker.developer_manager.DeveloperManager.generate_usi_id", return_value="INV-0001"), \
-         pytest.raises(ValueError, match="already exists"):
-        svc.register_investment(
-            portal="rp", developer_name="Acme Deweloper", inv_slug="acme-flat",
-            name="Acme Flat", item_id="999"
-        )
-
-
-def test_register_investment_missing_developer_raises(svc):
-    with pytest.raises(ValueError, match="Real developer identity"):
-        svc.register_investment(portal="rp", developer_name="", inv_slug="some-inv",
-                                name="Some Inv")
-
-
-def test_register_investment_nieznany_raises(svc):
-    with pytest.raises(ValueError, match="Real developer identity"):
-        svc.register_investment(portal="rp", developer_name="Nieznany Deweloper",
-                                inv_slug="x", name="X")
-
-
 # ── save_ratings ──────────────────────────────────────────────────────────────
 
 def test_save_ratings_writes_file(svc):

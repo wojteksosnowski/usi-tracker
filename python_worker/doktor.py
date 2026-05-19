@@ -241,6 +241,25 @@ class Doktor:
             except Exception as e:
                 logger.error("Doktor: Failed to save suggestions for %s: %s", slug, e)
 
+    def get_status(self) -> dict:
+        running = self._thread is not None and self._thread.is_alive()
+        with self._lock:
+            total_indexed = len(self._index)
+            queue_remaining = len(self._dev_queue)
+        last_refresh = None
+        if self._last_index_refresh > 0:
+            last_refresh = datetime.fromtimestamp(
+                self._last_index_refresh, tz=timezone.utc
+            ).isoformat()
+        return {
+            "running": running,
+            "total_indexed": total_indexed,
+            "queue_remaining": queue_remaining,
+            "last_refresh": last_refresh,
+            "tick_seconds": _TICK_SECONDS,
+            "index_refresh_hours": _INDEX_REFRESH_INTERVAL // 3600,
+        }
+
 # ── Singleton ──────────────────────────────────────────────────────────────────
 _instance: Doktor | None = None
 

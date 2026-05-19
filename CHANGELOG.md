@@ -1,3 +1,24 @@
+## UI — 2026-05-15
+- **Refaktoryzacja stylów**: Przeprowadzono audyt i migrację stylów inline do dedykowanych klas CSS, poprawiając separację warstw i ułatwiając przyszłe modyfikacje wyglądu.
+- **Standaryzacja**: Wprowadzono klasy pomocnicze dla powtarzalnych wzorców layoutowych (np. wyrównanie w osi, spacing w powiadomieniach).
+
+## Powiadomienia — 2026-05-15
+- **Poprawa czytelności**: Zwiększono szerokość paska powiadomień w Navbarze, co eliminuje agresywne przycinanie długich nazw inwestycji.
+- **Stylistyka**: Wyłączono wymuszony tryb ALL CAPS dla nazw zadań, nadając powiadomieniom bardziej naturalny wygląd.
+- **Komunikacja**: Ujednolicono komunikaty postępu, unikając generycznego "Pobieram..." na rzecz bardziej precyzyjnych informacji o przetwarzaniu danych.
+
+
+- **UI Components**: Wydzielono `CategoryRatingRow` jako modularny komponent, ujednolicając system ocen w panelu bocznym i stopce widoku Media (Mode C).
+- **Gallery Fix**: Naprawiono usterkę resetowania pozycji galerii `SlideShow` przy przełączaniu widoków lub edycji danych.
+- **System Raportowania**: Przeniesiono przycisk "Report" do globalnego `ActionBar`.
+- **Audit Workflow**: Zmieniono charakter zgłoszeń na flagowanie do audytu (`audit_needed: true`). Wprowadzono narzędzie CLI `python3 -m python_worker.main run-audit` do zarządzania oflagowanymi rekordami.
+
+
+- **Cleanup**: Usunięto martwy moduł 'grabber' z dokumentacji (CLAUDE.md, specyfikacja) oraz schematów JSON.
+- **UI Fix**: Naprawiono błąd 'health check' w NavDrawer, dostosowując parsowanie odpowiedzi do formatu v0.3.0 library health.
+- **Nawigacja**: Zmieniono kolejność elementów w szufladzie nawigacyjnej (Inwestycje, Deweloperzy, Pobieranie na początku).
+- **Refactoring**: Uporządkowano strukturę TODO.md i zarchiwizowano pierwszy kamień milowy.
+
 ## Deweloperzy — 2026-05-11
 
 - **Filtr "Tylko powiązane"**: Zaimplementowano filtr `only_merged` w backendzie (`DeveloperManager`), API oraz interfejsie użytkownika (`ActionBar`), umożliwiający szybkie odfiltrowanie deweloperów posiadających mapowania lub rekordy potomne.

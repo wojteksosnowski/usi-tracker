@@ -4,7 +4,7 @@
 
 Stworzenie hybrydowego systemu do agregacji i archiwizacji inwestycji deweloperskich, składającego się z dwóch współpracujących komponentów:
 
-1. **Lokalnego Skryptu (Worker):** Działającego w tle na komputerze użytkownika, odpowiedzialnego za "ciężką pracę" – scrapowanie (RynekPierwotny.pl, Otodom.pl), omijanie blokad (ScraperAPI), niestandardowe pobieranie obrazów (Grabber) oraz fizyczny zapis plików do synchronizowanego folderu Dropbox.  
+1. **Lokalnego Skryptu (Worker):** Działającego w tle na komputerze użytkownika, odpowiedzialnego za "ciężką pracę" – scrapowanie (RynekPierwotny.pl, Otodom.pl), omijanie blokad (ScraperAPI) oraz fizyczny zapis plików do synchronizowanego folderu Dropbox.  
 2. **Coda Pack (Interfejs i Logika Coda):** Niestandardowego rozszerzenia w przestrzeni Coda.io, które pozwala użytkownikowi wysyłać zlecenia scrapowania do Workera oraz odbierać przetworzone wyniki, używając Dropboxa jako szyny komunikacyjnej.
 
 ## **2\. Stos Technologiczny (Tech Stack)**
@@ -17,7 +17,7 @@ Stworzenie hybrydowego systemu do agregacji i archiwizacji inwestycji dewelopers
 * **Główne biblioteki:**  
   * requests \- do komunikacji HTTP (pobieranie API, stron, ScraperAPI oraz plików binarnych).  
   * watchdog \- do aktywnego nasłuchiwania zmian w katalogu USIdata/ na Dropboxie.  
-  * re i json \- (wbudowane) do obsługi wyrażeń regularnych Grabbera i parsowania JSON.  
+  * re i json \- (wbudowane) do parsowania JSON.  
   * urllib.parse \- do odkodowywania adresów URL (unquote).  
   * python-dotenv \- do przechowywania kluczy API.  
   * **Testowanie:** pytest (główny framework testowy), requests-mock lub responses (do mockowania zapytań HTTP).
@@ -62,20 +62,13 @@ Drzewo katalogów:
 2. Z pobranego HTML wyciąga tag \<script id="\_\_NEXT\_DATA\_\_" type="application/json"\> używając wyrażenia regularnego lub BeautifulSoup.  
 3. Parsuje zawartość i buduje płaski JSON zwrotny dla Coda.
 
-### **D. Moduł "Grabber" (Filtry dla stron deweloperów) \- PYTHON**
-
-1. Pobranie zewnętrznej strony dewelopera przez ScraperAPI.  
-2. Zastosowanie zdefiniowanych przez użytkownika filtrów Regex (re.findall(pattern, html\_content, flags)).  
-3. Odkodowanie znaków specjalnych (np. %2F na /) za pomocą urllib.parse.unquote().  
-4. Usunięcie duplikatów (np. konwersja do set()) i przekazanie linków do pobrania.
-
-### **E. Moduł Zapisywania Obrazów \- PYTHON**
+### **D. Moduł Zapisywania Obrazów \- PYTHON**
 
 1. Skrypt iteruje po odfiltrowanych URL-ach, wykonując requests.get(url, stream=True).  
 2. Używając wbudowanego os i shutil.copyfileobj(), zapisuje fizycznie pliki binarne, zachowując strukturę docelową **wyłącznie w drzewie graficznym**: /Public/USI/{developer.slug}/{investment.slug}/{filename} w lokalnym katalogu Dropboxa.  
 3. Czyści nazwy plików z parametrów URL (regex wyłuskujący .jpg, .png, .webp).
 
-### **F. Moduł Generowania Mapy (HERE API) \- CODA PACK (TypeScript)**
+### **E. Moduł Generowania Mapy (HERE API) \- CODA PACK (TypeScript)**
 
 1. Formuła w Coda Packu (pack.addFormula), która przyjmuje szerokość i długość geograficzną, a zwraca zmontowany adres URL.
 
@@ -90,8 +83,7 @@ Aby zapewnić stabilność i zapobiec kosztownym błędom (np. niepotrzebnemu zu
 
 1. **Mockowanie API:** Nigdy nie wykonuj rzeczywistych zapytań do ScraperAPI, Otodom czy RynekPierwotny.pl w środowisku testowym. Używaj biblioteki requests-mock lub responses, aby zwracać predefiniowane (zapisane lokalnie) pliki HTML/JSON jako odpowiedzi serwera.  
 2. **Izolacja Systemu Plików:** Logika zapisująca pliki (os, shutil) oraz czytająca z folderu USIdata/ musi być testowana przy użyciu tymczasowych katalogów (fixture tmp\_path w pytest). Testy **nie mogą** ingerować w rzeczywisty folder Dropbox.  
-3. **Testy Regex (Grabber):** Moduł "Grabber" wymaga solidnych testów jednostkowych. Należy przygotować zestaw przykładowych fragmentów kodu HTML stron deweloperów i zweryfikować, czy funkcja poprawnie z nich wyciąga oraz odkodowuje linki.  
-4. **Testy Watchdoga:** Należy symulować pojawienie się pliku coda\_\*.json w tymczasowym katalogu i sprawdzać, czy funkcja parsująca zlecenie zostaje poprawnie uruchomiona.
+3. **Testy Watchdoga:** Należy symulować pojawienie się pliku coda\_\*.json w tymczasowym katalogu i sprawdzać, czy funkcja parsująca zlecenie zostaje poprawnie uruchomiona.
 
 ### **B. Testy w Coda Pack (Mocha/Jest \+ Coda SDK)**
 
@@ -104,7 +96,7 @@ Podczas implementacji, AI w Cursorze musi przestrzegać ścisłego podziału na 
 
 ### **1\. Dla kodu w Pythonie (folder np. /python-worker):**
 
-* **Zawsze twórz testy:** Wraz z każdym nowym modułem (np. scraper.py, grabber.py), utwórz odpowiadający mu plik testowy (test\_scraper.py, test\_grabber.py).  
+* **Zawsze twórz testy:** Wraz z każdym nowym modułem (np. scraper.py), utwórz odpowiadający mu plik testowy (test\_scraper.py).  
 * **Rozróżnienie Ścieżek (KRYTYCZNE):** Ściśle przestrzegaj zasady dwóch drzew. Pliki binarne/obrazki zapisuj TYLKO w \[DROPBOX\_PATH\]/Public/USI/.... Pliki wymiany danych (JSON) zapisuj i odczytuj TYLKO z \[DROPBOX\_PATH\]/USIdata/. Nigdy nie zapisuj danych tekstowych w folderach graficznych i odwrotnie.  
 * **Żadnych narzędzi webowych/UI:** Projekt ma być czystym skryptem konsolowym. Używaj wirtualnego środowiska (venv) i pliku requirements.txt (requests, watchdog, python-dotenv, pytest, requests-mock).  
 * **Solidny Error Handling:** Ponieważ skrypt działa w tle i łączy się z zewnętrznymi usługami (ScraperAPI) oraz zapisuje duże pliki, koniecznie używaj bloków try-except z odpowiednim logowaniem (np. wbudowany moduł logging). W przypadku błędu zapisu, skrypt musi móc działać dalej.  

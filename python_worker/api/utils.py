@@ -151,42 +151,55 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path = None, public
     if image_paths_raw:
         from python_worker.config import DROPBOX_PATH
         for p in image_paths_raw:
-            # Handle both absolute-looking (/Public/...) and relative paths
             p_clean = p.lstrip("/")
-            full = DROPBOX_PATH / p_clean
-            if not full.exists():
+            if not (DROPBOX_PATH / p_clean).exists():
                 continue
-            try:
-                # Resolve to /api/image/ format for UI
-                rel = full.relative_to(public_usi_dir)
-                parts = rel.parts
-                if len(parts) == 3:
-                    images.append(f"/api/image/{parts[0]}/{parts[1]}/{parts[2]}")
-            except ValueError:
-                pass
-        images = sorted(list(set(images))) # Dedup and sort
+            # /Public/USI/{dev}/{inv}/{file} → /api/image/{dev}/{inv}/{file}
+            if p_clean.startswith("Public/USI/"):
+                images.append("/api/image/" + p_clean[len("Public/USI/"):])
+        images = sorted(list(set(images)))
 
     # 2. Fallback: Direct directory scan if no valid recorded paths found
     if not images:
-        # Check folder matching current dev_slug
-        search_dirs = [public_usi_dir / dev_slug / inv_slug]
-        
-        # Also check folder matching the folder where USIdata is (inv_dir parent)
-        # This handles cases where developer_slug in JSON was renamed but folder on disk was not.
-        inv_dir_parent_name = Path(inv_dir).parent.name
-        if inv_dir_parent_name != dev_slug:
-            search_dirs.append(public_usi_dir / inv_dir_parent_name / inv_slug)
+        _IMG_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 
-        for img_dir in search_dirs:
-            if img_dir.is_dir():
-                found = sorted(
-                    f"/api/image/{img_dir.parent.name}/{inv_slug}/{p.name}"
-                    for p in img_dir.iterdir()
-                    if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"} and not p.name.startswith('.')
-                )
-                if found:
-                    images = found
+        def _scan(d: Path) -> list:
+            return sorted(
+                f"/api/image/{d.parent.name}/{d.name}/{p.name}"
+                for p in d.iterdir()
+                if p.suffix.lower() in _IMG_EXT and not p.name.startswith('.')
+            ) if d.is_dir() else []
+
+        # 1. Exact paths (current dev_slug and USIdata parent name)
+        for candidate in {
+            public_usi_dir / dev_slug / inv_slug,
+            public_usi_dir / Path(inv_dir).parent.name / inv_slug,
+        }:
+            images = _scan(candidate)
+            if images:
+                break
+
+        # 2. Locate by CDN filename from image_urls (unambiguous — matches actual content)
+        if not images and public_usi_dir.is_dir():
+            for url in usi.get("image_urls", []):
+                stem = url.split("/files/")[-1].split("/image")[0]
+                if not stem or "/" in stem:
+                    continue
+                hits = list(public_usi_dir.glob(f"*/*/{stem}.*"))
+                if hits:
+                    images = _scan(hits[0].parent)
                     break
+
+        # 3. Prefix match within same dev dir (fallback for custom-named files)
+        if not images:
+            for dev_candidate in {public_usi_dir / dev_slug, public_usi_dir / Path(inv_dir).parent.name}:
+                if not dev_candidate.is_dir():
+                    continue
+                for d in dev_candidate.iterdir():
+                    if d.is_dir() and d.name.startswith(inv_slug):
+                        found = _scan(d)
+                        if len(found) > len(images):
+                            images = found
 
     am_data = usi.get("amenities", {})
     labels = am_data.get("labels", [])
