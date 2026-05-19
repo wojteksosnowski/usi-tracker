@@ -19,8 +19,19 @@ def _primary_portal_id(sources: dict) -> tuple[str, str | None]:
     return "rp", None
 
 
-def _find_inv_file(inv_dir: Path, inv_slug: str) -> Path | None:
-    """Find the canonical investment JSON in inv_dir (new format first, then legacy)."""
+def _find_inv_file(inv_dir: Path, inv_slug: str, usi_inv_id: str = None) -> Path | None:
+    """Find the canonical investment JSON in inv_dir (by ID first, then new format, then legacy)."""
+    if usi_inv_id:
+        for f in inv_dir.glob(f"usi_*_{usi_inv_id}.json"):
+            return f
+        # Fallback: check file content for ID if filename doesn't have it
+        for f in inv_dir.glob("usi_*.json"):
+            try:
+                if json.loads(f.read_text()).get("usi_inv_id") == usi_inv_id:
+                    return f
+            except Exception:
+                continue
+
     for p in ("rp", "oto", "to"):
         candidates = sorted(inv_dir.glob(f"usi_{p}_*.json"))
         if candidates:
@@ -620,66 +631,69 @@ class InvestmentService:
         logger.info(f"Batch processing complete: {success_count}/{len(to_process)} investments fully ingested.")
         return success_count
 
-    def mark_as_reviewed(self, dev_slug, inv_slug):
+    def mark_as_reviewed(self, dev_slug, inv_slug, usi_inv_id=None):
         """Sets the reviewed flag to true for the specified investment."""
         inv_dir = self.data_dir / dev_slug / inv_slug
-        usi_file = _find_inv_file(inv_dir, inv_slug)
+        usi_file = _find_inv_file(inv_dir, inv_slug, usi_inv_id=usi_inv_id)
 
         if not usi_file:
             return False
-            
+
         try:
             with open(usi_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            
+
             data["reviewed"] = True
             data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
-            
+
             with open(usi_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-            
-            log_to_processing_log(dev_slug, inv_slug, "Investment marked as reviewed by analyst.")
+
+            log_to_processing_log(dev_slug, inv_slug, f"Investment {usi_inv_id or inv_slug} marked as reviewed by analyst.")
             return True
         except Exception as e:
             logger.error(f"Failed to mark as reviewed: {e}")
             return False
 
-    def add_report(self, dev_slug, inv_slug, note):
+    def add_report(self, dev_slug, inv_slug, note, usi_inv_id=None):
         """Adds a problem report note to the investment record."""
         inv_dir = self.data_dir / dev_slug / inv_slug
-        usi_file = _find_inv_file(inv_dir, inv_slug)
+        usi_file = _find_inv_file(inv_dir, inv_slug, usi_inv_id=usi_inv_id)
 
         if not usi_file:
             return False
-            
+
         try:
             with open(usi_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            
+
             reports = data.setdefault("issue_reports", [])
             reports.insert(0, {
                 "note": note,
                 "at": datetime.now().isoformat()
             })
-            
+
             audit = data.setdefault("audit", {})
             audit["updated_at"] = datetime.now().isoformat()
             audit["audit_needed"] = True
-            
+
             with open(usi_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-            
-            log_to_processing_log(dev_slug, inv_slug, f"Issue reported: {note[:50]}...")
+
+            log_to_processing_log(dev_slug, inv_slug, f"Issue reported for {usi_inv_id or inv_slug}: {note[:50]}...")
             return True
         except Exception as e:
             logger.error(f"Failed to add report for {inv_slug}: {e}")
             return False
 
-    def mark_deleted_photos(self, dev_slug, inv_slug, paths):
+    def mark_deleted_photos(self, dev_slug, inv_slug, paths, usi_inv_id=None):
         inv_dir = self.data_dir / dev_slug / inv_slug
         if not inv_dir.exists():
             return False
+
+        # Deletion list is currently folder-wide, but we could make it per-ID if needed.
+        # For now, we'll keep it as-is but log the ID that triggered it.
         out = {"paths": paths, "updated_at": datetime.now().isoformat(timespec="seconds")}
         (inv_dir / "deletion_list.json").write_text(json.dumps(out, ensure_ascii=False, indent=2))
-        log_to_processing_log(dev_slug, inv_slug, f"Updated deletion list. Count: {len(paths)}")
+        log_to_processing_log(dev_slug, inv_slug, f"Updated deletion list (via {usi_inv_id or 'slug'}). Count: {len(paths)}")
         return True

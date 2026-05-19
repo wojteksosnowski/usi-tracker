@@ -127,38 +127,47 @@ def section_b(devs: dict):
             all_oto_ids[oid] = rec.get("developer_slug", "?")
 
     issues = []
+    # Index devs by slug for faster (but potentially multi-result) lookup
+    devs_by_slug: dict[str, list[dict]] = {}
+    for d in devs.values():
+        slug = d.get("developer_slug")
+        if slug:
+            devs_by_slug.setdefault(slug, []).append(d)
+
     for dev_slug, rows in csv_rows.items():
         dev_file = USI_DEV_DIR / dev_slug / f"usi_dev_{dev_slug}.json"
         if not dev_file.exists():
             continue
-        rec = devs.get(next((k for k, v in devs.items() if v.get("developer_slug") == dev_slug), ""), {})
-        if not rec:
+            
+        matches = devs_by_slug.get(dev_slug, [])
+        if not matches:
             try:
-                rec = json.loads(dev_file.read_text(encoding="utf-8"))
+                matches = [json.loads(dev_file.read_text(encoding="utf-8"))]
             except Exception:
                 continue
 
-        pm = rec.get("portal_mapping") or {}
-        existing_oto = _oto_ids(pm.get("oto"))
+        for rec in matches:
+            pm = rec.get("portal_mapping") or {}
+            existing_oto = _oto_ids(pm.get("oto"))
 
-        truly_missing_oto = []
-        for row in rows:
-            oid = row["oto_id"]
-            if not oid:
-                continue
-            if oid in existing_oto:
-                continue  # present in this record
-            oto_slug = row["oto_slug"]
-            if oto_slug and oto_slug != dev_slug and oid in all_oto_ids:
-                continue  # correctly split to otoSlug record
-            truly_missing_oto.append(oid)
+            truly_missing_oto = []
+            for row in rows:
+                oid = row["oto_id"]
+                if not oid:
+                    continue
+                if oid in existing_oto:
+                    continue  # present in this record
+                oto_slug = row["oto_slug"]
+                if oto_slug and oto_slug != dev_slug and oid in all_oto_ids:
+                    continue  # correctly split to otoSlug record
+                truly_missing_oto.append(oid)
 
-        has_rp = bool(pm.get("rp"))
-        csv_has_rp = any(r["rp_id"] or r["rp_slug"] for r in rows)
-        missing_rp = not has_rp and csv_has_rp
+            has_rp = bool(pm.get("rp"))
+            csv_has_rp = any(r["rp_id"] or r["rp_slug"] for r in rows)
+            missing_rp = not has_rp and csv_has_rp
 
-        if truly_missing_oto or missing_rp:
-            issues.append((dev_slug, rec.get("usi_dev_id", "?"), missing_rp, truly_missing_oto))
+            if truly_missing_oto or missing_rp:
+                issues.append((dev_slug, rec.get("usi_dev_id", "?"), missing_rp, truly_missing_oto))
 
     if not issues:
         print("  Brak niezgodności.")

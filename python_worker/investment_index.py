@@ -98,16 +98,26 @@ def upsert(data_dir: Path, public_usi_dir: Path, dev_slug: str, inv_slug: str, p
     except Exception:
         return False
 
-    slug = f"{dev_slug}/{inv_slug}"
     entries = index.get("entries", [])
 
     # Replace existing or append
     replaced = False
-    for i, e in enumerate(entries):
-        if e.get("slug") == slug and e.get("developer_slug") == dev_slug:
-            entries[i] = entry
-            replaced = True
-            break
+    inv_id = entry.get("usi_inv_id")
+    if inv_id:
+        for i, e in enumerate(entries):
+            if e.get("usi_inv_id") == inv_id:
+                entries[i] = entry
+                replaced = True
+                break
+    else:
+        # Fallback for legacy data without IDs
+        slug = f"{dev_slug}/{inv_slug}"
+        for i, e in enumerate(entries):
+            if e.get("slug") == slug and e.get("developer_slug") == dev_slug and not e.get("usi_inv_id"):
+                entries[i] = entry
+                replaced = True
+                break
+
     if not replaced:
         entries.append(entry)
 
@@ -128,8 +138,11 @@ def remove(data_dir: Path, dev_slug: str, inv_slug: str) -> bool:
     except Exception:
         return False
 
-    slug = f"{dev_slug}/{inv_slug}"
     before = len(index.get("entries", []))
+    
+    # We remove by slug as it's a folder-wide sweep. 
+    # If one portal is removed but folder stays, it's handled by upsert() of the remaining one.
+    slug = f"{dev_slug}/{inv_slug}"
     index["entries"] = [e for e in index.get("entries", []) if not (e.get("slug") == slug and e.get("developer_slug") == dev_slug)]
     if len(index["entries"]) == before:
         return False

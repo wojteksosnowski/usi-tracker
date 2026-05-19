@@ -31,7 +31,7 @@
 
     const handleApprove = async () => {
         try {
-            const data = await request(`/api/investment/${inv.developer_slug}/${inv.investment_slug}/review`, { method: 'POST' });
+            const data = await request(`/api/investment/${inv.developer_slug}/${inv.investment_slug}/review?id=${inv.usi_inv_id}`, { method: 'POST' });
             if (data && data.ok) {
                 setLocalReviewed(true);
                 setVariable('appStatus', { type: 'success', msg: 'Inwestycja została zatwierdzona.' });
@@ -49,7 +49,7 @@
         const allInvestments = bus.investments || [];
         const nearby = allInvestments
           .filter(other => {
-            if (other.slug === inv.slug) return false;
+            if (other.usi_inv_id === inv.usi_inv_id) return false;
             if (!other.coords || other.coords[0] === 0) return false;
             const dist = getDistance(lat, lng, other.coords[0], other.coords[1]);
             return dist <= 5;

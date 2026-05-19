@@ -109,7 +109,7 @@
       if (!note || !selectedInv) return;
       const { request } = window.useApi ? window.useApi() : { request: fetch };
       try {
-          const data = await request(`/api/investment/${selectedInv.developer_slug}/${selectedInv.investment_slug}/report`, {
+          const data = await request(`/api/investment/${selectedInv.developer_slug}/${selectedInv.investment_slug}/report?id=${selectedInv.usi_inv_id}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ note })
@@ -166,12 +166,12 @@
         const handler = (e) => {
           if (view === 'detail' && selectedInv) {
             const list = visibleInvestments || [];
-            const idx = list.findIndex(i => i.slug === selectedInv.slug);
+            const idx = list.findIndex(i => i.usi_inv_id === selectedInv.usi_inv_id);
             if (e.key === 'ArrowLeft' && idx > 0) { e.preventDefault(); handleSelectInv(list[idx - 1]); }
             if (e.key === 'ArrowRight' && idx < list.length - 1) { e.preventDefault(); handleSelectInv(list[idx + 1]); }
           } else if (view === 'dev-detail' && selectedDev) {
             const list = bus.visibleDevelopers || developers || [];
-            const idx = list.findIndex(d => d.developer_slug === selectedDev.developer_slug);
+            const idx = list.findIndex(d => d.usi_dev_id === selectedDev.usi_dev_id);
             if (e.key === 'ArrowLeft' && idx > 0) { e.preventDefault(); handleSelectDev(list[idx - 1]); }
             if (e.key === 'ArrowRight' && idx < list.length - 1) { e.preventDefault(); handleSelectDev(list[idx + 1]); }
           }

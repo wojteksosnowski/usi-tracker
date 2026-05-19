@@ -37,7 +37,7 @@
   };
 
   const ListCard = React.memo(ListCardComponent, (prev, next) => {
-    return prev.inv?.slug === next.inv?.slug && 
+    return prev.inv?.usi_inv_id === next.inv?.usi_inv_id && 
            prev.inv?.updated_at === next.inv?.updated_at &&
            prev.onSelect === next.onSelect;
   });

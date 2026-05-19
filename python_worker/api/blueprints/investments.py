@@ -395,16 +395,37 @@ def get_developer_detail(dev_slug):
         child_slug = member.get("slug")
         child_dev = (dm.get_developer_by_id(child_id) if child_id
                      else (dm.get_developer(child_slug) if child_slug else None))
-        if not child_dev or child_dev.get("developer_slug") == dev_slug:
+
+        # ARCHITECTURAL FIX: Use ID to prevent self-loop, NEVER slug
+        if not child_dev or child_dev.get("usi_dev_id") == dev.get("usi_dev_id"):
             continue
-        child_slug = child_dev["developer_slug"]
+
+        child_slug = child_dev.get("developer_slug", child_slug)
         member["slug"] = child_slug  # keep for UI display
-        child_invs = _load_inv_dir(child_slug)
-        investments.extend(child_invs)
+
+        # Load and strictly filter child's investments by its portal mapping
+        child_portals = {p for p in ("rp", "oto", "to") if (child_dev.get("portal_mapping") or {}).get(p)}
+        child_invs_raw = _load_inv_dir(child_slug)
+        child_invs = [i for i in child_invs_raw if not child_portals or _inv_matches_dev(i, child_dev)]
+
+        # Deduplicate into main list using ONLY usi_inv_id
+        existing_inv_ids = {i.get("usi_inv_id") for i in investments if i.get("usi_inv_id")}
+        for ci in child_invs:
+            ci_id = ci.get("usi_inv_id")
+            if ci_id and ci_id not in existing_inv_ids:
+                investments.append(ci)
+                existing_inv_ids.add(ci_id)
+            elif not ci_id:
+                # Fallback for legacy unmigrated data
+                investments.append(ci)
+
         member["portal_mapping"] = child_dev.get("portal_mapping", {})
         member["website"] = child_dev.get("website")
         child_dir = Path(USI_DATA_DIR) / child_slug
-        member["investments_count"] = _count_valid_investments(child_dir)
+
+        # Count strictly by portal to avoid cross-contamination in shared folders
+        member["investments_count"] = _count_portal_investments(child_dir, child_portals)
+
         member["inv_list"] = [
             {"name": inv.get("name", inv.get("investment_slug", "")), "slug": inv.get("investment_slug", "")}
             for inv in child_invs[:10]
@@ -422,7 +443,8 @@ def get_developer_detail(dev_slug):
             s["portal_mapping"] = s_dev.get("portal_mapping", {})
             s["website"] = s_dev.get("website")
             s_dir = Path(USI_DATA_DIR) / s_dev["developer_slug"]
-            s["investments_count"] = _count_valid_investments(s_dir)
+            s_portals = {p for p in ("rp", "oto", "to") if (s_dev.get("portal_mapping") or {}).get(p)}
+            s["investments_count"] = _count_portal_investments(s_dir, s_portals)
 
     dev["investments"] = investments
     dev["investments_count"] = len(investments)
@@ -500,10 +522,11 @@ def report_issue(dev_slug, inv_slug):
         abort(400)
     payload = request.get_json()
     note = payload.get("note")
+    usi_inv_id = request.args.get("id")
     if not note:
         return jsonify({"error": "Note is required"}), 400
-        
-    if investment_service.add_report(dev_slug, inv_slug, note):
+
+    if investment_service.add_report(dev_slug, inv_slug, note, usi_inv_id=usi_inv_id):
         return jsonify({"ok": True})
     return jsonify({"ok": False}), 500
 
@@ -511,7 +534,8 @@ def report_issue(dev_slug, inv_slug):
 def mark_reviewed(dev_slug, inv_slug):
     if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
         abort(400)
-    if investment_service.mark_as_reviewed(dev_slug, inv_slug):
+    usi_inv_id = request.args.get("id")
+    if investment_service.mark_as_reviewed(dev_slug, inv_slug, usi_inv_id=usi_inv_id):
         return jsonify({"ok": True})
     return jsonify({"ok": False}), 500
 

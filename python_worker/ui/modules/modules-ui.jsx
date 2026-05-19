@@ -83,7 +83,7 @@
           setVariable('investments', prev => {
             if (!Array.isArray(prev)) return prev;
             return prev.map(item => {
-              if (item.slug === inv.slug) {
+              if (item.usi_inv_id === inv.usi_inv_id) {
                 return { ...item, status: s, ratings: { ...r, komentarz: c, status: s }, comment: c };
               }
               return item;
