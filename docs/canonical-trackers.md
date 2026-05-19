@@ -147,7 +147,8 @@ Budowany przez `Merger.merge()` z `python_worker/adapters/merger.py`.
     "delivery_quarter": 3,
     "delivery_year": 2025,
     "units_count": 108,
-    "ceiling_height": 2.70
+    "ceiling_height_min": 2.60,
+    "ceiling_height_max": 2.70
   },
 
   "financials": {
@@ -356,6 +357,7 @@ Nigdy nie edytuj ręcznie. Używany przez UI jako fast-path przy listowaniu.
       "investment_slug": "szalasa-3-warszawa-tarchomin",
       "name": "Szalasa 3",
       "developer": "022 INVESTMENTS",
+      "address": "ul. Szalasa 3",
       "city": "Warszawa",
       "district": "Tarchomin",
       "source": "RP",
@@ -368,6 +370,16 @@ Nigdy nie edytuj ręcznie. Używany przez UI jako fast-path przy listowaniu.
       "price_m2_max": 14500.0,
       "units": 108,
       "delivery": "2025-Q3",
+      "ceiling_height_min": 2.60,
+      "ceiling_height_max": 2.70,
+      "specifications": {
+        "delivery_date": "2025-Q3",
+        "delivery_quarter": 3,
+        "delivery_year": 2025,
+        "units_count": 108,
+        "ceiling_height_min": 2.60,
+        "ceiling_height_max": 2.70
+      },
       "status": "Wstępna",
       "amenities": ["Parking podziemny", "Plac zabaw"],
       "amenities_score": 12,
@@ -381,7 +393,11 @@ Nigdy nie edytuj ręcznie. Używany przez UI jako fast-path przy listowaniu.
       "comment": null,
       "photos_to_delete": 0,
       "folder_path": "/Volumes/.../USIdata/022-investments/szalasa-3-warszawa-tarchomin",
-      "website": ""
+      "website": "",
+      "sources": {
+        "rp": {"id": "14563", "url": "https://rynekpierwotny.pl/...", "vendor_id": "10788"},
+        "oto": {"url": "https://www.otodom.pl/...", "id": "ID4lulo", "agency_id": "9867181"}
+      }
     }
   ]
 }
@@ -453,7 +469,6 @@ Dwie karty (`rp` + `oto`) dla tego samego dewelopera = dwa osobne pliki z dwoma 
     "next_visit": "2026-05-30T14:18:47Z"
   },
 
-  "parent_id": null,
   "master_id": "DM-0492",
 
   "audit": {
@@ -466,6 +481,7 @@ Dwie karty (`rp` + `oto`) dla tego samego dewelopera = dwa osobne pliki z dwoma 
 **Pola Level 3 — NIE przechowywane w Level 2:**
 - `merged_from` → w `dev_master_*.json`
 - `events` → w `dev_log_*.txt`
+- `parent_id` → **obsolete** (usuwane przy każdym zapisie przez `create_developer_file()`). Przynależność "child" wynika z obecności w `dev_master.merged_from[]`, nie z pola na Level 2.
 
 Po odczycie przez `get_developer()` lub `get_developer_by_id()`, do zwracanego
 obiektu dołączane jest `merged_from` z pliku Level 3 (jeśli `parent_id` jest null).
@@ -550,7 +566,15 @@ Format JSONL (jedna linia = jeden obiekt JSON).
 {"at": "2026-05-10T09:00:00.000000", "type": "dismiss_suggestion", "dismissed_slug": "ezbud-holdings", "dismissed_id": "DEV-12345"}
 ```
 
-Typy zdarzeń: `merge_in`, `unmerge`, `discover`, `dismiss_suggestion`.
+Typy zdarzeń:
+
+| Typ zdarzenia | Kiedy | Na którym dewelopierze |
+|---|---|---|
+| `merge_in` | scalenie (target) | target |
+| `merged_into` | scalenie (source) | source |
+| `unmerge` | rozłączenie | target |
+| `discover` | wynik discovery | developer |
+| `dismiss_suggestion` | odrzucenie sugestii | developer |
 
 ---
 
@@ -672,7 +696,7 @@ usi_dev_{DEV-ID}_{dev_slug}.json  ←── create_developer_file()
 |--------|----------|
 | 1 plik = 1 portal | `portal_mapping` ma dokładnie jeden klucz `rp`, `oto` lub `to` z wartością (pozostałe null) |
 | Różne portale → różne DEV-ID | Ten sam `developer_slug`, ale każdy portal = osobny `usi_dev_*.json` |
-| `parent_id != null` → ukryty | Rekordy child nie pojawiają się w `/api/developers` |
+| child w `merged_from[]` → ukryty | Rekordy, których `usi_dev_id` figuruje w `dev_master.merged_from[]`, nie pojawiają się w `/api/developers`. `parent_id` jest **obsolete** — usuwane przy zapisie. |
 | `merged_from` → tylko Level 3 | Nigdy nie zapisuj `merged_from` bezpośrednio w Level 2 |
 | `portal_mapping` rebuilded z raw | `_build_dev_from_raws()` zawsze wygrywa — nie pisz `portal_mapping` ręcznie |
 
@@ -706,7 +730,7 @@ samym formacie przed przekazaniem do `Merger.merge()`:
     "sources": {"rp"|"oto"|"to": {...}},
     "location": {"coords": [lat|None, lng|None], "address": None, "city": None, "district": None},
     "specifications": {"delivery_date": None, "delivery_quarter": None, "delivery_year": None,
-                       "units_count": None, "ceiling_height": None},
+                       "units_count": None, "ceiling_height_min": None, "ceiling_height_max": None},
     "financials": {"price_min": None, "price_max": None, "price_avg": None,
                    "price_m2_min": None, "price_m2_max": None},
     "amenities": {"labels": [], "raw_codes": []},
