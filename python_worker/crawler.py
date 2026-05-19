@@ -388,7 +388,7 @@ class Wedrowiec:
             dm = DeveloperManager(self.data_dir, self.dev_dir)
             dev_subdir = self.dev_dir / dev_slug
             if portal == "rp":
-                _write_mock_rp(dev_subdir, dev_slug, rp_id="", rp_slug=dev_info["slug"])
+                _write_mock_rp(dev_subdir, dev_slug, rp_id=portal_id, rp_slug=dev_info["slug"])
             elif portal == "oto":
                 _write_or_merge_mock_oto(dev_subdir, dev_slug, portal_id)
             else:  # to

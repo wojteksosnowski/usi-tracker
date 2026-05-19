@@ -165,20 +165,21 @@ def check_developer(portal_key, temp_data_dir, temp_dev_dir):
 
         # 2. Save Raw Developer (L2 canonical check)
         # Mock some raw data to test saving
-        mock_raw = {"name": dev_name, "id": "test_id", "url": test["url"], "_is_test": True}
+        portal_id = "test_id"
+        mock_raw = {"name": dev_name, "id": portal_id, "url": test["url"], "_is_test": True}
         raw_path = scraper_api.save_raw_developer(config, mock_raw, test["dev_slug"], portal_key)
-        
+
         if not raw_path or not raw_path.exists():
             logger.error("Failed to save raw developer JSON")
             return False
-            
-        # Verify location according to canonical.md (L2: USIdev/raw/raw_{portal}_{slug}.json)
-        # Note: DeveloperManager uses USIdev/raw/ for raws
-        expected_raw_name = f"raw_{portal_key}_{test['dev_slug']}.json"
+
+        # Verify location according to canonical.md (L2: USIdev/{slug}/raw_{portal}_{id}.json)
+        # Note: usi-scrapers v0.5.7+ uses ID if present in mock/data or passed as param
+        # Here we check if the filename contains the ID
+        expected_raw_name = f"raw_{portal_key}_{portal_id}.json"
         if raw_path.name != expected_raw_name:
              logger.error(f"Wrong raw filename: expected {expected_raw_name}, got {raw_path.name}")
              return False
-
         logger.info(f"✅ {test['name']} Developer Ingestion OK")
         logger.info(f"   Raw path: {raw_path.relative_to(temp_root)}")
         return True

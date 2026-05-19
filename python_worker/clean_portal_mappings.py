@@ -25,7 +25,11 @@ logger = logging.getLogger(__name__)
 PORTALS = ("rp", "oto", "to")
 
 
-def _raw_exists(dev_dir: Path, slug: str, portal: str) -> bool:
+def _raw_exists(dev_dir: Path, slug: str, portal: str, portal_id: str = None) -> bool:
+    # Check ID-based first
+    if portal_id and (dev_dir / f"raw_{portal}_{portal_id}.json").exists():
+        return True
+    # Fallback to slug-based
     return (dev_dir / f"raw_{portal}_{slug}.json").exists()
 
 
@@ -45,8 +49,25 @@ def clean_portal_mappings(dev_dir: Path, apply: bool) -> None:
         removed = []
 
         for portal in PORTALS:
-            if pm.get(portal) and not _raw_exists(dev_file.parent, slug, portal):
-                removed.append((portal, pm[portal]))
+            p_data = pm.get(portal)
+            if not p_data:
+                continue
+
+            # Extract ID from portal_mapping
+            portal_id = None
+            if portal == "rp":
+                portal_id = p_data.get("id")
+            elif portal == "oto":
+                portal_id = p_data.get("agency_id")
+                if not portal_id:
+                    aids = p_data.get("agency_ids")
+                    if aids and isinstance(aids, list):
+                        portal_id = aids[0]
+            elif portal == "to":
+                portal_id = p_data.get("agency_id")
+
+            if not _raw_exists(dev_file.parent, slug, portal, portal_id):
+                removed.append((portal, p_data))
 
         if not removed:
             continue

@@ -15,22 +15,35 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def _write_mock_rp(dev_dir: Path, slug: str, rp_id: str, rp_slug: str) -> None:
-    """Write raw_rp_{slug}.json mock (skipped if a real raw already exists)."""
-    path = dev_dir / f"raw_rp_{slug}.json"
-    if path.exists() and not json.loads(path.read_text(encoding="utf-8")).get("_mock"):
-        return  # real file — do not overwrite
+    """Write raw_rp_{id}.json mock (skipped if a real raw already exists)."""
+    # Prefer ID-based filename
+    path = dev_dir / f"raw_rp_{rp_id}.json"
+    legacy_path = dev_dir / f"raw_rp_{slug}.json"
+    
+    # If any real (non-mock) raw exists, don't overwrite
+    for p in [path, legacy_path]:
+        if p.exists() and not json.loads(p.read_text(encoding="utf-8")).get("_mock"):
+            return
+
     dev_dir.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps({"id": rp_id, "slug": rp_slug, "_mock": True}, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
+    if legacy_path.exists() and legacy_path != path:
+        legacy_path.unlink()
 
 
 def _write_or_merge_mock_oto(dev_dir: Path, slug: str, oto_id: str) -> bool:
-    """Add oto_id to raw_oto_{slug}.json mock; create if missing. Returns True if changed."""
-    path = dev_dir / f"raw_oto_{slug}.json"
-    if path.exists():
-        existing = json.loads(path.read_text(encoding="utf-8"))
+    """Add oto_id to raw_oto_{id}.json mock; create if missing. Returns True if changed."""
+    path = dev_dir / f"raw_oto_{oto_id}.json"
+    legacy_path = dev_dir / f"raw_oto_{slug}.json"
+    
+    # Find existing file to merge into
+    target_path = path if path.exists() else (legacy_path if legacy_path.exists() else path)
+    
+    if target_path.exists():
+        existing = json.loads(target_path.read_text(encoding="utf-8"))
         if not existing.get("_mock"):
             return False  # real file — do not touch
         ids = existing.get("agency_ids") or (
@@ -41,8 +54,14 @@ def _write_or_merge_mock_oto(dev_dir: Path, slug: str, oto_id: str) -> bool:
         ids.append(oto_id)
         existing["agency_ids"] = ids
         existing["agency_id"] = ids[0]
-        path.write_text(json.dumps(existing, indent=2, ensure_ascii=False), encoding="utf-8")
+        target_path.write_text(json.dumps(existing, indent=2, ensure_ascii=False), encoding="utf-8")
+        
+        # If we merged into legacy and now have an ID, rename it?
+        # For simplicity, if we are writing a mock, we can just use the ID.
+        if target_path == legacy_path and target_path != path:
+            target_path.rename(path)
         return True
+        
     dev_dir.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps({"agency_id": oto_id, "agency_ids": [oto_id], "_mock": True},
@@ -53,29 +72,34 @@ def _write_or_merge_mock_oto(dev_dir: Path, slug: str, oto_id: str) -> bool:
 
 
 def _write_mock_to(dev_dir: Path, slug: str, to_id: str) -> None:
-    """Write raw_to_{slug}.json mock (skipped if a real raw already exists)."""
-    path = dev_dir / f"raw_to_{slug}.json"
-    if path.exists() and not json.loads(path.read_text(encoding="utf-8")).get("_mock"):
-        return
+    """Write raw_to_{id}.json mock (skipped if a real raw already exists)."""
+    path = dev_dir / f"raw_to_{to_id}.json"
+    legacy_path = dev_dir / f"raw_to_{slug}.json"
+    
+    for p in [path, legacy_path]:
+        if p.exists() and not json.loads(p.read_text(encoding="utf-8")).get("_mock"):
+            return
+            
     dev_dir.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps({"agency_id": to_id, "_mock": True}, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
+    if legacy_path.exists() and legacy_path != path:
+        legacy_path.unlink()
 
 
 def _extract_name_from_raw(dev_dir: Path, slug: str) -> str:
     """Extract developer name from available raw files; fall back to slug."""
-    for prefix in ("raw_rp_", "raw_oto_", "raw_to_"):
-        candidate = dev_dir / f"{prefix}{slug}.json"
-        if candidate.exists():
-            try:
-                raw = json.loads(candidate.read_text(encoding="utf-8"))
-                n = raw.get("name")
-                if n:
-                    return n
-            except Exception:
-                continue
+    # Look for raw_{portal}_*.json
+    for candidate in dev_dir.glob("raw_*.json"):
+        try:
+            raw = json.loads(candidate.read_text(encoding="utf-8"))
+            n = raw.get("name")
+            if n:
+                return n
+        except Exception:
+            continue
     return slug  # last resort
 
 
@@ -86,17 +110,14 @@ def _build_dev_from_raws(dev_dir: Path, slug: str, name: str | None, dm: Develop
 
     pm: dict = {"rp": None, "oto": None, "to": None}
 
-    rp_file = dev_dir / f"raw_rp_{slug}.json"
-    if rp_file.exists():
+    # RP
+    for rp_file in dev_dir.glob("raw_rp_*.json"):
         raw = json.loads(rp_file.read_text(encoding="utf-8"))
-        if raw.get("_mock"):
-            pm["rp"] = {"id": raw.get("id", ""), "slug": raw.get("slug", "")}
-        else:
-            # Real RP dev profile — extract key fields
-            pm["rp"] = {"id": str(raw.get("id", "")), "slug": raw.get("slug", "")}
+        pm["rp"] = {"id": str(raw.get("id", "")), "slug": raw.get("slug", "")}
+        break
 
-    oto_file = dev_dir / f"raw_oto_{slug}.json"
-    if oto_file.exists():
+    # OTO
+    for oto_file in dev_dir.glob("raw_oto_*.json"):
         raw = json.loads(oto_file.read_text(encoding="utf-8"))
         if raw.get("_mock"):
             pm["oto"] = {
@@ -104,7 +125,6 @@ def _build_dev_from_raws(dev_dir: Path, slug: str, name: str | None, dm: Develop
                 "agency_ids": raw.get("agency_ids", []),
             }
         else:
-            # Real OTO dev profile — try multiple known locations for agency id
             aid = (raw.get("agency_id")
                    or raw.get("id")
                    or (raw.get("owner") or {}).get("id")
@@ -112,13 +132,15 @@ def _build_dev_from_raws(dev_dir: Path, slug: str, name: str | None, dm: Develop
                    or (raw.get("agency") or {}).get("id"))
             if aid:
                 pm["oto"] = {"agency_id": str(aid), "agency_ids": [str(aid)]}
+        break
 
-    to_file = dev_dir / f"raw_to_{slug}.json"
-    if to_file.exists():
+    # TO
+    for to_file in dev_dir.glob("raw_to_*.json"):
         raw = json.loads(to_file.read_text(encoding="utf-8"))
         aid = raw.get("agency_id") or raw.get("id")
         if aid:
             pm["to"] = {"agency_id": str(aid)}
+        break
 
     for portal in ("rp", "oto", "to"):
         if pm[portal] is not None:

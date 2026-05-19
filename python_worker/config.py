@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 # Add usi-scrapers to path if not already there
 LIB_PATH = "/Volumes/Samsam/claude-py/usi-scrapers"
 if LIB_PATH not in sys.path:
-    sys.path.append(LIB_PATH)
+    sys.path.insert(0, LIB_PATH)
 
 # Load .env file from python_worker/ directory (explicit path — CWD-independent)
 load_dotenv(Path(__file__).parent / ".env")
@@ -81,7 +81,7 @@ def get_scraper_config():
     """Returns a ScraperConfig object for use with the usi-scrapers library."""
     try:
         import usi_scrapers
-        required_version = "0.5.4"
+        required_version = "0.5.7"
         current_version = getattr(usi_scrapers, "__version__", "unknown")
 
         if current_version != required_version:

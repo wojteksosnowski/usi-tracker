@@ -405,9 +405,9 @@ USIdev/
     ├── usi_dev_{DEV-ID}_{developer_slug}.json   ← Level 2 — drugi portal (ten sam slug, inny DEV-ID)
     ├── dev_master_{DM-ID}.json                  ← Level 3 — rekord scalenia (opcjonalny)
     ├── dev_log_{developer_slug}.txt             ← dziennik zdarzeń (append-only JSONL)
-    ├── raw_rp_{developer_slug}.json             ← surowe dane RP (immutable)
-    ├── raw_oto_{developer_slug}.json            ← surowe dane Otodom (immutable)
-    ├── raw_to_{developer_slug}.json             ← surowe dane TabelaOfert (immutable)
+    ├── raw_rp_{portal_id}.json                  ← surowe dane RP (immutable)
+    ├── raw_oto_{portal_id}.json                 ← surowe dane Otodom (immutable)
+    ├── raw_to_{portal_id}.json                  ← surowe dane TabelaOfert (immutable)
     └── discovery.json                           ← wyniki ostatniego discovery (computed)
 ```
 
@@ -518,12 +518,13 @@ Tworzony automatycznie przez `merge_developers()`. Żyje w katalogu `{target_slu
 
 ---
 
-### 5.4 raw_{portal}_{developer_slug}.json — profil portalu
+### 5.4 raw_{portal}_{portal_id}.json — profil portalu
 
 Odpowiednik `raw_*.json` inwestycji, ale dla dewelopera.
+**Nazewnictwo:** `raw_{portal}_{portal_id}.json` (jeśli ID portalu jest znane) lub `raw_{portal}_{slug}.json` (legacy/fallback).
 
-Plik z flagą `"_mock": true` = seedowany z CSV (Konkurenci.csv), nie pobrany z portalu.
-Zawiera tylko `id` i/lub `slug` z kolumn CSV:
+**Archiwum:**
+`raw_{portal}_{id}_{YYYYMMDD_HHMMSS}.json` (kopia z timestampem). Nigdy nie nadpisuj istniejącego `raw_*.json` w miejscu.
 
 ```json
 {

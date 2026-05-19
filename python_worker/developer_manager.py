@@ -233,13 +233,16 @@ class DeveloperManager:
             json.dump(data, f, indent=2, ensure_ascii=False)
         return file_path
 
-    def save_dev_raw_json(self, data: dict, dev_slug: str, portal_prefix: str) -> Path:
+    def save_dev_raw_json(self, data: dict, dev_slug: str, portal_prefix: str, portal_id: str = None) -> Path:
         """Delegates raw developer JSON saving to the library manager."""
         if self.tech_manager:
-            from usi_scrapers import api as scraper_api
-            return scraper_api.save_raw_developer(self.tech_manager.config, data, dev_slug, portal_prefix)
-        filename = f"raw_{portal_prefix}_{dev_slug}.json"
-        file_path = self.dev_raw_dir / filename
+            from usi_scrapers.utils.io import save_dev_raw_json as lib_save_dev_raw
+            return lib_save_dev_raw(data, self.tech_manager.config.public_dir, dev_slug, portal_prefix, portal_id=portal_id)
+        
+        # Fallback
+        filename = f"raw_{portal_prefix}_{portal_id}.json" if portal_id else f"raw_{portal_prefix}_{dev_slug}.json"
+        file_path = self.dev_dir / dev_slug / filename
+        file_path.parent.mkdir(parents=True, exist_ok=True)
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
         return file_path

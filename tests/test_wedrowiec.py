@@ -178,8 +178,8 @@ def test_register_new_dev_from_oto(wedrowiec):
     assert len(files) == 1
     data = json.loads(files[0].read_text())
     assert data["portal_mapping"]["oto"]["agency_id"] == "555"
-    raw_file = wedrowiec.dev_dir / "otodom-deweloper" / "raw_oto_otodom-deweloper.json"
-    assert raw_file.exists(), "Expected raw_oto_otodom-deweloper.json mock file"
+    raw_file = wedrowiec.dev_dir / "otodom-deweloper" / "raw_oto_555.json"
+    assert raw_file.exists(), "Expected raw_oto_555.json mock file (ID-based)"
 
 
 def test_register_new_dev_from_to(wedrowiec):
