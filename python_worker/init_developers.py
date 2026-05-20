@@ -5,7 +5,8 @@ import re
 from pathlib import Path
 from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
 from python_worker.developer_manager import DeveloperManager
-from python_worker.adapters import PORTAL_MAPPING, JsonPathExtractor
+from python_worker.adapters import PORTAL_MAPPING
+from usi_scrapers import resolve_path
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -116,11 +117,11 @@ def _build_dev_from_raws(dev_dir: Path, slug: str, name: str | None, dm: Develop
     for rp_file in dev_dir.glob("raw_rp_*.json"):
         raw = json.loads(rp_file.read_text(encoding="utf-8"))
         rp_cfg = PORTAL_MAPPING.get("rp", {}).get("developer", {})
-        pid = JsonPathExtractor.get_value(raw, rp_cfg.get("id"))
-        pslug = JsonPathExtractor.get_value(raw, rp_cfg.get("slug"))
+        pid = resolve_path(raw, rp_cfg.get("id"))
+        pslug = resolve_path(raw, rp_cfg.get("slug"))
         pm["rp"] = {"id": str(pid) if pid else "", "slug": str(pslug) if pslug else ""}
         if not logo_url:
-            logo_url = JsonPathExtractor.get_value(raw, rp_cfg.get("logo"))
+            logo_url = resolve_path(raw, rp_cfg.get("logo"))
         break
 
     # OTO
@@ -133,7 +134,7 @@ def _build_dev_from_raws(dev_dir: Path, slug: str, name: str | None, dm: Develop
                 "agency_ids": raw.get("agency_ids", []),
             }
         else:
-            aid = (JsonPathExtractor.get_value(raw, oto_cfg.get("id"))
+            aid = (resolve_path(raw, oto_cfg.get("id"))
                    or raw.get("id")
                    or (raw.get("owner") or {}).get("id")
                    or (raw.get("filterAttributes") or {}).get("sellerId")
@@ -141,18 +142,18 @@ def _build_dev_from_raws(dev_dir: Path, slug: str, name: str | None, dm: Develop
             if aid:
                 pm["oto"] = {"agency_id": str(aid), "agency_ids": [str(aid)]}
             if not logo_url:
-                logo_url = JsonPathExtractor.get_value(raw, oto_cfg.get("logo"))
+                logo_url = resolve_path(raw, oto_cfg.get("logo"))
         break
 
     # TO
     for to_file in dev_dir.glob("raw_to_*.json"):
         raw = json.loads(to_file.read_text(encoding="utf-8"))
         to_cfg = PORTAL_MAPPING.get("to", {}).get("developer", {})
-        aid = JsonPathExtractor.get_value(raw, to_cfg.get("id")) or raw.get("agency_id") or raw.get("id")
+        aid = resolve_path(raw, to_cfg.get("id")) or raw.get("agency_id") or raw.get("id")
         if aid:
             pm["to"] = {"agency_id": str(aid)}
         if not logo_url:
-            logo_url = JsonPathExtractor.get_value(raw, to_cfg.get("logo"))
+            logo_url = resolve_path(raw, to_cfg.get("logo"))
         break
 
     for portal in ("rp", "oto", "to"):

@@ -3,7 +3,7 @@ import json
 import logging
 from pathlib import Path
 from .merger import Merger
-from .utils import JsonPathExtractor
+from usi_scrapers import resolve_path
 
 logger = logging.getLogger(__name__)
 
@@ -16,9 +16,18 @@ except Exception as e:
     logger.error(f"Failed to load portal_data_mapping.json: {e}")
     PORTAL_MAPPING = {}
 
+def _unwrap_rp(val):
+    if isinstance(val, dict) and "value" in val and "type" in val:
+        return _unwrap_rp(val["value"])
+    return val
+
 def _get_val(data, key, default=None):
-    """Legacy helper (unwraps RP API wrapper dicts). Use JsonPathExtractor for new code."""
-    return JsonPathExtractor._unwrap_rp(data.get(key)) if isinstance(data, dict) else default
+    """Legacy helper (unwraps RP API wrapper dicts)."""
+    # For RP, we often need to manually traverse if the path is simple
+    if isinstance(data, dict) and key in data:
+        return _unwrap_rp(data[key])
+    val = resolve_path(data, key)
+    return _unwrap_rp(val) if val is not None else default
 
 
 def _unified_base(inv_slug, dev_slug, name, developer=None):
@@ -70,7 +79,25 @@ class RPAdapter:
     @classmethod
     def _from_raw(cls, raw: dict, inv_slug: str, dev_slug: str) -> dict:
         cfg = PORTAL_MAPPING.get("rp", {}).get("investment", {})
-        get = JsonPathExtractor.get_value
+        
+        def get(d, p):
+            val = resolve_path(d, p)
+            if val is None and isinstance(p, str):
+                # Fallback for dot-paths that might be hidden behind RP wrappers
+                # resolve_path 0.6.0 doesn't automatically descend into 'value'
+                current = d
+                for part in p.split('.'):
+                    if isinstance(current, dict):
+                        if part in current:
+                            current = current[part]
+                        elif "value" in current and isinstance(current["value"], dict) and part in current["value"]:
+                            current = current["value"][part]
+                        else:
+                            return None
+                    else:
+                        return None
+                val = current
+            return _unwrap_rp(val)
         
         name = get(raw, cfg.get("name")) or _get_val(raw, "name")
         u = _unified_base(inv_slug, dev_slug, name)
@@ -243,7 +270,7 @@ class OtodomAdapter:
         # raw is the ad_data dict saved by scraper_otodom
         ad = raw.get("ad") or raw  # old format had {"ad": {...}}
         cfg = PORTAL_MAPPING.get("oto", {}).get("investment", {})
-        get = JsonPathExtractor.get_value
+        get = resolve_path
 
         images = [img.get("large") for img in (ad.get("images") or []) if img.get("large")]
         if not images:
@@ -392,7 +419,7 @@ class TOAdapter:
     @classmethod
     def _from_raw(cls, raw: dict, inv_slug: str, dev_slug: str) -> dict:
         cfg = PORTAL_MAPPING.get("to", {}).get("investment", {})
-        get = JsonPathExtractor.get_value
+        get = resolve_path
 
         developer_name = get(raw, cfg.get("developer_name"))
         price_min = get(raw, cfg.get("price_min"))
