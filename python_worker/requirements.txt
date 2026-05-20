@@ -5,4 +5,4 @@ python-dotenv
 pytest
 requests-mock
 flask>=3.0
-usi-scrapers @ git+https://github.com/wojteksosnowski/usi-scrapers.git@v0.5.7
+usi-scrapers @ git+https://github.com/wojteksosnowski/usi-scrapers.git@main

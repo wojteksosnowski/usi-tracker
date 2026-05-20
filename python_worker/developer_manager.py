@@ -294,6 +294,12 @@ class DeveloperManager:
                     except Exception as e:
                         logger.warning(f"Could not read existing dev file {candidate}: {e}")
 
+        # Ensure portal_mapping exists
+        if "portal_mapping" not in developer_data:
+            developer_data["portal_mapping"] = existing_data.get("portal_mapping", {
+                "rp": None, "oto": None, "to": None
+            })
+
         # Preserve audit timestamps
         developer_data["audit"] = existing_data.get("audit", {
             "created_at": datetime.now().isoformat()

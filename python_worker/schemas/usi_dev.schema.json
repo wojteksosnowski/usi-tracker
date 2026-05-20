@@ -22,6 +22,10 @@
       "type": "string", 
       "description": "Oficjalna nazwa dewelopera." 
     },
+    "logo": {
+      "type": ["string", "null"],
+      "description": "Lokalna ścieżka lub URL do logotypu dewelopera."
+    },
     "website": { 
       "type": ["string", "null"], 
       "format": "uri",

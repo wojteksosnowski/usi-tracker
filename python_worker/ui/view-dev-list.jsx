@@ -128,8 +128,11 @@ function DeveloperCard({ dev, onSelect }) {
   const hasOto = !!portals.oto;
   const hasTo = !!portals.to;
 
+  const logoUrl = `/api/developer/${dev.developer_slug}/logo`;
+
   return (
     <StandardCard
+      image={logoUrl}
       title={dev.name}
       subtitle={dev.usi_dev_id}
       extra={dev.developer_slug}

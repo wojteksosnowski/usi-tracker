@@ -96,6 +96,25 @@ def serve_image(dev_slug, inv_slug, filename):
 
     abort(404)
 
+@investments_bp.route("/developer/<dev_slug>/logo")
+def serve_dev_logo(dev_slug):
+    from python_worker.config import USI_DEV_DIR
+    from pathlib import Path
+    if not _valid_slug(dev_slug):
+        abort(400)
+    
+    dev_dir = Path(USI_DEV_DIR) / dev_slug
+    if not dev_dir.exists():
+        abort(404)
+        
+    # Search for logo.*
+    for ext in ['png', 'jpg', 'jpeg', 'webp', 'svg']:
+        logo_path = dev_dir / f"logo.{ext}"
+        if logo_path.exists():
+            return send_file(logo_path)
+            
+    abort(404)
+
 @investments_bp.route("/investments")
 def list_investments():
     data_root = investment_service.data_dir
@@ -311,7 +330,21 @@ def list_developers():
         
         total_count = 0
         all_mtimes = []
-        dev_portals = {p for p in ("rp", "oto", "to") if (dev.get("portal_mapping") or {}).get(p)}
+        
+        # Aggregate portal mapping from children (non-destructive)
+        aggregated_pm = (dev.get("portal_mapping") or {}).copy()
+        for member in dev.get("merged_from", []):
+            child_id = member.get("usi_dev_id")
+            if not child_id: continue
+            child_record = dm.get_developer_by_id(child_id)
+            if child_record:
+                child_pm = child_record.get("portal_mapping") or {}
+                for p in ("rp", "oto", "to"):
+                    if not aggregated_pm.get(p) and child_pm.get(p):
+                        aggregated_pm[p] = child_pm[p]
+        
+        dev["portal_mapping"] = aggregated_pm
+        dev_portals = {p for p in ("rp", "oto", "to") if aggregated_pm.get(p)}
 
         for slug in slugs:
             inv_dir = Path(USI_DATA_DIR) / slug
@@ -372,9 +405,7 @@ def get_developer_detail(dev_slug):
 
     target_id = dev.get("usi_dev_id")
 
-    dev_portals = {p for p in ("rp", "oto", "to") if (dev.get("portal_mapping") or {}).get(p)}
-
-    # Collect investments from this dev and all children (merged_from)
+    # Helper to load investments from a directory
     def _load_inv_dir(d_slug: str) -> list:
         result = []
         d = Path(USI_DATA_DIR) / d_slug
@@ -391,7 +422,41 @@ def get_developer_detail(dev_slug):
                         if inv: result.append(inv)
         return result
 
-    investments = [i for i in _load_inv_dir(dev_slug) if not dev_portals or _inv_matches_dev(i, dev)]
+    # PRESERVE BASE RECORD: before aggregation, capture the state of the "host" record
+    base_pm = (dev.get("portal_mapping") or {}).copy()
+    base_portals = {p for p in ("rp", "oto", "to") if base_pm.get(p)}
+    base_invs_raw = _load_inv_dir(dev_slug)
+    base_invs = [i for i in base_invs_raw if not base_portals or _inv_matches_dev(i, dev)]
+    
+    dev["base_record"] = {
+        "name": dev.get("name"),
+        "developer_slug": dev.get("developer_slug"),
+        "usi_dev_id": dev.get("usi_dev_id"),
+        "portal_mapping": base_pm,
+        "investments_count": len(base_invs),
+        "inv_list": [
+            {"name": inv.get("name", inv.get("investment_slug", "")), "slug": inv.get("investment_slug", "")}
+            for inv in base_invs[:10]
+        ]
+    }
+
+    # Aggregate portal mapping from children (non-destructive)
+    aggregated_pm = base_pm.copy()
+    for member in dev.get("merged_from", []):
+        child_id = member.get("usi_dev_id")
+        if not child_id: continue
+        child_record = dm.get_developer_by_id(child_id)
+        if child_record:
+            child_pm = child_record.get("portal_mapping") or {}
+            for p in ("rp", "oto", "to"):
+                if not aggregated_pm.get(p) and child_pm.get(p):
+                    aggregated_pm[p] = child_pm[p]
+    
+    dev["portal_mapping"] = aggregated_pm
+    dev_portals = {p for p in ("rp", "oto", "to") if aggregated_pm.get(p)}
+
+    # Collect investments from this dev and all children (merged_from)
+    investments = list(base_invs)
 
     # Enrich merged_from entries — resolve child by usi_dev_id (not slug)
     for member in dev.get("merged_from", []):

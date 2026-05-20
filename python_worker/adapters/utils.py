@@ -14,9 +14,17 @@ class JsonPathExtractor:
         return val
 
     @classmethod
-    def get_value(cls, data, path, default=None):
-        if not data or not path:
+    def get_value(cls, data, path_cfg, default=None):
+        if not data or not path_cfg:
             return default
+
+        path = path_cfg
+        regex = None
+        if isinstance(path_cfg, dict):
+            path = path_cfg.get("path")
+            regex = path_cfg.get("regex")
+            if not path:
+                return default
 
         parts = path.split('.')
         current = data
@@ -76,4 +84,15 @@ class JsonPathExtractor:
                     else:
                         return default
 
-        return cls._unwrap_rp(current) if current is not None else default
+        val = cls._unwrap_rp(current) if current is not None else default
+        
+        # Apply Regex if provided (Parity Check / Extraction)
+        if regex and val is not None:
+            m = re.search(regex, str(val))
+            if m:
+                # If there's a capture group, return it; otherwise return full match
+                return m.group(1) if m.groups() else m.group(0)
+            else:
+                return default
+                
+        return val

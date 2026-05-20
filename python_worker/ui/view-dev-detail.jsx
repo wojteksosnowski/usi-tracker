@@ -329,11 +329,19 @@ function DeveloperHeroBand({ dev }) {
     meta.phone,
   ].filter(Boolean);
 
+  const logoUrl = `/api/developer/${dev.developer_slug}/logo`;
+
   return (
     <div data-component="DeveloperHeroBand" className="developer-hero-band" style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 24, alignItems: 'center' }}>
       <div className="developer-hero-content">
-        <div data-component="Developer-Avatar" className="developer-avatar">
-          🏢
+        <div data-component="Developer-Avatar" className="developer-avatar" style={{ overflow: 'hidden', background: 'white' }}>
+          <img 
+            src={logoUrl} 
+            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            alt=""
+          />
+          <div style={{ display: 'none', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', fontSize: '32px' }}>🏢</div>
         </div>
         <div className="usi-flex-1">
           <div data-component="Developer-TitleRow" className="developer-title-row">
@@ -531,6 +539,7 @@ function MergedMembersPanel({ dev, members, arrivingSlug, onUnmerge }) {
   if (!dev) return null;
   const { Icon } = window;
   const total = 1 + (members || []).length;
+  const base = dev.base_record || dev;
 
   return (
     <div className="usi-card usi-p-16">
@@ -540,13 +549,14 @@ function MergedMembersPanel({ dev, members, arrivingSlug, onUnmerge }) {
       </h3>
       <div className="usi-flex-col usi-gap-8">
         <DevMiniCard
-          key={dev.developer_slug}
-          name={dev.name}
-          slug={dev.developer_slug}
-          usiId={dev.usi_dev_id}
-          portalMapping={dev.portal_mapping || {}}
-          invCount={dev.investments_count}
-          sub="Rekord główny"
+          key={base.developer_slug}
+          name={base.name}
+          slug={base.developer_slug}
+          usiId={base.usi_dev_id}
+          portalMapping={base.portal_mapping || {}}
+          invCount={base.investments_count}
+          invList={base.inv_list}
+          sub="Profil bazowy"
         />
         {(members || []).map((m, i) => (
           <DevMiniCard

@@ -120,7 +120,21 @@ class InvestmentService:
         # Auto-create developer profile ONLY if we have a real slug (not 'unknown')
         if dev_slug != "unknown" and not dm.get_developer(dev_slug):
             logger.info(f"Auto-creating developer profile for: {developer_name} ({dev_slug})")
-            dm.create_developer_file({"developer_slug": dev_slug, "name": developer_name})
+            
+            # Initialize portal mapping if we have enough info
+            initial_pm = {"rp": None, "oto": None, "to": None}
+            if portal == "rp" and vendor_id:
+                initial_pm["rp"] = {"id": str(vendor_id)}
+            elif portal == "to" and vendor_id:
+                initial_pm["to"] = {"agency_id": str(vendor_id)}
+            elif portal == "oto" and vendor_id:
+                initial_pm["oto"] = {"agency_id": str(vendor_id), "agency_ids": [str(vendor_id)]}
+
+            dm.create_developer_file({
+                "developer_slug": dev_slug, 
+                "name": developer_name,
+                "portal_mapping": initial_pm
+            })
 
         inv_dir = self.data_dir / dev_slug / inv_slug
 

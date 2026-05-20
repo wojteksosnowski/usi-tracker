@@ -7,6 +7,7 @@ Two modes in a single daemon thread, chosen each tick:
                (inherited from the old DeveloperCrawler)
   Eksploracja — slowly pages through developer catalogue pages on RP/OTO/TO
                and registers newly found developers
+  Konserwacja — (Maintenance) refreshes developer metadata, logos and raw files
 
 Tick interval: 60 s.  At each tick the crawler picks whichever task is most
 overdue (exploration portal vs developer visit) and executes one unit of work.
@@ -41,6 +42,10 @@ _EXPLORATION_CONFIG = {
 # After completing a full cycle, wait this many days before restarting
 _EXPLORATION_CYCLE_PAUSE_DAYS = 30
 
+# ── Konserwacja constants ──────────────────────────────────────────────────────
+_MAINTENANCE_WEIGHT = 0.3  # Probability of picking maintenance if overdue
+_MIN_MAINTENANCE_GAP_MINUTES = 2
+
 _TICK_SECONDS = 60
 
 
@@ -65,7 +70,9 @@ class Wedrowiec:
         self._stop_event = threading.Event()
         self._paused = False
         self._current_dev: str | None = None
+        self._current_task: str | None = None  # 'visit', 'exploration', 'maintenance'
         self._next_visit_at: datetime | None = None
+        self._next_maint_at: datetime | None = None
         self._last_suggest_at: datetime | None = None
         self._lock = threading.Lock()
 
@@ -97,7 +104,9 @@ class Wedrowiec:
                 "running": bool(self._thread and self._thread.is_alive()),
                 "paused": self._paused,
                 "current_dev": self._current_dev,
+                "current_task": self._current_task,
                 "next_visit_at": _iso(self._next_visit_at) if self._next_visit_at else None,
+                "next_maint_at": _iso(self._next_maint_at) if self._next_maint_at else None,
             }
             # Include exploration stats if running
             try:
@@ -167,19 +176,33 @@ class Wedrowiec:
         exp_portal, exp_overdue_since = self._most_overdue_exploration(now)
         # Which developer visit is most overdue?
         visit_dev, visit_overdue_since = self._most_overdue_visit(now)
+        # Which developer needs maintenance most?
+        maint_dev, maint_priority = self._most_overdue_maintenance(now)
 
-        if exp_portal is None and visit_dev is None:
+        if exp_portal is None and visit_dev is None and maint_dev is None:
             # Nothing overdue — schedule unvisited devs if any
             self._schedule_all_unvisited()
             return
 
-        # Pick the task that has been waiting the longest
+        # Decision 1: Maintenance check (weighted)
+        if maint_dev:
+            # If priority is extremely high (missing logo/data) or random hit
+            if maint_priority >= 1000 or random.random() < _MAINTENANCE_WEIGHT:
+                with self._lock:
+                    if not self._next_maint_at or now >= self._next_maint_at:
+                        self._do_maintenance(maint_dev)
+                        return
+
+        # Decision 2: Normal priority (longest waiting)
         if exp_portal and (visit_dev is None or exp_overdue_since >= visit_overdue_since):
             self._explore_one_page(exp_portal)
         else:
             # Guard: respect min gap between visits
             with self._lock:
                 if self._next_visit_at and now < self._next_visit_at:
+                    # If we can't visit, maybe we can explore?
+                    if exp_portal:
+                        self._explore_one_page(exp_portal)
                     return
             self._do_visit(visit_dev)
 
@@ -229,71 +252,78 @@ class Wedrowiec:
         return best_portal, best_overdue
 
     def _explore_one_page(self, portal: str):
-        state = self._load_exploration_state()
-        ps = state.setdefault(portal, {})
-        cfg = _EXPLORATION_CONFIG[portal]
-
-        current_page = ps.get("page", 0)
-        cycle_start = ps.get("cycle_start")
-        saved_total = ps.get("total_pages")
-
-        # If we already know total_pages and have finished, start next cycle
-        if saved_total and current_page >= saved_total:
-            self._save_exploration_state(self._mark_cycle_done(state, portal, ps))
-            return
-
-        next_page = current_page + 1
-        if not cycle_start:
-            ps["cycle_start"] = _iso(_now_utc())
-
+        with self._lock:
+            self._current_task = f"exploring {portal}"
+        
         try:
-            result = self._fetch_dev_page(portal, next_page)
-        except Exception as e:
-            logger.error("Wędrowiec: %s page %d fetch failed: %s", portal, next_page, e)
-            result = None
+            state = self._load_exploration_state()
+            ps = state.setdefault(portal, {})
+            cfg = _EXPLORATION_CONFIG[portal]
 
-        if result is None:
-            gap_min = random.uniform(cfg["min_gap_min"], cfg["max_gap_min"])
-            ps["next_at"] = _iso(_now_utc() + timedelta(minutes=gap_min))
-            state[portal] = ps
+            current_page = ps.get("page", 0)
+            cycle_start = ps.get("cycle_start")
+            saved_total = ps.get("total_pages")
+
+            # If we already know total_pages and have finished, start next cycle
+            if saved_total and current_page >= saved_total:
+                self._save_exploration_state(self._mark_cycle_done(state, portal, ps))
+                return
+
+            next_page = current_page + 1
+            if not cycle_start:
+                ps["cycle_start"] = _iso(_now_utc())
+
+            try:
+                result = self._fetch_dev_page(portal, next_page)
+            except Exception as e:
+                logger.error("Wędrowiec: %s page %d fetch failed: %s", portal, next_page, e)
+                result = None
+
+            if result is None:
+                gap_min = random.uniform(cfg["min_gap_min"], cfg["max_gap_min"])
+                ps["next_at"] = _iso(_now_utc() + timedelta(minutes=gap_min))
+                state[portal] = ps
+                self._save_exploration_state(state)
+                return
+
+            total_pages = result.total_pages
+            devs = result.developers
+            ps["total_pages"] = total_pages
+
+            logger.info("Wędrowiec: exploring %s page %d/%d", portal, next_page, total_pages)
+
+            if not devs and next_page == 1:
+                logger.warning(
+                    "Wędrowiec: %s page 1 returned 0 results — portal may be blocking requests.",
+                    portal,
+                )
+
+            known_ids = self._build_known_dev_ids()
+            new_reg = 0
+            for dev_info in devs:
+                if self._register_if_new(portal, dev_info, known_ids):
+                    new_reg += 1
+
+            total_seen = ps.get("total_seen", 0) + len(devs)
+            ps["page"] = next_page
+            ps["total_seen"] = total_seen
+            ps["new_reg"] = ps.get("new_reg", 0) + new_reg
+
+            if next_page >= total_pages:
+                state = self._mark_cycle_done(state, portal, ps)
+            else:
+                gap_min = random.uniform(cfg["min_gap_min"], cfg["max_gap_min"])
+                ps["next_at"] = _iso(_now_utc() + timedelta(minutes=gap_min))
+                state[portal] = ps
+
             self._save_exploration_state(state)
-            return
-
-        total_pages = result.total_pages
-        devs = result.developers
-        ps["total_pages"] = total_pages
-
-        logger.info("Wędrowiec: exploring %s page %d/%d", portal, next_page, total_pages)
-
-        if not devs and next_page == 1:
-            logger.warning(
-                "Wędrowiec: %s page 1 returned 0 results — portal may be blocking requests.",
-                portal,
+            logger.info(
+                "Wędrowiec: %s page %d/%d → %d devs, %d new registered",
+                portal, next_page, total_pages, len(devs), new_reg,
             )
-
-        known_ids = self._build_known_dev_ids()
-        new_reg = 0
-        for dev_info in devs:
-            if self._register_if_new(portal, dev_info, known_ids):
-                new_reg += 1
-
-        total_seen = ps.get("total_seen", 0) + len(devs)
-        ps["page"] = next_page
-        ps["total_seen"] = total_seen
-        ps["new_reg"] = ps.get("new_reg", 0) + new_reg
-
-        if next_page >= total_pages:
-            state = self._mark_cycle_done(state, portal, ps)
-        else:
-            gap_min = random.uniform(cfg["min_gap_min"], cfg["max_gap_min"])
-            ps["next_at"] = _iso(_now_utc() + timedelta(minutes=gap_min))
-            state[portal] = ps
-
-        self._save_exploration_state(state)
-        logger.info(
-            "Wędrowiec: %s page %d/%d → %d devs, %d new registered",
-            portal, next_page, total_pages, len(devs), new_reg,
-        )
+        finally:
+            with self._lock:
+                self._current_task = None
 
     # ── Portal page fetcher ───────────────────────────────────────────────────
 
@@ -487,6 +517,7 @@ class Wedrowiec:
         logger.info("Wędrowiec: visiting %s (Full Ingestion enabled)", dev_slug)
         with self._lock:
             self._current_dev = dev_slug
+            self._current_task = "visit"
 
         from python_worker.services.discovery_service import DiscoveryService
         svc = DiscoveryService(self.data_dir)
@@ -499,6 +530,7 @@ class Wedrowiec:
         finally:
             with self._lock:
                 self._current_dev = None
+                self._current_task = None
                 gap_min = random.uniform(_MIN_VISIT_GAP_MINUTES, _MAX_VISIT_GAP_MINUTES)
                 self._next_visit_at = _now_utc() + timedelta(minutes=gap_min)
 
@@ -525,6 +557,59 @@ class Wedrowiec:
                 f"Kolejna wizyta: {crawler['next_visit']}")
         except Exception as e:
             logger.error("_record_visit(%s) failed: %s", dev_slug, e)
+
+    # ── Konserwacja (Maintenance) ─────────────────────────────────────────────
+
+    def _most_overdue_maintenance(self, now: datetime):
+        """Return (dev_slug, priority_score) for developer needing maintenance most."""
+        from python_worker.services.developer_service import DeveloperService
+        svc = DeveloperService(self.data_dir, self.dev_dir)
+
+        best_slug = None
+        best_score = -1.0
+
+        seen_slugs: set = set()
+        for dev_file in sorted(self.dev_dir.glob("*/usi_dev_*.json")):
+            try:
+                data = json.loads(dev_file.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+
+            slug = data.get("developer_slug") or dev_file.parent.name
+            if slug in seen_slugs:
+                continue
+            seen_slugs.add(slug)
+
+            score = svc.get_maintenance_overdue_score(data)
+            if score > best_score:
+                best_score = score
+                best_slug = slug
+
+        if best_score <= 0:
+            return None, 0
+        return best_slug, best_score
+
+    def _do_maintenance(self, dev_slug: str):
+        logger.info("Wędrowiec: maintenance for %s", dev_slug)
+        with self._lock:
+            self._current_dev = dev_slug
+            self._current_task = "maintenance"
+
+        from python_worker.services.developer_service import DeveloperService
+        svc = DeveloperService(self.data_dir, self.dev_dir)
+        success = False
+        try:
+            success = svc.update_developer_profile(dev_slug)
+        except Exception as e:
+            logger.error("Wędrowiec: maintenance failed for %s: %s", dev_slug, e)
+        finally:
+            with self._lock:
+                self._current_dev = None
+                self._current_task = None
+                self._next_maint_at = _now_utc() + timedelta(minutes=_MIN_MAINTENANCE_GAP_MINUTES)
+
+        svc.record_maintenance(dev_slug, success)
+        logger.info("Wędrowiec: maintenance done for %s (success=%s)", dev_slug, success)
 
 
 # ── Module-level singleton — started by ui_server.py ─────────────────────────

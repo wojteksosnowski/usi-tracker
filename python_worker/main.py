@@ -67,40 +67,9 @@ def update_developer_profile(dev_slug: str):
     """
     Fetches and saves raw developer profile JSONs from all configured portals.
     """
-    dm = DeveloperManager(USI_DATA_DIR, USI_DEV_DIR)
-    dev_data = dm.get_developer(dev_slug)
-    if not dev_data:
-        logger.warning(f"Developer metadata not found for {dev_slug}, creating skeleton.")
-        dev_data = {
-            "developer_slug": dev_slug,
-            "name": dev_slug.replace("-", " ").title(),
-            "portal_mapping": {"rp": None, "oto": None, "to": None}
-        }
-
-    mapping = dev_data.get("portal_mapping", {})
-    
-    # RynekPierwotny
-    rp_map = mapping.get("rp") or {}
-    rp_id = rp_map.get("id") or rp_map.get("slug")
-    if rp_id:
-        logger.info(f"Downloading raw RP profile for {dev_slug} (ID: {rp_id})")
-        download_raw_rp_dev_json(rp_id, dev_slug, lib_fetcher, lib_config)
-    
-    # Otodom
-    oto_map = mapping.get("oto") or {}
-    oto_url = oto_map.get("url")
-    if oto_url:
-        logger.info(f"Downloading raw Otodom profile for {dev_slug} (URL: {oto_url})")
-        download_raw_otodom_dev_json(oto_url, dev_slug, lib_fetcher, lib_config)
-
-    # TabelaOfert
-    to_map = mapping.get("to") or {}
-    to_slug = to_map.get("slug")
-    if to_slug:
-        to_url = f"https://tabelaofert.pl/katalog-firm/deweloperzy/{to_slug}"
-        logger.info(f"Downloading raw TO profile for {dev_slug} (URL: {to_url})")
-        download_raw_to_dev_json(to_url, dev_slug, lib_fetcher, lib_config)
-
+    from .services.developer_service import DeveloperService
+    svc = DeveloperService(USI_DATA_DIR, USI_DEV_DIR)
+    svc.update_developer_profile(dev_slug)
 def backfill_usi_ids():
     """
     Scans all developers and investments, assigning missing usi_dev_id and usi_inv_id.

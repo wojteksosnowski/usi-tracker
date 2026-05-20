@@ -116,7 +116,7 @@ class RPAdapter:
             u["developer"] = vendor_name
         
         if not url:
-            vendor_slug = get(raw, cfg.get("slug")) or _get_val(raw.get("vendor"), "slug")
+            vendor_slug = get(raw, cfg.get("developer_slug")) or _get_val(raw.get("vendor"), "slug")
             offer_slug = raw.get("slug", "")
             if vendor_slug and offer_slug:
                 url = f"https://rynekpierwotny.pl/oferty/{vendor_slug}/{offer_slug}-{offer_id}/"

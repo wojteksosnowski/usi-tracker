@@ -26,11 +26,11 @@ TEST_CASES = {
     },
     "oto": {
         "name": "Otodom",
-        "url": "https://www.otodom.pl/pl/inwestycja/poczatek-polnocy-ID4mYvY",
-        "dev_url": "https://www.otodom.pl/pl/firmy/deweloperzy/marvipol-development-ID138",
-        "id": "https://www.otodom.pl/pl/inwestycja/poczatek-polnocy-ID4mYvY",
-        "dev_slug": "marvipol",
-        "inv_slug": "poczatek-polnocy",
+        "url": "https://www.otodom.pl/pl/inwestycja/wislane-tarasy-2-0-ID4lfZn",
+        "dev_url": "https://www.otodom.pl/pl/firmy/deweloperzy/inter-bud-developer-ID9223014",
+        "id": "https://www.otodom.pl/pl/inwestycja/wislane-tarasy-2-0-ID4lfZn",
+        "dev_slug": "inter-bud-developer",
+        "inv_slug": "wislane-tarasy-2-0",
         "adapter_key": "oto"
     },
     "to": {
@@ -164,9 +164,17 @@ def check_developer(portal_key, temp_data_dir, temp_dev_dir):
         logger.info(f"   Identified: {dev_name}")
 
         # 2. Save Raw Developer (L2 canonical check)
-        # Mock some raw data to test saving
+        # Mock some raw data to test saving according to portal_data_mapping
         portal_id = "test_id"
-        mock_raw = {"name": dev_name, "id": portal_id, "url": test["url"], "_is_test": True}
+        if portal_key == "rp":
+            mock_raw = {"vendor": {"id": portal_id}, "name": dev_name, "url": test["url"], "_is_test": True}
+        elif portal_key == "oto":
+            mock_raw = {"agency": {"id": portal_id}, "name": dev_name, "url": test["url"], "_is_test": True}
+        elif portal_key == "to":
+            mock_raw = {"brand": {"id": portal_id}, "name": dev_name, "url": test["url"], "_is_test": True}
+        else:
+            mock_raw = {"name": dev_name, "id": portal_id, "url": test["url"], "_is_test": True}
+
         raw_path = scraper_api.save_raw_developer(config, mock_raw, test["dev_slug"], portal_key)
 
         if not raw_path or not raw_path.exists():
