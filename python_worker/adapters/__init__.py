@@ -372,7 +372,20 @@ class TOAdapter:
                 if not city: city = m.group(1).strip()
                 if not address: address = m.group(3).strip()
 
-        u["sources"]["to"] = {"url": res.get("to_url") or ""}
+        to_src = {"url": res.get("to_url") or ""}
+        
+        # ID is usually passed top-level from scraper result
+        if res.get("to_id"):
+            to_src["id"] = str(res.get("to_id"))
+            
+        # Developer ID needs to be extracted from raw_details if available
+        raw_details = res.get("raw_details", {})
+        cfg = PORTAL_MAPPING.get("to", {}).get("investment", {})
+        dev_id = _get_val(raw_details, cfg.get("developer_id"))
+        if dev_id:
+            to_src["developer_id"] = str(dev_id)
+            
+        u["sources"]["to"] = to_src
         u["location"].update({
             "coords": [lat, lng],
             "address": address,
