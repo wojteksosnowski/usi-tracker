@@ -390,17 +390,14 @@ class Wedrowiec:
         _build_dev_from_raws() — maintains the 1:1 raw↔usi_dev rule.
         """
         from python_worker.developer_manager import DeveloperManager
-        from python_worker.init_developers import (
-            _write_mock_rp, _write_or_merge_mock_oto, _write_mock_to,
-            _build_dev_from_raws,
-        )
+        from python_worker.url_parser import parse_url
 
         if portal == "rp":
             portal_id = dev_info.get("slug")
         elif portal == "oto":
             # Extract numeric agency_id from URL: .../deweloperzy/{slug}-ID{id}
-            m = re.search(r"-ID(\d+)$", (dev_info.get("url") or "").rstrip("/"))
-            portal_id = m.group(1) if m else None
+            parsed = parse_url(dev_info.get("url") or "")
+            portal_id = parsed.get("agency_id")
         else:  # to
             portal_id = dev_info.get("slug")
 
@@ -416,14 +413,25 @@ class Wedrowiec:
 
         try:
             dm = DeveloperManager(self.data_dir, self.dev_dir)
-            dev_subdir = self.dev_dir / dev_slug
+            dev_data = dm.get_developer(dev_slug)
+            if not dev_data:
+                dev_data = {
+                    "developer_slug": dev_slug,
+                    "name": display_name,
+                    "portal_mapping": {"rp": None, "oto": None, "to": None}
+                }
+            
             if portal == "rp":
-                _write_mock_rp(dev_subdir, dev_slug, rp_id=portal_id, rp_slug=dev_info["slug"])
+                dev_data["portal_mapping"]["rp"] = {"id": str(portal_id), "slug": dev_info.get("slug", "")}
             elif portal == "oto":
-                _write_or_merge_mock_oto(dev_subdir, dev_slug, portal_id)
-            else:  # to
-                _write_mock_to(dev_subdir, dev_slug, portal_id)
-            _build_dev_from_raws(dev_subdir, dev_slug, display_name, dm)
+                if not dev_data["portal_mapping"].get("oto"):
+                    dev_data["portal_mapping"]["oto"] = {"agency_id": str(portal_id), "agency_ids": []}
+                if str(portal_id) not in dev_data["portal_mapping"]["oto"]["agency_ids"]:
+                    dev_data["portal_mapping"]["oto"]["agency_ids"].append(str(portal_id))
+            elif portal == "to":
+                dev_data["portal_mapping"]["to"] = {"agency_id": str(portal_id)}
+            
+            dm.create_developer_file(dev_data)
             known_ids[portal].add(str(portal_id))
             logger.info("Wędrowiec: registered new developer %s (%s) from %s", display_name, dev_slug, portal)
             return True

@@ -63,7 +63,8 @@ pip install -r python_worker/requirements.txt
 ## ⚖️ Development Conventions
 
 ### Scraper Delegation & Library Architecture
-- **No Local Scrapers**: Do NOT add new `scraper_*.py` files to `usi-tracker`. All portal interaction logic must reside in the `usi-scrapers` library.
+- **No Local Scrapers**: Do NOT add new `scraper_*.py` files to `usi-tracker`. All portal interaction logic must reside in the `usi-scrapers` library. 
+- git clone https://wojteksosnowski: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@github.com/wojteksosnowski/usi-scrapers.git
 - **I/O Delegation**: Always use `TechnicalDataManager` from the library to save raw data or sync images. This prevents path drift and ensures consistent storage across environments.
 - **Semantic Separation**: Keep data transformation (Adapters) and merging (Merger) in `usi-tracker`. The library provides "Technical Data," while the tracker creates "Business Data."
 - **Path Resolution**: Avoid hardcoding paths like `Public/USIdata`. Use `config.public_dir` and library utilities to resolve paths.

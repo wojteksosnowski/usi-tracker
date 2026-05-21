@@ -233,8 +233,11 @@ def detect_similar():
                 suggestions_map[d2["id"]] = best_s
 
         if suggestions_map:
+            fresh_dev = dm.get_developer(d1["slug"])
+            if fresh_dev:
+                fresh_dev["suggestions"] = list(suggestions_map.values())
+                dm.create_developer_file(fresh_dev)
             d1["data"]["suggestions"] = list(suggestions_map.values())
-            dm.create_developer_file(d1["data"])
             suggestions_count += 1
 
     logger.info(f"Finished. Found suggestions for {suggestions_count} developers.")

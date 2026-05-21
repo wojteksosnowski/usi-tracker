@@ -1,4 +1,3 @@
-
 import json
 import logging
 import math
@@ -8,6 +7,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from python_worker.config import USI_DEV_DIR, USI_DATA_DIR
 from python_worker.developer_manager import DeveloperManager
+from python_worker.detect_similar_devs import _build_dismissed_cache
 import re
 from difflib import SequenceMatcher
 
@@ -47,6 +47,7 @@ class Doktor:
         self._index = {}
         self._last_index_refresh = 0
         self._dev_queue = []
+        self._dismissed_cache = {}
 
     def start(self):
         if self._thread and self._thread.is_alive():
@@ -143,6 +144,7 @@ class Doktor:
                 "full_data": d
             }
 
+        self._dismissed_cache = _build_dismissed_cache(self.dev_dir)
         
         with self._lock:
             self._index = new_index
@@ -224,6 +226,12 @@ class Doktor:
                               "reason": reason, "score": final_score}
 
             if best_s:
+                d1_dismissed = self._dismissed_cache.get(target["id"], set())
+                d2_dismissed = self._dismissed_cache.get(other["id"], set())
+                if other["id"] in d1_dismissed or target["id"] in d2_dismissed:
+                    best_s = None
+
+            if best_s:
                 suggestions.append(best_s)
 
         # 3. Save if changed
@@ -234,10 +242,13 @@ class Doktor:
         
         if curr_ids != new_ids:
             target["full_data"]["suggestions"] = suggestions
-            dev_file = self.dev_dir / f"usi_dev_{slug}.json"
             try:
-                dev_file.write_text(json.dumps(target["full_data"], ensure_ascii=False, indent=2), encoding="utf-8")
-                logger.debug("Doktor: Updated suggestions for %s (%d found)", slug, len(suggestions))
+                dm = DeveloperManager(self.data_dir, self.dev_dir)
+                fresh_dev = dm.get_developer(slug)
+                if fresh_dev:
+                    fresh_dev["suggestions"] = suggestions
+                    dm.create_developer_file(fresh_dev)
+                    logger.debug("Doktor: Updated suggestions for %s (%d found)", slug, len(suggestions))
             except Exception as e:
                 logger.error("Doktor: Failed to save suggestions for %s: %s", slug, e)
 

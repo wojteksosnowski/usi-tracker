@@ -12,199 +12,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Mock raw helpers
-# ---------------------------------------------------------------------------
-
-def _write_mock_rp(dev_dir: Path, slug: str, rp_id: str, rp_slug: str) -> None:
-    """Write raw_rp_{id}.json mock (skipped if a real raw already exists)."""
-    # Prefer ID-based filename
-    path = dev_dir / f"raw_rp_{rp_id}.json"
-    legacy_path = dev_dir / f"raw_rp_{slug}.json"
-    
-    # If any real (non-mock) raw exists, don't overwrite
-    for p in [path, legacy_path]:
-        if p.exists() and not json.loads(p.read_text(encoding="utf-8")).get("_mock"):
-            return
-
-    dev_dir.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps({"id": rp_id, "slug": rp_slug, "_mock": True}, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
-    if legacy_path.exists() and legacy_path != path:
-        legacy_path.unlink()
-
-
-def _write_or_merge_mock_oto(dev_dir: Path, slug: str, oto_id: str) -> bool:
-    """Add oto_id to raw_oto_{id}.json mock; create if missing. Returns True if changed."""
-    path = dev_dir / f"raw_oto_{oto_id}.json"
-    legacy_path = dev_dir / f"raw_oto_{slug}.json"
-    
-    # Find existing file to merge into
-    target_path = path if path.exists() else (legacy_path if legacy_path.exists() else path)
-    
-    if target_path.exists():
-        existing = json.loads(target_path.read_text(encoding="utf-8"))
-        if not existing.get("_mock"):
-            return False  # real file — do not touch
-        ids = existing.get("agency_ids") or (
-            [existing["agency_id"]] if existing.get("agency_id") else []
-        )
-        if oto_id in ids:
-            return False
-        ids.append(oto_id)
-        existing["agency_ids"] = ids
-        existing["agency_id"] = ids[0]
-        target_path.write_text(json.dumps(existing, indent=2, ensure_ascii=False), encoding="utf-8")
-        
-        # If we merged into legacy and now have an ID, rename it?
-        # For simplicity, if we are writing a mock, we can just use the ID.
-        if target_path == legacy_path and target_path != path:
-            target_path.rename(path)
-        return True
-        
-    dev_dir.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps({"agency_id": oto_id, "agency_ids": [oto_id], "_mock": True},
-                   indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
-    return True
-
-
-def _write_mock_to(dev_dir: Path, slug: str, to_id: str) -> None:
-    """Write raw_to_{id}.json mock (skipped if a real raw already exists)."""
-    path = dev_dir / f"raw_to_{to_id}.json"
-    legacy_path = dev_dir / f"raw_to_{slug}.json"
-    
-    for p in [path, legacy_path]:
-        if p.exists() and not json.loads(p.read_text(encoding="utf-8")).get("_mock"):
-            return
-            
-    dev_dir.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps({"agency_id": to_id, "_mock": True}, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
-    if legacy_path.exists() and legacy_path != path:
-        legacy_path.unlink()
-
-
-def _extract_name_from_raw(dev_dir: Path, slug: str) -> str:
-    """Extract developer name from available raw files; fall back to slug."""
-    # Look for raw_{portal}_*.json
-    for candidate in dev_dir.glob("raw_*.json"):
-        try:
-            raw = json.loads(candidate.read_text(encoding="utf-8"))
-            n = raw.get("name")
-            if n:
-                return n
-        except Exception:
-            continue
-    return slug  # last resort
-
-
-def _build_dev_from_raws(dev_dir: Path, slug: str, name: str | None, dm: DeveloperManager) -> None:
-    """Rebuild usi_dev_{slug}.json portal_mapping from raw portal files in USIdev/{slug}/."""
-    if not name:
-        name = _extract_name_from_raw(dev_dir, slug)
-
-    pm: dict = {"rp": None, "oto": None, "to": None}
-    logo_url = None
-
-    # RP
-    for rp_file in dev_dir.glob("raw_rp_*.json"):
-        raw = json.loads(rp_file.read_text(encoding="utf-8"))
-        rp_cfg = PORTAL_MAPPING.get("rp", {}).get("developer", {})
-        pid = resolve_path(raw, rp_cfg.get("id"))
-        pslug = resolve_path(raw, rp_cfg.get("slug"))
-        pm["rp"] = {"id": str(pid) if pid else "", "slug": str(pslug) if pslug else ""}
-        if not logo_url:
-            logo_url = resolve_path(raw, rp_cfg.get("logo"))
-        break
-
-    # OTO
-    for oto_file in dev_dir.glob("raw_oto_*.json"):
-        raw = json.loads(oto_file.read_text(encoding="utf-8"))
-        oto_cfg = PORTAL_MAPPING.get("oto", {}).get("developer", {})
-        if raw.get("_mock"):
-            pm["oto"] = {
-                "agency_id": raw.get("agency_id"),
-                "agency_ids": raw.get("agency_ids", []),
-            }
-        else:
-            aid = (resolve_path(raw, oto_cfg.get("id"))
-                   or raw.get("id")
-                   or (raw.get("owner") or {}).get("id")
-                   or (raw.get("filterAttributes") or {}).get("sellerId")
-                   or (raw.get("agency") or {}).get("id"))
-            if aid:
-                pm["oto"] = {"agency_id": str(aid), "agency_ids": [str(aid)]}
-            if not logo_url:
-                logo_url = resolve_path(raw, oto_cfg.get("logo"))
-        break
-
-    # TO
-    for to_file in dev_dir.glob("raw_to_*.json"):
-        raw = json.loads(to_file.read_text(encoding="utf-8"))
-        to_cfg = PORTAL_MAPPING.get("to", {}).get("developer", {})
-        aid = resolve_path(raw, to_cfg.get("id")) or raw.get("agency_id") or raw.get("id")
-        if aid:
-            pm["to"] = {"agency_id": str(aid)}
-        if not logo_url:
-            logo_url = resolve_path(raw, to_cfg.get("logo"))
-        break
-
-    for portal in ("rp", "oto", "to"):
-        if pm[portal] is not None:
-            pm_single: dict = {"rp": None, "oto": None, "to": None}
-            pm_single[portal] = pm[portal]
-            dev_data = {"developer_slug": slug, "name": name, "portal_mapping": pm_single}
-            if logo_url:
-                dev_data["logo"] = logo_url
-            dm.create_developer_file(dev_data)
-
-
-def rebuild_devs_from_raws(
-    dev_dir: Path | None = None,
-    force: bool = False,
-    dry_run: bool = False,
-) -> tuple[int, int]:
-    """Build usi_dev_*.json for every USIdev subdirectory that contains raw files.
-
-    Skips directories that already have usi_dev_*.json unless force=True.
-    Returns (built, skipped).
-    """
-    target_dir = dev_dir or USI_DEV_DIR
-    dm = DeveloperManager(USI_DATA_DIR, target_dir)
-    built = skipped = 0
-
-    for sub in sorted(target_dir.iterdir()):
-        if not sub.is_dir():
-            continue
-        slug = sub.name
-        has_raws = any(sub.glob("raw_*.json"))
-        if not has_raws:
-            skipped += 1
-            continue
-        dev_file = sub / f"usi_dev_{slug}.json"
-        if dev_file.exists() and not force:
-            skipped += 1
-            continue
-        if dry_run:
-            logger.info(f"[dry-run] would build: {slug}")
-            built += 1
-            continue
-        try:
-            _build_dev_from_raws(sub, slug, None, dm)
-            built += 1
-            logger.info(f"Built: {slug}")
-        except Exception as e:
-            logger.error(f"Failed to build {slug}: {e}")
-            skipped += 1
-
-    return built, skipped
+# Removed unused mock functions
 
 
 # ---------------------------------------------------------------------------
@@ -290,17 +98,29 @@ def init_developers_from_konkurenci(
             touched_slugs: set[str] = set()
 
             for slug, rid, rslug in slugs_rp:
-                _write_mock_rp(target_dir / slug, slug, rid, rslug)
+                dev_data = dm.get_developer(slug)
+                if not dev_data:
+                    dev_data = {"developer_slug": slug, "name": dev_name, "portal_mapping": {"rp": None, "oto": None, "to": None}}
+                if rid:
+                    dev_data["portal_mapping"]["rp"] = {"id": rid, "slug": rslug}
+                dm.create_developer_file(dev_data)
                 touched_slugs.add(slug)
 
             for slug, oid in slugs_oto:
-                _write_or_merge_mock_oto(target_dir / slug, slug, oid)
+                dev_data = dm.get_developer(slug)
+                if not dev_data:
+                    dev_data = {"developer_slug": slug, "name": dev_name, "portal_mapping": {"rp": None, "oto": None, "to": None}}
+                if oid:
+                    if not dev_data["portal_mapping"].get("oto"):
+                        dev_data["portal_mapping"]["oto"] = {"agency_id": oid, "agency_ids": []}
+                    if oid not in dev_data["portal_mapping"]["oto"]["agency_ids"]:
+                        dev_data["portal_mapping"]["oto"]["agency_ids"].append(oid)
+                dm.create_developer_file(dev_data)
                 touched_slugs.add(slug)
 
             for slug in touched_slugs:
-                _build_dev_from_raws(target_dir / slug, slug, dev_name, dm)
                 created += 1
-                logger.info(f"Built developer: {slug}")
+                logger.info(f"Built/Updated developer: {slug}")
 
     return created, skipped
 

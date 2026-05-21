@@ -181,17 +181,17 @@ class DeveloperManager:
                             oto_ids.add(val)
                     url = oto_src.get("url")
                     if url:
-                        match = re.search(r"/(?:inwestycja|oferta)/([^/?#]+)", url)
-                        if match:
-                            full_slug = match.group(1)
+                        from .url_parser import parse_url
+                        parsed = parse_url(url)
+                        if parsed.get("investment_slug"):
+                            full_slug = parsed["investment_slug"]
                             oto_slugs.add(full_slug)
-                            hash_match = re.search(r"-ID([a-zA-Z0-9]+)$", full_slug)
-                            if hash_match:
-                                oto_ids.add(hash_match.group(1))
-                            elif "-ID" not in full_slug and len(full_slug) > 5:
-                                coda_hash_match = re.search(r"ID([a-zA-Z0-9]+)$", full_slug)
-                                if coda_hash_match:
-                                    oto_ids.add(coda_hash_match.group(1))
+                            # Extract ID from slug if present (canonical Otodom pattern)
+                            if "-ID" in full_slug:
+                                hash_id = full_slug.split("-ID")[-1]
+                                oto_ids.add(hash_id)
+                        if parsed.get("agency_id"):
+                            oto_ids.add(parsed["agency_id"])
 
                 to_src = sources.get("to", {})
                 if to_src:
@@ -200,9 +200,10 @@ class DeveloperManager:
                         if val and val != "None":
                             to_ids.add(val)
                     elif to_src.get("url"):
-                        m = re.search(r",i(\d+)$", to_src["url"].rstrip("/"))
-                        if m:
-                            to_ids.add(m.group(1))
+                        from .url_parser import parse_url
+                        parsed = parse_url(to_src["url"])
+                        if parsed.get("to_id"):
+                            to_ids.add(str(parsed["to_id"]))
             except Exception as e:
                 logger.warning(f"Error reading {json_file}: {e}")
 

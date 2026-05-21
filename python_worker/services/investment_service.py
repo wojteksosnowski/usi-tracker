@@ -70,16 +70,17 @@ class InvestmentService:
         from python_worker.api.utils import _load_investment
         return _load_investment(dev_slug, inv_slug, data_dir=self.data_dir, public_usi_dir=self.public_usi_dir, portal=portal)
 
-    def register_investment(self, portal, developer_name, inv_slug, name, item_id=None, url=None, allow_existing=False, vendor_id=None):
+    def register_investment(self, portal, developer_name, inv_slug, name, item_id=None, url=None, allow_existing=False, vendor_id=None, force_dev_slug=None):
         from python_worker.developer_manager import DeveloperManager
         from usi_scrapers import api as scraper_api
         from python_worker.url_parser import parse_url
 
         dm = DeveloperManager(self.data_dir)
         developer_record = None
+        dev_slug = force_dev_slug
 
         # PRIORITY 1: Identify by Vendor ID (if provided)
-        if vendor_id:
+        if not dev_slug and vendor_id:
             developer_record = dm.find_developer_by_id(portal, str(vendor_id))
             if developer_record:
                 dev_slug = developer_record["developer_slug"]
@@ -87,7 +88,7 @@ class InvestmentService:
                 logger.info(f"Found developer by ID {vendor_id} ({portal}): {developer_name} ({dev_slug})")
 
         # PRIORITY 2: Canonical Slug Extraction via library parser
-        if not developer_record and url:
+        if not dev_slug and not developer_record and url:
             parsed = parse_url(url)
             if parsed.get("investment_slug") and parsed["investment_slug"] != "unknown":
                 inv_slug = parsed["investment_slug"]
@@ -100,7 +101,7 @@ class InvestmentService:
 
         # Identification pre-scrapes (Otodom/TabelaOfert) via API
         is_unknown = not developer_name or developer_name.lower() in ("nieznany deweloper", "unknown", "nieznany-deweloper")
-        if not developer_record and is_unknown and portal in ("oto", "to") and url:
+        if not dev_slug and not developer_record and is_unknown and portal in ("oto", "to") and url:
             logger.info(f"Developer unknown for {url}, performing pre-scrape identification ({portal})...")
             try:
                 identified_name = scraper_api.identify_developer(self.fetcher, portal, url)
@@ -110,12 +111,13 @@ class InvestmentService:
             except Exception as e:
                 logger.error(f"Pre-scrape identification failed ({portal}): {e}")
 
-        if not developer_record:
-            dev_slug = "unknown"
-            if not is_unknown:
-                logger.warning(f"No USI record found by ID for developer '{developer_name}' - placing in 'unknown' folder")
-        else:
-            dev_slug = developer_record["developer_slug"]
+        if not dev_slug:
+            if not developer_record:
+                dev_slug = "unknown"
+                if not is_unknown:
+                    logger.warning(f"No USI record found by ID for developer '{developer_name}' - placing in 'unknown' folder")
+            else:
+                dev_slug = developer_record["developer_slug"]
         
         # Auto-create developer profile ONLY if we have a real slug (not 'unknown')
         if dev_slug != "unknown" and not dm.get_developer(dev_slug):
@@ -347,10 +349,8 @@ class InvestmentService:
                         # Save raw data using canonical slug (for library mapping)
                         self.tech_manager.save_raw_data(raw_data, canonical_dev_slug, inv_slug, raw_prefix)
                     else:
-                        inv_dir.mkdir(parents=True, exist_ok=True)
-                        raw_path = inv_dir / f"raw_{raw_prefix}_{inv_slug}.json"
-                        with open(raw_path, "w", encoding="utf-8") as f:
-                            json.dump(raw_data, f, indent=2, ensure_ascii=False)
+                        logger.error(f"Cannot save raw data for {inv_slug}: TechnicalDataManager is not available.")
+                        raise RuntimeError("TechnicalDataManager is required for saving raw portal data.")
 
                     # Transform unified data using the FOLDER slug (dev_slug)
                     rp_oto_to_unified = AdapterFactory.get_adapter(raw_prefix).transform(raw_data, inv_slug, dev_slug)
@@ -412,6 +412,54 @@ class InvestmentService:
                     if on_disk:
                         new_unified["image_paths"] = [f"/Public/USI/{img_dev_slug}/{inv_slug}/{fname}" for fname in on_disk]
                         new_unified["images_count"] = len(on_disk)
+
+            # Backfill developer ID into portal_mapping if missing
+            from python_worker.developer_manager import DeveloperManager
+            dm = DeveloperManager(self.data_dir)
+            dev_record = dm.get_developer(dev_slug)
+            if dev_record:
+                needs_update = False
+                pm = dev_record.setdefault("portal_mapping", {"rp": None, "oto": None, "to": None})
+                new_src = new_unified.get("sources", {})
+                
+                # Check RP
+                rp_src = new_src.get("rp", {})
+                if rp_src.get("vendor_id"):
+                    if not pm.get("rp"):
+                        pm["rp"] = {"id": rp_src["vendor_id"]}
+                        needs_update = True
+                    elif pm["rp"].get("id") != rp_src["vendor_id"]:
+                        # Might be conflict, but we trust the fresh raw data if it was null
+                        if not pm["rp"].get("id"):
+                            pm["rp"]["id"] = rp_src["vendor_id"]
+                            needs_update = True
+                            
+                # Check Otodom
+                oto_src = new_src.get("oto", {})
+                if oto_src.get("agency_id"):
+                    if not pm.get("oto"):
+                        pm["oto"] = {"agency_id": oto_src["agency_id"], "agency_ids": [oto_src["agency_id"]]}
+                        needs_update = True
+                    else:
+                        aids = pm["oto"].setdefault("agency_ids", [])
+                        if oto_src["agency_id"] not in aids:
+                            aids.append(oto_src["agency_id"])
+                            pm["oto"]["agency_id"] = oto_src["agency_id"] # promote to main
+                            needs_update = True
+                            
+                # Check TO
+                to_src = new_src.get("to", {})
+                if to_src.get("developer_id"):
+                    if not pm.get("to"):
+                        pm["to"] = {"agency_id": to_src["developer_id"]}
+                        needs_update = True
+                    elif not pm["to"].get("agency_id"):
+                        pm["to"]["agency_id"] = to_src["developer_id"]
+                        needs_update = True
+                        
+                if needs_update:
+                    dm.create_developer_file(dev_record)
+                    logger.info(f"Backfilled developer ID into portal_mapping for {dev_slug}")
 
             # Save to canonical new-format path; fall back to existing file path
             primary_portal, primary_id = _primary_portal_id(new_unified.get("sources", {}))
@@ -537,7 +585,7 @@ class InvestmentService:
                 _parsed = parse_url(url)
                 _raw_slug = _parsed.get("investment_slug", "")
                 if _raw_slug:
-                    inv_slug = _re.sub(r'-ID[A-Za-z0-9]+$', '', _raw_slug) if portal == "oto" else _raw_slug
+                    inv_slug = _raw_slug
                     inv_slug = inv_slug or None
             dev_name = item.get("developer_name") or item.get("developer")
             
@@ -578,7 +626,7 @@ class InvestmentService:
 
         # 2. Call library process_batch
         # This will save raw_*.json files to disk for successful items
-        scraper_api.process_batch(
+        batch_results = scraper_api.process_batch(
             self.lib_config, self.fetcher, portal, identifiers, on_progress=on_progress_callback
         )
 
@@ -586,27 +634,19 @@ class InvestmentService:
         success_count = 0
         raw_prefix = "rp" if portal == "rp" else ("oto" if portal == "oto" else "to")
 
-        for info in to_process:
+        for info, data in zip(to_process, batch_results):
             try:
+                # Fallbacks in case scraping failed completely
                 dev_slug = info["dev_slug"]
                 inv_slug = info["inv_slug"]
-
-                # If dev_slug is unknown or was not determined, find where the library saved the raw file.
-                # Scrapers v0.5.0+ resolves IDs and saves to correct (or 'unknown') folders.
-                if inv_slug:
-                    # We look for ANY folder containing this investment's raw data
-                    pattern = f"*/{inv_slug}/raw_{raw_prefix}_*.json"
-                    matches = list(self.data_dir.glob(pattern))
-                    if matches:
-                        # Found it! Let's trust the library's placement
-                        dev_slug = matches[0].parent.parent.name
-                        logger.info(f"Dynamically resolved dev_slug '{dev_slug}' for {inv_slug} via glob")
-                    else:
-                        # Try deep search if first level fails (maybe nested folders)
-                        matches = list(self.data_dir.glob(f"**/{inv_slug}/raw_{raw_prefix}_*.json"))
-                        if matches:
-                            dev_slug = matches[0].parent.parent.name
-                            logger.info(f"Dynamically resolved dev_slug '{dev_slug}' via deep glob for {inv_slug}")
+                
+                # Use precise data returned from library if available
+                if data and isinstance(data, dict):
+                    if data.get("developer_slug"):
+                        dev_slug = data["developer_slug"]
+                        logger.info(f"Using developer_slug '{dev_slug}' from library result for {info['ident']}")
+                    if data.get("investment_slug"):
+                        inv_slug = data["investment_slug"]
 
                 if not dev_slug or not inv_slug:
                     logger.warning(f"Could not finalize batch item {info['ident']} - missing slugs (dev={dev_slug}, inv={inv_slug}).")
@@ -627,7 +667,8 @@ class InvestmentService:
                     name=info["name"],
                     item_id=info["item_id"],
                     url=info["url"],
-                    allow_existing=True
+                    allow_existing=True,
+                    force_dev_slug=dev_slug
                 )
 
                 

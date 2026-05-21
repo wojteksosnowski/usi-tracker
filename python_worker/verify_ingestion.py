@@ -175,7 +175,7 @@ def check_developer(portal_key, temp_data_dir, temp_dev_dir):
         else:
             mock_raw = {"name": dev_name, "id": portal_id, "url": test["url"], "_is_test": True}
 
-        raw_path = scraper_api.save_raw_developer(config, mock_raw, test["dev_slug"], portal_key)
+        raw_path = scraper_api.save_raw_developer(config, mock_raw, test["dev_slug"], portal_key, portal_id=portal_id)
 
         if not raw_path or not raw_path.exists():
             logger.error("Failed to save raw developer JSON")

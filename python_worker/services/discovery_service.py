@@ -219,6 +219,8 @@ class DiscoveryService:
                 vendor_id = vendor.get("id")
         elif portal in ("otodom", "oto"):
             vendor_id = item.get("agency_id") or item.get("developer_id") or item.get("vendor_id")
+        elif portal in ("to", "tabelaofert"):
+            vendor_id = item.get("developer_id") or item.get("vendor_id")
 
         # Delegate registration to InvestmentService (which now handles canonical slugs from library)
         return self.isvc.register_investment(
@@ -241,16 +243,13 @@ class DiscoveryService:
         portal_key = "rp" if portal == "rp" else ("otodom" if portal == "oto" else "to")
         
         try:
-            # USI-Scrapers v0.3.0 standardized API: 
-            # discover_{portal}_investments(config, fetcher, identifier=None, limit=None)
-            discovery_func = getattr(scraper_api, f"discover_{portal_key}_investments", None)
-            
-            if discovery_func:
-                # Global discovery (identifier=None) or specific (identifier=str/URL)
-                results = discovery_func(self.config, self.fetcher, identifier=identifier, limit=limit)
-            else:
-                # Fallback to generic list_investments if specific discover function missing
-                results = scraper_api.list_investments(self.config, self.fetcher, portal, identifier)
+            # USI-Scrapers v0.7.0+ standardized API
+            if portal_key == "rp":
+                results = scraper_api.discover_rp_investments(self.config, self.fetcher, identifier=identifier, limit=limit)
+            elif portal_key == "otodom":
+                results = scraper_api.discover_otodom_investments(self.config, self.fetcher, identifier=identifier, limit=limit)
+            else: # to
+                results = scraper_api.discover_to_investments(self.config, self.fetcher, identifier=identifier, limit=limit)
 
             logger.info(f"Scraper library returned {len(results)} items for {portal}")
             

@@ -424,7 +424,7 @@ function DeveloperPortals({ dev }) {
         {mapping.to && (
           <div className="usi-flex-row" style={{ justifyContent: 'space-between' }}>
             <SourceBadge source="to" />
-            <span className="usi-mono usi-tiny">{mapping.to.slug}</span>
+            <span className="usi-mono usi-tiny">{mapping.to.slug || mapping.to.agency_id || mapping.to.id}</span>
           </div>
         )}
         {!mapping.rp && !mapping.oto && !mapping.to && <div className="usi-tiny">Brak powiązań portalowych</div>}
