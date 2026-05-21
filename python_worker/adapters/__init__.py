@@ -3,17 +3,20 @@ import json
 import logging
 from pathlib import Path
 from .merger import Merger
-from usi_scrapers import resolve_path
+from usi_scrapers import resolve_path, get_mapping
 
 logger = logging.getLogger(__name__)
 
-# Load portal mapping config
+# Build portal mapping config from library
 try:
-    _MAPPING_PATH = Path(__file__).parent.parent / "schemas" / "portal_data_mapping.json"
-    with open(_MAPPING_PATH, "r") as f:
-        PORTAL_MAPPING = json.load(f)["portals"]
+    PORTAL_MAPPING = {
+        p: {
+            "investment": get_mapping(p, "investment"),
+            "developer": get_mapping(p, "developer")
+        } for p in ("rp", "oto", "to")
+    }
 except Exception as e:
-    logger.error(f"Failed to load portal_data_mapping.json: {e}")
+    logger.error(f"Failed to load portal mapping from library: {e}")
     PORTAL_MAPPING = {}
 
 def _unwrap_rp(val):

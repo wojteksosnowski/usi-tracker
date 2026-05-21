@@ -1,14 +1,14 @@
 # USI Tracker - Python Worker
 
-Automatyczny system śledzenia i pobierania danych o inwestycjach deweloperskich z serwisów **RynekPierwotny.pl** oraz **Otodom.pl**. Worker synchronizuje dane z systemem **Coda.io** poprzez współdzielony folder Dropbox.
+Automatyczny system śledzenia i pobierania danych o inwestycjach deweloperskich z serwisów **RynekPierwotny.pl**, **Otodom.pl** oraz **TabelaOfert.pl**. System składa się z backendu API (Flask), wydajnej szyny danych oraz interfejsu React (Babel standalone).
 
 ## 🚀 Główne Funkcje
 
-- **Scraping**: Pobieranie szczegółowych danych o inwestycjach (opisy, ceny, lokalizacje, udogodnienia).
+- **Scraping**: Pobieranie szczegółowych danych o inwestycjach (opisy, ceny, lokalizacje, udogodnienia) za pośrednictwem biblioteki `usi-scrapers`.
 - **Zasoby**: Automatyczne pobieranie i katalogowanie zdjęć inwestycji.
-- **Integracja Coda**: Nasłuchiwanie żądań (`coda_request_*.json`) i dostarczanie wyników w formacie JSON.
-- **Podsumowania**: Generowanie zbiorczych plików `app_latest_results.json` (pełny) oraz `brief` (lekki) dla szybkiej synchronizacji tabel.
-- **Logowanie**: Prowadzenie historii operacji w każdym folderze inwestycji (`processing_log_{slug}.txt`).
+- **Interfejs UI**: Lokalna aplikacja webowa do przeglądania, filtrowania i zarządzania danymi.
+- **Wędrowiec (Crawler)**: Cykliczne odkrywanie nowych inwestycji i aktualizacja istniejących rekordów.
+- **Logowanie**: Prowadzenie historii operacji w każdym folderze inwestycji.
 
 ---
 
@@ -17,10 +17,8 @@ Automatyczny system śledzenia i pobierania danych o inwestycjach deweloperskich
 System operuje wewnątrz folderu `/Public/` na Dropboxie:
 
 - `/Public/USI/` - **Grafiki**: Przechowuje zdjęcia w strukturze `{deweloper}/{inwestycja}/`.
-- `/Public/USIdata/` - **Dane**: Przechowuje pliki JSON, wyniki oraz podsumowania.
-    - `{deweloper}/{inwestycja}/` - Folder konkretnej inwestycji.
-    - `app_latest_results.json` - Zbiorczy plik z najnowszymi wynikami (pełny).
-    - `app_latest_results_brief.json` - Zbiorczy plik bez surowych danych (szybki).
+- `/Public/USIdata/` - **Dane**: Przechowuje kanoniczne pliki JSON (`usi_*.json`) oraz surowe zrzuty z portali.
+- `/Public/USIdev/` - **Deweloperzy**: Profile deweloperów i metadane łączenia kont.
 
 ---
 
@@ -45,54 +43,38 @@ System operuje wewnątrz folderu `/Public/` na Dropboxie:
 
 ## 🛠️ Instrukcja Obsługi (CLI)
 
-Worker obsługuje kilka trybów uruchomienia poprzez moduł `python_worker.main`:
+Głównym punktem wejścia jest skrypt `python3 -m python_worker.main` lub skróty `.sh`:
 
-### 1. Tryb Śledzenia (Watchdog) - DOMYŚLNY
-Uruchomienie bez parametrów wprowadza workera w tryb ciągłego monitorowania folderu `USIdata`. Czeka na nowe pliki od Coda.io.
+### 1. Interfejs UI
+Uruchamia serwer Flask i otwiera lokalny interfejs React.
 ```bash
-python3 -m python_worker.main
+./start-ui.sh
+# lub
+python3 -m python_worker.main ui
 ```
 
-### 2. Tryb Pobierania (Fetch)
-Wykonuje pełny skan najnowszych ofert z portali i generuje pliki podsumowania.
+### 2. Odkrywanie (Discover)
+Wyszukuje nowe inwestycje dla podanego dewelopera.
 ```bash
-python3 -m python_worker.main fetch
+python3 -m python_worker.main discover {dev_slug}
 ```
 
-### 3. Tryb Testowy (Test)
-Pobiera po 3 losowe inwestycje z każdego portalu. Służy do szybkiej weryfikacji działania bez obciążania limitów API.
+### 3. Aktualizacja (Update)
+Aktualizuje dane konkretnej inwestycji lub całego dewelopera.
 ```bash
-python3 -m python_worker.main test
+python3 -m python_worker.main update-inv {dev_slug}/{inv_slug}
+python3 -m python_worker.main update-dev {dev_slug}
 ```
 
-### 4. Tryb Ręczny (URL)
-Przetwarza konkretny podany adres URL.
+### 4. Wędrowiec (Crawler)
+Uruchamia demona w tle, który cyklicznie skanuje portale.
 ```bash
-python3 -m python_worker.main https://rynekpierwotny.pl/oferty/...
+python3 -m python_worker.main crawl
 ```
 
 ---
 
-## 🔗 Integracja z Coda.io
-
-### Wysyłanie żądania
-Aby wymusić pobranie danych dla konkretnej inwestycji, Coda wrzuca plik JSON do odpowiedniego folderu:
-`.../USIdata/{developer}/{investment}/coda_request_{id}.json`
-
-**Obsługiwane mapowania pól:**
-- `rpID` lub `offer_id` -> Identyfikator RynekPierwotny.
-- `otoID` lub `url` -> Identyfikator lub link do Otodom.
-- `USIfolder` -> Nazwa folderu inwestycji.
-
-### Otrzymywanie wyników
-Worker wygeneruje w tym samym folderze:
-- `app_result_{id}.json` - Kluczowe dane (lat/lng, lista ścieżek zdjęć, metadane).
-- `rp_details.json` / `oto_details.json` - Surowy zrzut z API dla Twoich formuł `.ParseJSON`.
-- `processing_log_{slug}.txt` - Historia (kiedy i co zostało pobrane).
-
----
-
-## 📝 Uwagi
-- **Nienaruszalność**: Pliki `coda_request_*.json` NIE SĄ usuwane przez workera.
-- **Kodowanie**: Wszystkie pliki JSON są zapisywane w formacie UTF-8.
-- **Logi systemowe**: Główny log aplikacji znajduje się w pliku `worker.log`.
+## 📝 Zasady Rozwoju
+- **Delegacja Scraperów**: Cała logika I/O i pobierania danych z portali musi znajdować się w bibliotece `usi-scrapers`.
+- **Niezmienność Slugów**: Slugi i identyfikatory portalowe są nienaruszalne.
+- **Format JSON**: Kanoniczne pliki `usi_*.json` są jedynym źródłem prawdy dla UI.
