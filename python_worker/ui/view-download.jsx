@@ -38,19 +38,19 @@ window.usiRegister('ViewDownload', function ViewDownload() {
     return () => clearInterval(interval);
   }, [loadCrawlerStatus]);
 
-  const handleGlobalScan = React.useCallback(async (limit = null) => {
+  const handleGlobalScan = React.useCallback(async (pages = null) => {
     setLoading(true);
     setErrorMsg(null);
     setResults([]);
-    const limitLabel = limit ? ` (limit: ok. ${limit} ofert)` : '';
-    setVariable('appStatus', { type: 'info', msg: `Rozpoczęto skanowanie portali${limitLabel} w tle...` });
+    const pagesLabel = pages && pages !== 'all' ? ` (limit: ${pages} stron)` : ' (pełne)';
+    setVariable('appStatus', { type: 'info', msg: `Rozpoczęto skanowanie portali${pagesLabel} w tle...` });
     let allResults = [];
     
     try {
       for (const p of activePortals) {
         try {
           let url = `/api/discovery/${p}/job?id=${encodeURIComponent(identifier)}`;
-          if (limit) url += `&limit=${limit}`;
+          if (pages && pages !== 'all') url += `&pages=${pages}`;
           
           const jobStart = await request(url, { method: 'POST' });
           if (!jobStart.job_id) throw new Error("Nie udało się uruchomić zadania discovery");
@@ -99,10 +99,8 @@ window.usiRegister('ViewDownload', function ViewDownload() {
   // Expose triggers
   React.useEffect(() => {
     window.usiTriggerScan = handleGlobalScan;
-    window.usiTriggerScanLimited = () => handleGlobalScan(150);
     return () => { 
       delete window.usiTriggerScan; 
-      delete window.usiTriggerScanLimited;
     };
   }, [handleGlobalScan]);
 

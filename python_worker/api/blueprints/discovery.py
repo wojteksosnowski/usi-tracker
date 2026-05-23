@@ -51,19 +51,22 @@ def discovery_job(portal):
         return jsonify({"error": f"Unknown portal: {portal}"}), 400
     identifier = request.args.get("id", "").strip()
     limit = request.args.get("limit")
+    pages = request.args.get("pages")
+
     if limit:
-        try:
-            limit = int(limit)
-        except ValueError:
-            limit = None
+        try: limit = int(limit)
+        except ValueError: limit = None
+    if pages:
+        try: pages = int(pages)
+        except ValueError: pages = None
     
-    def _run_discovery_job(job_id, p, ident, lim):
+    def _run_discovery_job(job_id, p, ident, lim, pgs):
         job_manager.update_progress(job_id, 10, f"Skanowanie portalu {p}...")
-        results = discovery_service.discovery_by_portal(p, ident, limit=lim)
+        results = discovery_service.discovery_by_portal(p, ident, limit=lim, pages=pgs)
         job_manager.update_progress(job_id, 100, f"Znaleziono {len(results)} inwestycji na {p}.")
         return results
 
-    job_id = job_manager.start_job(f"Discovery: {portal}", _run_discovery_job, portal, identifier, limit)
+    job_id = job_manager.start_job(f"Discovery: {portal}", _run_discovery_job, portal, identifier, limit, pages)
     return jsonify({"ok": True, "job_id": job_id})
 
 @discovery_bp.route("/discovery/<portal>")

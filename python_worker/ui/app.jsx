@@ -464,10 +464,22 @@
                     </div>
                   )}
                   <div className="usi-flex-row usi-gap-8">
-                    <button className="usi-btn ghost sm" onClick={() => window.usiTriggerScanLimited && window.usiTriggerScanLimited()} title="Skanuj ok. 5 stron (150 wyników)">
-                      <Icon name="zap" size={14} /> Skanuj 5
-                    </button>
-                    <button className="usi-btn ghost sm" onClick={() => window.usiTriggerScan && window.usiTriggerScan()} title="Pełne skanowanie katalogu">
+                    <select 
+                      className="usi-input sm usi-w-100" 
+                      value={bus.scanPages || '1'} 
+                      onChange={e => setVariable('scanPages', e.target.value)}
+                    >
+                      <option value="1">1 strona</option>
+                      <option value="3">3 strony</option>
+                      <option value="5">5 stron</option>
+                      <option value="10">10 stron</option>
+                      <option value="all">Wszystkie</option>
+                    </select>
+                    <button 
+                      className="usi-btn ghost sm" 
+                      onClick={() => window.usiTriggerScan && window.usiTriggerScan(bus.scanPages || '1')} 
+                      title="Uruchom skanowanie katalogu"
+                    >
                       <Icon name="zap" size={14} /> Skanuj
                     </button>
                   </div>

@@ -286,8 +286,8 @@ class OtodomAdapter:
                 except (ValueError, TypeError): pass
         
         try:
-            h_min_cm = get(ad, cfg.get("ceiling_height_min"))
-            h_max_cm = get(ad, cfg.get("ceiling_height_max"))
+            h_min_cm = _get_val(ad, cfg.get("ceiling_height_min"))
+            h_max_cm = _get_val(ad, cfg.get("ceiling_height_max"))
             if h_min_cm: h_min = round(float(h_min_cm) / 100, 2)
             if h_max_cm: h_max = round(float(h_max_cm) / 100, 2)
         except (ValueError, TypeError):
@@ -298,15 +298,15 @@ class OtodomAdapter:
             dq = old_del.get("quarter")
             dy = old_del.get("year")
 
-        title = get(ad, cfg.get("name")) or ad.get("title")
+        title = _get_val(ad, cfg.get("name")) or ad.get("title")
         u = _unified_base(inv_slug, dev_slug, title, developer=agency_name)
         
         oto_src = {"url": url or ""}
-        oto_id = get(ad, cfg.get("id"))
+        oto_id = _get_val(ad, cfg.get("id"))
         if oto_id:
             oto_src["id"] = str(oto_id)
         
-        agency_id = get(ad, cfg.get("developer_id")) or (ad.get("owner") or {}).get("id")
+        agency_id = _get_val(ad, cfg.get("developer_id")) or (ad.get("owner") or {}).get("id")
         if agency_id:
             oto_src["agency_id"] = str(agency_id)
             
@@ -322,7 +322,7 @@ class OtodomAdapter:
             u["location"]["city"] = (addr_obj.get("city") or {}).get("name")
             u["location"]["district"] = (addr_obj.get("district") or {}).get("name")
 
-        price_min = get(ad, cfg.get("price_min"))
+        price_min = _get_val(ad, cfg.get("price_min"))
         u["financials"].update({
             "price_min": float(price_min) if price_min else None
         })

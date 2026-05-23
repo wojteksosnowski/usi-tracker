@@ -6,6 +6,7 @@ USI Tracker is a specialized system for monitoring real-estate investments in Po
 
 - **Purpose**: Automate the collection of investment data (prices, delivery dates, amenities, photos) and unify them into a canonical JSON format (`usi_*.json`).
 - **Core Architecture**:
+  - **ID-only**: Universal rule - all identification must be derived from unique ID. Slug based identification is prohibitted.
   - **Thin-Client Scrapers**: ALL technical I/O, raw data fetching, and asset management (images) are delegated to the `usi-scrapers` library. The tracker acts as an orchestrator.
   - **Wedrowiec (Unified Crawler)**: A background daemon (`crawler.py`) that performs periodic "Visits" (discovery for known developers) and "Exploration" (systematic paging of portal catalogs to find new developers).
   - **TechnicalDataManager**: Centralized manager in `usi-scrapers` used for path resolution and technical data persistence.
@@ -64,7 +65,7 @@ pip install -r python_worker/requirements.txt
 
 ### Scraper Delegation & Library Architecture
 - **No Local Scrapers**: Do NOT add new `scraper_*.py` files to `usi-tracker`. All portal interaction logic must reside in the `usi-scrapers` library. 
-- git clone https://wojteksosnowski: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@github.com/wojteksosnowski/usi-scrapers.git
+- `git clone https://wojteksosnowski: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@github.com/wojteksosnowski/usi-scrapers.git`
 - **I/O Delegation**: Always use `TechnicalDataManager` from the library to save raw data or sync images. This prevents path drift and ensures consistent storage across environments.
 - **Semantic Separation**: Keep data transformation (Adapters) and merging (Merger) in `usi-tracker`. The library provides "Technical Data," while the tracker creates "Business Data."
 - **Path Resolution**: Avoid hardcoding paths like `Public/USIdata`. Use `config.public_dir` and library utilities to resolve paths.

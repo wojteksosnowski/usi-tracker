@@ -234,12 +234,22 @@ class DiscoveryService:
             vendor_id=vendor_id
         )
 
-    def discovery_by_portal(self, portal, identifier=None, limit=None):
+    def discovery_by_portal(self, portal, identifier=None, limit=None, pages=None):
         """
         Discovers new investments on a portal for global or specific scan.
         Supports both IDs (developer scan) and URLs (listing scan).
         """
-        logger.info(f"Triggering discovery for portal: {portal} (Identifier: {identifier}, Limit: {limit})")
+        if pages:
+            # Calculate limit based on portal-specific page sizes
+            # OTO: 72/page, RP: 30/page, TO: 20/page
+            page_sizes = {"rp": 30, "oto": 72, "to": 20}
+            size = page_sizes.get(portal, 50)
+            try:
+                limit = int(pages) * size
+            except (ValueError, TypeError):
+                limit = None
+
+        logger.info(f"Triggering discovery for portal: {portal} (Identifier: {identifier}, Pages: {pages}, Calculated Limit: {limit})")
         portal_key = "rp" if portal == "rp" else ("otodom" if portal == "oto" else "to")
         
         try:

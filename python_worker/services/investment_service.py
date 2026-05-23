@@ -641,12 +641,19 @@ class InvestmentService:
                 inv_slug = info["inv_slug"]
                 
                 # Use precise data returned from library if available
+                vendor_id = None
                 if data and isinstance(data, dict):
                     if data.get("developer_slug"):
                         dev_slug = data["developer_slug"]
                         logger.info(f"Using developer_slug '{dev_slug}' from library result for {info['ident']}")
                     if data.get("investment_slug"):
                         inv_slug = data["investment_slug"]
+                    if data.get("id"):
+                        info["item_id"] = data["id"]
+                    if data.get("agency_id"):
+                        vendor_id = data["agency_id"]
+                    elif data.get("vendor_id"):
+                        vendor_id = data["vendor_id"]
 
                 if not dev_slug or not inv_slug:
                     logger.warning(f"Could not finalize batch item {info['ident']} - missing slugs (dev={dev_slug}, inv={inv_slug}).")
@@ -664,10 +671,11 @@ class InvestmentService:
                     portal=info["portal"],
                     developer_name=info["dev_name"] or dev_slug.replace("-", " ").title(),
                     inv_slug=inv_slug,
-                    name=info["name"],
+                    name=info["name"] or (data.get("title") if isinstance(data, dict) else None),
                     item_id=info["item_id"],
                     url=info["url"],
                     allow_existing=True,
+                    vendor_id=vendor_id,
                     force_dev_slug=dev_slug
                 )
 
