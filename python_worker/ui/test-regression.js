@@ -245,27 +245,7 @@ window.runModuleRegistryTest = function runModuleRegistryTest() {
 
     // 1. Check built-in modules
     assert("DataGridModule registered", !!ModuleRegistry.get('DataGridModule'));
-    assert("PriceTrendModule registered", !!ModuleRegistry.get('PriceTrendModule'));
     assert("MapModule registered", !!ModuleRegistry.get('MapModule'));
-
-    // 2. Register dynamic mock module
-    const MockChartModule = ({ data = [] }) => {
-        return React.createElement('div', { 
-            className: 'usi-card', 
-            style: { padding: 20, background: 'var(--usi-surface-2)', border: '2px dashed var(--usi-border)' } 
-        }, [
-            React.createElement('h3', null, "Mock Chart Module"),
-            React.createElement('p', null, `Renderowanie dla ${data.length} rekordów.`)
-        ]);
-    };
-    
-    ModuleRegistry.register('MockChartModule', MockChartModule);
-    assert("MockChartModule registered successfully", !!ModuleRegistry.get('MockChartModule'));
-    assert("ModuleRegistry.list contains MockChartModule", ModuleRegistry.list().includes('MockChartModule'));
-
-    // 3. Retrieval
-    const Retrieved = ModuleRegistry.get('MockChartModule');
-    assert("Retrieved component is correct", Retrieved === MockChartModule);
 
     console.table(results);
     return results;
@@ -385,22 +365,7 @@ window.runStressTest = async function runStressTest() {
     const endReg = performance.now();
     assert(`Rapid registration (100 mods) took ${(endReg - startReg).toFixed(2)}ms`, (endReg - startReg) < 50);
 
-    // 2. Mount/Unmount Cycle (Memory & Cleanup Check)
-    const startCycle = performance.now();
-    const mockData = Array.from({ length: 50 }, (_, i) => ({ 
-        name: `Inv ${i}`, 
-        flats_count: i * 10, 
-        delivery_quarter: `202${i%5} Q${(i%4)+1}` 
-    }));
-
-    for (let i = 0; i < 20; i++) {
-        ReactDOM.render(React.createElement(PriceTrendModule, { data: mockData }), testContainer);
-        ReactDOM.unmountComponentAtNode(testContainer);
-    }
-    const endCycle = performance.now();
-    assert(`20 Mount/Unmount cycles (Chart.js) took ${(endCycle - startCycle).toFixed(2)}ms`, (endCycle - startCycle) < 1000);
-
-    // 3. Large Dataset Rendering
+    // 2. Large Dataset Rendering
     const largeData = Array.from({ length: 1000 }, (_, i) => ({ name: `Huge ${i}`, coords: [52, 21] }));
     const startLarge = performance.now();
     // MapModule might be slow due to HERE Maps, but let's test registry retrieval

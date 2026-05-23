@@ -1559,28 +1559,6 @@
   padding: 4px 0;
 }
 
-/* Charts */
-.usi-chart-empty {
-  color: var(--usi-ink-4);
-  padding: 20px 0;
-  text-align: center;
-}
-
-.usi-chart-container {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.usi-chart-hover-info {
-  margin-bottom: -5px;
-}
-
-.usi-chart-canvas-box {
-  height: 200px;
-  width: 100%;
-  padding: 10px 0;
-}
 
 /* Module Base & Knobs */
 .usi-base-module-title {

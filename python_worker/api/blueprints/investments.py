@@ -626,8 +626,32 @@ def merge_investment(dev_slug, inv_slug):
     if not source_id or not target_id: abort(400)
     
     from python_worker.investment_merger import InvestmentMerger
+    from python_worker.developer_manager import DeveloperManager
+    from python_worker.config import USI_DATA_DIR
+    from pathlib import Path
+    
     im = InvestmentMerger()
+    dm = DeveloperManager(Path(USI_DATA_DIR))
+    
+    # Pre-fetch entries to check developers before merge updates files
+    target_entry = im._find_index_entry(target_id)
+    source_entry = im._find_index_entry(source_id)
+
     if im.merge_by_id(target_id, source_id):
+        # Auto-suggest developers if they differ
+        if target_entry and source_entry:
+            t_dev_id = target_entry.get("usi_dev_id")
+            s_dev_id = source_entry.get("usi_dev_id")
+            if t_dev_id and s_dev_id and t_dev_id != s_dev_id:
+                t_dev = dm.get_developer_by_id(t_dev_id)
+                s_dev = dm.get_developer_by_id(s_dev_id)
+                if t_dev and s_dev:
+                    t_master = t_dev.get("master_id") or t_dev_id
+                    s_master = s_dev.get("master_id") or s_dev_id
+                    
+                    if t_master != s_master:
+                        dm.add_suggestion(t_dev_id, s_dev_id, "Połączono ich inwestycje")
+        
         return jsonify({"ok": True})
     return jsonify({"ok": False, "error": "Merge failed"}), 422
 

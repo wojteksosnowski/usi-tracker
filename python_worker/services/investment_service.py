@@ -448,12 +448,12 @@ class InvestmentService:
                             needs_update = True
                             
                 # Check TO
-                to_src = new_src.get("to", {})
-                if to_src.get("developer_id"):
+                to_src = new_src.get("to")
+                if to_src is not None:
                     if not pm.get("to"):
-                        pm["to"] = {"agency_id": to_src["developer_id"]}
+                        pm["to"] = {"agency_id": to_src.get("developer_id", "")}
                         needs_update = True
-                    elif not pm["to"].get("agency_id"):
+                    elif not pm["to"].get("agency_id") and to_src.get("developer_id"):
                         pm["to"]["agency_id"] = to_src["developer_id"]
                         needs_update = True
                         

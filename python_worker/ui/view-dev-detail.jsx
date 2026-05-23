@@ -142,17 +142,20 @@ function DeveloperDetail({
     .then(r => r.json())
     .then(data => {
       if (data.ok) {
+        setVariable('appStatus', { type: 'success', msg: 'Połączono profile dewelopera.' });
         load(true); // silent sync — no spinner, keeps optimistic card visible
         refetch('developers'); // remove merged child from global list
       } else {
         // Revert optimistic update
         setLocalMerged(prev => prev.filter(m => m.usi_dev_id !== source_id));
         setLocalSuggestions(prev => [suggestion, ...prev]);
+        setVariable('appStatus', { type: 'error', msg: 'Błąd podczas łączenia.' });
       }
     })
     .catch(() => {
       setLocalMerged(prev => prev.filter(m => m.usi_dev_id !== source_id));
       setLocalSuggestions(prev => [suggestion, ...prev]);
+      setVariable('appStatus', { type: 'error', msg: 'Błąd sieci podczas łączenia.' });
     });
   };
 
@@ -167,14 +170,17 @@ function DeveloperDetail({
     .then(r => r.json())
     .then(data => {
       if (data.ok) {
+        setVariable('appStatus', { type: 'success', msg: 'Odłączono profil.' });
         load(true);
         refetch('developers');
       } else {
         if (leaving) setLocalMerged(prev => [leaving, ...prev]);
+        setVariable('appStatus', { type: 'error', msg: 'Błąd podczas odłączania.' });
       }
     })
     .catch(() => {
       if (leaving) setLocalMerged(prev => [leaving, ...prev]);
+      setVariable('appStatus', { type: 'error', msg: 'Błąd sieci podczas odłączania.' });
     });
   };
 
@@ -538,8 +544,9 @@ function DeveloperSuggestions({ suggestions, onMerge, onDismiss, onSuggest, load
 function MergedMembersPanel({ dev, members, arrivingSlug, onUnmerge }) {
   if (!dev) return null;
   const { Icon } = window;
-  const total = 1 + (members || []).length;
   const base = dev.base_record || dev;
+  
+  const total = 1 + (members || []).length;
 
   return (
     <div className="usi-card usi-p-16">
@@ -549,7 +556,7 @@ function MergedMembersPanel({ dev, members, arrivingSlug, onUnmerge }) {
       </h3>
       <div className="usi-flex-col usi-gap-8">
         <DevMiniCard
-          key={base.developer_slug}
+          key={`base-${base.developer_slug}`}
           name={base.name}
           slug={base.developer_slug}
           usiId={base.usi_dev_id}
@@ -560,7 +567,7 @@ function MergedMembersPanel({ dev, members, arrivingSlug, onUnmerge }) {
         />
         {(members || []).map((m, i) => (
           <DevMiniCard
-            key={m.slug || i}
+            key={m.usi_dev_id || i}
             name={m.name}
             slug={m.slug}
             usiId={m.usi_dev_id}

@@ -7,7 +7,7 @@ function DeveloperListGrid({
   const { bus, setVariable } = useDataBus();
   const { developers = [], filters = {}, devFilters = {}, devListMode = 'grid' } = bus;
   const { search = '', sources = new Set() } = filters;
-  const { onlyActive = false, onlySuggestions = false, onlyMerged = false } = devFilters;
+  const { onlyActive = false, onlySuggestions = false, onlyMerged = false, onlyPending = false } = devFilters;
 
   const TWELVE_MONTHS_AGO = Date.now() / 1000 - 365 * 24 * 3600;
 
@@ -37,9 +37,12 @@ function DeveloperListGrid({
       if (onlySuggestions) {
         if (!dev.suggestions || dev.suggestions.length === 0) return false;
       }
+      if (onlyPending) {
+        if (!dev.unregistered_count || dev.unregistered_count <= 0) return false;
+      }
       return true;
     });
-  }, [developers, search, sources, onlyActive, onlySuggestions, onlyMerged]);
+  }, [developers, search, sources, onlyActive, onlySuggestions, onlyMerged, onlyPending]);
 
   React.useEffect(() => {
     setVariable('visibleDevelopers', filteredDevelopers);

@@ -106,7 +106,6 @@ window.ModuleRegistry.register('DataGridModule', DataGridModule);
 
 // ─── Presets Registration (Krok B03) ───────────────────────────────────
 window.ModuleRegistry.registerPreset('DeveloperOverview', [
-  { type: 'PriceTrendModule', props: { title: 'Trend Inwestycji Dewelopera' } },
   { type: 'MapModule', props: { title: 'Lokalizacje Inwestycji', height: 300 } },
   { type: 'DataGridModule' }
 ]);
@@ -117,8 +116,6 @@ window.ModuleRegistry.registerPreset('LocationAnalysis', [
 ]);
 
 window.ModuleRegistry.registerPreset('MultiModuleTest', [
-  { type: 'PriceTrendModule', props: { title: 'Trend A (Niebieski)', chartColor: '#3989C6' }, id: 'trend_a' },
-  { type: 'PriceTrendModule', props: { title: 'Trend B (Fioletowy)', chartColor: '#9C27B0' }, id: 'trend_b' },
   { type: 'MapModule', props: { title: 'Mapa Zachodnia', height: 300 }, id: 'map_west' },
   { type: 'MapModule', props: { title: 'Mapa Wschodnia', height: 300 }, id: 'map_east' }
 ]);

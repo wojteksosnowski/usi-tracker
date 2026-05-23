@@ -222,6 +222,10 @@ class Merger:
                 result["developer"] = existing_data["developer"]
             if not result.get("developer_slug") and existing_data.get("developer_slug"):
                 result["developer_slug"] = existing_data["developer_slug"]
+                
+            for field in ("master_id", "suggestions", "issue_reports", "reviewed"):
+                if field in existing_data:
+                    result[field] = existing_data[field]
 
         if existing_data:
             changes = Merger._detect_changes(existing_data, result)

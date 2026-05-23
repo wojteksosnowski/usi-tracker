@@ -374,6 +374,13 @@
                             onClick={() => setVariable('devFilters.onlySuggestions', v => !v)}
                           />
                         )}
+                        {(bus.pendingTotal || 0) > 0 && (
+                          <FilterChip
+                            label={`Nowości (${bus.pendingTotal})`}
+                            active={bus.devFilters?.onlyPending || false}
+                            onClick={() => setVariable('devFilters.onlyPending', v => !v)}
+                          />
+                        )}
                       </FilterGroup>
                       <span className="usi-tiny usi-text-secondary usi-align-self-center">
                         {(bus.visibleDevelopers || []).length} deweloperów

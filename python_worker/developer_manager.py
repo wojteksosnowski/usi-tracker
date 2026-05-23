@@ -11,6 +11,9 @@ _counter_lock = threading.Lock()
 
 logger = logging.getLogger(__name__)
 
+_global_identifiers_cache = None
+_global_identifiers_cache_time = None
+
 class DeveloperManager:
     def __init__(self, data_dir: Path, dev_dir: Path = None):
         self.data_dir = data_dir
@@ -27,6 +30,23 @@ class DeveloperManager:
         from usi_scrapers.manager import TechnicalDataManager
         config = get_scraper_config()
         self.tech_manager = TechnicalDataManager(config) if config else None
+
+    @property
+    def _inv_index_data(self):
+        if not hasattr(self, "_cached_inv_index"):
+            from python_worker.investment_index import load as load_inv_index
+            self._cached_inv_index = load_inv_index(self.data_dir) or []
+        return self._cached_inv_index
+
+    @property
+    def _inv_by_dev_slug(self):
+        if not hasattr(self, "_cached_inv_by_dev"):
+            self._cached_inv_by_dev = {}
+            for inv in self._inv_index_data:
+                slug = inv.get("developer_slug")
+                if slug:
+                    self._cached_inv_by_dev.setdefault(slug, []).append(inv)
+        return self._cached_inv_by_dev
 
     def _get_next_counter(self, key: str) -> int:
         """Atomic counter increment — thread-safe (threading.Lock) and process-safe (flock)."""
@@ -47,8 +67,8 @@ class DeveloperManager:
                     fcntl.flock(f, fcntl.LOCK_UN)
 
     def generate_usi_id(self, prefix: str) -> str:
-        """Generates a new USI ID (e.g., DEV-0001, INV-0001, DM-0001)."""
-        key = {"DEV": "dev", "INV": "inv", "DM": "dm"}.get(prefix, "dev")
+        """Generates a new USI ID (e.g., DEV-0001, INV-0001, DM-0001, IM-0001)."""
+        key = {"DEV": "dev", "INV": "inv", "DM": "dm", "IM": "im"}.get(prefix, "dev")
         num = self._get_next_counter(key)
         return f"{prefix}-{num:04d}"
 
@@ -83,26 +103,44 @@ class DeveloperManager:
     # Level 3 (dev_master) helpers
     # -------------------------------------------------------------------------
 
-    def _read_dev_master(self, master_id: str, master_slug: str) -> dict | None:
-        path = self._dev_master_path(master_id, master_slug)
-        if not path.exists():
+    def _read_dev_master(self, master_id: str) -> dict | None:
+        from python_worker import developer_index
+        master_idx = developer_index.load_master_index(self.dev_dir)
+        
+        target_path = None
+        if master_idx and master_id in master_idx:
+            folder = master_idx[master_id].get("path")
+            if folder:
+                target_path = self._dev_master_path(master_id, folder)
+                
+        if not target_path or not target_path.exists():
+            # Fallback global glob
+            for p in self.dev_dir.glob(f"*/dev_master_{master_id}.json"):
+                target_path = p
+                break
+                
+        if not target_path or not target_path.exists():
             return None
+            
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            return json.loads(target_path.read_text(encoding="utf-8"))
         except Exception as e:
-            logger.warning(f"Could not read dev_master {path}: {e}")
+            logger.warning(f"Could not read dev_master {target_path}: {e}")
             return None
 
     def _save_dev_master(self, master: dict, master_slug: str) -> None:
         path = self._dev_master_path(master["dev_master_id"], master_slug)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(master, indent=2, ensure_ascii=False), encoding="utf-8")
+        
+        from python_worker import developer_index
+        developer_index.upsert_master(self.dev_dir, master, master_slug)
 
     def _get_or_create_dev_master(self, master_slug: str, master_dev: dict) -> dict:
         """Reads existing dev_master or creates a new one; sets master_id on master_dev in-place."""
         master_id = master_dev.get("master_id")
         if master_id:
-            existing = self._read_dev_master(master_id, master_slug)
+            existing = self._read_dev_master(master_id)
             if existing:
                 return existing
         dm_id = self.generate_usi_id("DM")
@@ -141,14 +179,14 @@ class DeveloperManager:
     def get_existing_identifiers(self) -> dict:
         """
         Scans USI_DATA_DIR for existing investments and returns a dict with sets of IDs.
-        Includes a 5-minute cache to speed up repeated UI calls.
+        Includes a 5-minute global cache to speed up repeated UI calls.
         """
+        global _global_identifiers_cache, _global_identifiers_cache_time
+        
         now = datetime.now()
-        if hasattr(self, "_identifiers_cache"):
-            cache_time, cache_data = self._identifiers_cache
-            if (now - cache_time).total_seconds() < 300:
-                logger.info("Using cached identifiers (valid for 5m)")
-                return cache_data
+        if _global_identifiers_cache is not None and _global_identifiers_cache_time is not None:
+            if (now - _global_identifiers_cache_time).total_seconds() < 300:
+                return _global_identifiers_cache
 
         rp_ids = set()
         oto_ids = set()
@@ -214,7 +252,8 @@ class DeveloperManager:
             "oto_slugs": oto_slugs,
             "to_ids": to_ids,
         }
-        self._identifiers_cache = (now, result)
+        _global_identifiers_cache_time = now
+        _global_identifiers_cache = result
         return result
 
     # -------------------------------------------------------------------------
@@ -315,9 +354,9 @@ class DeveloperManager:
                 developer_data["usi_dev_id"] = self.generate_usi_id("DEV")
 
         # Strip Level 3 fields — they live in dev_master_*.json
+        # NOTE: parent_id (hierarchy) is preserved in Level 2 as per schema.
         developer_data.pop("events", None)
         developer_data.pop("merged_from", None)
-        developer_data.pop("parent_id", None)
 
         usi_dev_id = developer_data["usi_dev_id"]
         file_path = subdir / f"usi_dev_{usi_dev_id}_{dev_slug}.json"
@@ -333,19 +372,115 @@ class DeveloperManager:
                 logger.warning(f"Could not remove old-format file {old_canonical}: {e}")
 
         logger.info(f"Saved developer file: {file_path}")
+        
+        # Update index
+        from . import developer_index
+        developer_index.upsert(self.data_dir, self.dev_dir, dev_slug, usi_dev_id)
+
         return file_path
 
+    def _inv_matches_dev(self, inv: dict, pm: dict) -> bool:
+        src = inv.get("sources") or {}
+        for portal in ("rp", "oto", "to"):
+            if not pm.get(portal) or not src.get(portal):
+                continue
+            pm_p = pm[portal]
+            src_p = src[portal]
+            if pm_p.get("_inferred"): return True
+            if portal == "rp":
+                if str(pm_p.get("id", "")) == str(src_p.get("vendor_id", "")) and pm_p.get("id"): return True
+            elif portal == "oto":
+                pm_aids = {str(a) for a in (pm_p.get("agency_ids") or [pm_p.get("agency_id", "")]) if a}
+                if str(src_p.get("agency_id", "")) in pm_aids and src_p.get("agency_id"): return True
+            elif portal == "to":
+                pm_id = str(pm_p.get("id") or pm_p.get("slug", "") or pm_p.get("agency_id", ""))
+                src_id = str(src_p.get("developer_id") or "")
+                if (pm_id == src_id and pm_id) or (not pm_id and not src_id): return True
+        return False
+
     def _enrich_with_master(self, dev: dict) -> dict:
-        """Add merged_from from Level 3 for master developers (not for merged children)."""
+        """Add merged_from from Level 3, aggregate portal mappings, count investments & set mtime."""
         master_id = dev.get("master_id")
         if master_id:
-            master = self._read_dev_master(master_id, dev.get("developer_slug", ""))
+            master = self._read_dev_master(master_id)
             if master and dev.get("usi_dev_id") == master.get("master_usi_dev_id"):
                 dev["merged_from"] = master.get("merged_from", [])
+                dev["suggestions"] = master.get("suggestions", [])
+                dev["is_master"] = True
             else:
                 dev.setdefault("merged_from", [])
+                dev.setdefault("suggestions", [])
+                dev["is_child"] = True
         else:
             dev.setdefault("merged_from", [])
+            dev.setdefault("suggestions", [])
+
+        # Process investment stats and aggregated portal_mapping
+        base_slug = dev.get("developer_slug", "")
+        base_pm = dev.get("portal_mapping") or {}
+        dev["original_portal_mapping"] = base_pm.copy()
+        aggregated_pm = base_pm.copy()
+        
+        all_mtimes = []
+        total_count = 0
+        existing_inv_ids = set()
+
+        def _process_slug(slug: str, pm: dict):
+            nonlocal total_count
+            invs = self._inv_by_dev_slug.get(slug, [])
+            portals = {p for p in ("rp", "oto", "to") if pm.get(p)}
+            for i in invs:
+                if not portals or self._inv_matches_dev(i, pm):
+                    ci_id = i.get("usi_inv_id")
+                    if ci_id and ci_id not in existing_inv_ids:
+                        total_count += 1
+                        existing_inv_ids.add(ci_id)
+                    elif not ci_id:
+                        total_count += 1
+                    
+                    # Dynamically infer portal from investment
+                    src = i.get("source", "").lower()
+                    if src in ("rp", "oto", "to"):
+                        if not aggregated_pm.get(src):
+                            aggregated_pm[src] = {"_inferred": True}
+                    
+                    ts = i.get("last_updated_ts")
+                    if ts:
+                        all_mtimes.append(ts)
+
+        # 1. Base record
+        _process_slug(base_slug, base_pm)
+
+        # 2. Merged children
+        for member in dev.get("merged_from", []):
+            child_id = member.get("usi_dev_id")
+            if not child_id: continue
+            child_record = self.get_developer_by_id(child_id)
+            if child_record:
+                child_slug = child_record.get("developer_slug") or member.get("slug")
+                child_pm = child_record.get("portal_mapping") or {}
+                _process_slug(child_slug, child_pm)
+                
+                for p in ("rp", "oto", "to"):
+                    if not aggregated_pm.get(p) and child_pm.get(p):
+                        aggregated_pm[p] = child_pm[p]
+        
+        dev["portal_mapping"] = aggregated_pm
+        dev["investments_count"] = total_count
+        dev["last_updated"] = max(all_mtimes) if all_mtimes else None
+        
+        # 3. Crawler & Discovery stats
+        dev["new_since_review"] = dev.get("crawler", {}).get("new_since_review", 0)
+        
+        try:
+            from python_worker.services.discovery_service import DiscoveryService
+            ds = DiscoveryService(self.data_dir)
+            identifiers = self.get_existing_identifiers()
+            dev["unregistered_count"] = ds.get_unregistered_count(base_slug, identifiers)
+        except Exception as e:
+            logger.warning(f"Failed to get unregistered_count for {base_slug}: {e}")
+            dev["unregistered_count"] = 0
+
         return dev
 
     def get_developer(self, dev_slug: str) -> dict | None:
@@ -412,6 +547,45 @@ class DeveloperManager:
 
     def list_developers(self, only_merged: bool = False) -> list:
         """Returns top-level developer records; merged-source children excluded."""
+        from . import developer_index
+        indexed = developer_index.load(self.dev_dir)
+        
+        developers = []
+        seen_ids: set[str] = set()
+
+        def _should_include(dev: dict, child_ids_set: set[str] = None) -> bool:
+            dev_id = dev.get("usi_dev_id", "")
+            if dev_id in seen_ids:
+                return False
+            seen_ids.add(dev_id)
+
+            # Determine if this dev is a child.
+            # If using index, we rely on is_child set by _enrich_with_master,
+            # or parent_id, or if we have child_ids_set from dev_master scanning.
+            is_child = dev.get("parent_id") or dev.get("is_child", False)
+            if not is_child and child_ids_set is not None:
+                is_child = dev_id in child_ids_set
+
+            if is_child:
+                return False
+
+            if only_merged:
+                has_master = bool(dev.get("master_id") or dev.get("merged_from"))
+                pm = dev.get("portal_mapping", {})
+                has_mapping = any(pm.get(p) for p in ("rp", "oto", "to"))
+                if not (has_master or has_mapping):
+                    return False
+
+            return True
+
+        if indexed is not None:
+            # Fast path: filter from in-memory index
+            for dev in indexed:
+                if _should_include(dev):
+                    developers.append(dev)
+            return developers
+
+        # Fallback: disk scan
         # Build child IDs from all dev_master files — children are listed in merged_from[]
         child_ids: set[str] = set()
         for master_file in self.dev_dir.glob("*/dev_master_*.json"):
@@ -423,23 +597,10 @@ class DeveloperManager:
             except Exception:
                 pass
 
-        developers = []
-        seen_ids: set[str] = set()
-
         def _add(dev: dict) -> None:
-            dev_id = dev.get("usi_dev_id", "")
-            if dev_id in seen_ids:
-                return
-            seen_ids.add(dev_id)
-            if dev_id in child_ids:
-                return
-            if only_merged:
-                has_master = bool(dev.get("master_id") or dev.get("merged_from"))
-                pm = dev.get("portal_mapping", {})
-                has_mapping = any(pm.get(p) for p in ("rp", "oto", "to"))
-                if not (has_master or has_mapping):
-                    return
-            developers.append(dev)
+            dev = self._enrich_with_master(dev)
+            if _should_include(dev, child_ids):
+                developers.append(dev)
 
         for json_file in self.dev_dir.glob("*/usi_dev_*.json"):
             try:
@@ -464,8 +625,12 @@ class DeveloperManager:
         ds = DiscoveryService(self.data_dir)
         identifiers = self.get_existing_identifiers()
         total = 0
+        seen_slugs = set()
         for dev in self.list_developers():
-            total += ds.get_unregistered_count(dev["developer_slug"], identifiers)
+            slug = dev["developer_slug"]
+            if slug not in seen_slugs:
+                total += ds.get_unregistered_count(slug, identifiers)
+                seen_slugs.add(slug)
         return total
 
     # -------------------------------------------------------------------------
@@ -490,13 +655,51 @@ class DeveloperManager:
             return False
         return self._do_unmerge(target_dev, source_dev)
 
+    def add_suggestion(self, target_id: str, suggested_id: str, reason: str = "") -> bool:
+        """Add a suggestion to a developer profile."""
+        target_dev = self.get_developer_by_id(target_id)
+        suggested_dev = self.get_developer_by_id(suggested_id)
+        if not target_dev or not suggested_dev:
+            return False
+            
+        target_dev.setdefault("suggestions", [])
+        
+        # Check if already suggested
+        if any(s.get("usi_dev_id") == suggested_id for s in target_dev["suggestions"]):
+            return True
+            
+        suggestion = {
+            "developer_slug": suggested_dev.get("developer_slug"),
+            "name": suggested_dev.get("name"),
+            "usi_dev_id": suggested_id,
+            "reason": reason,
+            "timestamp": datetime.now().isoformat()
+        }
+        target_dev["suggestions"].append(suggestion)
+        
+        # Reciprocal
+        suggested_dev.setdefault("suggestions", [])
+        if not any(s.get("usi_dev_id") == target_id for s in suggested_dev["suggestions"]):
+            reciprocal = {
+                "developer_slug": target_dev.get("developer_slug"),
+                "name": target_dev.get("name"),
+                "usi_dev_id": target_id,
+                "reason": reason,
+                "timestamp": datetime.now().isoformat()
+            }
+            suggested_dev["suggestions"].append(reciprocal)
+            self.create_developer_file(suggested_dev)
+            
+        self.create_developer_file(target_dev)
+        return True
+
     def dismiss_suggestion_by_id(self, target_id: str, suggested_id: str) -> bool:
         """Dismiss a suggestion by target usi_dev_id."""
-        dev = self.get_developer_by_id(target_id)
-        if not dev:
+        target_dev = self.get_developer_by_id(target_id)
+        if not target_dev:
             logger.error(f"dismiss_suggestion_by_id: target not found — {target_id}")
             return False
-        return self._do_dismiss(dev, suggested_id)
+        return self._do_dismiss(target_dev, suggested_id)
 
     def _do_merge(self, target_dev: dict, source_dev: dict) -> bool:
         """Core merge logic operating on pre-loaded developer objects — no slug-based lookups."""
@@ -588,7 +791,7 @@ class DeveloperManager:
             logger.warning(f"unmerge: {target_slug} has no master_id — nothing to unmerge")
             return False
 
-        master = self._read_dev_master(master_id, target_slug)
+        master = self._read_dev_master(master_id)
         if not master:
             logger.warning(f"unmerge: dev_master_{master_id}.json not found for {target_slug}")
             return False

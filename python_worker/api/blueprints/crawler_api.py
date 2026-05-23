@@ -8,7 +8,7 @@ crawler_bp = Blueprint('crawler', __name__)
 
 
 def _get_crawler():
-    from python_worker.crawler import get_crawler
+    from python_worker.daemons import get_crawler
     return get_crawler()
 
 
@@ -65,7 +65,7 @@ def crawler_exploration():
 
 @crawler_bp.route("/doktor/status", methods=["GET"])
 def doktor_status():
-    from python_worker.doktor import get_doktor
+    from python_worker.daemons import get_doktor
     d = get_doktor()
     if not d:
         return jsonify({"running": False})

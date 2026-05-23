@@ -93,7 +93,7 @@ def _calculate_distance(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
 
-def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path = None, public_usi_dir: Path = None, portal: str = None) -> dict | None:
+def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None, public_usi_dir: Path | None = None, portal: str | None = None, skip_merge: bool = False) -> dict | None:
     if data_dir is None: data_dir = Path(USI_DATA_DIR)
     if public_usi_dir is None: public_usi_dir = Path(PUBLIC_USI_DIR)
     
@@ -247,7 +247,26 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path = None, public
         parts = [p.strip() for p in address.split(",")]
         district = parts[-1] if len(parts) >= 2 else inv_slug.split("-")[0].title()
 
-    return {
+    master_id = usi.get("master_id")
+    merged_from = []
+    master_usi_inv_id = None
+    if master_id:
+        master_file = inv_dir / f"inv_master_{master_id}.json"
+        if not master_file.exists() and data_dir:
+            # If not in this dir, try to find it globally
+            found = list(data_dir.rglob(f"inv_master_{master_id}.json"))
+            if found:
+                master_file = found[0]
+        
+        if master_file.exists():
+            try:
+                master_data = json.loads(master_file.read_text())
+                merged_from = master_data.get("merged_from", [])
+                master_usi_inv_id = master_data.get("master_usi_inv_id")
+            except Exception:
+                pass
+
+    base_data = {
         "slug": f"{dev_slug}/{inv_slug}",
         "developer_slug": dev_slug,
         "investment_slug": inv_slug,
@@ -282,6 +301,79 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path = None, public
         "comment": usi.get("ratings", {}).get("komentarz", ""),
         "photos_to_delete": photos_to_delete,
         "folder_path": str(inv_dir),
+        "last_updated_ts": usi_file.stat().st_mtime if usi_file else None,
         "website": "",
         "sources": sources,
+        "master_id": master_id,
+        "master_usi_inv_id": master_usi_inv_id,
+        "suggestions": usi.get("suggestions", []),
+        "merged_from": merged_from,
     }
+
+    if not skip_merge and merged_from and data_dir:
+        for child_meta in merged_from:
+            c_id = child_meta.get("usi_inv_id")
+            if c_id == base_data.get("usi_inv_id"):
+                continue
+                
+            c_dev_slug = child_meta.get("dev_slug")
+            c_inv_slug = child_meta.get("inv_slug")
+            if not c_dev_slug or not c_inv_slug:
+                continue
+                
+            child_inv = _load_investment(c_dev_slug, c_inv_slug, data_dir=data_dir, public_usi_dir=public_usi_dir, skip_merge=True)
+            if not child_inv:
+                continue
+                
+            # Merge sources
+            for p, sdata in child_inv.get("sources", {}).items():
+                if p not in base_data["sources"]:
+                    base_data["sources"][p] = sdata
+                    
+            # Merge source links
+            seen_links = {l["url"] for l in base_data["source_links"]}
+            for link in child_inv.get("source_links", []):
+                if link["url"] not in seen_links:
+                    base_data["source_links"].append(link)
+                    seen_links.add(link["url"])
+                    
+            # Merge photos
+            seen_photos = set(base_data["photos"])
+            for photo in child_inv.get("photos", []):
+                if photo not in seen_photos:
+                    base_data["photos"].append(photo)
+                    seen_photos.add(photo)
+                    
+            # Merge prices
+            def _update_min(key):
+                v = child_inv.get(key)
+                if v is not None:
+                    base_data[key] = min(base_data.get(key) or float("inf"), v)
+                    
+            def _update_max(key):
+                v = child_inv.get(key)
+                if v is not None:
+                    base_data[key] = max(base_data.get(key) or 0, v)
+                    
+            _update_min("price_min")
+            _update_max("price_max")
+            _update_min("price_m2_min")
+            _update_max("price_m2_max")
+            
+            # Merge units
+            c_units = child_inv.get("units")
+            if c_units and c_units > base_data.get("units", 0):
+                base_data["units"] = c_units
+                
+            # Merge amenities
+            if child_inv.get("amenities"):
+                current_am = set(base_data.get("amenities") or [])
+                current_am.update(child_inv.get("amenities") or [])
+                base_data["amenities"] = sorted(list(current_am))
+
+        # Fixup min/max if they stayed float("inf")
+        for k in ("price_min", "price_m2_min"):
+            if base_data.get(k) == float("inf"):
+                base_data[k] = None
+
+    return base_data

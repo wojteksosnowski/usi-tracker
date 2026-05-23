@@ -36,6 +36,7 @@
             <span className="usi-body hero-band-developer">{inv.developer}</span>
           </div>
           <div className="hero-band-stats">
+            {inv.usi_inv_id && <span className="usi-mono" style={{opacity: 0.6}}>ID: {inv.usi_inv_id}</span>}
             {inv.address && <span>📍 {inv.address}</span>}
             {inv.price_avg > 0 && <span className="usi-mono">{inv.price_avg.toLocaleString('pl-PL')} zł/m²</span>}
             <span className="usi-mono">{inv.delivery}</span>

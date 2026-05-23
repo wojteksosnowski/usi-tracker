@@ -57,7 +57,8 @@ function DataBusProvider({ children }) {
     devFilters: {
       onlyActive: false,
       onlyMerged: false,
-      onlySuggestions: false
+      onlySuggestions: false,
+      onlyPending: false
     },
     download: {
       activePortals: new Set(['rp']),
@@ -154,8 +155,26 @@ function DataBusProvider({ children }) {
 
   const refetch = React.useCallback((type = 'investments') => {
     setVariable('loading', true);
-    return setVariable(type, fetch(`/api/${type}`).then(r => r.json()).then(data => Array.isArray(data) ? data : []))
-      .finally(() => setVariable('loading', false));
+    let url = `/api/${type}`;
+    if (type === 'investments') {
+      const f = busRef.current.filters;
+      const params = new URLSearchParams();
+      if (f.search) params.append('search', f.search);
+      if (f.dev) params.append('dev', f.dev);
+      if (f.status) params.append('status', f.status);
+      if (f.onlyUnreviewed) params.append('onlyUnreviewed', 'true');
+      if (f.onlyNoPhotos) params.append('onlyNoPhotos', 'true');
+      if (f.sources && f.sources.size > 0) params.append('sources', Array.from(f.sources).join(','));
+      if (f.cities && f.cities.size > 0) params.append('cities', Array.from(f.cities).join(','));
+      url += `?${params.toString()}`;
+    }
+    return setVariable(type, fetch(url).then(r => r.json()).then(data => {
+      if (data && typeof data === 'object' && data.data) {
+        setVariable('unreviewedCount', data.unreviewedCount || 0);
+        return Array.isArray(data.data) ? data.data : [];
+      }
+      return Array.isArray(data) ? data : [];
+    })).finally(() => setVariable('loading', false));
   }, [setVariable]);
 
   // Global exports for debugging
@@ -180,36 +199,16 @@ function DataBusProvider({ children }) {
     };
   }, [isDebug]);
 
-  // Automatic filtering
+  // Trigger backend refetch on filter change with debounce
+  const filtersStr = JSON.stringify(bus.filters, (k, v) => v instanceof Set ? Array.from(v).sort() : v);
+  React.useEffect(() => {
+    const timer = setTimeout(() => refetch('investments'), 300);
+    return () => clearTimeout(timer);
+  }, [filtersStr, refetch]);
+
   const { visibleInvestments, unreviewedCount } = React.useMemo(() => {
-    const { investments, filters } = bus;
-    const { search, dev, status, sources, cities, onlyUnreviewed, onlyNoPhotos } = filters;
-
-    const filtered = investments.filter(inv => {
-      if (onlyUnreviewed && inv.reviewed !== false) return false;
-      if (onlyNoPhotos && inv.photos && inv.photos.length > 0) return false;
-      if (search) {
-        const s = search.toLowerCase();
-        const match = (inv.name?.toLowerCase().includes(s) ||
-                     inv.developer?.toLowerCase().includes(s) ||
-                     inv.district?.toLowerCase().includes(s) ||
-                     inv.address?.toLowerCase().includes(s));
-        if (!match) return false;
-      }
-      if (dev && inv.developer_slug !== dev && inv.developer !== dev) return false;
-      if (status && inv.status !== status) return false;
-      if (sources.size > 0 && inv.source && !sources.has(inv.source.toUpperCase())) return false;
-      if (cities.size > 0) {
-        const addr = (inv.address || '').toLowerCase();
-        const foundCity = MAIN_CITIES.find(c => addr.includes(c.toLowerCase()));
-        if (!foundCity || !cities.has(foundCity)) return false;
-      }
-      return true;
-    });
-
-    const count = investments.filter(i => i.reviewed === false).length;
-    return { visibleInvestments: filtered, unreviewedCount: count };
-  }, [bus.investments, bus.filters]);
+    return { visibleInvestments: bus.investments, unreviewedCount: bus.unreviewedCount || 0 };
+  }, [bus.investments, bus.unreviewedCount]);
 
   // Add visibleInvestments to the bus object for selectors
   busRef.current = { ...bus, visibleInvestments, unreviewedCount };
@@ -398,48 +397,25 @@ window.usiRegister('useMetadataConfig', useMetadataConfig);
 const _CATS = ['Balkony', 'Fasady', 'Wnętrza', 'Teren', 'Mieszkania', 'Udogodnienia'];
 
 function useModuleContext(localData) {
-  const { React, useDataBus, ratedCount, avgRating, LocalModuleContext } = window;
+  const { React, useDataBus, LocalModuleContext } = window;
   const { bus } = useDataBus();
   const ctxData = React.useContext(LocalModuleContext);
-  
-  const hasBus = bus && Object.keys(bus).length > 0;
-  if (!hasBus) {
-     // No warning here to avoid console spam during initial renders, but we handle it.
-  }
 
   return React.useMemo(() => {
     try {
       const data = localData || ctxData || bus.visibleInvestments || bus.currentInvestment || [];
       const isArray = Array.isArray(data);
-      const records = isArray ? data : [data];
       
-      const sumApartments = records.reduce((sum, inv) => sum + (parseInt(inv?.flats_count) || parseInt(inv?.units_count) || 0), 0);
-      
-      const rated = records.filter(inv => ratedCount(inv) > 0);
-      const avgListRating = rated.length > 0 ? rated.reduce((sum, inv) => sum + avgRating(inv), 0) / rated.length : 0;
-      
-      const quarters = {};
-      records.forEach(inv => {
-        const q = (inv?.delivery_quarter || inv?.delivery_date) || 'Nieznany';
-        if (!quarters[q]) quarters[q] = { flats: 0, ratingSum: 0, ratedCount: 0 };
-        quarters[q].flats += (parseInt(inv?.flats_count) || parseInt(inv?.units_count) || 0);
-        const r = avgRating(inv);
-        if (r > 0) { quarters[q].ratingSum += r; quarters[q].ratedCount += 1; }
-      });
-      const aggregateByQuarter = Object.entries(quarters)
-        .map(([q, d]) => ({ quarter: q, flats: d.flats, avgRating: d.ratedCount > 0 ? d.ratingSum / d.ratedCount : 0 }))
-        .sort((a, b) => a.quarter.localeCompare(b.quarter));
-        
-      const invForGeo = isArray ? (records[0] || {}) : data;
+      const invForGeo = isArray ? (data[0] || {}) : data;
       const coords = invForGeo?.coords || [];
       const geoPoint = coords[0] && coords[0] !== 0 ? { lat: coords[0], lng: coords[1] } : null;
 
-      return { sumApartments, avgListRating, aggregateByQuarter, geoPoint, bus };
+      return { geoPoint, bus };
     } catch(err) {
       console.error("useModuleContext error:", err);
-      return { sumApartments: 0, avgListRating: 0, aggregateByQuarter: [], geoPoint: null, bus: bus || {} };
+      return { geoPoint: null, bus: bus || {} };
     }
-  }, [localData, bus, ratedCount, avgRating]);
+  }, [localData, bus]);
 }
 window.usiRegister('useModuleContext', useModuleContext);
 

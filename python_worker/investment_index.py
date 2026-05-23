@@ -34,6 +34,16 @@ def rebuild(data_dir: Path, public_usi_dir: Path) -> int:
     entries = []
     skipped = 0
 
+    # 1. Pre-load all master files
+    masters = {}
+    for mf in data_dir.rglob("inv_master_*.json"):
+        try:
+            m_data = json.loads(mf.read_text(encoding="utf-8"))
+            if m_data.get("inv_master_id"):
+                masters[m_data["inv_master_id"]] = m_data
+        except Exception as e:
+            logger.warning(f"Error reading {mf}: {e}")
+
     for dev_dir in sorted(data_dir.iterdir()):
         if not dev_dir.is_dir() or dev_dir.name.startswith("_") or dev_dir.name.startswith("."):
             continue
@@ -50,6 +60,10 @@ def rebuild(data_dir: Path, public_usi_dir: Path) -> int:
                     portal=portal,
                 )
                 if entry:
+                    master_id = entry.get("master_id")
+                    if master_id and master_id in masters:
+                        entry["merged_from"] = masters[master_id].get("merged_from", [])
+                        entry["master_usi_inv_id"] = masters[master_id].get("master_usi_inv_id")
                     entries.append(entry)
                 else:
                     skipped += 1
@@ -61,19 +75,34 @@ def rebuild(data_dir: Path, public_usi_dir: Path) -> int:
     }
     _index_path(data_dir).write_text(json.dumps(index, ensure_ascii=False))
     logger.info(f"Index rebuilt: {len(entries)} entries, {skipped} skipped → {_index_path(data_dir)}")
+    
+    global _index_cache, _index_cache_mtime
+    _index_cache = None
+    _index_cache_mtime = 0
+    
     return len(entries)
 
+
+_index_cache = None
+_index_cache_mtime = 0
 
 def load(data_dir: Path) -> list[dict] | None:
     """
     Returns list of investment entries from index, or None if index doesn't exist.
     """
+    global _index_cache, _index_cache_mtime
     path = _index_path(data_dir)
     if not path.exists():
         return None
     try:
+        mtime = path.stat().st_mtime
+        if _index_cache is not None and mtime == _index_cache_mtime:
+            return _index_cache
+            
         index = json.loads(path.read_text())
-        return index.get("entries", [])
+        _index_cache = index.get("entries", [])
+        _index_cache_mtime = mtime
+        return _index_cache
     except Exception as e:
         logger.warning(f"Could not read investment index: {e}")
         return None
@@ -92,6 +121,19 @@ def upsert(data_dir: Path, public_usi_dir: Path, dev_slug: str, inv_slug: str, p
     entry = _load_investment(dev_slug, inv_slug, data_dir=data_dir, public_usi_dir=public_usi_dir, portal=portal)
     if not entry:
         return False
+
+    # Enrich with master data if needed
+    master_id = entry.get("master_id")
+    if master_id:
+        # Find the master file. We can search for it in data_dir.
+        for mf in data_dir.rglob(f"inv_master_{master_id}.json"):
+            try:
+                m_data = json.loads(mf.read_text(encoding="utf-8"))
+                entry["merged_from"] = m_data.get("merged_from", [])
+                entry["master_usi_inv_id"] = m_data.get("master_usi_inv_id")
+                break
+            except Exception:
+                pass
 
     try:
         index = json.loads(path.read_text())
@@ -125,6 +167,11 @@ def upsert(data_dir: Path, public_usi_dir: Path, dev_slug: str, inv_slug: str, p
     index["count"] = len(entries)
     index["updated_at"] = datetime.now().isoformat()
     path.write_text(json.dumps(index, ensure_ascii=False))
+    
+    global _index_cache, _index_cache_mtime
+    _index_cache = None
+    _index_cache_mtime = 0
+    
     return True
 
 
@@ -150,4 +197,9 @@ def remove(data_dir: Path, dev_slug: str, inv_slug: str) -> bool:
     index["count"] = len(index["entries"])
     index["updated_at"] = datetime.now().isoformat()
     path.write_text(json.dumps(index, ensure_ascii=False))
+    
+    global _index_cache, _index_cache_mtime
+    _index_cache = None
+    _index_cache_mtime = 0
+    
     return True
