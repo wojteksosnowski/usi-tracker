@@ -64,10 +64,11 @@ class TrackerDoktorDelegate:
             dev_path = self.data_dir / slug
             if dev_path.exists():
                 import json
+                from python_worker.api.utils import _find_inv_file
                 for inv_dir in dev_path.iterdir():
                     if not inv_dir.is_dir(): continue
-                    usi_file = inv_dir / f"usi_{inv_dir.name}.json"
-                    if usi_file.exists():
+                    usi_file = _find_inv_file(inv_dir, inv_dir.name)
+                    if usi_file and usi_file.exists():
                         try:
                             with open(usi_file, "r", encoding="utf-8") as f:
                                 data = json.load(f)

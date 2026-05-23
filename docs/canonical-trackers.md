@@ -689,6 +689,7 @@ usi_dev_{DEV-ID}_{dev_slug}.json  ←── create_developer_file()
 | `raw_*` są immutable | nigdy nie edytuj po pobraniu |
 | canonical = `usi_{portal}_{portal_id}.json` | np. `usi_rp_14563.json`, `usi_oto_ID4lulo.json` — jeden plik per inwestycja, nazwany po ID portalu |
 | legacy (tylko odczyt) | `usi_{inv_slug}.json`, `usi_rp_{inv_slug}.json`, `usi_oto_{inv_slug}.json` — `_load_investment()` obsługuje kolejność: nowy format (rp→oto→to) → legacy slug |
+| Odczyt plików | Nigdy nie hardkoduj ścieżek `usi_{inv_slug}.json`. Zawsze używaj `python_worker.api.utils._find_inv_file(inv_dir, inv_slug)` |
 
 ### 8.2 Deweloperzy
 

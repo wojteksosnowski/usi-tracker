@@ -32,8 +32,10 @@ def _poi_path(dev_slug: str, inv_slug: str) -> Path:
 
 
 def _load_inv(dev_slug: str, inv_slug: str) -> dict | None:
-    p = USI_DATA_DIR / dev_slug / inv_slug / f"usi_{inv_slug}.json"
-    if not p.exists():
+    from python_worker.api.utils import _find_inv_file
+    inv_dir = USI_DATA_DIR / dev_slug / inv_slug
+    p = _find_inv_file(inv_dir, inv_slug)
+    if not p or not p.exists():
         return None
     try:
         return json.loads(p.read_text(encoding="utf-8"))

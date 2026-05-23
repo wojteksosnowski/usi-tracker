@@ -11,7 +11,7 @@ from usi_scrapers.fetcher import Fetcher
 from usi_scrapers import api as scraper_api
 from .logger_utils import log_to_processing_log
 from .developer_manager import DeveloperManager
-from .detect_similar_devs import detect_similar
+
 from .audit_worker import run_audit_cli
 
 # Set up logging for the whole application
@@ -199,11 +199,19 @@ def main():
     # Command: suggest
     parser_suggest = subparsers.add_parser("suggest", help="Run the developer suggestion algorithm (similarity & location)")
 
+    # Command: suggest-invs
+    parser_suggest_invs = subparsers.add_parser("suggest-invs", help="Run the investment suggestion algorithm")
+    parser_suggest_invs.add_argument("--dev", type=str, help="Developer slug to scan within")
+    parser_suggest_invs.add_argument("--inv", type=str, help="Specific investment USI ID to scan for")
+
     # Command: run-audit
     subparsers.add_parser("run-audit", help="Scan and process investments flagged for audit")
 
     # Command: rebuild-index
     subparsers.add_parser("rebuild-index", help="Rebuild the investment list index (_index.json in USIdata)")
+
+    # Command: rebuild-dev-index
+    subparsers.add_parser("rebuild-dev-index", help="Rebuild the developer list index (_dev_index.json in USIdev)")
 
     args = parser.parse_args()
 
@@ -263,10 +271,11 @@ def main():
             logger.error("Investment path must be in format dev_slug/inv_slug")
             sys.exit(1)
             
+        from python_worker.api.utils import _find_inv_file
         inv_dir = USI_DATA_DIR / dev_slug / inv_slug
-        usi_file = inv_dir / f"usi_{inv_slug}.json"
-        if not usi_file.exists():
-            logger.error(f"Investment info not found: {usi_file}")
+        usi_file = _find_inv_file(inv_dir, inv_slug)
+        if not usi_file or not usi_file.exists():
+            logger.error(f"Investment info not found in: {inv_dir}")
             sys.exit(1)
             
         with open(usi_file, "r") as f:
@@ -338,6 +347,7 @@ def main():
         logger.info(f"rebuild-devs finished: {built} built, {skipped} skipped.")
 
     elif args.command == "rebuild-all":
+        from .config import USI_DATA_DIR
         logger.info("Rebuilding usi_*.json from local raw files for all investments...")
         from .services.investment_service import InvestmentService
         svc = InvestmentService()
@@ -372,8 +382,27 @@ def main():
         logger.info(f"rebuild-all finished: {built} built, {failed} failed, {skipped} skipped.")
 
     elif args.command == "suggest":
-        logger.info("Starting developer suggestion algorithm...")
-        detect_similar()
+        from python_worker.daemons import TrackerDoktorDelegate
+        from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
+        delegate = TrackerDoktorDelegate(USI_DATA_DIR, USI_DEV_DIR)
+        try:
+            from usi_crawlers.algorithms.similarity import calculate_similarities
+            devs = delegate.get_developers_for_analysis()
+            dismissed = delegate.get_dismissed_cache()
+            suggestions = calculate_similarities(devs, dismissed)
+            grouped = {}
+            for s in suggestions:
+                grouped.setdefault(s["source_id"], []).append(s)
+            for dev_id, sugs in grouped.items():
+                delegate.save_suggestions(dev_id, sugs)
+            logger.info(f"Suggestion algorithm finished. Found {len(suggestions)} pairs.")
+        except ImportError:
+            logger.error("usi_crawlers is not installed.")
+
+    elif args.command == "suggest-invs":
+        from .detect_similar_invs import detect_similar_invs
+        from .config import USI_DATA_DIR
+        detect_similar_invs(Path(USI_DATA_DIR), args.dev, args.inv)
         logger.info("Suggestion algorithm finished.")
 
     elif args.command == "run-audit":
@@ -381,10 +410,21 @@ def main():
 
     elif args.command == "rebuild-index":
         from .investment_index import rebuild as rebuild_index
-        from .config import PUBLIC_USI_DIR
+        from .config import PUBLIC_USI_DIR, USI_DATA_DIR
         logger.info("Rebuilding investment index...")
         count = rebuild_index(USI_DATA_DIR, Path(PUBLIC_USI_DIR))
         logger.info(f"Done. {count} investments indexed.")
+
+    elif args.command == "rebuild-dev-index":
+        from .config import USI_DATA_DIR
+        from .developer_index import rebuild as rebuild_dev_index, rebuild_master_index
+        logger.info("Rebuilding developer index...")
+        
+        dev_dir = USI_DATA_DIR.parent / "USIdev"
+        rebuild_master_index(dev_dir)
+        count = rebuild_dev_index(USI_DATA_DIR, dev_dir)
+        
+        logger.info(f"Rebuilt index with {count} entries.")
 
 if __name__ == "__main__":
     main()
