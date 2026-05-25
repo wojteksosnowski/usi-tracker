@@ -42,12 +42,9 @@ def rebuild(data_dir: Path, public_usi_dir: Path) -> int:
         
         try:
             data = json.loads(usi_file.read_text())
-            master_id = data.get("master_id")
             usi_inv_id = data.get("usi_inv_id") or data.get("usi_id")
             
-            if master_id:
-                uid = master_id
-            elif usi_inv_id:
+            if usi_inv_id:
                 uid = usi_inv_id
             else:
                 portal = data.get("portal")
@@ -160,6 +157,7 @@ def rebuild(data_dir: Path, public_usi_dir: Path) -> int:
             entries.append({
                 "id": uid,
                 "usi_inv_id": data.get("usi_inv_id") or data.get("usi_id"),
+                "usi_dev_id": data.get("usi_dev_id"),
                 "portal_id": portal_id,
                 "portal": portal,
                 "source": portal,
@@ -237,19 +235,6 @@ def upsert(data_dir: Path, public_usi_dir: Path, dev_slug: str, inv_slug: str, p
     entry = _load_investment(dev_slug, inv_slug, data_dir=data_dir, public_usi_dir=public_usi_dir, portal=portal)
     if not entry:
         return False
-
-    # Enrich with master data if needed
-    master_id = entry.get("master_id")
-    if master_id:
-        # Find the master file. We can search for it in data_dir.
-        for mf in data_dir.rglob(f"inv_master_{master_id}.json"):
-            try:
-                m_data = json.loads(mf.read_text(encoding="utf-8"))
-                entry["merged_from"] = m_data.get("merged_from", [])
-                entry["master_usi_inv_id"] = m_data.get("master_usi_inv_id")
-                break
-            except Exception:
-                pass
 
     try:
         index = json.loads(path.read_text())

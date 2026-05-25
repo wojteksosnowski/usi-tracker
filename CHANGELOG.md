@@ -54,6 +54,13 @@
 - Optymalizacja Responsywności: Dostosowano siatkę dashboardu do urządzeń mobilnych i tabletów (dynamiczne przełączanie kolumn).
 - Standaryzacja Kart: Wszystkie moduły dashboardu korzystają teraz ze spójnego komponentu BaseModule.
 
+## v0.9.9 — 2026-05-25
+
+- **Identity Resolver (Resource Mapping)**: Wdrożono scentralizowany mechanizm mapowania ID na zasoby fizyczne (`InvestmentService.get_investment_resources`, `DeveloperManager.get_developer_resources`). 
+- **Stabilność ID-ONLY**: Zastąpiono rozproszoną logikę "zgadywania" ścieżek na podstawie slugów jednym, autorytatywnym punktem styku z systemem plików. Gwarantuje to poprawne działanie systemu nawet po zmianie nazw folderów.
+- **Robust ID Injection**: Zaktualizowano `_load_investment` o automatyczne wstrzykiwanie `usi_inv_id` do rekordów legacy, które nie posiadają ID wewnątrz pliku, ale są poprawnie zaindeksowane.
+- **Refaktoryzacja I/O**: Operacje przeglądu (review), raportowania błędów oraz zarządzania zdjęciami korzystają teraz wyłącznie z nowego resolvera tożsamości.
+
 ## v0.9.8 — 2026-05-25
 
 - **Architektura ID-ONLY**: Pełne wdrożenie zasady identyfikacji po ID. Funkcja indeksowania (`rebuild`) korzysta teraz wyłącznie z danych wewnątrz plików JSON, a nie z nazw katalogów.

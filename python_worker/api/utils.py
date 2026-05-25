@@ -128,38 +128,55 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None,
     if data_dir is None: data_dir = Path(USI_DATA_DIR)
     if public_usi_dir is None: public_usi_dir = Path(PUBLIC_USI_DIR)
     
+    usi_file = None
+    resources = None
+    
+    # PRIORITY 1: Resolve via Identity Service if ID provided
+    if system_id and not system_id.startswith("legacy_"):
+        from python_worker.services.investment_service import InvestmentService
+        svc = InvestmentService(data_dir=data_dir, public_usi_dir=public_usi_dir)
+        resources = svc.get_investment_resources(system_id)
+        if resources:
+            usi_file = resources["files"].get("anchor")
+            # Update slugs from resources to ensure we are in the right folder
+            dev_slug = resources["metadata"]["slug"].split("/")[0]
+            inv_slug = resources["metadata"]["slug"].split("/")[1]
+
     inv_dir = data_dir / dev_slug / inv_slug
 
-    usi_file = None
-    if system_id:
-        usi_file = _find_inv_file(inv_dir, inv_slug, system_id=system_id)
-    elif portal:
-        # Known portal: prefer new format usi_{portal}_{id}.json, fallback to slug-based
-        candidates = sorted(inv_dir.glob(f"usi_{portal}_*.json"))
-        usi_file = candidates[0] if candidates else (inv_dir / f"usi_{portal}_{inv_slug}.json")
-    else:
-        # Autodetect: new format (rp > oto > to) then legacy slug-based variants
-        for p in ("rp", "oto", "to"):
-            candidates = sorted(inv_dir.glob(f"usi_{p}_*.json"))
-            if candidates:
-                usi_file = candidates[0]
-                break
-        if not usi_file:
-            for legacy in (
-                inv_dir / f"usi_{inv_slug}.json",
-                inv_dir / f"usi_rp_{inv_slug}.json",
-                inv_dir / f"usi_oto_{inv_slug}.json",
-                inv_dir / f"usi_to_{inv_slug}.json",
-            ):
-                if legacy.exists():
-                    usi_file = legacy
+    if not usi_file:
+        if system_id:
+            usi_file = _find_inv_file(inv_dir, inv_slug, system_id=system_id)
+        elif portal:
+            # Known portal: prefer new format usi_{portal}_{id}.json, fallback to slug-based
+            candidates = sorted(inv_dir.glob(f"usi_{portal}_*.json"))
+            usi_file = candidates[0] if candidates else (inv_dir / f"usi_{portal}_{inv_slug}.json")
+        else:
+            # Autodetect: new format (rp > oto > to) then legacy slug-based variants
+            for p in ("rp", "oto", "to"):
+                candidates = sorted(inv_dir.glob(f"usi_{p}_*.json"))
+                if candidates:
+                    usi_file = candidates[0]
                     break
+            if not usi_file:
+                for legacy in (
+                    inv_dir / f"usi_{inv_slug}.json",
+                    inv_dir / f"usi_rp_{inv_slug}.json",
+                    inv_dir / f"usi_oto_{inv_slug}.json",
+                    inv_dir / f"usi_to_{inv_slug}.json",
+                ):
+                    if legacy.exists():
+                        usi_file = legacy
+                        break
 
     if not usi_file or not usi_file.exists():
         return None
         
     try:
         usi = json.loads(usi_file.read_text())
+        # Robust ID injection: if the file lacks ID, but Identity Service found it, use it.
+        if resources and not usi.get("usi_inv_id"):
+            usi["usi_inv_id"] = resources["id"]
     except Exception:
         return None
 
@@ -197,6 +214,11 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None,
 
     # 2. Fallback: Direct directory scan if no valid recorded paths found
     if not images:
+        if resources and resources.get("images_dir"):
+            img_dir = resources["images_dir"]
+        else:
+            img_dir = public_usi_dir / dev_slug / inv_slug
+            
         _IMG_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 
         def _scan(d: Path) -> list:
@@ -208,7 +230,7 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None,
 
         # 1. Exact paths (current dev_slug and USIdata parent name)
         for candidate in {
-            public_usi_dir / dev_slug / inv_slug,
+            img_dir,
             public_usi_dir / Path(inv_dir).parent.name / inv_slug,
         }:
             images = _scan(candidate)
@@ -334,6 +356,7 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None,
         "coords": [lat, lng],
         "photos": images,
         "id": system_id or usi.get("master_id") or (f"{usi.get('portal')}_{usi.get('portal_id')}" if usi.get("portal") and usi.get("portal_id") else f"legacy_{dev_slug}/{inv_slug}"),
+        "usi_inv_id": usi.get("usi_inv_id"),
         "usi_dev_id": usi.get("usi_dev_id"),
         "ratings": usi.get("ratings", {}),
         "comment": usi.get("ratings", {}).get("komentarz", ""),
@@ -348,70 +371,5 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None,
         "merged_from": merged_from,
     }
 
-    if not skip_merge and merged_from and data_dir:
-        for child_meta in merged_from:
-            c_id = child_meta.get("usi_inv_id")
-            if c_id == base_data.get("usi_inv_id"):
-                continue
-                
-            c_dev_slug = child_meta.get("dev_slug")
-            c_inv_slug = child_meta.get("inv_slug")
-            if not c_dev_slug or not c_inv_slug:
-                continue
-                
-            child_inv = _load_investment(c_dev_slug, c_inv_slug, data_dir=data_dir, public_usi_dir=public_usi_dir, skip_merge=True)
-            if not child_inv:
-                continue
-                
-            # Merge sources
-            for p, sdata in child_inv.get("sources", {}).items():
-                if p not in base_data["sources"]:
-                    base_data["sources"][p] = sdata
-                    
-            # Merge source links
-            seen_links = {l["url"] for l in base_data["source_links"]}
-            for link in child_inv.get("source_links", []):
-                if link["url"] not in seen_links:
-                    base_data["source_links"].append(link)
-                    seen_links.add(link["url"])
-                    
-            # Merge photos
-            seen_photos = set(base_data["photos"])
-            for photo in child_inv.get("photos", []):
-                if photo not in seen_photos:
-                    base_data["photos"].append(photo)
-                    seen_photos.add(photo)
-                    
-            # Merge prices
-            def _update_min(key):
-                v = child_inv.get(key)
-                if v is not None:
-                    base_data[key] = min(base_data.get(key) or float("inf"), v)
-                    
-            def _update_max(key):
-                v = child_inv.get(key)
-                if v is not None:
-                    base_data[key] = max(base_data.get(key) or 0, v)
-                    
-            _update_min("price_min")
-            _update_max("price_max")
-            _update_min("price_m2_min")
-            _update_max("price_m2_max")
-            
-            # Merge units
-            c_units = child_inv.get("units")
-            if c_units and c_units > base_data.get("units", 0):
-                base_data["units"] = c_units
-                
-            # Merge amenities
-            if child_inv.get("amenities"):
-                current_am = set(base_data.get("amenities") or [])
-                current_am.update(child_inv.get("amenities") or [])
-                base_data["amenities"] = sorted(list(current_am))
-
-        # Fixup min/max if they stayed float("inf")
-        for k in ("price_min", "price_m2_min"):
-            if base_data.get(k) == float("inf"):
-                base_data[k] = None
-
+    # 1 minikarta = 1 portal. Skip merging data from children/siblings.
     return base_data

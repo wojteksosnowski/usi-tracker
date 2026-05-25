@@ -7,6 +7,7 @@ USI Tracker is a specialized system for monitoring real-estate investments in Po
 - **Purpose**: Automate the collection of investment data (prices, delivery dates, amenities, photos) and unify them into a canonical JSON format (`usi_*.json`).
 - **Core Architecture**:
   - **ID-only**: Universal rule - all identification must be derived from unique ID. Slug based identification is prohibitted.
+  - **Identity Resolver (Resource Mapping)**: Centralized services (`InvestmentService.get_investment_resources`, `DeveloperManager.get_developer_resources`) that resolve physical file paths exclusively from USI IDs. All I/O operations must use these resolvers to avoid path drift caused by slug changes.
   - **Thin-Client Scrapers**: ALL technical I/O, raw data fetching, and asset management (images) are delegated to the `usi-scrapers` library. The tracker acts as an orchestrator.
   - **Wedrowiec (Unified Crawler)**: A background daemon (`crawler.py`) that performs periodic "Visits" (discovery for known developers) and "Exploration" (systematic paging of portal catalogs to find new developers).
   - **TechnicalDataManager**: Centralized manager in `usi-scrapers` used for path resolution and technical data persistence.

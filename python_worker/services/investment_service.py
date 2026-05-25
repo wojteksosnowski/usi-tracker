@@ -43,40 +43,142 @@ class InvestmentService:
     @lru_cache(maxsize=128)
     def get_unified_view(self, inv_id: str) -> dict:
         """Dynamically aggregates T0 and T1 data into a virtual T3 Master view."""
-        from python_worker.api.utils import _find_inv_file
-        
-        # 1. Resolve Anchor from ID
-        # Search all dev dirs for the anchor
-        anchor_file = None
-        for p in self.data_dir.rglob(f"usi_*.json"):
-            if "usi_dev_" in p.name: continue
-            try:
-                data = json.loads(p.read_text())
-                if data.get("usi_inv_id") == inv_id:
-                    anchor_file = p
-                    break
-            except: continue
-        
+        resources = self.get_investment_resources(inv_id)
+        if not resources:
+            return {}
+
+        anchor_file = resources["files"].get("anchor")
         if not anchor_file:
             return {}
 
         anchor = json.loads(anchor_file.read_text())
         
-        # 2. Get Aggregation scope (merged siblings)
-        master_id = anchor.get("master_id")
-        anchors = [anchor]
-        if master_id:
-            # Find all anchors with same master_id
-            for p in self.data_dir.rglob(f"usi_*.json"):
+        # 1 card = 1 portal. Do NOT aggregate siblings by master_id.
+        return self._aggregate_anchors([anchor])
+
+    def get_investment_resources(self, inv_id: str) -> dict | None:
+        """
+        Universal ID-to-File mapping for investments.
+        Returns a map of all physical files associated with a USI Investment ID.
+        
+        ARCHITECTURAL MANDATE: ID-ONLY PRIORITY.
+        This is the primary method for resolving physical resources. Never use slugs
+        for file lookup if an ID is available.
+        """
+        from python_worker.investment_index import load as load_index
+        index = load_index(self.data_dir)
+        if not index:
+            # Fallback to scan if index missing
+            for p in self.data_dir.rglob("usi_*.json"):
                 if "usi_dev_" in p.name: continue
                 try:
-                    a = json.loads(p.read_text())
-                    if a.get("master_id") == master_id and a.get("usi_inv_id") != inv_id:
-                        anchors.append(a)
+                    data = json.loads(p.read_text())
+                    if data.get("usi_inv_id") == inv_id:
+                        entry = {
+                            "usi_inv_id": inv_id,
+                            "developer_slug": p.parent.parent.name,
+                            "investment_slug": p.parent.name,
+                            "portal": data.get("portal"),
+                            "portal_id": data.get("portal_id")
+                        }
+                        return self._map_resources_from_entry(entry)
                 except: continue
+            return None
 
-        # 3. Aggregate T0 and T1 data
-        return self._aggregate_anchors(anchors)
+        # Fast path via index
+        entry = next((e for e in index if e.get("usi_inv_id") == inv_id), None)
+        if not entry:
+            return None
+
+        return self._map_resources_from_entry(entry)
+
+    def _map_resources_from_entry(self, entry: dict) -> dict:
+        dev_slug = entry["developer_slug"]
+        inv_slug = entry["investment_slug"]
+        inv_dir = self.data_dir / dev_slug / inv_slug
+        
+        portal = entry.get("portal")
+        portal_id = entry.get("portal_id")
+        
+        # Determine anchor file precisely
+        anchor_file = None
+        if portal and portal_id:
+            f = inv_dir / f"usi_{portal}_{portal_id}.json"
+            if f.exists():
+                anchor_file = f
+        
+        if not anchor_file:
+            # Fallback for legacy slug-based anchors
+            for p in (inv_dir / f"usi_{inv_slug}.json", 
+                      inv_dir / f"usi_rp_{inv_slug}.json", 
+                      inv_dir / f"usi_oto_{inv_slug}.json", 
+                      inv_dir / f"usi_to_{inv_slug}.json"):
+                if p.exists():
+                    anchor_file = p
+                    break
+
+        # Determine raw file
+        raw_file = None
+        if portal and portal_id:
+            f = inv_dir / f"raw_{portal}_{portal_id}.json"
+            if f.exists():
+                raw_file = f
+        
+        if not raw_file and portal:
+            # Try slug-based raw file
+            f = inv_dir / f"raw_{portal}_{inv_slug}.json"
+            if f.exists():
+                raw_file = f
+        
+        if not raw_file:
+            # Last resort: find any raw file for this portal
+            matches = sorted(list(inv_dir.glob(f"raw_{portal}_*.json"))) if portal else []
+            if matches:
+                raw_file = matches[-1]
+
+        # Determine meta/ratings file
+        meta_file = inv_dir / f"meta_{inv_slug}_ratings.json"
+        if not meta_file.exists():
+            # Fallback for legacy meta files
+            for p in (inv_dir / f"meta_rp_{inv_slug}.json", 
+                      inv_dir / f"meta_oto_{inv_slug}.json", 
+                      inv_dir / f"meta_to_{inv_slug}.json"):
+                if p.exists():
+                    meta_file = p
+                    break
+        
+        # Images dir
+        images_dir = self.public_usi_dir / dev_slug / inv_slug
+        if not images_dir.exists():
+            # Check if it was pinned to a different dev folder
+            if anchor_file:
+                try:
+                    data = json.loads(anchor_file.read_text())
+                    img_list = data.get("ratings", {}).get("imgList") or ""
+                    if "/Public/USI/" in img_list:
+                        import re
+                        m = re.search(r'/Public/USI/([^/]+)/', img_list)
+                        if m:
+                            images_dir = self.public_usi_dir / m.group(1) / inv_slug
+                except: pass
+
+        return {
+            "id": entry["usi_inv_id"],
+            "type": "investment",
+            "base_dir": inv_dir,
+            "files": {
+                "anchor": anchor_file if anchor_file and anchor_file.exists() else None,
+                "raw": raw_file if raw_file and raw_file.exists() else None,
+                "meta": meta_file if meta_file and meta_file.exists() else None,
+                "logs": [inv_dir / "deletion_list.json"] if (inv_dir / "deletion_list.json").exists() else []
+            },
+            "images_dir": images_dir if images_dir.exists() else None,
+            "metadata": {
+                "portal": portal,
+                "portal_id": portal_id,
+                "slug": f"{dev_slug}/{inv_slug}"
+            }
+        }
 
     def _aggregate_anchors(self, anchors: list[dict]) -> dict:
         master = {
@@ -86,6 +188,17 @@ class InvestmentService:
         }
         
         for anchor in anchors:
+            # Determine portal if missing from root
+            portal = anchor.get("portal")
+            sources = anchor.get("sources") or {}
+            if not portal and sources:
+                for p in ("rp", "oto", "to"):
+                    if p in sources:
+                        portal = p
+                        break
+                if not portal:
+                    portal = list(sources.keys())[0] if sources else "unknown"
+
             raw_path = self.public_usi_dir.parent / "USIdata" / anchor.get("raw_file", "")
             meta_path = self.public_usi_dir.parent / "USIdata" / anchor.get("meta_file", "")
             
@@ -93,7 +206,7 @@ class InvestmentService:
             meta_data = self._load_json(meta_path)
             
             master["data"].append({
-                "portal": anchor["portal"],
+                "portal": portal,
                 "raw": raw_data,
                 "meta": meta_data
             })
@@ -807,8 +920,15 @@ class InvestmentService:
 
     def mark_as_reviewed(self, dev_slug, inv_slug, system_id=None):
         """Sets the reviewed flag to true for the specified investment."""
-        inv_dir = self.data_dir / dev_slug / inv_slug
-        usi_file = _find_inv_file(inv_dir, inv_slug, system_id=system_id)
+        usi_file = None
+        if system_id and not system_id.startswith("legacy_"):
+            resources = self.get_investment_resources(system_id)
+            if resources:
+                usi_file = resources["files"].get("anchor")
+        
+        if not usi_file:
+            inv_dir = self.data_dir / dev_slug / inv_slug
+            usi_file = _find_inv_file(inv_dir, inv_slug, system_id=system_id)
 
         if not usi_file:
             return False
@@ -831,8 +951,15 @@ class InvestmentService:
 
     def add_report(self, dev_slug, inv_slug, note, system_id=None):
         """Adds a problem report note to the investment record."""
-        inv_dir = self.data_dir / dev_slug / inv_slug
-        usi_file = _find_inv_file(inv_dir, inv_slug, system_id=system_id)
+        usi_file = None
+        if system_id and not system_id.startswith("legacy_"):
+            resources = self.get_investment_resources(system_id)
+            if resources:
+                usi_file = resources["files"].get("anchor")
+
+        if not usi_file:
+            inv_dir = self.data_dir / dev_slug / inv_slug
+            usi_file = _find_inv_file(inv_dir, inv_slug, system_id=system_id)
 
         if not usi_file:
             return False
@@ -861,7 +988,15 @@ class InvestmentService:
             return False
 
     def mark_deleted_photos(self, dev_slug, inv_slug, paths, system_id=None):
-        inv_dir = self.data_dir / dev_slug / inv_slug
+        inv_dir = None
+        if system_id and not system_id.startswith("legacy_"):
+            resources = self.get_investment_resources(system_id)
+            if resources:
+                inv_dir = resources["base_dir"]
+        
+        if not inv_dir:
+            inv_dir = self.data_dir / dev_slug / inv_slug
+            
         if not inv_dir.exists():
             return False
 

@@ -144,9 +144,7 @@ def list_investments():
         if inv.get("reviewed") is False:
             unreviewed_count += 1
             
-        # Hide merged children
-        if inv.get("master_id") and inv.get("master_usi_inv_id") and inv.get("usi_inv_id") != inv.get("master_usi_inv_id"):
-            continue
+        # 1 card = 1 portal. DO NOT hide merged children.
             
         if only_unreviewed and inv.get("reviewed") is not False:
             continue
@@ -395,9 +393,12 @@ def get_developer_detail(dev_slug):
     logger.info(f"[TIMING] DM Init: {t2-t1:.3f}s")
     
     usi_dev_id = request.args.get("id")
+    dev = None
     if usi_dev_id:
         dev = dm.get_developer_by_id(usi_dev_id)
-    else:
+    
+    # Fallback to slug if ID not found or not provided
+    if not dev:
         dev = dm.get_developer(dev_slug)
     
     t3 = time.time()
@@ -423,9 +424,6 @@ def get_developer_detail(dev_slug):
     invs_by_dev_id = {}
     for i in all_invs:
         did = i.get("usi_dev_id")
-        if not did:
-            # Fallback mapping if usi_dev_id is mysteriously missing in index
-            did = dev_slug_to_id.get(i.get("developer_slug"))
         if did:
             invs_by_dev_id.setdefault(did, []).append(i)
     
@@ -436,67 +434,23 @@ def get_developer_detail(dev_slug):
     # 1. Collect all valid members and original portal mappings
     base_pm = (dev.get("original_portal_mapping") or dev.get("portal_mapping") or {}).copy()
     valid_members = []
-    aggregated_pm = base_pm.copy()
     
     for member in dev.get("merged_from", []):
         child_id = member.get("usi_dev_id")
-        child_slug = member.get("slug")
-        child_dev = (dm.get_developer_by_id(child_id) if child_id else (dm.get_developer(child_slug) if child_slug else None))
+        child_dev = dm.get_developer_by_id(child_id) if child_id else None
         
         if not child_dev or child_dev.get("usi_dev_id") == dev.get("usi_dev_id"):
             continue
             
-        c_slug = child_dev.get("developer_slug", child_slug)
-        member["slug"] = c_slug
-        
-        # We need the original mapping of the child to match its specific investments
-        child_pm = (child_dev.get("original_portal_mapping") or child_dev.get("portal_mapping") or {}).copy()
-        
-        for p in ("rp", "oto", "to"):
-            if not aggregated_pm.get(p) and child_pm.get(p):
-                aggregated_pm[p] = child_pm[p]
-        
-        # Temp keys for distribution
-        member["_pm"] = child_pm
+        member["slug"] = child_dev.get("developer_slug")
+        member["_pm"] = (child_dev.get("original_portal_mapping") or child_dev.get("portal_mapping") or {}).copy()
         member["_dev"] = child_dev
-        member["_invs"] = []
+        member["_invs"] = invs_by_dev_id.get(child_id, [])
         valid_members.append(member)
 
-    # 2. Collect ALL investments for this entire group (base + children)
-    all_group_invs_raw = list(invs_by_dev_id.get(target_id, []))
-    for m in valid_members:
-        cid = m["_dev"].get("usi_dev_id")
-        if cid and cid != target_id:
-            all_group_invs_raw.extend(invs_by_dev_id.get(cid, []))
-            
-    # Deduplicate by usi_inv_id
-    unique_invs = {}
-    for i in all_group_invs_raw:
-        iid = i.get("usi_inv_id")
-        if iid: unique_invs[iid] = i
-    all_group_invs = list(unique_invs.values())
-
-    # 3. Distribute investments based on their actual source
-    base_invs = []
+    # 2. Collect base investments
+    base_invs = invs_by_dev_id.get(target_id, [])
     base_portals = {p for p in ("rp", "oto", "to") if base_pm.get(p)}
-    
-    for inv in all_group_invs:
-        assigned = False
-        # Try to match a child first (since base is often a generic host/skeleton)
-        for m in valid_members:
-            m_portals = {p for p in ("rp", "oto", "to") if m["_pm"].get(p)}
-            if m_portals and dm._inv_matches_dev(inv, m["_pm"]):
-                m["_invs"].append(inv)
-                assigned = True
-                break
-        
-        if not assigned:
-            # If no child matched, or base has matching portals
-            if not base_portals or dm._inv_matches_dev(inv, base_pm):
-                base_invs.append(inv)
-            else:
-                # Last resort: put in base anyway so it's visible somewhere
-                base_invs.append(inv)
 
     # 4. Finalize Base Record UI response
     # MANDATE: If base is a skeleton (no portal mapping) AND has 0 investments after distribution, 

@@ -39,14 +39,15 @@ class DeveloperManager:
         return self._cached_inv_index
 
     @property
-    def _inv_by_dev_slug(self):
-        if not hasattr(self, "_cached_inv_by_dev"):
-            self._cached_inv_by_dev = {}
+    def _inv_by_dev_id(self):
+        """Groups all investments by their usi_dev_id (ID-only rule)."""
+        if not hasattr(self, "_cached_inv_by_id"):
+            self._cached_inv_by_id = {}
             for inv in self._inv_index_data:
-                slug = inv.get("developer_slug")
-                if slug:
-                    self._cached_inv_by_dev.setdefault(slug, []).append(inv)
-        return self._cached_inv_by_dev
+                did = inv.get("usi_dev_id")
+                if did:
+                    self._cached_inv_by_id.setdefault(did, []).append(inv)
+        return self._cached_inv_by_id
 
     def _get_next_counter(self, key: str) -> int:
         """Atomic counter increment — thread-safe (threading.Lock) and process-safe (flock)."""
@@ -416,6 +417,7 @@ class DeveloperManager:
             dev.setdefault("suggestions", [])
 
         # Process investment stats and aggregated portal_mapping
+        base_id = dev.get("usi_dev_id")
         base_slug = dev.get("developer_slug", "")
         base_pm = dev.get("portal_mapping") or {}
         dev["original_portal_mapping"] = base_pm.copy()
@@ -425,45 +427,42 @@ class DeveloperManager:
         total_count = 0
         existing_inv_ids = set()
 
-        def _process_slug(slug: str, pm: dict):
+        def _process_id(did: str):
             nonlocal total_count
-            invs = self._inv_by_dev_slug.get(slug, [])
-            portals = {p for p in ("rp", "oto", "to") if pm.get(p)}
+            invs = self._inv_by_dev_id.get(did, [])
             for i in invs:
-                if not portals or self._inv_matches_dev(i, pm):
-                    ci_id = i.get("usi_inv_id")
-                    if ci_id and ci_id not in existing_inv_ids:
-                        total_count += 1
-                        existing_inv_ids.add(ci_id)
-                    elif not ci_id:
-                        total_count += 1
-                    
-                    # Dynamically infer portal from investment
-                    src = i.get("source", "").lower()
-                    if src in ("rp", "oto", "to"):
-                        if not aggregated_pm.get(src):
-                            aggregated_pm[src] = {"_inferred": True}
-                    
-                    ts = i.get("last_updated_ts")
-                    if ts:
-                        all_mtimes.append(ts)
-
-        # 1. Base record
-        _process_slug(base_slug, base_pm)
-
-        # 2. Merged children
-        for member in dev.get("merged_from", []):
-            child_id = member.get("usi_dev_id")
-            if not child_id: continue
-            child_record = self.get_developer_by_id(child_id)
-            if child_record:
-                child_slug = child_record.get("developer_slug") or member.get("slug")
-                child_pm = child_record.get("portal_mapping") or {}
-                _process_slug(child_slug, child_pm)
+                ci_id = i.get("usi_inv_id")
+                if ci_id and ci_id not in existing_inv_ids:
+                    total_count += 1
+                    existing_inv_ids.add(ci_id)
+                elif not ci_id:
+                    total_count += 1
                 
-                for p in ("rp", "oto", "to"):
-                    if not aggregated_pm.get(p) and child_pm.get(p):
-                        aggregated_pm[p] = child_pm[p]
+                # Dynamically infer portal from investment
+                src = i.get("source", "").lower()
+                if src in ("rp", "oto", "to"):
+                    if not aggregated_pm.get(src):
+                        aggregated_pm[src] = {"_inferred": True}
+                
+                ts = i.get("last_updated_ts")
+                if ts:
+                    all_mtimes.append(ts)
+
+        if base_id:
+            _process_id(base_id)
+
+        # Process merged members
+        for member in dev.get("merged_from", []):
+            mid = member.get("usi_dev_id")
+            if mid:
+                _process_id(mid)
+                # Aggregate portal mappings from children
+                child_record = self.get_developer_by_id(mid)
+                if child_record:
+                    child_pm = child_record.get("portal_mapping") or {}
+                    for p in ("rp", "oto", "to"):
+                        if not aggregated_pm.get(p) and child_pm.get(p):
+                            aggregated_pm[p] = child_pm[p]
         
         dev["portal_mapping"] = aggregated_pm
         dev["investments_count"] = total_count
@@ -501,7 +500,25 @@ class DeveloperManager:
                     return None
 
         if dev is None:
-            return None
+            # Lazy Repair: if the file is missing but the folder exists and has raw files,
+            # try to rebuild it on the fly.
+            subdir = self.dev_dir / dev_slug
+            if subdir.is_dir():
+                from .init_developers import _build_dev_from_raws
+                if _build_dev_from_raws(subdir, dev_slug, None, self):
+                    # Try loading again after repair
+                    for candidate in [
+                        self._dev_file_path(dev_slug),
+                        self._dev_file_path_old_canonical(dev_slug),
+                    ]:
+                        if candidate and candidate.exists():
+                            try:
+                                dev = json.loads(candidate.read_text(encoding="utf-8"))
+                                break
+                            except: continue
+
+            if dev is None:
+                return None
 
         return self._enrich_with_master(dev)
 
@@ -539,6 +556,86 @@ class DeveloperManager:
             except Exception:
                 continue
         return None
+
+    def get_developer_resources(self, usi_dev_id: str) -> dict | None:
+        """
+        Universal ID-to-File mapping for developers.
+        Returns a map of all physical files associated with a USI Developer ID.
+        
+        ARCHITECTURAL MANDATE: ID-ONLY PRIORITY.
+        This method is the authoritative way to locate developer resources (Level 2 & 3).
+        Always resolve physical paths via this resolver using USI-DEV-ID.
+        """
+        from . import developer_index
+        index = developer_index.load(self.dev_dir)
+        
+        entry = None
+        if index:
+            entry = next((e for e in index if e.get("usi_dev_id") == usi_dev_id), None)
+        
+        if not entry:
+            # Fallback direct lookup
+            dev_data = self.get_developer_by_id(usi_dev_id)
+            if not dev_data:
+                return None
+            entry = dev_data
+
+        dev_slug = entry.get("developer_slug")
+        if not dev_slug:
+            return None
+
+        subdir = self.dev_dir / dev_slug
+        
+        # Determine anchor file precisely
+        anchor_file = subdir / f"usi_dev_{usi_dev_id}_{dev_slug}.json"
+        if not anchor_file.exists():
+            # Search for any file with this ID in this folder
+            matches = list(subdir.glob(f"usi_dev_{usi_dev_id}_*.json"))
+            if matches:
+                anchor_file = matches[0]
+            else:
+                # Fallback to general lookup
+                found_dev = self.get_developer_by_id(usi_dev_id)
+                if found_dev:
+                    # We need the path... get_developer_by_id doesn't return it currently.
+                    # Let's re-implement the search to get the Path.
+                    for p in self.dev_dir.glob(f"*/usi_dev_{usi_dev_id}_*.json"):
+                        anchor_file = p
+                        break
+
+        # Determine raw files
+        raw_files = sorted(list(subdir.glob("raw_*.json")))
+        
+        # Determine master file
+        master_file = None
+        master_id = entry.get("master_id")
+        if master_id:
+            master_file = self._dev_master_path(master_id, dev_slug)
+            if not master_file.exists():
+                # Fallback glob
+                for p in self.dev_dir.glob(f"*/dev_master_{master_id}.json"):
+                    master_file = p
+                    break
+
+        # Log file
+        log_file = subdir / f"dev_log_{dev_slug}.txt"
+
+        return {
+            "id": usi_dev_id,
+            "type": "developer",
+            "base_dir": subdir,
+            "files": {
+                "anchor": anchor_file if anchor_file and anchor_file.exists() else None,
+                "raw": raw_files,
+                "master": master_file if master_file and master_file.exists() else None,
+                "logs": [log_file] if log_file.exists() else []
+            },
+            "metadata": {
+                "slug": dev_slug,
+                "master_id": master_id,
+                "name": entry.get("name")
+            }
+        }
 
     def resolve_id_to_slug(self, usi_dev_id: str) -> str | None:
         """Return developer_slug for a given usi_dev_id, or None if not found."""
