@@ -86,10 +86,10 @@ def get_scraper_config():
         import usi_scrapers
         current_version = getattr(usi_scrapers, "__version__", "0.0.0")
 
-        # Allow any 0.7.x version
-        if not current_version.startswith("0.7."):
+        # Allow any 0.8.x version
+        if not current_version.startswith("0.8."):
             warnings.warn(
-                f"USI Scrapers version mismatch! Expected: 0.7.x, "
+                f"USI Scrapers version mismatch! Expected: 0.8.x, "
                 f"Found: {current_version}. Please update the library.",
                 stacklevel=2
             )

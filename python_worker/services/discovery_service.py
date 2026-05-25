@@ -231,7 +231,8 @@ class DiscoveryService:
             item_id=item.get("id"),
             url=url,
             allow_existing=True,
-            vendor_id=vendor_id
+            vendor_id=vendor_id,
+            force_dev_slug=dev_slug
         )
 
     def discovery_by_portal(self, portal, identifier=None, limit=None, pages=None):
