@@ -4,7 +4,8 @@
   const { React, usiRegister, useDataBus, CategoryRating, CategoryRatingRow, UsiStarScore, ocenaLog, Icon, USI_CATEGORIES, USI_STATUSES, useRatings } = window;
 
   const RatingsPanel = ({ inv, variant = 'circles', focusedCat = -1, onFocusedCatChange,
-      ratings = {}, handleRating, comment = '', handleComment, status = 'Brak', handleStatus, saved = false }) => {
+      ratings = {}, handleRating, comment = '', handleComment, status = 'Brak', handleStatus,
+      segment = '', handleSegment, saved = false }) => {
     
     const currentInv = { ratings };
     return (
@@ -60,11 +61,26 @@
           </div>
         ) : null}
 
-        <div data-component="RatingsPanel-Status">
-          <div className="usi-tiny usi-m-b-6">Status</div>
-          <select className="usi-input usi-ratings-panel-status-select" value={status} onChange={e => handleStatus(e.target.value)}>
-            {USI_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
+        <div data-component="RatingsPanel-Status" className="usi-flex-row usi-gap-12">
+          <div className="usi-flex-1">
+            <div className="usi-tiny usi-m-b-6">Status</div>
+            <select className="usi-input usi-ratings-panel-status-select" value={status} onChange={e => handleStatus(e.target.value)}>
+              {USI_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          {(() => {
+            const { useConfig } = window;
+            const config = useConfig();
+            return config?.segments && (
+              <div className="usi-flex-1">
+                <div className="usi-tiny usi-m-b-6">Segment</div>
+                <select className="usi-input usi-ratings-panel-status-select" value={segment} onChange={e => handleSegment(e.target.value)}>
+                  <option value="">(Wykryty)</option>
+                  {config.segments.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            );
+          })()}
         </div>
         <textarea data-component="RatingsPanel-Comment" className="usi-input usi-textarea usi-ratings-panel-comment" placeholder="Komentarz globalny…"
           value={comment} onChange={handleComment} />

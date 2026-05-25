@@ -28,14 +28,14 @@
     const containerRef = React.useRef(null);
     const [imgUrls, setImgUrls] = React.useState({ light: '', dark: '' });
     const pendingRef = React.useRef(null);
-    const lastSizeRef = React.useRef({ w: 0, h: 0 });
+    const lastStateRef = React.useRef({ w: 0, h: 0, lat: 0, lon: 0 });
 
     const rebuildUrls = React.useCallback((w) => {
       if (!mapCoords || w < 10) return;
       const h = Math.round(w / ratio);
-      if (w === lastSizeRef.current.w && h === lastSizeRef.current.h) return;
-      lastSizeRef.current = { w, h };
       const [lat, lon] = mapCoords;
+      if (w === lastStateRef.current.w && h === lastStateRef.current.h && lat === lastStateRef.current.lat && lon === lastStateRef.current.lon) return;
+      lastStateRef.current = { w, h, lat, lon };
       setImgUrls({
         light: _buildHereUrl(lat, lon, w, h, false),
         dark:  _buildHereUrl(lat, lon, w, h, true),

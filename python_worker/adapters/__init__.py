@@ -4,6 +4,8 @@ import logging
 from pathlib import Path
 from .merger import Merger
 from usi_scrapers import resolve_path, get_mapping
+from usi_scrapers.utils.classifier import classify_segment
+from python_worker.config import SEGMENTS_CONFIG_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -19,11 +21,70 @@ except Exception as e:
     logger.error(f"Failed to load portal mapping from library: {e}")
     PORTAL_MAPPING = {}
 
+# Load segments config (used for UI list and legacy fallbacks)
+try:
+    with open(SEGMENTS_CONFIG_PATH, "r", encoding="utf-8") as f:
+        SEGMENTS_CONFIG = json.load(f)
+except Exception as e:
+    logger.error(f"Failed to load segments config: {e}")
+    SEGMENTS_CONFIG = {"segments": [], "mapping": {}}
+
 def _get_val(data, key, default=None):
     """Delegates to usi-scrapers resolve_path (which handles RP {value, type} unwrapping since v0.7.0)."""
     val = resolve_path(data, key)
     return val if val is not None else default
 
+def _get_segment(portal: str, raw: dict) -> str | None:
+    """
+    Extracts diagnostic signals from raw portal data and classifies the investment segment
+    using the usi-scrapers InvestmentSegmentClassifier.
+    """
+    signals = {}
+    
+    if portal == "rp":
+        t = raw.get("type")
+        signals["apartments"] = (t == 1)
+        signals["houses"] = (t == 2)
+        signals["investment"] = "apartamenty-inwestycyjne" if t == 3 else None
+        signals["commercial"] = (t == 4)
+        
+        # Fallback for registration-time signals (name/url)
+        name = (raw.get("name") or "").lower()
+        url = (raw.get("url") or "").lower()
+        if not signals.get("apartments") and any(kw in name or kw in url for kw in ("mieszkani", "apartament")):
+            signals["apartments"] = True
+        if not signals.get("houses") and any(kw in name or kw in url for kw in ("domy", "segmenty", "bliźniak")):
+            signals["houses"] = True
+    elif portal in ("oto", "otodom"):
+        # Otodom signals from target data
+        t = _get_val(raw, "target.Offered_estates_type")
+        signals["apartments"] = (t == "flats")
+        signals["houses"] = (t == "houses")
+        signals["investment"] = ["apartments"] if t == "investment" else None
+        signals["commercial"] = (t == "commercial")
+        # PRS/Rental detection
+        if _get_val(raw, "target.Transaction") == "rent":
+            signals["rental"] = True
+            
+        # Fallback for registration-time signals (name/url)
+        name = (raw.get("name") or "").lower()
+        url = (raw.get("url") or "").lower()
+        if not signals.get("apartments") and any(kw in name or kw in url for kw in ("mieszkani", "apartament")):
+            signals["apartments"] = True
+        if not signals.get("houses") and any(kw in name or kw in url for kw in ("domy", "segmenty", "bliźniak")):
+            signals["houses"] = True
+    elif portal == "to":
+        # TabelaOfert signals from raw category or name
+        cat = (raw.get("category_name") or raw.get("category") or "").lower()
+        signals["apartments"] = "mieszkania" in cat
+        signals["houses"] = any(kw in cat for kw in ("domy", "segmenty", "bliźniaki"))
+        signals["commercial"] = any(kw in cat for kw in ("użytkowe", "biurowe", "handlowe"))
+        # URL-based signals
+        url = (raw.get("url") or "").lower()
+        if "apartamenty-inwestycyjne" in url:
+            signals["investment"] = "apartamenty-inwestycyjne"
+
+    return classify_segment(signals)
 
 def _unified_base(inv_slug, dev_slug, name, developer=None):
     return {
@@ -34,7 +95,15 @@ def _unified_base(inv_slug, dev_slug, name, developer=None):
         "website": None,
         "sources": {},
         "location": {"coords": [None, None], "address": None, "city": None, "district": None},
-        "specifications": {"delivery_date": None, "delivery_quarter": None, "delivery_year": None, "units_count": None, "ceiling_height_min": None, "ceiling_height_max": None},
+        "specifications": {
+            "delivery_date": None,
+            "delivery_quarter": None,
+            "delivery_year": None,
+            "units_count": None,
+            "ceiling_height_min": None,
+            "ceiling_height_max": None,
+            "segment": None
+        },
         "financials": {"price_min": None, "price_max": None, "price_avg": None, "price_m2_min": None, "price_m2_max": None},
         "amenities": {"labels": [], "raw_codes": []},
         "image_urls": [],
@@ -65,6 +134,7 @@ class RPAdapter:
         u["specifications"].update({
             "delivery_date": res.get("construction_date_upper"),
             "units_count": res.get("properties_count"),
+            "segment": _get_segment("rp", res)
         })
         urls = res.get("image_urls", [])
         u["image_urls"] = urls
@@ -78,12 +148,11 @@ class RPAdapter:
         name = _get_val(raw, cfg.get("name")) or _get_val(raw, "name")
         u = _unified_base(inv_slug, dev_slug, name)
 
-        geo = _get_val(raw, "geo_point")
-        coords = _get_val(geo, "coordinates") if isinstance(geo, dict) else None
+        coords = _get_val(raw, cfg.get("geo_point_coordinates"))
         lat = coords[1] if coords and len(coords) > 1 else None
         lng = coords[0] if coords and len(coords) > 0 else None
 
-        construction = _get_val(raw, "construction_date_range")
+        construction = _get_val(raw, cfg.get("construction_date_upper")) or _get_val(raw, "construction_date_range")
         delivery = _get_val(construction, "upper") if isinstance(construction, dict) else None
 
         gallery_urls = []
@@ -181,6 +250,7 @@ class RPAdapter:
             "units_count": _get_val(raw, cfg.get("units_count")) or raw.get("properties"),
             "ceiling_height_min": h_min,
             "ceiling_height_max": h_max,
+            "segment": _get_segment("rp", raw)
         })
         u["amenities"]["raw_codes"] = amenity_codes
         u["image_urls"] = gallery_urls
@@ -206,13 +276,19 @@ class OtodomAdapter:
         u = _unified_base(inv_slug, dev_slug,
                           res.get("title"), developer=res.get("agency_name"))
         lat, lng = res.get("latitude"), res.get("longitude")
-        u["sources"]["oto"] = {"url": res.get("url")}
+        
+        oto_src = {"url": res.get("url")}
+        if res.get("id"):
+            oto_src["id"] = str(res.get("id"))
+        u["sources"]["oto"] = oto_src
+        
         u["location"]["coords"] = [lat, lng]
         dq, dy = res.get("delivery_quarter"), res.get("delivery_year")
         u["specifications"].update({
             "delivery_quarter": dq,
             "delivery_year": dy,
             "delivery_date": f"{dy}-Q{dq}" if dy and dq else None,
+            "segment": _get_segment("oto", res.get("raw_details") or res)
         })
         urls = res.get("image_urls", [])
         u["image_urls"] = urls
@@ -251,9 +327,8 @@ class OtodomAdapter:
         if not images:
             images = ad.get("image_urls", [])
 
-        loc = (ad.get("location") or {}).get("coordinates") or {}
-        lat = loc.get("latitude")
-        lng = loc.get("longitude")
+        lat = _get_val(raw, cfg.get("latitude"))
+        lng = _get_val(raw, cfg.get("longitude"))
 
         agency_name = _get_val(ad, cfg.get("developer_name")) or (ad.get("owner") or {}).get("name")
         url = ad.get("url")
@@ -302,7 +377,7 @@ class OtodomAdapter:
         u = _unified_base(inv_slug, dev_slug, title, developer=agency_name)
         
         oto_src = {"url": url or ""}
-        oto_id = _get_val(ad, cfg.get("id"))
+        oto_id = _get_val(raw, cfg.get("id")) or ad.get("id")
         if oto_id:
             oto_src["id"] = str(oto_id)
         
@@ -334,6 +409,7 @@ class OtodomAdapter:
             "units_count": units_count,
             "ceiling_height_min": h_min,
             "ceiling_height_max": h_max,
+            "segment": _get_segment("oto", ad)
         })
         u["image_urls"] = images
         u["images_count"] = len(images)
@@ -393,6 +469,7 @@ class TOAdapter:
         })
         u["specifications"]["delivery_date"] = res.get("construction_date_upper")
         u["specifications"]["units_count"] = res.get("properties_count")
+        u["specifications"]["segment"] = _get_segment("to", res.get("raw_details") or res)
         u["financials"].update({
             "price_min": res.get("price_min"),
             "price_max": res.get("price_max"),
@@ -468,6 +545,7 @@ class TOAdapter:
             "units_count": _get_val(raw, cfg.get("units_count")),
             "ceiling_height_min": h_min,
             "ceiling_height_max": h_max,
+            "segment": _get_segment("to", raw)
         })
         u["image_urls"] = urls
         u["images_count"] = len(urls)

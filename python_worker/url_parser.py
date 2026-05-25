@@ -49,6 +49,14 @@ def parse_url(url: str) -> dict:
         match = re.search(r'/firmy/deweloperzy/.*-ID(\d+)', path)
         if match:
             return {"type": "otodom", "kind": "developer", "agency_id": match.group(1), "url": url}
+        
+        # Handle Otodom sellerId results URLs
+        if "sellerId=" in parsed.query:
+            query = parse_qs(parsed.query)
+            sid = query.get("sellerId", [None])[0]
+            if sid:
+                return {"type": "otodom", "kind": "developer", "agency_id": sid, "url": url}
+
         match = re.search(r'/(inwestycja|oferta)/([^/]+)', path)
         if match:
             return {"type": "otodom", "kind": "investment", "investment_slug": match.group(2), "url": url}

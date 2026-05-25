@@ -22,6 +22,10 @@
       "type": "string", 
       "description": "Oficjalna nazwa dewelopera." 
     },
+    "raw_file": {
+      "type": ["string", "null"],
+      "description": "Ścieżka do surowego pliku danych portalu (np. raw_oto_12345.json)."
+    },
     "logo": {
       "type": ["string", "null"],
       "description": "Lokalna ścieżka lub URL do logotypu dewelopera."

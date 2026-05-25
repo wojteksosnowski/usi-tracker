@@ -7,7 +7,7 @@ from typing import Optional
 from python_worker.config import USI_DATA_DIR, PUBLIC_USI_DIR
 from python_worker.developer_manager import DeveloperManager
 import python_worker.investment_index as inv_index
-from python_worker.services.investment_service import _find_inv_file
+from python_worker.api.utils import _find_inv_file
 from python_worker.logger_utils import log_to_processing_log
 
 logger = logging.getLogger(__name__)
@@ -17,6 +17,61 @@ class InvestmentMerger:
         self.data_dir = data_dir or Path(USI_DATA_DIR)
         self.public_dir = public_dir or Path(PUBLIC_USI_DIR)
         self.dm = DeveloperManager(self.data_dir)
+
+    def _load_json(self, path: Path) -> dict:
+        if not path.exists() or not path.is_file():
+            return {}
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def aggregate_data(self, anchors: list[dict]) -> dict:
+        """Agreguje dane z wielu kotwic (Anchor/T2) w jeden obiekt Master (T3)."""
+        if not anchors:
+            return {}
+
+        first = anchors[0]
+        # Generate stable Master ID from system ID
+        system_id = first.get("id") or f"{first.get('portal', 'legacy')}_{first.get('portal_id', 'legacy')}"
+        master_id = f"MASTER-{system_id}"
+        
+        master = {
+            "master_id": master_id,
+            "master_usi_inv_id": master_id, # for backwards compatibility or just use master_id
+            "merged_from": [a["portal_id"] for a in anchors],
+            "portals": [a["portal"] for a in anchors],
+            "last_updated": datetime.now().isoformat(),
+            "unified_data": {}
+        }
+
+        # Aggregate data from T0 (Raw) and T1 (Meta)
+        for anchor in anchors:
+            raw_path = self.public_dir / "USIdata" / anchor.get("raw_file", "")
+            meta_path = self.public_dir / "USIdata" / anchor.get("meta_file", "")
+            
+            raw_data = self._load_json(raw_path)
+            meta_data = self._load_json(meta_path)
+            
+            # Simple merge: prefer meta, then raw
+            master["unified_data"][anchor["portal"]] = {
+                "raw": raw_data,
+                "meta": meta_data
+            }
+            
+        return master
+
+    def sync_master(self, inv_id: str, anchors: list[dict]):
+        """Tworzy lub aktualizuje rekord Master (T3) dla zestawu kotwic."""
+        master = self.aggregate_data(anchors)
+        master_path = self.public_dir / "USIdata" / f"inv_master_{master['master_id']}.json"
+        
+        # Ensure directory exists
+        master_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Atomic write: write to temp then rename
+        temp_path = master_path.with_suffix(".tmp")
+        temp_path.write_text(json.dumps(master, indent=2, ensure_ascii=False))
+        temp_path.replace(master_path)
+        
+        logger.info(f"Sync complete: Master {master['master_id']} persisted.")
 
     def _find_index_entry(self, usi_inv_id: str) -> Optional[dict]:
         index_data = inv_index.load(self.data_dir)
@@ -85,7 +140,7 @@ class InvestmentMerger:
             break
 
         if not master_file_path:
-            master_id = self.dm.generate_usi_id("IM")
+            master_id = f"MASTER-{target_inv_id}"
             master_file_path = t_inv_dir / f"inv_master_{master_id}.json"
             master_data = {
                 "inv_master_id": master_id,

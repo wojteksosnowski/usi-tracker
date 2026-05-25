@@ -2,10 +2,12 @@ import json
 import logging
 from pathlib import Path
 from datetime import datetime
+from functools import lru_cache
 
 from python_worker.config import USI_DATA_DIR, PUBLIC_USI_DIR
 from python_worker.adapters import AdapterFactory, Merger
 from python_worker.logger_utils import log_to_processing_log
+from python_worker.api.utils import _find_inv_file
 
 logger = logging.getLogger(__name__)
 
@@ -17,34 +19,6 @@ def _primary_portal_id(sources: dict) -> tuple[str, str | None]:
         if pid:
             return portal, str(pid)
     return "rp", None
-
-
-def _find_inv_file(inv_dir: Path, inv_slug: str, usi_inv_id: str = None) -> Path | None:
-    """Find the canonical investment JSON in inv_dir (by ID first, then new format, then legacy)."""
-    if usi_inv_id:
-        for f in inv_dir.glob(f"usi_*_{usi_inv_id}.json"):
-            return f
-        # Fallback: check file content for ID if filename doesn't have it
-        for f in inv_dir.glob("usi_*.json"):
-            try:
-                if json.loads(f.read_text()).get("usi_inv_id") == usi_inv_id:
-                    return f
-            except Exception:
-                continue
-
-    for p in ("rp", "oto", "to"):
-        candidates = sorted(inv_dir.glob(f"usi_{p}_*.json"))
-        if candidates:
-            return candidates[0]
-    for legacy in (
-        inv_dir / f"usi_{inv_slug}.json",
-        inv_dir / f"usi_rp_{inv_slug}.json",
-        inv_dir / f"usi_oto_{inv_slug}.json",
-        inv_dir / f"usi_to_{inv_slug}.json",
-    ):
-        if legacy.exists():
-            return legacy
-    return None
 
 
 class InvestmentService:
@@ -66,14 +40,75 @@ class InvestmentService:
             self.fetcher = None
             self.tech_manager = None
 
-    def get_investment(self, dev_slug, inv_slug, portal: str = None):
-        from python_worker.api.utils import _load_investment
-        return _load_investment(dev_slug, inv_slug, data_dir=self.data_dir, public_usi_dir=self.public_usi_dir, portal=portal)
+    @lru_cache(maxsize=128)
+    def get_unified_view(self, inv_id: str) -> dict:
+        """Dynamically aggregates T0 and T1 data into a virtual T3 Master view."""
+        from python_worker.api.utils import _find_inv_file
+        
+        # 1. Resolve Anchor from ID
+        # Search all dev dirs for the anchor
+        anchor_file = None
+        for p in self.data_dir.rglob(f"usi_*.json"):
+            if "usi_dev_" in p.name: continue
+            try:
+                data = json.loads(p.read_text())
+                if data.get("usi_inv_id") == inv_id:
+                    anchor_file = p
+                    break
+            except: continue
+        
+        if not anchor_file:
+            return {}
+
+        anchor = json.loads(anchor_file.read_text())
+        
+        # 2. Get Aggregation scope (merged siblings)
+        master_id = anchor.get("master_id")
+        anchors = [anchor]
+        if master_id:
+            # Find all anchors with same master_id
+            for p in self.data_dir.rglob(f"usi_*.json"):
+                if "usi_dev_" in p.name: continue
+                try:
+                    a = json.loads(p.read_text())
+                    if a.get("master_id") == master_id and a.get("usi_inv_id") != inv_id:
+                        anchors.append(a)
+                except: continue
+
+        # 3. Aggregate T0 and T1 data
+        return self._aggregate_anchors(anchors)
+
+    def _aggregate_anchors(self, anchors: list[dict]) -> dict:
+        master = {
+            "master_id": f"MASTER-{anchors[0]['usi_inv_id']}",
+            "merged_anchors": [a.get("portal_id", "unknown") for a in anchors],
+            "data": []
+        }
+        
+        for anchor in anchors:
+            raw_path = self.public_usi_dir.parent / "USIdata" / anchor.get("raw_file", "")
+            meta_path = self.public_usi_dir.parent / "USIdata" / anchor.get("meta_file", "")
+            
+            raw_data = self._load_json(raw_path)
+            meta_data = self._load_json(meta_path)
+            
+            master["data"].append({
+                "portal": anchor["portal"],
+                "raw": raw_data,
+                "meta": meta_data
+            })
+        return master
+
+    def _load_json(self, path: Path) -> dict:
+        if not path.exists() or not path.is_file():
+            return {}
+        return json.loads(path.read_text(encoding="utf-8"))
 
     def register_investment(self, portal, developer_name, inv_slug, name, item_id=None, url=None, allow_existing=False, vendor_id=None, force_dev_slug=None):
         from python_worker.developer_manager import DeveloperManager
         from usi_scrapers import api as scraper_api
         from python_worker.url_parser import parse_url
+        from python_worker.adapters import _get_segment
 
         dm = DeveloperManager(self.data_dir)
         developer_record = None
@@ -152,8 +187,26 @@ class InvestmentService:
         id_exists = False
         if portal == "rp" and item_id and str(item_id) in existing_ids.get("rp_ids", set()):
             id_exists = True
-        elif portal == "oto" and item_id and str(item_id) in existing_ids.get("oto_ids", set()):
-            id_exists = True
+        elif portal == "oto" and item_id:
+            s_item_id = str(item_id)
+            if s_item_id in existing_ids.get("oto_ids", set()):
+                id_exists = True
+            else:
+                # Robust Otodom check: try to find 'the other' ID from URL or slug
+                hash_id = None
+                if "-ID" in str(inv_slug):
+                    hash_id = str(inv_slug).split("-ID")[-1]
+                elif url and "-ID" in str(url):
+                    hash_id = str(url).rstrip("/").split("-ID")[-1].split("?")[0]
+                
+                if hash_id and hash_id in existing_ids.get("oto_ids", set()):
+                    logger.info(f"Found existing Otodom record by hash ID {hash_id} for new ID {item_id}")
+                    id_exists = True
+                
+                if not id_exists and inv_slug in existing_ids.get("oto_slugs", set()):
+                    logger.info(f"Found existing Otodom record by slug {inv_slug} for new ID {item_id}")
+                    id_exists = True
+
         elif portal == "to" and item_id and str(item_id) in existing_ids.get("to_ids", set()):
             id_exists = True
 
@@ -186,18 +239,24 @@ class InvestmentService:
                 sources["to"] = {"url": url}
 
         usi_path = inv_dir / filename
-
-        # Use DeveloperManager for consistent ID generation
-        usi_inv_id = dm.generate_usi_id("INV")
         
+        if portal == "oto":
+            logger.info(f"Creating Otodom skeleton for {inv_slug} with sources: {sources}")
+
+        # Diagnostic signals for initial classification (if full raw not available)
+        initial_raw = {"url": url, "name": name}
+        if portal == "rp" and item_id: initial_raw["type"] = None # Placeholder, full raw will come later
+
         skeleton = {
             "investment_slug": inv_slug,
             "developer_slug": dev_slug,
             "name": name,
             "reviewed": False,
             "sources": sources,
+            "specifications": {
+                "segment": _get_segment(portal, initial_raw)
+            },
             "status": "Brak",
-            "usi_inv_id": usi_inv_id,
             "audit": {"created_at": datetime.now().isoformat()}
         }
 
@@ -275,9 +334,17 @@ class InvestmentService:
 
         sources = usi_data.get("sources", {})
         if not sources and use_local_raw:
+            # Skeletons might have portal field at root
+            p_root = usi_data.get("portal")
+            if p_root:
+                sources[p_root] = {"id": usi_data.get("portal_id", "rebuild")}
+            
+            # Fallback: scan for any raw files
             for p in ["rp", "oto", "to"]:
-                raw_path = inv_dir / f"raw_{p}_{inv_slug}.json"
-                if raw_path.exists():
+                if p in sources: continue
+                # Search for any raw_{p}_*.json
+                raw_files = list(inv_dir.glob(f"raw_{p}_*.json"))
+                if raw_files:
                     sources[p] = {"id": "rebuild"}
 
         rp_unified = None
@@ -527,6 +594,12 @@ class InvestmentService:
                 raise ValueError(f"Invalid status: {new_status}")
             existing_ratings["status"] = new_status
 
+        if "Segment" in payload:
+            new_seg = payload["Segment"]
+            if existing_ratings.get("Segment") != new_seg:
+                changes.append({"field": "specifications.segment", "old": existing_ratings.get("Segment"), "new": new_seg})
+                existing_ratings["Segment"] = new_seg
+
         usi_file = _find_inv_file(inv_dir, inv_slug)
         if usi_file:
             try:
@@ -534,6 +607,9 @@ class InvestmentService:
                 old_score = _calculate_ocena_log(usi_data.get("ratings", {}))
                 usi_data["ratings"] = {**usi_data.get("ratings", {}), **existing_ratings}
                 usi_data["status"] = existing_ratings.get("status", usi_data.get("status", "Brak"))
+                if "Segment" in existing_ratings:
+                    spec = usi_data.setdefault("specifications", {})
+                    spec["segment"] = existing_ratings["Segment"]
                 new_score = _calculate_ocena_log(usi_data["ratings"])
 
                 audit = usi_data.setdefault("audit", {})
@@ -593,18 +669,44 @@ class InvestmentService:
                 # Try to resolve dev_slug if possible for faster post-processing, but don't block
                 dev_slug = None
                 vendor_id = item.get("vendor_id") or item.get("agency_id") or item.get("developer_id")
+                
+                # Robust extraction for Otodom sellerId if missing from item
+                if not vendor_id and url and "otodom.pl" in url:
+                    import re as _re
+                    _sid_match = _re.search(r'sellerId=(\d+)', url)
+                    if _sid_match:
+                        vendor_id = _sid_match.group(1)
+
                 if portal == "rp" and isinstance(item.get("vendor"), dict):
                     vendor_id = item["vendor"].get("id")
                 
-                dev_record = dm.find_developer_by_id(portal, str(vendor_id)) if vendor_id else None
-                if dev_record:
-                    dev_slug = dev_record["developer_slug"]
-                    dev_name = dev_record["name"]
-                elif dev_name and dev_name.lower() not in ("nieznany deweloper", "unknown", "nieznany-deweloper"):
-                    # Only use existing folder if we have a real name match
+                # 1. Try authoritative ID lookup
+                if vendor_id:
+                    dev_record = dm.find_developer_by_id(portal, str(vendor_id))
+                    if dev_record:
+                        dev_slug = dev_record["developer_slug"]
+                        dev_name = dev_record["name"]
+
+                # 2. Try Name lookup if still no slug
+                if not dev_slug and dev_name and dev_name.lower() not in ("nieznany deweloper", "unknown", "nieznany-deweloper"):
                     matched_dev = dm.get_developer_by_name(dev_name)
                     if matched_dev:
                         dev_slug = matched_dev["developer_slug"]
+                
+                # 3. Aggressive skeleton creation IF we have an ID (bypasses library resolution failures)
+                if not dev_slug and vendor_id:
+                    dev_slug = f"{portal}-{vendor_id}"
+                    initial_pm = {"rp": None, "oto": None, "to": None}
+                    if portal == "rp": initial_pm["rp"] = {"id": str(vendor_id)}
+                    elif portal == "to": initial_pm["to"] = {"agency_id": str(vendor_id)}
+                    elif portal == "oto": initial_pm["oto"] = {"agency_id": str(vendor_id), "agency_ids": [str(vendor_id)]}
+
+                    dm.create_developer_file({
+                        "developer_slug": dev_slug,
+                        "name": dev_name or f"Deweloper {portal.upper()} {vendor_id}",
+                        "portal_mapping": initial_pm
+                    })
+                    logger.info(f"Pre-created developer profile {dev_slug} for '{dev_name}' to bypass API resolution errors.")
 
                 if portal == "rp":
                     ident = item.get("id") or url
@@ -625,6 +727,12 @@ class InvestmentService:
             return False
 
         # 2. Call library process_batch
+        # REFRESH CONFIG: Ensure library sees newly created USIdev files
+        from python_worker.config import get_scraper_config
+        from usi_scrapers.fetcher import Fetcher
+        self.lib_config = get_scraper_config()
+        self.fetcher = Fetcher(self.lib_config)
+
         # This will save raw_*.json files to disk for successful items
         batch_results = scraper_api.process_batch(
             self.lib_config, self.fetcher, portal, identifiers, on_progress=on_progress_callback
@@ -666,6 +774,9 @@ class InvestmentService:
                     logger.warning(f"Batch download failed for {inv_slug} (no raw data found in {dev_slug}/{inv_slug}) - skipping registration.")
                     continue
 
+                if portal == "oto":
+                    logger.info(f"Finalizing Otodom registration: item_id={info['item_id']}, vendor_id={vendor_id}")
+
                 # Register (creates usi_*.json skeleton and ID)
                 res = self.register_investment(
                     portal=info["portal"],
@@ -694,10 +805,10 @@ class InvestmentService:
         logger.info(f"Batch processing complete: {success_count}/{len(to_process)} investments fully ingested.")
         return success_count
 
-    def mark_as_reviewed(self, dev_slug, inv_slug, usi_inv_id=None):
+    def mark_as_reviewed(self, dev_slug, inv_slug, system_id=None):
         """Sets the reviewed flag to true for the specified investment."""
         inv_dir = self.data_dir / dev_slug / inv_slug
-        usi_file = _find_inv_file(inv_dir, inv_slug, usi_inv_id=usi_inv_id)
+        usi_file = _find_inv_file(inv_dir, inv_slug, system_id=system_id)
 
         if not usi_file:
             return False
@@ -712,16 +823,16 @@ class InvestmentService:
             with open(usi_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
 
-            log_to_processing_log(dev_slug, inv_slug, f"Investment {usi_inv_id or inv_slug} marked as reviewed by analyst.")
+            log_to_processing_log(dev_slug, inv_slug, f"Investment {system_id or inv_slug} marked as reviewed by analyst.")
             return True
         except Exception as e:
             logger.error(f"Failed to mark as reviewed: {e}")
             return False
 
-    def add_report(self, dev_slug, inv_slug, note, usi_inv_id=None):
+    def add_report(self, dev_slug, inv_slug, note, system_id=None):
         """Adds a problem report note to the investment record."""
         inv_dir = self.data_dir / dev_slug / inv_slug
-        usi_file = _find_inv_file(inv_dir, inv_slug, usi_inv_id=usi_inv_id)
+        usi_file = _find_inv_file(inv_dir, inv_slug, system_id=system_id)
 
         if not usi_file:
             return False
@@ -743,13 +854,13 @@ class InvestmentService:
             with open(usi_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
 
-            log_to_processing_log(dev_slug, inv_slug, f"Issue reported for {usi_inv_id or inv_slug}: {note[:50]}...")
+            log_to_processing_log(dev_slug, inv_slug, f"Issue reported for {system_id or inv_slug}: {note[:50]}...")
             return True
         except Exception as e:
             logger.error(f"Failed to add report for {inv_slug}: {e}")
             return False
 
-    def mark_deleted_photos(self, dev_slug, inv_slug, paths, usi_inv_id=None):
+    def mark_deleted_photos(self, dev_slug, inv_slug, paths, system_id=None):
         inv_dir = self.data_dir / dev_slug / inv_slug
         if not inv_dir.exists():
             return False
@@ -758,5 +869,5 @@ class InvestmentService:
         # For now, we'll keep it as-is but log the ID that triggered it.
         out = {"paths": paths, "updated_at": datetime.now().isoformat(timespec="seconds")}
         (inv_dir / "deletion_list.json").write_text(json.dumps(out, ensure_ascii=False, indent=2))
-        log_to_processing_log(dev_slug, inv_slug, f"Updated deletion list (via {usi_inv_id or 'slug'}). Count: {len(paths)}")
+        log_to_processing_log(dev_slug, inv_slug, f"Updated deletion list (via {system_id or 'slug'}). Count: {len(paths)}")
         return True

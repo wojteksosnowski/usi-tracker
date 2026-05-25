@@ -440,11 +440,15 @@ function DeveloperPortals({ dev }) {
 }
 
 // ── DevMiniCard — shared card for suggestions and connected-records panels ──
-function DevMiniCard({ name, slug, usiId, portalMapping = {}, website, invCount, invList, sub, arriving, footer }) {
+function DevMiniCard({ name, slug, usiId, portalMapping = {}, originalPortalMapping, website, invCount, invList, sub, arriving, footer }) {
   const { SourceBadge } = window;
-  const hasRp  = !!portalMapping.rp;
-  const hasOto = !!portalMapping.oto;
-  const hasTo  = !!portalMapping.to;
+  
+  // In 'Skład rekordu' (Composition) we want to see original sources for that specific file (L2 record), 
+  // not the aggregated sources from all merged children.
+  const mapping = originalPortalMapping || portalMapping || {};
+  const hasRp  = !!mapping.rp;
+  const hasOto = !!mapping.oto;
+  const hasTo  = !!mapping.to;
 
   return (
     <div className={`dev-mini-card${arriving ? ' dev-card-arriving' : ''}`}>
@@ -544,9 +548,10 @@ function DeveloperSuggestions({ suggestions, onMerge, onDismiss, onSuggest, load
 function MergedMembersPanel({ dev, members, arrivingSlug, onUnmerge }) {
   if (!dev) return null;
   const { Icon } = window;
-  const base = dev.base_record || dev;
+  const base = dev.base_record;
+  const memberList = members || [];
   
-  const total = 1 + (members || []).length;
+  const total = (base ? 1 : 0) + memberList.length;
 
   return (
     <div className="usi-card usi-p-16">
@@ -555,23 +560,27 @@ function MergedMembersPanel({ dev, members, arrivingSlug, onUnmerge }) {
         Skład rekordu ({total})
       </h3>
       <div className="usi-flex-col usi-gap-8">
-        <DevMiniCard
-          key={`base-${base.developer_slug}`}
-          name={base.name}
-          slug={base.developer_slug}
-          usiId={base.usi_dev_id}
-          portalMapping={base.portal_mapping || {}}
-          invCount={base.investments_count}
-          invList={base.inv_list}
-          sub="Profil bazowy"
-        />
-        {(members || []).map((m, i) => (
+        {base && (
+          <DevMiniCard
+            key={`base-${base.developer_slug}`}
+            name={base.name}
+            slug={base.developer_slug}
+            usiId={base.usi_dev_id}
+            portalMapping={base.portal_mapping || {}}
+            originalPortalMapping={dev.original_portal_mapping}
+            invCount={base.investments_count}
+            invList={base.inv_list}
+            sub="Profil bazowy"
+          />
+        )}
+        {memberList.map((m, i) => (
           <DevMiniCard
             key={m.usi_dev_id || i}
             name={m.name}
             slug={m.slug}
             usiId={m.usi_dev_id}
             portalMapping={m.portal_mapping || {}}
+            originalPortalMapping={m.original_portal_mapping}
             website={m.website}
             invCount={m.investments_count}
             invList={m.inv_list}

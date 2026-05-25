@@ -5,7 +5,7 @@ from pathlib import Path
 from python_worker.config import USI_DATA_DIR, USI_DEV_DIR, PUBLIC_USI_DIR
 from python_worker.developer_manager import DeveloperManager
 import python_worker.investment_index as inv_index
-from python_worker.services.investment_service import _find_inv_file
+from python_worker.api.utils import _find_inv_file
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)

@@ -20,6 +20,7 @@ class Merger:
             ("specifications.ceiling_height_min", ["specifications", "ceiling_height_min"]),
             ("specifications.ceiling_height_max", ["specifications", "ceiling_height_max"]),
             ("specifications.delivery_date", ["specifications", "delivery_date"]),
+            ("specifications.segment", ["specifications", "segment"]),
             ("images_count", ["images_count"]),
             ("status", ["status"]),
         ]
@@ -94,6 +95,8 @@ class Merger:
             result["sources"]["oto"] = oto_data["sources"].get("oto") or {}
             if not result["sources"]["oto"].get("url") and existing_sources.get("oto", {}).get("url"):
                 result["sources"]["oto"]["url"] = existing_sources["oto"]["url"]
+            if not result["sources"]["oto"].get("id") and existing_sources.get("oto", {}).get("id"):
+                result["sources"]["oto"]["id"] = existing_sources["oto"]["id"]
             if not result["sources"]["oto"].get("agency_id") and existing_sources.get("oto", {}).get("agency_id"):
                 result["sources"]["oto"]["agency_id"] = existing_sources["oto"]["agency_id"]
             if "image_urls" in oto_data:
@@ -139,6 +142,16 @@ class Merger:
                 curr_spec["ceiling_height_min"] = other_spec["ceiling_height_min"]
             if not curr_spec.get("ceiling_height_max") and other_spec.get("ceiling_height_max"):
                 curr_spec["ceiling_height_max"] = other_spec["ceiling_height_max"]
+            if not curr_spec.get("segment") and other_spec.get("segment"):
+                curr_spec["segment"] = other_spec["segment"]
+
+            # Priority 1: Meta ratings 'Segment' takes precedence
+            if meta_ratings and meta_ratings.get("Segment"):
+                curr_spec["segment"] = meta_ratings["Segment"]
+            
+            # Priority 2: Existing data 'segment' takes precedence over portal data
+            elif (existing_data or {}).get("specifications", {}).get("segment"):
+                curr_spec["segment"] = existing_data["specifications"]["segment"]
 
             other_fin = other.get("financials", {})
             curr_fin = result["financials"]
@@ -171,6 +184,10 @@ class Merger:
             if other.get("images_count", 0) > result.get("images_count", 0):
                 result["images_count"] = other["images_count"]
                 result["image_paths"] = other.get("image_paths", [])
+
+        # Priority override: Meta ratings 'Segment' takes precedence
+        if meta_ratings and meta_ratings.get("Segment"):
+            result["specifications"]["segment"] = meta_ratings["Segment"]
 
         # Preserve existing_data values for fields that came back null from portals
         if existing_data:

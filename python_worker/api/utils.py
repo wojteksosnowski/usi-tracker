@@ -93,19 +93,52 @@ def _calculate_distance(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
 
-def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None, public_usi_dir: Path | None = None, portal: str | None = None, skip_merge: bool = False) -> dict | None:
+def _find_inv_file(inv_dir: Path, inv_slug: str, system_id: str = None) -> Path | None:
+    """Find the canonical investment JSON in inv_dir (by system_id first, then new format, then legacy)."""
+    if system_id:
+        if system_id.startswith("MASTER-"):
+            # It's a master ID, but _find_inv_file usually looks for an anchor file
+            pass
+        elif "_" in system_id and not system_id.startswith("legacy_"):
+            portal, portal_id = system_id.split("_", 1)
+            f = inv_dir / f"usi_{portal}_{portal_id}.json"
+            if f.exists():
+                return f
+        else:
+            # legacy or fallback
+            for f in inv_dir.glob("usi_*.json"):
+                if f.name == f"{system_id.replace('legacy_', '')}.json":
+                    return f
+
+    for p in ("rp", "oto", "to"):
+        candidates = sorted(inv_dir.glob(f"usi_{p}_*.json"))
+        if candidates:
+            return candidates[0]
+    for legacy in (
+        inv_dir / f"usi_{inv_slug}.json",
+        inv_dir / f"usi_rp_{inv_slug}.json",
+        inv_dir / f"usi_oto_{inv_slug}.json",
+        inv_dir / f"usi_to_{inv_slug}.json",
+    ):
+        if legacy.exists():
+            return legacy
+    return None
+
+def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None, public_usi_dir: Path | None = None, portal: str | None = None, system_id: str | None = None, skip_merge: bool = False) -> dict | None:
     if data_dir is None: data_dir = Path(USI_DATA_DIR)
     if public_usi_dir is None: public_usi_dir = Path(PUBLIC_USI_DIR)
     
     inv_dir = data_dir / dev_slug / inv_slug
 
-    if portal:
+    usi_file = None
+    if system_id:
+        usi_file = _find_inv_file(inv_dir, inv_slug, system_id=system_id)
+    elif portal:
         # Known portal: prefer new format usi_{portal}_{id}.json, fallback to slug-based
         candidates = sorted(inv_dir.glob(f"usi_{portal}_*.json"))
         usi_file = candidates[0] if candidates else (inv_dir / f"usi_{portal}_{inv_slug}.json")
     else:
         # Autodetect: new format (rp > oto > to) then legacy slug-based variants
-        usi_file = None
         for p in ("rp", "oto", "to"):
             candidates = sorted(inv_dir.glob(f"usi_{p}_*.json"))
             if candidates:
@@ -154,9 +187,12 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None,
             p_clean = p.lstrip("/")
             if not (DROPBOX_PATH / p_clean).exists():
                 continue
+            
             # /Public/USI/{dev}/{inv}/{file} → /api/image/{dev}/{inv}/{file}
+            # Or /Public/USI/{inv}/{file} → /api/image/{inv}/{file}
             if p_clean.startswith("Public/USI/"):
-                images.append("/api/image/" + p_clean[len("Public/USI/"):])
+                suffix = p_clean[len("Public/USI/"):]
+                images.append("/api/image/" + suffix)
         images = sorted(list(set(images)))
 
     # 2. Fallback: Direct directory scan if no valid recorded paths found
@@ -232,8 +268,9 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None,
     source_url = source_links[0]["url"]
 
     loc = usi.get("location", {})
-    lat = loc.get("coords", [0, 0])[0] or 0
-    lng = loc.get("coords", [0, 0])[1] or 0
+    coords = loc.get("coords")
+    lat = coords[0] if coords and len(coords) > 0 else None
+    lng = coords[1] if coords and len(coords) > 1 else None
     
     address = loc.get("address") or ""
     city = loc.get("city")
@@ -285,6 +322,7 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None,
         "price_m2_max": usi.get("financials", {}).get("price_m2_max"),
         "units": usi.get("specifications", {}).get("units_count") or 0,
         "delivery": usi.get("specifications", {}).get("delivery_date") or "—",
+        "segment": usi.get("specifications", {}).get("segment"),
         "ceiling_height_min": usi.get("specifications", {}).get("ceiling_height_min"),
         "ceiling_height_max": usi.get("specifications", {}).get("ceiling_height_max"),
         "specifications": usi.get("specifications", {}),
@@ -295,7 +333,7 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None,
         "suggested_udogodnienia": _suggest_udogodnienia(score_data["score"]),
         "coords": [lat, lng],
         "photos": images,
-        "usi_inv_id": usi.get("usi_inv_id"),
+        "id": system_id or usi.get("master_id") or (f"{usi.get('portal')}_{usi.get('portal_id')}" if usi.get("portal") and usi.get("portal_id") else f"legacy_{dev_slug}/{inv_slug}"),
         "usi_dev_id": usi.get("usi_dev_id"),
         "ratings": usi.get("ratings", {}),
         "comment": usi.get("ratings", {}).get("komentarz", ""),

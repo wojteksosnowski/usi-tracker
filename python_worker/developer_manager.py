@@ -926,6 +926,11 @@ class DeveloperManager:
             existing_id = p_data.get("id") or p_data.get("agency_id")
             if str(existing_id) == clean_id:
                 return dev
+            
+            # Also check additional agency IDs
+            for aid in p_data.get("agency_ids", []):
+                if str(aid) == clean_id:
+                    return dev
         return None
 
     def find_by_portal_id(self, portal: str, portal_id: str) -> dict | None:

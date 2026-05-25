@@ -4,10 +4,12 @@ import warnings
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Add usi-scrapers to path if not already there
+# Add usi-scrapers and usi-crawlers to path if not already there
 LIB_PATH = "/Volumes/Samsam/claude-py/usi-scrapers"
-if LIB_PATH not in sys.path:
-    sys.path.insert(0, LIB_PATH)
+CRAWLERS_PATH = "/Volumes/Samsam/claude-py/usi-crawlers"
+for p in [LIB_PATH, CRAWLERS_PATH]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
 # Load .env file from python_worker/ directory (explicit path — CWD-independent)
 load_dotenv(Path(__file__).parent / ".env")
@@ -76,17 +78,18 @@ FETCH_DELAYS = {
 # Other constants
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
 VISIBLE_METADATA_FILE = Path(__file__).parent / "data" / "visible_metadata.json"
+SEGMENTS_CONFIG_PATH = Path(__file__).parent / "schemas" / "segments.json"
 
 def get_scraper_config():
     """Returns a ScraperConfig object for use with the usi-scrapers library."""
     try:
         import usi_scrapers
-        required_version = "0.7.0"
-        current_version = getattr(usi_scrapers, "__version__", "unknown")
+        current_version = getattr(usi_scrapers, "__version__", "0.0.0")
 
-        if current_version != required_version:
+        # Allow any 0.7.x version
+        if not current_version.startswith("0.7."):
             warnings.warn(
-                f"USI Scrapers version mismatch! Required: {required_version}, "
+                f"USI Scrapers version mismatch! Expected: 0.7.x, "
                 f"Found: {current_version}. Please update the library.",
                 stacklevel=2
             )

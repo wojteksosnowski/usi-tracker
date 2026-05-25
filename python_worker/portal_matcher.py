@@ -318,6 +318,8 @@ def filter_new_investments(discovered_items: list[dict], portal: str) -> list[di
 
             if id_match or hash_match_field or slug_match or hash_match_regex:
                 is_new = False
+            else:
+                logger.info(f"Otodom item NEW: id={item_id}, hash={item_hash}. (Tried matching against {len(oto_ids)} oto_ids)")
         elif portal in ("to", "tabelaofert"):
             item_id = str(item.get("id"))
             if item_id and item_id != "None" and item_id in to_ids:

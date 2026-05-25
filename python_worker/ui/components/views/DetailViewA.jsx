@@ -3,7 +3,8 @@
 (function() {
   const { React, usiRegister, MetadataPanel, RatingsPanel, ModuleWrapper, NearbyInvestmentsModule, PoiModule, ModuleTypes, Gallery, Lightbox, Icon } = window;
 
-  const DetailsA = ({ inv, ratings, handleRating, comment, handleComment, status, handleStatus, saved, focusedCat, onFocusedCatChange, metaConfig, onUpdateInv }) => {
+  const DetailsA = ({ inv, ratings, handleRating, comment, handleComment, status, handleStatus, 
+      segment, handleSegment, saved, focusedCat, onFocusedCatChange, metaConfig, onUpdateInv }) => {
     const { useDataBus, SourceBadge } = window;
     const [marked, setMarked] = React.useState(new Set());
     const [lightbox, setLightbox] = React.useState(null);
@@ -86,6 +87,7 @@
               inv={inv} ratings={ratings} handleRating={handleRating} 
               comment={comment} handleComment={handleComment}
               status={status} handleStatus={handleStatus}
+              segment={segment} handleSegment={handleSegment}
               saved={saved} focusedCat={focusedCat}
               onFocusedCatChange={onFocusedCatChange}
            />

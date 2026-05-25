@@ -83,6 +83,10 @@ class TrackerDoktorDelegate:
                                 
                                 if coords and len(coords) == 2:
                                     lat, lon = coords
+                                    # SKIP Null Island [0, 0] to prevent suggestion flooding
+                                    if lat == 0 and lon == 0:
+                                        continue
+                                        
                                     bkey = f"{round(lat, 2):.2f}_{round(lon, 2):.2f}"
                                     if bkey not in buckets: buckets[bkey] = []
                                     buckets[bkey].append({
@@ -91,6 +95,10 @@ class TrackerDoktorDelegate:
                                         "quarter": int(quarter) if quarter else None
                                     })
                         except Exception: continue
+
+            # Prevent generic collisions on empty or very short names
+            if norm and len(norm) < 3:
+                norm = None
 
             processed.append({
                 "id": d["usi_dev_id"],
@@ -110,17 +118,22 @@ class TrackerDoktorDelegate:
     def save_suggestions(self, dev_id: str, suggestions: list[dict]):
         fresh_dev = self.dm.get_developer_by_id(dev_id)
         if fresh_dev:
-            existing = fresh_dev.get("suggestions", [])
-            existing_ids = {s.get("target_id") for s in existing}
+            # Map input suggestions to our storage format
+            new_suggestions = {}
             for s in suggestions:
-                if s["target_id"] not in existing_ids:
-                    existing.append({
-                        "usi_dev_id": s["target_id"],
-                        "developer_slug": s["target_slug"],
-                        "reason": s["reason"],
-                        "score": s["score"]
-                    })
-            fresh_dev["suggestions"] = existing
+                new_suggestions[s["target_id"]] = {
+                    "usi_dev_id": s["target_id"],
+                    "developer_slug": s["target_slug"],
+                    "reason": s["reason"],
+                    "score": s["score"]
+                }
+            
+            # Merge with existing (preserve existing, update with new if better)
+            existing = fresh_dev.get("suggestions", [])
+            merged = {s["usi_dev_id"]: s for s in existing}
+            merged.update(new_suggestions)
+            
+            fresh_dev["suggestions"] = list(merged.values())
             self.dm.create_developer_file(fresh_dev)
 
 _doktor_instance = None

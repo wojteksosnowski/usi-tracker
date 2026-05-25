@@ -45,32 +45,26 @@ def _inv_matches_dev(inv: dict, pm: dict) -> bool:
 investments_bp = Blueprint('investments', __name__)
 investment_service = InvestmentService()
 
-@investments_bp.route("/image/<dev_slug>/<inv_slug>/<filename>")
-def serve_image(dev_slug, inv_slug, filename):
+@investments_bp.route("/image/<path:filepath>")
+def serve_image(filepath):
     from python_worker.config import PUBLIC_USI_DIR
     from pathlib import Path
-    from urllib.parse import quote
-    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug) or not _valid_filename(filename):
-        abort(400)
-    
-    # 1. Try exact match (decoded by Flask)
-    img_path = Path(PUBLIC_USI_DIR) / dev_slug / inv_slug / filename
-    if img_path.exists():
+    from urllib.parse import unquote
+
+    # 1. Decode path (Flask passes it as received, but we should ensure it's clean)
+    decoded_path = unquote(filepath)
+    img_path = Path(PUBLIC_USI_DIR) / decoded_path
+
+    if img_path.exists() and img_path.is_file():
         return send_file(img_path)
-        
-    # 2. Try re-encoding (for files literally named with % on disk)
-    encoded_filename = quote(filename)
-    # quote() uses uppercase %XX, but some scrapers might use lowercase
-    alt_path_upper = Path(PUBLIC_USI_DIR) / dev_slug / inv_slug / encoded_filename
-    if alt_path_upper.exists():
-        return send_file(alt_path_upper)
-        
-    alt_path_lower = Path(PUBLIC_USI_DIR) / dev_slug / inv_slug / encoded_filename.lower()
-    if alt_path_lower.exists():
-        return send_file(alt_path_lower)
 
+    # 2. Try raw if decoded failed
+    raw_path = Path(PUBLIC_USI_DIR) / filepath
+    if raw_path.exists() and raw_path.is_file():
+        return send_file(raw_path)
+
+    logger.warning(f"Image not found: {filepath} (tried {img_path})")
     abort(404)
-
 @investments_bp.route("/developer/<dev_slug>/logo")
 def serve_dev_logo(dev_slug):
     from python_worker.config import USI_DEV_DIR
@@ -137,6 +131,8 @@ def list_investments():
     only_no_photos = request.args.get("onlyNoPhotos") == "true"
     sources_arg = request.args.get("sources", "")
     sources = set(sources_arg.upper().split(",")) if sources_arg else set()
+    segments_arg = request.args.get("segments", "")
+    segments = set(segments_arg.split(",")) if segments_arg else set()
     cities_arg = request.args.get("cities", "")
     cities = set(cities_arg.lower().split(",")) if cities_arg else set()
 
@@ -173,6 +169,10 @@ def list_investments():
             continue
             
         if sources and inv.get("source") and inv.get("source", "").upper() not in sources:
+            continue
+            
+        inv_segment = inv.get("segment") or inv.get("specifications", {}).get("segment")
+        if segments and inv_segment not in segments:
             continue
             
         if cities:
@@ -432,36 +432,12 @@ def get_developer_detail(dev_slug):
     t5 = time.time()
     logger.info(f"[TIMING] group by id: {t5-t4:.3f}s")
 
-    # PRESERVE BASE RECORD: before aggregation, capture the state of the "host" record
-    base_invs_raw = invs_by_dev_id.get(target_id, [])
+    from python_worker.developer_manager import DeveloperManager
+    # 1. Collect all valid members and original portal mappings
     base_pm = (dev.get("original_portal_mapping") or dev.get("portal_mapping") or {}).copy()
-    base_portals = {p for p in ("rp", "oto", "to") if base_pm.get(p)}
-    base_invs = [i for i in base_invs_raw if not base_portals or _inv_matches_dev(i, base_pm)]
-    
-    dev["base_record"] = {
-        "name": dev.get("name"),
-        "developer_slug": dev.get("developer_slug"),
-        "usi_dev_id": dev.get("usi_dev_id"),
-        "portal_mapping": base_pm,
-        "investments_count": len(base_invs),
-        "inv_list": [
-            {"name": inv.get("name", inv.get("investment_slug", "")), "slug": inv.get("investment_slug", "")}
-            for inv in base_invs[:10]
-        ]
-    }
-
-    aggregated_pm = base_pm.copy()
-
-    # Collect investments from this dev and all children (merged_from)
-    investments = list(base_invs)
-    
-    # Store original merged IDs to prevent them from showing up as suggestions
-    merged_ids = {m.get("usi_dev_id") for m in dev.get("merged_from", []) if m.get("usi_dev_id")}
-
-    existing_inv_ids = {i.get("usi_inv_id") for i in investments if i.get("usi_inv_id")}
-
-    # Enrich merged_from entries — resolve child by usi_dev_id
     valid_members = []
+    aggregated_pm = base_pm.copy()
+    
     for member in dev.get("merged_from", []):
         child_id = member.get("usi_dev_id")
         child_slug = member.get("slug")
@@ -473,36 +449,106 @@ def get_developer_detail(dev_slug):
         c_slug = child_dev.get("developer_slug", child_slug)
         member["slug"] = c_slug
         
-        child_pm = (child_dev.get("portal_mapping") or {}).copy()
-        child_portals = {p for p in ("rp", "oto", "to") if child_pm.get(p)}
+        # We need the original mapping of the child to match its specific investments
+        child_pm = (child_dev.get("original_portal_mapping") or child_dev.get("portal_mapping") or {}).copy()
         
-        child_invs_raw = invs_by_dev_id.get(child_dev.get("usi_dev_id"), [])
-        child_invs = [i for i in child_invs_raw if not child_portals or _inv_matches_dev(i, child_pm)]
-
         for p in ("rp", "oto", "to"):
             if not aggregated_pm.get(p) and child_pm.get(p):
                 aggregated_pm[p] = child_pm[p]
-
-        for ci in child_invs:
-            ci_id = ci.get("usi_inv_id")
-            if ci_id and ci_id not in existing_inv_ids:
-                investments.append(ci)
-                existing_inv_ids.add(ci_id)
-            elif not ci_id:
-                investments.append(ci)
-                
-        member["portal_mapping"] = child_pm
-        member["website"] = child_dev.get("website")
-        member["investments_count"] = len(child_invs)
-        member["inv_list"] = [
-            {"name": inv.get("name", inv.get("investment_slug", "")), "slug": inv.get("investment_slug", "")}
-            for inv in child_invs[:10]
-        ]
+        
+        # Temp keys for distribution
+        member["_pm"] = child_pm
+        member["_dev"] = child_dev
+        member["_invs"] = []
         valid_members.append(member)
 
-    dev["merged_from"] = valid_members
+    # 2. Collect ALL investments for this entire group (base + children)
+    all_group_invs_raw = list(invs_by_dev_id.get(target_id, []))
+    for m in valid_members:
+        cid = m["_dev"].get("usi_dev_id")
+        if cid and cid != target_id:
+            all_group_invs_raw.extend(invs_by_dev_id.get(cid, []))
+            
+    # Deduplicate by usi_inv_id
+    unique_invs = {}
+    for i in all_group_invs_raw:
+        iid = i.get("usi_inv_id")
+        if iid: unique_invs[iid] = i
+    all_group_invs = list(unique_invs.values())
 
-    # Enrich suggestions — resolve suggested dev by usi_dev_id (not slug)
+    # 3. Distribute investments based on their actual source
+    base_invs = []
+    base_portals = {p for p in ("rp", "oto", "to") if base_pm.get(p)}
+    
+    for inv in all_group_invs:
+        assigned = False
+        # Try to match a child first (since base is often a generic host/skeleton)
+        for m in valid_members:
+            m_portals = {p for p in ("rp", "oto", "to") if m["_pm"].get(p)}
+            if m_portals and dm._inv_matches_dev(inv, m["_pm"]):
+                m["_invs"].append(inv)
+                assigned = True
+                break
+        
+        if not assigned:
+            # If no child matched, or base has matching portals
+            if not base_portals or dm._inv_matches_dev(inv, base_pm):
+                base_invs.append(inv)
+            else:
+                # Last resort: put in base anyway so it's visible somewhere
+                base_invs.append(inv)
+
+    # 4. Finalize Base Record UI response
+    # MANDATE: If base is a skeleton (no portal mapping) AND has 0 investments after distribution, 
+    # we hide it to prevent showing 3 cards when only 2 physical records exist.
+    if not base_portals and not base_invs:
+        dev["base_record"] = None
+    else:
+        dev["base_record"] = {
+            "name": dev.get("name"),
+            "developer_slug": dev.get("developer_slug"),
+            "usi_dev_id": dev.get("usi_dev_id"),
+            "portal_mapping": base_pm,
+            "investments_count": len(base_invs),
+            "inv_list": [
+                {"name": inv.get("name", inv.get("investment_slug", "")), "slug": inv.get("investment_slug", "")}
+                for inv in base_invs[:10]
+            ]
+        }
+
+    # 5. Finalize Members UI response
+    final_members = []
+    investments = list(base_invs)
+    existing_inv_ids = {i.get("usi_inv_id") for i in base_invs if i.get("usi_inv_id")}
+    
+    for m in valid_members:
+        m["investments_count"] = len(m["_invs"])
+        m["inv_list"] = [
+            {"name": inv.get("name", inv.get("investment_slug", "")), "slug": inv.get("investment_slug", "")}
+            for inv in m["_invs"][:10]
+        ]
+        m["portal_mapping"] = m["_pm"]
+        m["original_portal_mapping"] = m["_pm"] # redundant but safe
+        
+        # Collect for global investments list (deduplicated)
+        for inv in m["_invs"]:
+            iid = inv.get("usi_inv_id")
+            if iid and iid not in existing_inv_ids:
+                investments.append(inv)
+                existing_inv_ids.add(iid)
+        
+        # Clean up temp keys
+        m.pop("_pm", None); m.pop("_dev", None); m.pop("_invs", None)
+        final_members.append(m)
+
+    dev["merged_from"] = final_members
+    merged_ids = {m.get("usi_dev_id") for m in final_members if m.get("usi_dev_id")}
+
+    dev["portal_mapping"] = aggregated_pm
+    dev["investments_count"] = len(investments)
+    dev["investments"] = investments # Already enriched by base + members logic powyżej
+
+    # Suggestions logic follows...
     valid_suggestions = []
 
     for s in dev.get("suggestions", []):
@@ -609,11 +655,11 @@ def report_issue(dev_slug, inv_slug):
         abort(400)
     payload = request.get_json()
     note = payload.get("note")
-    usi_inv_id = request.args.get("id")
+    system_id = request.args.get("id")
     if not note:
         return jsonify({"error": "Note is required"}), 400
 
-    if investment_service.add_report(dev_slug, inv_slug, note, usi_inv_id=usi_inv_id):
+    if investment_service.add_report(dev_slug, inv_slug, note, system_id=system_id):
         return jsonify({"ok": True})
     return jsonify({"ok": False}), 500
 
@@ -673,7 +719,7 @@ def unmerge_investment(dev_slug, inv_slug):
 def dismiss_investment_suggestion(dev_slug, inv_slug):
     if not _valid_slug(dev_slug) or not _valid_slug(inv_slug): abort(400)
     payload = request.get_json() or {}
-    suggested_id = payload.get("usi_inv_id")
+    suggested_id = payload.get("id") or payload.get("usi_inv_id")
     target_id = payload.get("target_id")
     if not suggested_id or not target_id: abort(400)
     
@@ -705,8 +751,8 @@ def suggest_similar_investments(dev_slug, inv_slug):
 def mark_reviewed(dev_slug, inv_slug):
     if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
         abort(400)
-    usi_inv_id = request.args.get("id")
-    if investment_service.mark_as_reviewed(dev_slug, inv_slug, usi_inv_id=usi_inv_id):
+    system_id = request.args.get("id")
+    if investment_service.mark_as_reviewed(dev_slug, inv_slug, system_id=system_id):
         return jsonify({"ok": True})
     return jsonify({"ok": False}), 500
 

@@ -24,7 +24,8 @@
     const [focusedCat, setFocusedCat] = React.useState(-1);
     const [lightbox, setLightbox] = React.useState(null);
 
-    const { ratings, handleRating, comment, handleComment, status, handleStatus, saved } = useRatings(inv);
+    const { ratings, handleRating, comment, handleComment, status, handleStatus, segment, handleSegment, saved } = useRatings(inv);
+    const config = window.useConfig();
     const metaConfig = useMetadataConfig();
     const [localReviewed, setLocalReviewed] = React.useState(inv.reviewed);
     const { request } = window.useApi ? window.useApi() : { request: fetch };
@@ -123,6 +124,8 @@
                     handleComment={handleComment}
                     status={status}
                     handleStatus={handleStatus}
+                    segment={segment}
+                    handleSegment={handleSegment}
                     saved={saved}
                     focusedCat={focusedCat}
                     onFocusedCatChange={setFocusedCat}
@@ -136,6 +139,8 @@
                     handleComment={handleComment}
                     status={status}
                     handleStatus={handleStatus}
+                    segment={segment}
+                    handleSegment={handleSegment}
                     saved={saved}
                     focusedCat={focusedCat}
                     onFocusedCatChange={setFocusedCat}

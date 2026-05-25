@@ -114,10 +114,6 @@ def backfill_usi_ids():
                 data = json.load(f)
             
             updated = False
-            if "usi_inv_id" not in data:
-                data["usi_inv_id"] = dm.generate_usi_id("INV")
-                updated = True
-            
             # Ensure usi_dev_id is present if developer_slug matches
             dev_slug = data.get("developer_slug")
             if dev_slug and dev_slug in dev_map:
@@ -390,14 +386,27 @@ def main():
             devs = delegate.get_developers_for_analysis()
             dismissed = delegate.get_dismissed_cache()
             suggestions = calculate_similarities(devs, dismissed)
-            grouped = {}
+            
+            # Deduplicate by (source_id, target_id)
+            unique_suggestions = {}
             for s in suggestions:
-                grouped.setdefault(s["source_id"], []).append(s)
+                key = (s["source_id"], s["target_id"])
+                if key not in unique_suggestions or s["score"] > unique_suggestions[key]["score"]:
+                    unique_suggestions[key] = s
+            
+            grouped = {}
+            for s in unique_suggestions.values():
+                grouped.setdefault(s["source_id"], []).append({
+                    "target_id": s["target_id"],
+                    "target_slug": s["target_slug"],
+                    "reason": s["reason"],
+                    "score": s["score"]
+                })
             for dev_id, sugs in grouped.items():
                 delegate.save_suggestions(dev_id, sugs)
-            logger.info(f"Suggestion algorithm finished. Found {len(suggestions)} pairs.")
-        except ImportError:
-            logger.error("usi_crawlers is not installed.")
+            logger.info(f"Suggestion algorithm finished. Found {len(unique_suggestions)} unique pairs.")
+        except ImportError as e:
+            logger.error(f"usi_crawlers import failed: {e}")
 
     elif args.command == "suggest-invs":
         from .detect_similar_invs import detect_similar_invs

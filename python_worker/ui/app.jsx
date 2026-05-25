@@ -128,7 +128,7 @@
         investments, developers, loading,
         filters, download, visibleInvestments
       } = bus;
-      const { search, dev: filterDev, status: filterStatus, sources: activeSources, cities: activeCities } = filters;
+      const { search, dev: filterDev, status: filterStatus, sources: activeSources, cities: activeCities, segments: activeSegments } = filters;
 
       React.useEffect(() => {
         injectThemeCSS();
@@ -200,6 +200,17 @@
           if (isShift) return new Set([city]);
           if (next.has(city)) next.delete(city);
           else next.add(city);
+          return next;
+        });
+      };
+
+      const toggleSegment = (id, isShift) => {
+        setVariable('filters.segments', prev => {
+          if (id === null) return new Set();
+          const next = new Set(prev);
+          if (isShift) return new Set([id]);
+          if (next.has(id)) next.delete(id);
+          else next.add(id);
           return next;
         });
       };
@@ -351,6 +362,13 @@
                           <FilterChip key={city} label={city} active={activeCities.has(city)} onClick={(isShift) => toggleCity(city, isShift)} />
                         ))}
                       </FilterGroup>
+                      {config?.segments?.length > 0 && (
+                        <FilterGroup label="Segmenty">
+                          {config.segments.map(seg => (
+                            <FilterChip key={seg} label={seg} active={activeSegments.has(seg)} onClick={(isShift) => toggleSegment(seg, isShift)} />
+                          ))}
+                        </FilterGroup>
+                      )}
                     </>
                   )}
                   {view === 'developers' && (

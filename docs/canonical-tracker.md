@@ -429,6 +429,7 @@ USIdev/
 
 **Reguła 1:1:** Jeden `usi_dev_*.json` = dokładnie jeden portal w `portal_mapping`.
 Dwie karty (`rp` + `oto`) dla tego samego dewelopera = dwa osobne pliki z dwoma DEV-ID.
+Każdy plik Level 2 **musi** posiadać pole `raw_file` wskazujące na plik źródłowy `raw_*.json`.
 
 **Priorytet wyszukiwania pliku (developer_manager.py):**
 1. Nowy format z ID: `USIdev/{slug}/usi_dev_*_{slug}.json` (glob, sortowane)
@@ -444,6 +445,7 @@ Dwie karty (`rp` + `oto`) dla tego samego dewelopera = dwa osobne pliki z dwoma 
   "developer_slug": "ezbud-sp-z-oo-spk",
   "name": "\"Ezbud\" Sp. z o.o. Sp.k.",
   "usi_dev_id": "DEV-26702",
+  "raw_file": "raw_rp_1190.json",
 
   "portal_mapping": {
     "rp": {

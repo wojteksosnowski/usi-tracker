@@ -54,6 +54,14 @@
 - Optymalizacja Responsywności: Dostosowano siatkę dashboardu do urządzeń mobilnych i tabletów (dynamiczne przełączanie kolumn).
 - Standaryzacja Kart: Wszystkie moduły dashboardu korzystają teraz ze spójnego komponentu BaseModule.
 
+## v0.9.8 — 2026-05-25
+
+- **Architektura ID-ONLY**: Pełne wdrożenie zasady identyfikacji po ID. Funkcja indeksowania (`rebuild`) korzysta teraz wyłącznie z danych wewnątrz plików JSON, a nie z nazw katalogów.
+- **Naprawa szkieletów (T2)**: Przywrócono dane dla ponad 7000 inwestycji ("szkieletów") poprzez automatyczną odbudowę plików `usi_*.json` z lokalnych danych surowych (`raw_*.json`).
+- **Dynamiczny routing obrazów**: Wprowadzono elastyczny endpoint `/api/image/<path:filepath>`, który eliminuje błędy ładowania zdjęć wynikające z różnic w strukturze folderów (np. po scalaniu rekordów).
+- **Aktualizacja Biblioteki**: Podniesiono wersję `usi-scrapers` do **0.8.1**, wprowadzając wsparcie dla ujednoliconego mapowania współrzędnych (`geo_point`) i Required Fields.
+- **Indeks inwestycji**: Zoptymalizowano proces budowania indeksu, zapewniając kompletność pól (`source`, `district`, `developer_slug`) wymaganych przez interfejs React.
+
 ## v0.9.7 — 2026-05-10
 
 - **Refaktoryzacja Dashboardu**: Naprawiono "rozsypany" układ strony głównej poprzez wdrożenie 12-kolumnowej siatki CSS Grid.

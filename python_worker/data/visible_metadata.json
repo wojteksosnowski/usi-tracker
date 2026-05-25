@@ -8,5 +8,6 @@
   {"key": "price_m2_max", "label": "Cena m2 max.", "path": "price_m2_max", "type": "currency"},
   {"key": "price_avg", "label": "Cena śr.", "path": "price_avg", "type": "currency"},
   {"key": "photos_count", "label": "Zdjęcia", "path": "photos.length", "type": "count"},
+  {"key": "segment", "label": "Segment", "path": "specifications.segment", "type": "string"},
   {"key": "status", "label": "Status", "path": "status", "type": "string"}
 ]

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema",
+  "$id": "usi_anchor.schema.json",
+  "title": "USI Investment Anchor (Level 2a)",
+  "description": "Identity anchor for an investment, linking to raw data and meta-data.",
+  "type": "object",
+  "required": ["usi_inv_id", "portal", "portal_id", "raw_file", "meta_file"],
+  "properties": {
+    "usi_inv_id": { "type": "string" },
+    "portal": { "type": "string" },
+    "portal_id": { "type": "string" },
+    "raw_file": { "type": "string" },
+    "meta_file": { "type": "string" },
+    "master_id": { "type": ["string", "null"] },
+    "last_updated": { "type": "string", "format": "date-time" }
+  }
+}

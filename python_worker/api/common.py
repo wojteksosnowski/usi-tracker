@@ -1,15 +1,28 @@
+import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from python_worker.config import HERE_API_KEY
+from python_worker.config import HERE_API_KEY, SEGMENTS_CONFIG_PATH
 
 logger = logging.getLogger(__name__)
 
 def get_ui_config():
     """Returns centralized UI configuration."""
-    return {
-        "hereApiKey": HERE_API_KEY
+    config = {
+        "hereApiKey": HERE_API_KEY,
+        "segments": []
     }
+    
+    # Load segments from config file
+    if SEGMENTS_CONFIG_PATH.exists():
+        try:
+            with open(SEGMENTS_CONFIG_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                config["segments"] = data.get("segments", [])
+        except Exception as e:
+            logger.error(f"Failed to load segments for UI config: {e}")
+            
+    return config
 
 def log_ui_error_to_file(payload):
     """Logs frontend errors to a dedicated log file."""

@@ -52,6 +52,7 @@ function DataBusProvider({ children }) {
       onlyUnreviewed: false,
       onlyNoPhotos: false,
       sources: new Set(['RP', 'OTO', 'TO']),
+      segments: new Set(),
       cities: new Set()
     },
     devFilters: {
@@ -165,6 +166,7 @@ function DataBusProvider({ children }) {
       if (f.onlyUnreviewed) params.append('onlyUnreviewed', 'true');
       if (f.onlyNoPhotos) params.append('onlyNoPhotos', 'true');
       if (f.sources && f.sources.size > 0) params.append('sources', Array.from(f.sources).join(','));
+      if (f.segments && f.segments.size > 0) params.append('segments', Array.from(f.segments).join(','));
       if (f.cities && f.cities.size > 0) params.append('cities', Array.from(f.cities).join(','));
       url += `?${params.toString()}`;
     }

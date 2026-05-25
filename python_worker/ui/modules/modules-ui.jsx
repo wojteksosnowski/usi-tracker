@@ -57,6 +57,10 @@
       const cached = _ratingCache.get(inv.slug);
       return cached ? cached.status : (inv.status || 'Brak');
     });
+    const [segment, setSegment] = React.useState(() => {
+      const cached = _ratingCache.get(inv.slug);
+      return cached ? cached.segment : (inv.specifications?.segment || '');
+    });
     const [saved, setSaved] = React.useState(false);
     const debounceRef = React.useRef(null);
 
@@ -65,17 +69,18 @@
       setRatings(init());
       setComment(cached ? cached.comment : (inv.comment || ''));
       setStatus(cached ? cached.status : (inv.status || 'Brak'));
+      setSegment(cached ? cached.segment : (inv.specifications?.segment || ''));
       setSaved(false);
     }, [inv.slug]);
 
-    const persist = (r, c, s) => {
+    const persist = (r, c, s, seg) => {
       request(`/api/ratings/${inv.developer_slug}/${inv.investment_slug}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...r, komentarz: c, status: s }),
+        body: JSON.stringify({ ...r, komentarz: c, status: s, Segment: seg }),
       })
         .then(() => {
-          _ratingCache.set(inv.slug, { ratings: r, comment: c, status: s });
+          _ratingCache.set(inv.slug, { ratings: r, comment: c, status: s, segment: seg });
           setSaved(true);
           setVariable('appStatus', { type: 'success', msg: 'Ocena zapisana' });
           
@@ -84,7 +89,8 @@
             if (!Array.isArray(prev)) return prev;
             return prev.map(item => {
               if (item.usi_inv_id === inv.usi_inv_id) {
-                return { ...item, status: s, ratings: { ...r, komentarz: c, status: s }, comment: c };
+                const updatedSpec = { ...item.specifications, segment: seg };
+                return { ...item, status: s, ratings: { ...r, komentarz: c, status: s, Segment: seg }, comment: c, specifications: updatedSpec, segment: seg };
               }
               return item;
             });
@@ -98,22 +104,27 @@
     const handleRating = (key, val) => {
       const next = { ...ratings, [key]: val };
       setRatings(next);
-      persist(next, comment, status);
+      persist(next, comment, status, segment);
     };
 
     const handleComment = (e) => {
       const val = e.target.value;
       setComment(val);
       clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => persist(ratings, val, status), 800);
+      debounceRef.current = setTimeout(() => persist(ratings, val, status, segment), 800);
     };
 
     const handleStatus = (val) => {
       setStatus(val);
-      persist(ratings, comment, val);
+      persist(ratings, comment, val, segment);
     };
 
-    return { ratings, setRatings, comment, setComment, status, setStatus, saved, handleRating, handleComment, handleStatus };
+    const handleSegment = (val) => {
+      setSegment(val);
+      persist(ratings, comment, status, val);
+    };
+
+    return { ratings, setRatings, comment, setComment, status, setStatus, segment, setSegment, saved, handleRating, handleComment, handleStatus, handleSegment };
   };
   usiRegister('useRatings', useRatings);
 

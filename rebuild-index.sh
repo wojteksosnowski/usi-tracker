@@ -17,8 +17,4 @@ echo "→ Odbudowuję index inwestycji..."
 "$PY" -m python_worker.main rebuild-index
 
 echo ""
-echo "→ Skanowanie sugestii deweloperów..."
-"$PY" -m python_worker.main suggest
-
-echo ""
 echo "Gotowe."

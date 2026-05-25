@@ -3,7 +3,7 @@
 (function() {
   const { React, usiRegister, SlideShow, RatingsPanel, CategoryRatingRow, Icon } = window;
 
-  const ModeC = ({ inv, marked, onToggleMark, onLightbox, ratings, handleRating, comment, handleComment, status, handleStatus, saved, focusedCat, onFocusedCatChange }) => {
+  const ModeC = ({ inv, marked, onToggleMark, onLightbox, ratings, handleRating, comment, handleComment, status, handleStatus, segment, handleSegment, saved, focusedCat, onFocusedCatChange }) => {
     const [panelOpen, setPanelOpen] = React.useState(false);
     const categories = window.USI_CATEGORIES || [];
 
@@ -54,6 +54,7 @@
                 inv={inv} ratings={ratings} handleRating={handleRating}
                 comment={comment} handleComment={handleComment}
                 status={status} handleStatus={handleStatus}
+                segment={segment} handleSegment={handleSegment}
                 saved={saved} focusedCat={focusedCat}
                 onFocusedCatChange={onFocusedCatChange}
               />

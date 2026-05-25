@@ -49,6 +49,7 @@ def get_metadata_config():
         return send_file(VISIBLE_METADATA_FILE)
     return jsonify([
         {"key": "address", "label": "Adres", "path": "address", "type": "string"},
+        {"key": "segment", "label": "Segment", "path": "specifications.segment", "type": "string"},
         {"key": "units", "label": "Mieszkania", "path": "units", "type": "number"},
         {"key": "delivery", "label": "Termin", "path": "delivery", "type": "string"},
         {"key": "price_avg", "label": "Cena śr.", "path": "price_avg", "type": "currency"},
