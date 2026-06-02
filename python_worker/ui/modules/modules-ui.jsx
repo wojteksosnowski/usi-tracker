@@ -71,10 +71,15 @@
       setStatus(cached ? cached.status : (inv.status || 'Brak'));
       setSegment(cached ? cached.segment : (inv.specifications?.segment || ''));
       setSaved(false);
-    }, [inv.slug]);
+    }, [inv.slug, JSON.stringify(inv.ratings)]);
 
     const persist = (r, c, s, seg) => {
-      request(`/api/ratings/${inv.developer_slug}/${inv.investment_slug}`, {
+      const targetId = inv.usi_inv_id || inv.id;
+      if (!targetId) {
+        if (setVariable) setVariable('appStatus', { type: 'error', msg: 'Brak ID inwestycji' });
+        return;
+      }
+      request(`/api/ratings/${targetId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...r, komentarz: c, status: s, Segment: seg }),

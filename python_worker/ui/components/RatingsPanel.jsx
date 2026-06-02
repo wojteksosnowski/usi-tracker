@@ -1,12 +1,13 @@
 // RatingsPanel.jsx — hook useRatings + komponent RatingsPanel
 
 (function() {
-  const { React, usiRegister, useDataBus, CategoryRating, CategoryRatingRow, UsiStarScore, ocenaLog, Icon, USI_CATEGORIES, USI_STATUSES, useRatings } = window;
+  const { usiRegister } = window;
 
   const RatingsPanel = ({ inv, variant = 'circles', focusedCat = -1, onFocusedCatChange,
       ratings = {}, handleRating, comment = '', handleComment, status = 'Brak', handleStatus,
       segment = '', handleSegment, saved = false }) => {
     
+    const { React, CategoryRatingRow, UsiStarScore, ocenaLog, Icon, USI_CATEGORIES, USI_STATUSES } = window;
     const currentInv = { ratings };
     return (
       <div data-component="RatingsPanel" className="usi-ratings-panel">

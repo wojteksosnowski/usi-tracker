@@ -155,16 +155,9 @@ class Merger:
 
             other_fin = other.get("financials", {})
             curr_fin = result["financials"]
-            if not curr_fin.get("price_min") and other_fin.get("price_min"):
-                curr_fin["price_min"] = other_fin["price_min"]
-            if not curr_fin.get("price_max") and other_fin.get("price_max"):
-                curr_fin["price_max"] = other_fin["price_max"]
-            if not curr_fin.get("price_avg") and other_fin.get("price_avg"):
-                curr_fin["price_avg"] = other_fin["price_avg"]
-            if not curr_fin.get("price_m2_min") and other_fin.get("price_m2_min"):
-                curr_fin["price_m2_min"] = other_fin["price_m2_min"]
-            if not curr_fin.get("price_m2_max") and other_fin.get("price_m2_max"):
-                curr_fin["price_m2_max"] = other_fin["price_m2_max"]
+            for fld in ("price_min", "price_max", "price_avg", "price_m2_min", "price_m2_max", "rent_price_min", "rent_price_max"):
+                if not curr_fin.get(fld) and other_fin.get(fld):
+                    curr_fin[fld] = other_fin[fld]
             
             # Fallback for price_avg if it is still missing but we have price_min
             if not curr_fin.get("price_avg") and curr_fin.get("price_min"):
@@ -217,7 +210,7 @@ class Merger:
                 result["specifications"]["delivery_year"] = ex_spec.get("delivery_year")
 
             ex_fin = existing_data.get("financials") or {}
-            for fld in ("price_min", "price_max", "price_avg", "price_m2_min", "price_m2_max"):
+            for fld in ("price_min", "price_max", "price_avg", "price_m2_min", "price_m2_max", "rent_price_min", "rent_price_max"):
                 if not result["financials"].get(fld) and ex_fin.get(fld):
                     result["financials"][fld] = ex_fin[fld]
 

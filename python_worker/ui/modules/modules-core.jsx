@@ -43,7 +43,16 @@
       try {
         const res = await fetch(url, options);
         if (!res.ok) {
-          throw new Error(`Błąd API: ${res.status} ${res.statusText}`);
+          let errorMsg = `Błąd API: ${res.status} ${res.statusText}`;
+          try {
+            const errData = await res.json();
+            if (errData && errData.error) {
+              errorMsg += ` - ${errData.error}`;
+            }
+          } catch (e) {
+            // Ignore
+          }
+          throw new Error(errorMsg);
         }
         const data = await res.json();
 

@@ -202,6 +202,13 @@ def rebuild_index():
     threading.Thread(target=_run, args=(job_id,), daemon=True).start()
     return jsonify({"job_id": job_id})
 
+@investments_bp.route("/investment/<system_id>/data")
+def investment_data_id(system_id):
+    inv = investment_service.get_investment(None, None, system_id=system_id)
+    if inv is None:
+        abort(404)
+    return jsonify(inv)
+
 @investments_bp.route("/data/<dev_slug>/<inv_slug>")
 def investment_data(dev_slug, inv_slug):
     if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
@@ -211,16 +218,14 @@ def investment_data(dev_slug, inv_slug):
         abort(404)
     return jsonify(inv)
 
-@investments_bp.route("/ratings/<dev_slug>/<inv_slug>", methods=["POST"])
-def save_ratings(dev_slug, inv_slug):
-    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
-        abort(400)
+@investments_bp.route("/ratings/<system_id>", methods=["POST"])
+def save_ratings(system_id):
     payload = request.get_json(silent=True) or {}
     try:
-        if investment_service.save_ratings(dev_slug, inv_slug, payload):
+        if investment_service.save_ratings(system_id, payload):
             return jsonify({"ok": True})
         else:
-            abort(404)
+            return jsonify({"error": f"Nie znaleziono inwestycji (ID: {system_id})"}), 404
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
@@ -228,11 +233,15 @@ def save_ratings(dev_slug, inv_slug):
 def save_deletion_list(dev_slug, inv_slug):
     if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
         abort(400)
+    inv = investment_service.get_investment(dev_slug, inv_slug)
+    if not inv:
+        abort(404)
+    system_id = inv.get("usi_inv_id") or inv.get("id")
     payload = request.get_json(silent=True) or {}
     paths = payload.get("paths", [])
     if not isinstance(paths, list):
         abort(400, "paths must be a list")
-    if investment_service.mark_deleted_photos(dev_slug, inv_slug, paths):
+    if investment_service.mark_deleted_photos(system_id, paths):
         return jsonify({"ok": True, "count": len(paths)})
     else:
         abort(404)
@@ -241,7 +250,11 @@ def save_deletion_list(dev_slug, inv_slug):
 def reload_investment(dev_slug, inv_slug):
     if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
         abort(400)
-    success = investment_service.update_investment(dev_slug, inv_slug)
+    inv = investment_service.get_investment(dev_slug, inv_slug)
+    if not inv:
+        abort(404)
+    system_id = inv.get("usi_inv_id") or inv.get("id")
+    success = investment_service.update_investment(system_id)
     if not success:
         return jsonify({"ok": False, "error": "Failed to update"}), 500
     updated_inv = investment_service.get_investment(dev_slug, inv_slug)
@@ -255,21 +268,22 @@ def refresh_investment_route(dev_slug, inv_slug):
     if not inv:
         abort(404)
     
-    def run_refresh_job(job_id, d_slug, i_slug, inv_name):
-        job_manager.update_progress(job_id, 10, f"Rozpoczęto odświeżanie: {inv_name}")
+    def run_refresh_job(job_id, i_name, system_id):
+        job_manager.update_progress(job_id, 10, f"Rozpoczęto odświeżanie: {i_name}")
         try:
-            if investment_service.update_investment(d_slug, i_slug):
-                job_manager.update_progress(job_id, 100, f"Ukończono odświeżanie: {inv_name}")
+            if investment_service.update_investment(system_id):
+                job_manager.update_progress(job_id, 100, f"Ukończono odświeżanie: {i_name}")
             else:
-                job_manager.update_progress(job_id, 100, f"Brak danych do odświeżenia: {inv_name}", status="failed")
+                job_manager.update_progress(job_id, 100, f"Brak danych do odświeżenia: {i_name}", status="failed")
         except RuntimeError as e:
-            logger.error(f"Refresh job failed for {i_slug}: {e}")
+            logger.error(f"Refresh job failed for {system_id}: {e}")
             job_manager.update_progress(job_id, 100, str(e), status="failed")
         except Exception as e:
-            logger.exception(f"Exception during refresh job for {i_slug}: {e}")
+            logger.exception(f"Exception during refresh job for {system_id}: {e}")
             job_manager.update_progress(job_id, 100, f"Wyjątek: {str(e)}", status="failed")
 
-    job_id = job_manager.start_job(f"Refresh: {inv['name']}", run_refresh_job, dev_slug, inv_slug, inv['name'])
+    system_id = inv.get("usi_inv_id") or inv.get("id")
+    job_id = job_manager.start_job(f"Refresh: {inv['name']}", run_refresh_job, inv['name'], system_id)
     return jsonify({"ok": True, "job_id": job_id})
 
 @investments_bp.route("/download-raw/<dev_slug>/<inv_slug>", methods=["POST"])
@@ -475,6 +489,8 @@ def get_developer_detail(dev_slug):
     investments = list(base_invs)
     existing_inv_ids = {i.get("usi_inv_id") for i in base_invs if i.get("usi_inv_id")}
     
+    aggregated_pm = base_pm.copy()
+    
     for m in valid_members:
         m["investments_count"] = len(m["_invs"])
         m["inv_list"] = [
@@ -483,6 +499,11 @@ def get_developer_detail(dev_slug):
         ]
         m["portal_mapping"] = m["_pm"]
         m["original_portal_mapping"] = m["_pm"] # redundant but safe
+        
+        # Aggregate portal mappings for the main record
+        for p, pdata in m["_pm"].items():
+            if not aggregated_pm.get(p) and pdata:
+                aggregated_pm[p] = pdata
         
         # Collect for global investments list (deduplicated)
         for inv in m["_invs"]:
@@ -701,8 +722,14 @@ def suggest_similar_investments(dev_slug, inv_slug):
     job_manager.start_job("Skanuj Podobne Inwestycje", run_suggest, dev_slug, inv_slug, target_id)
     return jsonify({"ok": True, "message": "Rozpoczęto skanowanie podobnych inwestycji."})
 
+@investments_bp.route("/investment/<system_id>/review", methods=["POST"])
+def mark_reviewed(system_id):
+    if investment_service.mark_as_reviewed(None, None, system_id=system_id):
+        return jsonify({"ok": True})
+    return jsonify({"ok": False}), 500
+
 @investments_bp.route("/investment/<dev_slug>/<inv_slug>/review", methods=["POST"])
-def mark_reviewed(dev_slug, inv_slug):
+def mark_reviewed_legacy(dev_slug, inv_slug):
     if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
         abort(400)
     system_id = request.args.get("id")

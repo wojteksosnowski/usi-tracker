@@ -42,7 +42,7 @@ def _get_segment(portal: str, raw: dict) -> str | None:
     signals = {}
     
     if portal == "rp":
-        t = raw.get("type")
+        t = _get_val(raw, "type")
         signals["apartments"] = (t == 1)
         signals["houses"] = (t == 2)
         signals["investment"] = "apartamenty-inwestycyjne" if t == 3 else None
@@ -105,7 +105,7 @@ def _unified_base(inv_slug, dev_slug, name, developer=None):
             "ceiling_height_max": None,
             "segment": None
         },
-        "financials": {"price_min": None, "price_max": None, "price_avg": None, "price_m2_min": None, "price_m2_max": None},
+        "financials": {"price_min": None, "price_max": None, "price_avg": None, "price_m2_min": None, "price_m2_max": None, "rent_price_min": None, "rent_price_max": None},
         "amenities": {"labels": [], "raw_codes": []},
         "image_urls": [],
         "images_count": 0,
@@ -160,35 +160,40 @@ class RPAdapter:
         u = _unified_base(inv_slug, dev_slug, name)
 
         coords = _get_val(raw, cfg.get("geo_point_coordinates"))
-        if not coords and isinstance(raw.get("geo_point"), dict):
-            val = raw["geo_point"].get("value", {})
-            if isinstance(val, dict):
-                c_obj = val.get("coordinates", {})
-                if isinstance(c_obj, dict):
-                    coords = c_obj.get("value")
-                elif isinstance(c_obj, list):
-                    coords = c_obj
-
+        
         lat = coords[1] if coords and len(coords) > 1 else None
         lng = coords[0] if coords and len(coords) > 0 else None
 
-        construction = _get_val(raw, cfg.get("construction_date_upper")) or _get_val(raw, "construction_date_range")
-        delivery = _get_val(construction, "upper") if isinstance(construction, dict) else None
+        delivery = _get_val(raw, cfg.get("construction_date_upper"))
 
         gallery_urls = []
-        gallery_data = raw.get("_raw_gallery", {})
         _gallery_prio = ["g_img_2000", "g_img_1500", "g_img_500"]
-        for item in (gallery_data.get("gallery") or []):
-            img_obj = item.get("image", {})
-            img = next((img_obj[k] for k in _gallery_prio if img_obj.get(k)), None)
-            if img:
-                gallery_urls.append(img)
-        main = raw.get("main_image")
-        if isinstance(main, dict):
-            _main_prio = ["m_img_1500", "m_img_500"]
-            main = next((main[k] for k in _main_prio if main.get(k)), None)
-        if main:
-            gallery_urls.insert(0, main)
+        
+        # 1. Check for library-injected _raw_gallery
+        gallery_data = raw.get("_raw_gallery", {})
+        gallery_items = gallery_data.get("gallery")
+        
+        # 2. Fallback to config-driven gallery
+        if not gallery_items:
+            gallery_items = _get_val(raw, cfg.get("gallery", "gallery"))
+            
+        if isinstance(gallery_items, list):
+            for item in gallery_items:
+                if isinstance(item, dict):
+                    img_obj = item.get("image", {})
+                    img = next((img_obj[k] for k in _gallery_prio if img_obj.get(k)), None)
+                    if img:
+                        gallery_urls.append(img)
+        
+        main_obj = _get_val(raw, cfg.get("main_image", "main_image"))
+        if isinstance(main_obj, dict):
+            _main_prio = ["m_img_1500", "m_img_500", "g_img_2000", "g_img_1500", "g_img_500"]
+            main = next((main_obj[k] for k in _main_prio if main_obj.get(k)), None)
+            if main and main not in gallery_urls:
+                gallery_urls.insert(0, main)
+        elif isinstance(main_obj, str) and main_obj not in gallery_urls:
+            gallery_urls.insert(0, main_obj)
+
         if not gallery_urls:
             gallery_urls = raw.get("image_urls", [])
 
@@ -220,7 +225,7 @@ class RPAdapter:
             
         u["sources"]["rp"] = rp_src
         u["website"] = website
-        address = _get_val(raw, "address") or raw.get("address")
+        address = _get_val(raw, cfg.get("address")) or _get_val(raw, "address")
         city = district = None
         if address:
             parts = [p.strip() for p in address.split(",")]
@@ -311,6 +316,23 @@ class OtodomAdapter:
         urls = res.get("image_urls", [])
         u["image_urls"] = urls
         u["images_count"] = len(urls)
+
+        # Extract prices from result
+        price = res.get("price")
+        price_m2 = res.get("price_per_m")
+        is_rental = res.get("transaction") == "rent"
+        
+        if is_rental:
+            u["financials"].update({
+                "rent_price_min": float(price) if price else None,
+                "price_min": None,
+                "price_m2_min": None
+            })
+        else:
+            u["financials"].update({
+                "price_min": float(price) if price else None,
+                "price_m2_min": float(price_m2) if price_m2 else None
+            })
 
         # Supplement from raw_details if available (scrape_otodom doesn't pre-extract all fields)
         ad = res.get("raw_details") or {}
@@ -415,10 +437,24 @@ class OtodomAdapter:
             u["location"]["city"] = (addr_obj.get("city") or {}).get("name")
             u["location"]["district"] = (addr_obj.get("district") or {}).get("name")
 
-        price_min = _get_val(ad, cfg.get("price_min"))
-        u["financials"].update({
-            "price_min": float(price_min) if price_min else None
-        })
+        price_min = _get_val(raw, cfg.get("price_min"))
+        price_m2_min = _get_val(raw, cfg.get("price_m2_min"))
+        
+        # Check for rental transaction
+        is_rental = (_get_val(ad, "target.Transaction") == "rent" or 
+                     _get_val(ad, "target.MarketType") == "rent")
+
+        if is_rental:
+            u["financials"].update({
+                "rent_price_min": float(price_min) if price_min else None,
+                "price_min": None,
+                "price_m2_min": None
+            })
+        else:
+            u["financials"].update({
+                "price_min": float(price_min) if price_min else None,
+                "price_m2_min": float(price_m2_min) if price_m2_min else None
+            })
 
         u["specifications"].update({
             "delivery_quarter": dq,
@@ -509,6 +545,8 @@ class TOAdapter:
         developer_name = _get_val(raw, cfg.get("developer_name"))
         price_min = _get_val(raw, cfg.get("price_min"))
         price_max = _get_val(raw, cfg.get("price_max"))
+        price_m2_min = _get_val(raw, cfg.get("price_m2_min"))
+        price_m2_max = _get_val(raw, cfg.get("price_m2_max"))
         
         # Fallback for multi-offer lists if JsonPathExtractor didn't handle it
         # (though it should if the path matches)
@@ -517,12 +555,16 @@ class TOAdapter:
             if isinstance(off, dict):
                 price_min = off.get("lowPrice")
                 price_max = off.get("highPrice")
+                if price_m2_min is None:
+                    price_m2_min = off.get("pricePerSqm")
 
         try:
             price_min = float(price_min or 0) or None
             price_max = float(price_max or 0) or None
+            price_m2_min = float(price_m2_min or 0) or None
+            price_m2_max = float(price_m2_max or 0) or None
         except (TypeError, ValueError):
-            price_min = price_max = None
+            price_min = price_max = price_m2_min = price_m2_max = None
 
         urls = raw.get("_raw_gallery_urls") or raw.get("image_urls", [])
 
@@ -560,7 +602,12 @@ class TOAdapter:
             
         u["sources"]["to"] = to_src
         u["location"].update({"coords": [lat, lng], "address": address, "city": city})
-        u["financials"].update({"price_min": price_min, "price_max": price_max})
+        u["financials"].update({
+            "price_min": price_min, 
+            "price_max": price_max,
+            "price_m2_min": price_m2_min,
+            "price_m2_max": price_m2_max
+        })
         u["amenities"]["labels"] = amenity_labels
         u["specifications"].update({
             "units_count": _get_val(raw, cfg.get("units_count")),

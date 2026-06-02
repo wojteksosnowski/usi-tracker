@@ -94,6 +94,7 @@ def _resolve_paths(
     dev_slug: str,
     inv_slug: str,
     public_usi_dir: Path,
+    global_index: dict
 ) -> tuple[list[str], str]:
     """
     Zwraca (poprawne_ścieżki, metoda).
@@ -107,14 +108,19 @@ def _resolve_paths(
     # Krok 2 — szukaj po nazwie pliku (przeniesienie 1:1)
     for p in raw_paths:
         filename = Path(p).name
-        found_dir = _find_by_filename(filename, public_usi_dir)
-        if found_dir:
-            return _list_images(found_dir), "by_filename"
+        bname = filename.rsplit(".", 1)[0]
+        if bname in global_index:
+            found_dir = Path(DROPBOX_PATH) / global_index[bname][0].lstrip("/")
+            return _list_images(found_dir.parent), "by_filename"
 
     # Krok 3 — szukaj po stemie CDN z image_urls
-    found_dir = _find_by_cdn_stem(image_urls, public_usi_dir)
-    if found_dir:
-        return _list_images(found_dir), "by_cdn_stem"
+    for url in image_urls:
+        stem = url.split("/files/")[-1].split("/image")[0]
+        if not stem or "/" in stem:
+            continue
+        if stem in global_index:
+            found_dir = Path(DROPBOX_PATH) / global_index[stem][0].lstrip("/")
+            return _list_images(found_dir.parent), "by_cdn_stem"
 
     # Krok 4 — dokładne dopasowanie inv_slug pod dowolnym dev (inwestycja przeniesiona)
     found_dir = _find_by_exact_inv_slug(inv_slug, public_usi_dir)
@@ -132,6 +138,20 @@ def _resolve_paths(
 def repair(apply: bool = False) -> dict:
     data_dir = Path(USI_DATA_DIR)
     public_usi_dir = Path(PUBLIC_USI_DIR)
+
+    import os
+    logger.info("Budowanie globalnego indeksu plików z /Public/USI ...")
+    global_index = {}
+    for root, dirs, files in os.walk(public_usi_dir):
+        for file in files:
+            if file.startswith("."):
+                continue
+            bname = file.rsplit(".", 1)[0]
+            if bname not in global_index:
+                global_index[bname] = []
+            rel_path = os.path.relpath(os.path.join(root, file), public_usi_dir)
+            global_index[bname].append(f"/Public/USI/{rel_path}")
+    logger.info(f"Zbudowano indeks dla {sum(len(v) for v in global_index.values())} plików.")
 
     stats = {"ok": 0, "fixed": 0, "not_found": 0}
     fixes: list[dict] = []
@@ -158,7 +178,7 @@ def repair(apply: bool = False) -> dict:
         img_list_paths = [p.strip() for p in img_list_str.split(",") if p.strip()] if img_list_str else []
         raw_paths = list(dict.fromkeys(existing_paths + img_list_paths))
 
-        corrected, method = _resolve_paths(raw_paths, image_urls, dev_slug, inv_slug, public_usi_dir)
+        corrected, method = _resolve_paths(raw_paths, image_urls, dev_slug, inv_slug, public_usi_dir, global_index)
 
         if not corrected:
             stats["not_found"] += 1

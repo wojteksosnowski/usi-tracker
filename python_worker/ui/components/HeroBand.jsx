@@ -4,7 +4,14 @@
   const { React, usiRegister, Icon, SourceBadge, MiniMap, WeightedUsiScore, ocenaLog } = window;
 
   const SourceLinks = ({ inv }) => {
-    const links = inv.source_links || [{ source: inv.source, url: inv.source_url }];
+    let links = [];
+    if (inv.sources) {
+        links = Object.entries(inv.sources).map(([source, data]) => ({ source, url: data.url }));
+    } else if (inv.source_links) {
+        links = inv.source_links;
+    } else if (inv.source && inv.source_url) {
+        links = [{ source: inv.source, url: inv.source_url }];
+    }
     return (
       <div data-component="SourceLinks" className="source-links">
         {links.map((link, i) => (
@@ -34,12 +41,13 @@
           <div className="hero-band-title-row">
             <h1 className="usi-h1 hero-band-title">{inv.name}</h1>
             <span className="usi-body hero-band-developer">{inv.developer}</span>
+            <SourceLinks inv={inv} />
           </div>
           <div className="hero-band-stats">
             {inv.usi_inv_id && <span className="usi-mono" style={{opacity: 0.6}}>ID: {inv.usi_inv_id}</span>}
-            {inv.address && <span>📍 {inv.address}</span>}
-            {inv.price_avg > 0 && <span className="usi-mono">{inv.price_avg.toLocaleString('pl-PL')} zł/m²</span>}
-            <span className="usi-mono">{inv.delivery}</span>
+            {((inv.location && inv.location.address) || inv.address) ? <span>📍 {(inv.location && inv.location.address) || inv.address}</span> : <span>📍 —</span>}
+            {((inv.financials && inv.financials.price_avg) || inv.price_avg) > 0 ? <span className="usi-mono">{((inv.financials && inv.financials.price_avg) || inv.price_avg).toLocaleString('pl-PL')} zł/m²</span> : <span className="usi-mono">—</span>}
+            <span className="usi-mono">{((inv.specifications && (inv.specifications.delivery_date || inv.specifications.delivery_quarter || inv.specifications.delivery_year)) || inv.delivery || '—')}</span>
           </div>
         </div>
 

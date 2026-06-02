@@ -611,14 +611,13 @@ USI/
         └── {image_filename}
 ```
 
-Konwencja nazw plików obrazów (generowana przez scraper):
+Konwencja nazw plików obrazów (generowana przez scraper oparty o `clean_filename(url)`):
 
-```
-{project-slug}_{hash6}.{ext}
-{project-slug}-{descriptor}_{hash6}.{ext}
-```
-
-Przykład: `szalasa-3_6df205.png`, `szalasa-3-zdjecie-inwestycji_d2057f.png`
+| Portal | Wzorzec URL | Wynikowa nazwa pliku |
+|---|---|---|
+| Otodom CDN | `.../v1/files/{hash}/image;s=800x600` | `{hash}.jpg` |
+| TabelaOfert CDN | `.../ID-photo-name.jpg` | `photo-name.jpg` |
+| RP / inne | standardowy basename URL | basename z usuniętym suffixem `_[a-f0-9]{8}` |
 
 W polu `image_paths` usi_*.json ścieżki zaczynają się od `/Public/USI/`.
 W API endpoint `/api/image/{dev_slug}/{inv_slug}/{filename}` mapa na fizyczną ścieżkę.

@@ -33,7 +33,11 @@
   usiRegister('PhotoOverlay', PhotoOverlay);
 
   const PhotoTile = ({ src, marked, onMark, onOpen, ratio = '4/3', hero = false }) => {
+    const { React, resolvePhotoUrl } = window;
     const [hover, setHover] = React.useState(false);
+    // Defensive check
+    const _src = typeof resolvePhotoUrl === 'function' ? resolvePhotoUrl(src) : (typeof src === 'string' ? src : null);
+
     return (
       <div data-component="PhotoTile"
         onMouseEnter={() => setHover(true)}
@@ -43,7 +47,7 @@
           aspectRatio: ratio, 
           borderRadius: hero ? 12 : 8,
         }}>
-        <img src={src} alt="" loading="lazy"
+        <img src={_src} alt="" loading="lazy"
           className={`usi-gallery-photo-img ${marked ? 'marked' : ''}`} />
         {marked && <DeletionBadge />}
         <PhotoOverlay onOpen={onOpen} onToggleMark={onMark} marked={marked} visible={hover || marked} />
@@ -57,6 +61,7 @@
   usiRegister('PhotoTile', PhotoTile);
 
   const SlideShow = ({ photos = [], marked, onToggleMark, onLightbox, className = '', style: extraStyle = {} }) => {
+    const { React, resolvePhotoUrl } = window;
     const [idx, setIdx] = React.useState(0);
     const total = photos.length;
 
@@ -82,10 +87,11 @@
 
     const src = photos[idx];
     const isMrk = marked && marked.has(idx);
+    const _src = typeof resolvePhotoUrl === 'function' ? resolvePhotoUrl(src) : (typeof src === 'string' ? src : null);
 
     return (
       <div data-component="SlideShow" className={`usi-slideshow-container ${className}`} style={extraStyle}>
-        <img src={src} alt="" className="usi-slideshow-img" />
+        <img src={_src} alt="" className="usi-slideshow-img" />
 
         <button className="usi-slideshow-nav-btn" 
           style={{ left: 12 }}
@@ -140,6 +146,7 @@
   usiRegister('Gallery', Gallery);
 
   const Lightbox = ({ inv, index, onClose }) => {
+    const { React, resolvePhotoUrl } = window;
     const [i, setI] = React.useState(index);
     React.useEffect(() => {
       const k = (e) => {
@@ -150,9 +157,13 @@
       document.addEventListener('keydown', k, true);
       return () => document.removeEventListener('keydown', k, true);
     }, [inv.photos.length, onClose]);
+
+    const src = inv.photos[i];
+    const _src = typeof resolvePhotoUrl === 'function' ? resolvePhotoUrl(src) : (typeof src === 'string' ? src : null);
+
     return ReactDOM.createPortal(
       <div data-component="Lightbox" onClick={onClose} className="usi-lightbox-backdrop">
-        <img src={inv.photos[i]} alt="" onClick={e => e.stopPropagation()}
+        <img src={_src} alt="" onClick={e => e.stopPropagation()}
           className="usi-lightbox-img" />
         <div className="usi-lightbox-counter">
           {i + 1} / {inv.photos.length}

@@ -1,3 +1,8 @@
+## Aktualizacje — 2026-06-02
+- **Scraper Delegation**: Zaktualizowano bibliotekę `usi-scrapers` do v0.8.5 wspierającą zaawansowane mapowanie (operator `|`).
+- **Refaktoryzacja RPAdapter**: Usunięto przestarzały kod fallbacków dla lokalizacji i dat zakończenia z RynekPierwotny, delegując odpowiedzialność do zaktualizowanego API mapującego z `usi-scrapers`.
+- **Poprawka CLI**: Naprawiono błąd iteracji przy korzystaniu z komendy `update-inv` dla formy dev_slug/inv_slug, rozwiązując `TypeError` / `AttributeError`.
+
 ## UI — 2026-05-15
 - **Refaktoryzacja stylów**: Przeprowadzono audyt i migrację stylów inline do dedykowanych klas CSS, poprawiając separację warstw i ułatwiając przyszłe modyfikacje wyglądu.
 - **Standaryzacja**: Wprowadzono klasy pomocnicze dla powtarzalnych wzorców layoutowych (np. wyrównanie w osi, spacing w powiadomieniach).

@@ -387,7 +387,7 @@ function useMetadataConfig() {
   const { request } = useApi();
 
   React.useEffect(() => {
-    request('/api/metadata-config')
+    request('/api/metadata-config', { noCache: true })
       .then(data => setMeta(data))
       .catch(() => setMeta([]));
   }, [request]);

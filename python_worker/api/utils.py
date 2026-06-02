@@ -124,27 +124,47 @@ def _find_inv_file(inv_dir: Path, inv_slug: str, system_id: str = None) -> Path 
             return legacy
     return None
 
-def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None, public_usi_dir: Path | None = None, portal: str | None = None, system_id: str | None = None, skip_merge: bool = False) -> dict | None:
+def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None, public_usi_dir: Path | None = None, portal: str | None = None, system_id: str | None = None, usi_file: Path | None = None, fast_index: bool = False) -> dict | None:
+    """
+    Unified loader for investment data from disk.
+    Combines usi_*.json with photos scan and ratings.
+    """
     if data_dir is None: data_dir = Path(USI_DATA_DIR)
     if public_usi_dir is None: public_usi_dir = Path(PUBLIC_USI_DIR)
     
-    usi_file = None
+    inv_dir = data_dir / dev_slug / inv_slug if dev_slug and inv_slug else None
     resources = None
-    
-    # PRIORITY 1: Resolve via Identity Service if ID provided
-    if system_id and not system_id.startswith("legacy_"):
-        from python_worker.services.investment_service import InvestmentService
-        svc = InvestmentService(data_dir=data_dir, public_usi_dir=public_usi_dir)
-        resources = svc.get_investment_resources(system_id)
-        if resources:
-            usi_file = resources["files"].get("anchor")
-            # Update slugs from resources to ensure we are in the right folder
-            dev_slug = resources["metadata"]["slug"].split("/")[0]
-            inv_slug = resources["metadata"]["slug"].split("/")[1]
-
-    inv_dir = data_dir / dev_slug / inv_slug
 
     if not usi_file:
+        # Skip expensive lookups if fast_index is true and we have slugs
+        if fast_index and inv_dir and inv_dir.exists():
+             usi_file = _find_inv_file(inv_dir, inv_slug, system_id=system_id)
+
+        if not usi_file:
+            # PRIORITY 0: If we don't have slugs but have ID, try to resolve slugs first
+            if not inv_dir and system_id and not system_id.startswith("legacy_"):
+                from python_worker.services.investment_service import InvestmentService
+                svc = InvestmentService(data_dir=data_dir, public_usi_dir=public_usi_dir)
+                resources = svc.get_investment_resources(system_id)
+                if resources:
+                    usi_file = resources["files"].get("anchor")
+                    dev_slug = resources["metadata"]["slug"].split("/")[0]
+                    inv_slug = resources["metadata"]["slug"].split("/")[1]
+                    inv_dir = resources["base_dir"]
+            
+            # PRIORITY 1: Resolve via Identity Service if ID provided and no file yet
+            if not usi_file and system_id and not system_id.startswith("legacy_"):
+                from python_worker.services.investment_service import InvestmentService
+                svc = InvestmentService(data_dir=data_dir, public_usi_dir=public_usi_dir)
+                resources = svc.get_investment_resources(system_id)
+                if resources:
+                    usi_file = resources["files"].get("anchor")
+                    dev_slug = resources["metadata"]["slug"].split("/")[0]
+                    inv_slug = resources["metadata"]["slug"].split("/")[1]
+                    inv_dir = resources["base_dir"]
+
+    if not usi_file:
+        if not inv_dir: return None
         if system_id:
             usi_file = _find_inv_file(inv_dir, inv_slug, system_id=system_id)
         elif portal:
@@ -171,6 +191,12 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None,
 
     if not usi_file or not usi_file.exists():
         return None
+    
+    # Ensure inv_dir is correct if we passed usi_file directly
+    if not inv_dir:
+        inv_dir = usi_file.parent
+        inv_slug = inv_dir.name
+        dev_slug = inv_dir.parent.name
         
     try:
         usi = json.loads(usi_file.read_text())
@@ -182,7 +208,7 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None,
 
     deletion_file = inv_dir / "deletion_list.json"
     photos_to_delete = 0
-    if deletion_file.exists():
+    if not fast_index and deletion_file.exists():
         try:
             dl = json.loads(deletion_file.read_text())
             photos_to_delete = len(dl.get("paths", []))
@@ -202,18 +228,19 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None,
         from python_worker.config import DROPBOX_PATH
         for p in image_paths_raw:
             p_clean = p.lstrip("/")
-            if not (DROPBOX_PATH / p_clean).exists():
+            # Check existence relative to DROPBOX_PATH
+            if not fast_index and not (DROPBOX_PATH / p_clean).exists():
                 continue
             
             # /Public/USI/{dev}/{inv}/{file} → /api/image/{dev}/{inv}/{file}
-            # Or /Public/USI/{inv}/{file} → /api/image/{inv}/{file}
             if p_clean.startswith("Public/USI/"):
                 suffix = p_clean[len("Public/USI/"):]
                 images.append("/api/image/" + suffix)
         images = sorted(list(set(images)))
 
-    # 2. Fallback: Direct directory scan if no valid recorded paths found
-    if not images:
+    # 2. Fallback or Supplement: Directory scan
+    if not fast_index:
+        # In full detail mode, we always try to find more local images even if we have some from imgList
         if resources and resources.get("images_dir"):
             img_dir = resources["images_dir"]
         else:
@@ -228,14 +255,20 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None,
                 if p.suffix.lower() in _IMG_EXT and not p.name.startswith('.')
             ) if d.is_dir() else []
 
-        # 1. Exact paths (current dev_slug and USIdata parent name)
+        # Try physical folder matching
+        local_found = []
         for candidate in {
             img_dir,
             public_usi_dir / Path(inv_dir).parent.name / inv_slug,
         }:
-            images = _scan(candidate)
-            if images:
+            local_found = _scan(candidate)
+            if local_found:
                 break
+        
+        # Merge local found images if they are not already in images
+        for img in local_found:
+            if img not in images:
+                images.append(img)
 
         # 2. Locate by CDN filename from image_urls (unambiguous — matches actual content)
         if not images and public_usi_dir.is_dir():
@@ -247,17 +280,23 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None,
                 if hits:
                     images = _scan(hits[0].parent)
                     break
+    elif not images:
+        # Legacy fallback for index if no imgList
+        img_dir = public_usi_dir / dev_slug / inv_slug
+        # ... (minimal scan or skip) ...
+        pass
 
-        # 3. Prefix match within same dev dir (fallback for custom-named files)
-        if not images:
-            for dev_candidate in {public_usi_dir / dev_slug, public_usi_dir / Path(inv_dir).parent.name}:
-                if not dev_candidate.is_dir():
-                    continue
-                for d in dev_candidate.iterdir():
-                    if d.is_dir() and d.name.startswith(inv_slug):
-                        found = _scan(d)
-                        if len(found) > len(images):
-                            images = found
+    # 3. Supplement with portal URLs if we don't have enough local images or if we are in full detail mode
+    portal_urls = usi.get("image_urls", [])
+    if not fast_index:
+        # If we have fewer photos than metadata says, or just to be safe, append portal URLs
+        for url in portal_urls:
+            # Avoid simple duplicates by checking if the filename exists in current list
+            url_filename = url.split("/")[-1].split("?")[0]
+            if not any(url_filename in img for img in images):
+                images.append(url)
+    elif not images:
+        images = portal_urls[:1] # Thumbnail fallback for index
 
     am_data = usi.get("amenities", {})
     labels = am_data.get("labels", [])
@@ -342,6 +381,8 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None,
         "price_max": usi.get("financials", {}).get("price_max"),
         "price_m2_min": usi.get("financials", {}).get("price_m2_min"),
         "price_m2_max": usi.get("financials", {}).get("price_m2_max"),
+        "rent_price_min": usi.get("financials", {}).get("rent_price_min"),
+        "rent_price_max": usi.get("financials", {}).get("rent_price_max"),
         "units": usi.get("specifications", {}).get("units_count") or 0,
         "delivery": usi.get("specifications", {}).get("delivery_date") or "—",
         "segment": usi.get("specifications", {}).get("segment"),
@@ -355,6 +396,8 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None,
         "suggested_udogodnienia": _suggest_udogodnienia(score_data["score"]),
         "coords": [lat, lng],
         "photos": images,
+        "image_urls": usi.get("image_urls", []),
+        "images_count": usi.get("images_count", len(images)),
         "id": system_id or usi.get("master_id") or (f"{usi.get('portal')}_{usi.get('portal_id')}" if usi.get("portal") and usi.get("portal_id") else f"legacy_{dev_slug}/{inv_slug}"),
         "usi_inv_id": usi.get("usi_inv_id"),
         "usi_dev_id": usi.get("usi_dev_id"),
@@ -371,5 +414,18 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None,
         "merged_from": merged_from,
     }
 
-    # 1 minikarta = 1 portal. Skip merging data from children/siblings.
+    if resources:
+        files_dict = {}
+        for key, val in resources.get("files", {}).items():
+            if val is None: continue
+            if isinstance(val, list):
+                files_dict[key] = [str(p) for p in val]
+            else:
+                files_dict[key] = str(val)
+        
+        base_data["resources"] = {
+            "images_dir": str(resources["images_dir"]) if resources.get("images_dir") else None,
+            "files": files_dict
+        }
+
     return base_data

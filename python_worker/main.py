@@ -161,6 +161,11 @@ def backfill_usi_ids():
                 data["usi_dev_id"] = matched_dev_id
                 updated = True
             
+            # Backfill Investment ID (MANDATORY)
+            if "usi_inv_id" not in data:
+                data["usi_inv_id"] = dm.generate_usi_id("INV")
+                updated = True
+            
             if updated:
                 with open(inv_file, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2, ensure_ascii=False)
@@ -172,8 +177,31 @@ def backfill_usi_ids():
 
 def update_investment(dev_slug, inv_slug, use_local_raw=False):
     from python_worker.services.investment_service import InvestmentService
+    from python_worker.config import USI_DATA_DIR
+    import json
+    import logging
     service = InvestmentService()
-    return service.update_investment(dev_slug, inv_slug, use_local_raw=use_local_raw)
+    
+    # Check if dev_slug is already a system_id
+    if dev_slug.startswith("INV-"):
+        return service.update_investment(dev_slug, use_local_raw=use_local_raw)
+        
+    # Resolve system_id from index
+    index_path = USI_DATA_DIR / "_index.json"
+    system_id = None
+    if index_path.exists():
+        with open(index_path, "r", encoding="utf-8") as f:
+            index = json.load(f)
+            for entry in index.get("entries", []):
+                if entry.get("developer_slug") == dev_slug and entry.get("investment_slug") == inv_slug:
+                    system_id = entry.get("usi_inv_id")
+                    break
+                    
+    if not system_id:
+        logging.getLogger(__name__).error(f"Could not find USI ID for {dev_slug}/{inv_slug} in index")
+        return False
+        
+    return service.update_investment(system_id, use_local_raw=use_local_raw)
 
 def main():
     parser = argparse.ArgumentParser(description="USI Tracker CLI")

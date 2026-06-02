@@ -40,6 +40,19 @@ class InvestmentService:
             self.fetcher = None
             self.tech_manager = None
 
+    def get_investment(self, dev_slug: str, inv_slug: str, portal: str | None = None, system_id: str | None = None) -> dict | None:
+        """
+        Loads an investment, resolving its resources via get_investment_resources.
+        """
+        from python_worker.api.utils import _load_investment
+        return _load_investment(
+            dev_slug, inv_slug,
+            data_dir=self.data_dir,
+            public_usi_dir=self.public_usi_dir,
+            portal=portal,
+            system_id=system_id
+        )
+
     @lru_cache(maxsize=128)
     def get_unified_view(self, inv_id: str) -> dict:
         """Dynamically aggregates T0 and T1 data into a virtual T3 Master view."""
@@ -79,7 +92,8 @@ class InvestmentService:
                             "developer_slug": p.parent.parent.name,
                             "investment_slug": p.parent.name,
                             "portal": data.get("portal"),
-                            "portal_id": data.get("portal_id")
+                            "portal_id": data.get("portal_id"),
+                            "sources": data.get("sources")
                         }
                         return self._map_resources_from_entry(entry)
                 except: continue
@@ -99,6 +113,14 @@ class InvestmentService:
         
         portal = entry.get("portal")
         portal_id = entry.get("portal_id")
+        
+        if not portal or not portal_id:
+            sources = entry.get("sources", {})
+            for p in ("rp", "oto", "to"):
+                if p in sources and sources[p].get("id"):
+                    portal = p
+                    portal_id = sources[p].get("id")
+                    break
         
         # Determine anchor file precisely
         anchor_file = None
@@ -420,7 +442,7 @@ class InvestmentService:
 
         return portal_slug or fallback
 
-    def update_investment(self, dev_slug, inv_slug, use_local_raw=False, skip_images=False, skip_index=False, skip_log=False):
+    def update_investment(self, system_id, use_local_raw=False, skip_images=False, skip_index=False, skip_log=False):
         """
         Orchestrates the update of an investment:
         1. Scrapes raw data (or loads local)
@@ -433,8 +455,16 @@ class InvestmentService:
         """
         from usi_scrapers import api as scraper_api
 
-        inv_dir = self.data_dir / dev_slug / inv_slug
-        actual_file = _find_inv_file(inv_dir, inv_slug)
+        resources = self.get_investment_resources(system_id)
+        if not resources:
+            logger.warning(f"Investment resources not found skipping ID: {system_id}")
+            return False
+            
+        inv_dir = resources["base_dir"]
+        actual_file = resources["files"].get("anchor")
+        slug_parts = resources["metadata"]["slug"].split("/")
+        dev_slug = slug_parts[0]
+        inv_slug = slug_parts[1]
 
         if not actual_file and not use_local_raw:
             logger.warning(f"Investment file not found skipping: {inv_dir}/usi_*.json")
@@ -548,12 +578,11 @@ class InvestmentService:
         if rp_unified or oto_unified or to_unified:
             # Semantic layer: Ratings and Merging
             # Try canonical name first, then portal-prefixed variants from bulk imports
-            ratings_candidates = [
-                inv_dir / f"meta_{inv_slug}_ratings.json",
-                inv_dir / f"meta_rp_{inv_slug}.json",
-                inv_dir / f"meta_oto_{inv_slug}.json",
-                inv_dir / f"meta_to_{inv_slug}.json",
-            ]
+            ratings_candidates = []
+            for p in ("rp", "oto", "to"):
+                # Szukaj plików meta z ID lub slugiem (sortowanie odwrotne, by nowsze brać najpierw)
+                ratings_candidates.extend(sorted(inv_dir.glob(f"meta_{p}_*.json"), reverse=True))
+            ratings_candidates.append(inv_dir / f"meta_{inv_slug}_ratings.json")
             ratings = {}
             for ratings_path in ratings_candidates:
                 if ratings_path.exists():
@@ -574,11 +603,66 @@ class InvestmentService:
                 all_urls = []  # skip download; existing on-disk images are picked up below
             if all_urls and self.tech_manager:
                 logger.info(f"Synchronizing images for {inv_slug} ({len(all_urls)} URLs)")
-                saved_filenames = self.tech_manager.sync_images(all_urls, img_dev_slug, inv_slug)
-                valid_filenames = [f for f in saved_filenames if f]
-                new_unified["image_paths"] = [f"/Public/USI/{img_dev_slug}/{inv_slug}/{fname}" for fname in valid_filenames]
-                new_unified["images_count"] = len(valid_filenames)
-                logger.info(f"Image sync complete for {inv_slug}: {len(valid_filenames)}/{len(all_urls)} saved")
+                
+                # FALLBACK: Try to find files already downloaded elsewhere in the USI tree
+                try:
+                    from usi_scrapers.utils.images import clean_filename
+                    import os
+                    
+                    # Map urls to expected basenames
+                    url_to_basename = {url: os.path.splitext(clean_filename(url))[0] for url in all_urls}
+                    basename_to_urls = {}
+                    for url, bname in url_to_basename.items():
+                        basename_to_urls.setdefault(bname, []).append(url)
+                        
+                    expected_set = set(basename_to_urls.keys())
+                    found_paths = {}  # maps url -> full path
+                    
+                    # Scan USI tree for these basenames
+                    for root, dirs, files in os.walk(self.public_usi_dir):
+                        for file in files:
+                            bname = os.path.splitext(file)[0]
+                            if bname in expected_set:
+                                rel_path = os.path.relpath(os.path.join(root, file), self.public_usi_dir)
+                                path_str = f"/Public/USI/{rel_path}"
+                                for url in basename_to_urls[bname]:
+                                    found_paths[url] = path_str
+                                expected_set.remove(bname)
+                                if not expected_set:
+                                    break
+                        if not expected_set:
+                            break
+                            
+                    urls_to_download = []
+                    for url in all_urls:
+                        if url not in found_paths:
+                            urls_to_download.append(url)
+                            
+                except Exception as e:
+                    logger.error(f"Error during image fallback search: {e}")
+                    urls_to_download = all_urls
+                    found_paths = {}
+
+                saved_filenames = []
+                if urls_to_download:
+                    saved_filenames = self.tech_manager.sync_images(urls_to_download, img_dev_slug, inv_slug)
+                            
+                unique_paths = []
+                for url in all_urls:
+                    if url in found_paths:
+                        p = found_paths[url]
+                        if p not in unique_paths:
+                            unique_paths.append(p)
+                
+                for fname in saved_filenames:
+                    if fname:
+                        p = f"/Public/USI/{img_dev_slug}/{inv_slug}/{fname}"
+                        if p not in unique_paths:
+                            unique_paths.append(p)
+                
+                new_unified["image_paths"] = unique_paths
+                new_unified["images_count"] = len(unique_paths)
+                logger.info(f"Image sync complete for {inv_slug}: {len(unique_paths)}/{len(all_urls)} paths resolved")
             elif all_urls and not self.tech_manager:
                 logger.warning(f"Image sync skipped for {inv_slug}: tech_manager not available (check SCRAPERAPI_KEY / config)")
                 log_to_processing_log(dev_slug, inv_slug, "Image sync skipped: scraper config unavailable")
@@ -670,14 +754,21 @@ class InvestmentService:
             raise RuntimeError(f"Fetch failed for all portals: {'; '.join(failed_sources)}")
         return False
 
-    def save_ratings(self, dev_slug, inv_slug, payload):
+    def save_ratings(self, system_id, payload):
         from python_worker.api.utils import _calculate_ocena_log, _CATS, USI_STATUSES
         
-        inv_dir = self.data_dir / dev_slug / inv_slug
-        if not inv_dir.exists():
+        resources = self.get_investment_resources(system_id)
+        if not resources or not resources["files"]["anchor"]:
+            logger.error(f"Cannot save ratings: Investment {system_id} not found.")
             return False
             
-        ratings_file = inv_dir / f"meta_{inv_slug}_ratings.json"
+        inv_dir = resources["base_dir"]
+        usi_file = resources["files"]["anchor"]
+        
+        # Meta file for legacy compatibility
+        meta_slug = resources["metadata"]["slug"].split("/")[-1]
+        ratings_file = inv_dir / f"meta_{meta_slug}_ratings.json"
+        
         existing_ratings = {}
         if ratings_file.exists():
             try:
@@ -700,11 +791,16 @@ class InvestmentService:
                     existing_ratings[cat] = new_val
 
         if "komentarz" in payload:
+            if existing_ratings.get("komentarz") != str(payload["komentarz"]):
+                changes.append({"field": "komentarz", "old": existing_ratings.get("komentarz"), "new": str(payload["komentarz"])})
             existing_ratings["komentarz"] = str(payload["komentarz"])
+            
         if "status" in payload:
             new_status = payload["status"]
             if new_status not in USI_STATUSES:
                 raise ValueError(f"Invalid status: {new_status}")
+            if existing_ratings.get("status") != new_status:
+                changes.append({"field": "status", "old": existing_ratings.get("status"), "new": new_status})
             existing_ratings["status"] = new_status
 
         if "Segment" in payload:
@@ -713,38 +809,48 @@ class InvestmentService:
                 changes.append({"field": "specifications.segment", "old": existing_ratings.get("Segment"), "new": new_seg})
                 existing_ratings["Segment"] = new_seg
 
-        usi_file = _find_inv_file(inv_dir, inv_slug)
-        if usi_file:
-            try:
-                usi_data = json.loads(usi_file.read_text())
-                old_score = _calculate_ocena_log(usi_data.get("ratings", {}))
-                usi_data["ratings"] = {**usi_data.get("ratings", {}), **existing_ratings}
-                usi_data["status"] = existing_ratings.get("status", usi_data.get("status", "Brak"))
-                if "Segment" in existing_ratings:
-                    spec = usi_data.setdefault("specifications", {})
-                    spec["segment"] = existing_ratings["Segment"]
-                new_score = _calculate_ocena_log(usi_data["ratings"])
+        try:
+            usi_data = json.loads(usi_file.read_text())
+            
+            # Aktualny status
+            current_status = existing_ratings.get("status", usi_data.get("status", "Brak"))
+            
+            # Automatyczna zmiana statusu na "Wstępna" gdy edytowano coś z ocen i status to "Brak"
+            if changes and "status" not in payload and (not current_status or current_status.lower() == "brak"):
+                current_status = "Wstępna"
+                existing_ratings["status"] = current_status
+                changes.append({"field": "status", "old": "Brak", "new": "Wstępna"})
 
-                audit = usi_data.setdefault("audit", {})
-                audit["updated_at"] = datetime.now().isoformat()
-                if changes:
-                    audit.setdefault("history", []).append({
-                        "timestamp": datetime.now().isoformat(),
-                        "event": "Rating Updated",
-                        "changes": changes
-                    })
-                    log_to_processing_log(dev_slug, inv_slug, f"Ratings updated. Changes: {len(changes)}")
-                usi_file.write_text(json.dumps(usi_data, ensure_ascii=False, indent=2))
-            except Exception as e:
-                logger.error(f"Service ratings update error: {e}")
+            usi_data["ratings"] = {**usi_data.get("ratings", {}), **existing_ratings}
+            usi_data["status"] = current_status
+            if "Segment" in existing_ratings:
+                spec = usi_data.setdefault("specifications", {})
+                spec["segment"] = existing_ratings["Segment"]
 
+            audit = usi_data.setdefault("audit", {})
+            audit["updated_at"] = datetime.now().isoformat()
+            if changes:
+                audit.setdefault("history", []).append({
+                    "timestamp": datetime.now().isoformat(),
+                    "event": "Rating Updated",
+                    "changes": changes
+                })
+                # Log to processing log (requires slugs)
+                slug_parts = resources["metadata"]["slug"].split("/")
+                log_to_processing_log(slug_parts[0], slug_parts[1], f"Ratings updated via ID {system_id}. Changes: {len(changes)}")
+            
+            usi_file.write_text(json.dumps(usi_data, ensure_ascii=False, indent=2))
+        except Exception as e:
+            logger.error(f"Service ratings update error for {system_id}: {e}")
+
+        # Update legacy ratings file
         ratings_file.write_text(json.dumps(existing_ratings, ensure_ascii=False, indent=2))
 
         try:
             import python_worker.investment_index as inv_index
-            inv_index.upsert(self.data_dir, self.public_usi_dir, dev_slug, inv_slug)
+            inv_index.upsert(self.data_dir, self.public_usi_dir, inv_id=system_id)
         except Exception as _ie:
-            logger.debug(f"Index upsert skipped after ratings save for {inv_slug}: {_ie}")
+            logger.debug(f"Index upsert skipped after ratings save for {system_id}: {_ie}")
 
         return True
 
@@ -918,20 +1024,15 @@ class InvestmentService:
         logger.info(f"Batch processing complete: {success_count}/{len(to_process)} investments fully ingested.")
         return success_count
 
-    def mark_as_reviewed(self, dev_slug, inv_slug, system_id=None):
+    def mark_as_reviewed(self, system_id):
         """Sets the reviewed flag to true for the specified investment."""
-        usi_file = None
-        if system_id and not system_id.startswith("legacy_"):
-            resources = self.get_investment_resources(system_id)
-            if resources:
-                usi_file = resources["files"].get("anchor")
-        
-        if not usi_file:
-            inv_dir = self.data_dir / dev_slug / inv_slug
-            usi_file = _find_inv_file(inv_dir, inv_slug, system_id=system_id)
-
-        if not usi_file:
+        resources = self.get_investment_resources(system_id)
+        if not resources or not resources["files"].get("anchor"):
+            logger.error(f"Cannot mark as reviewed: Investment {system_id} not found.")
             return False
+            
+        usi_file = resources["files"]["anchor"]
+        slug_parts = resources["metadata"]["slug"].split("/")
 
         try:
             with open(usi_file, "r", encoding="utf-8") as f:
@@ -943,26 +1044,21 @@ class InvestmentService:
             with open(usi_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
 
-            log_to_processing_log(dev_slug, inv_slug, f"Investment {system_id or inv_slug} marked as reviewed by analyst.")
+            log_to_processing_log(slug_parts[0], slug_parts[1], f"Investment {system_id} marked as reviewed by analyst.")
             return True
         except Exception as e:
-            logger.error(f"Failed to mark as reviewed: {e}")
+            logger.error(f"Failed to mark as reviewed for {system_id}: {e}")
             return False
 
-    def add_report(self, dev_slug, inv_slug, note, system_id=None):
+    def add_report(self, system_id, note):
         """Adds a problem report note to the investment record."""
-        usi_file = None
-        if system_id and not system_id.startswith("legacy_"):
-            resources = self.get_investment_resources(system_id)
-            if resources:
-                usi_file = resources["files"].get("anchor")
-
-        if not usi_file:
-            inv_dir = self.data_dir / dev_slug / inv_slug
-            usi_file = _find_inv_file(inv_dir, inv_slug, system_id=system_id)
-
-        if not usi_file:
+        resources = self.get_investment_resources(system_id)
+        if not resources or not resources["files"].get("anchor"):
+            logger.error(f"Cannot add report: Investment {system_id} not found.")
             return False
+            
+        usi_file = resources["files"]["anchor"]
+        slug_parts = resources["metadata"]["slug"].split("/")
 
         try:
             with open(usi_file, "r", encoding="utf-8") as f:
@@ -981,21 +1077,20 @@ class InvestmentService:
             with open(usi_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
 
-            log_to_processing_log(dev_slug, inv_slug, f"Issue reported for {system_id or inv_slug}: {note[:50]}...")
+            log_to_processing_log(slug_parts[0], slug_parts[1], f"Issue reported for {system_id}: {note[:50]}...")
             return True
         except Exception as e:
-            logger.error(f"Failed to add report for {inv_slug}: {e}")
+            logger.error(f"Failed to add report for {system_id}: {e}")
             return False
 
-    def mark_deleted_photos(self, dev_slug, inv_slug, paths, system_id=None):
-        inv_dir = None
-        if system_id and not system_id.startswith("legacy_"):
-            resources = self.get_investment_resources(system_id)
-            if resources:
-                inv_dir = resources["base_dir"]
-        
-        if not inv_dir:
-            inv_dir = self.data_dir / dev_slug / inv_slug
+    def mark_deleted_photos(self, system_id, paths):
+        resources = self.get_investment_resources(system_id)
+        if not resources:
+            logger.error(f"Cannot mark deleted photos: Investment {system_id} not found.")
+            return False
+            
+        inv_dir = resources["base_dir"]
+        slug_parts = resources["metadata"]["slug"].split("/")
             
         if not inv_dir.exists():
             return False
@@ -1004,5 +1099,5 @@ class InvestmentService:
         # For now, we'll keep it as-is but log the ID that triggered it.
         out = {"paths": paths, "updated_at": datetime.now().isoformat(timespec="seconds")}
         (inv_dir / "deletion_list.json").write_text(json.dumps(out, ensure_ascii=False, indent=2))
-        log_to_processing_log(dev_slug, inv_slug, f"Updated deletion list (via {system_id or 'slug'}). Count: {len(paths)}")
+        log_to_processing_log(slug_parts[0], slug_parts[1], f"Updated deletion list (via {system_id}). Count: {len(paths)}")
         return True

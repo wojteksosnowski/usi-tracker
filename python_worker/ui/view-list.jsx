@@ -15,8 +15,11 @@
         label: '', 
         width: 60,
         render: (_, inv) => {
+          const { resolvePhotoUrl } = window;
           const thumb = inv.photos && inv.photos.length > 0 ? inv.photos[0] : null;
-          return thumb ? <img src={thumb} alt="" className="list-table-thumb" /> : <div className="list-table-thumb-empty" />;
+          // Defensive check: resolvePhotoUrl might be missing due to race conditions
+          const src = typeof resolvePhotoUrl === 'function' ? resolvePhotoUrl(thumb) : (typeof thumb === 'string' ? thumb : null);
+          return src ? <img src={src} alt="" className="list-table-thumb" /> : <div className="list-table-thumb-empty" />;
         }
       },
       { 

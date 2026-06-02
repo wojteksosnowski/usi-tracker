@@ -482,80 +482,105 @@ class DeveloperManager:
 
         return dev
 
-    def get_developer(self, dev_slug: str) -> dict | None:
-        """Loads developer data. Returns merged view: Level 2 + merged_from from Level 3."""
-        dev = None
+    def _find_anchor_by_slug(self, dev_slug: str):
         for candidate in [
-            self._dev_file_path(dev_slug),              # new format (glob) — may be None
+            self._dev_file_path(dev_slug),
             self._dev_file_path_old_canonical(dev_slug),
             self._dev_file_path_legacy(dev_slug),
             self.data_dir / dev_slug / f"usi_dev_{dev_slug}.json",
         ]:
             if candidate and candidate.exists():
-                try:
-                    dev = json.loads(candidate.read_text(encoding="utf-8"))
-                    break
-                except Exception as e:
-                    logger.error(f"Error reading developer file {candidate}: {e}")
-                    return None
+                return candidate
+        return None
 
-        if dev is None:
-            # Lazy Repair: if the file is missing but the folder exists and has raw files,
-            # try to rebuild it on the fly.
-            subdir = self.dev_dir / dev_slug
-            if subdir.is_dir():
-                from .init_developers import _build_dev_from_raws
-                if _build_dev_from_raws(subdir, dev_slug, None, self):
-                    # Try loading again after repair
-                    for candidate in [
-                        self._dev_file_path(dev_slug),
-                        self._dev_file_path_old_canonical(dev_slug),
-                    ]:
-                        if candidate and candidate.exists():
-                            try:
-                                dev = json.loads(candidate.read_text(encoding="utf-8"))
-                                break
-                            except: continue
-
-            if dev is None:
-                return None
-
-        return self._enrich_with_master(dev)
-
-    def get_developer_by_id(self, usi_dev_id: str) -> dict | None:
-        """Find developer by usi_dev_id. Fast path uses ID embedded in new filename."""
+    def _find_anchor_by_id(self, usi_dev_id: str):
         if not usi_dev_id:
             return None
-        # Fast path: new format — usi_dev_id is part of the filename
+        # Fast path: new format
         for dev_file in self.dev_dir.glob(f"*/usi_dev_{usi_dev_id}_*.json"):
             try:
                 data = json.loads(dev_file.read_text(encoding="utf-8"))
                 if data.get("usi_dev_id") == usi_dev_id:
-                    return self._enrich_with_master(data)
+                    return dev_file
             except Exception:
                 continue
-        # Fallback: legacy format in dev_dir (subdirs + flat)
+        # Fallback format
         for pattern in ("*/usi_dev_*.json", "usi_dev_*.json"):
             for dev_file in self.dev_dir.glob(pattern):
                 if re.match(r"usi_dev_[A-Z]+-\d+_", dev_file.name):
-                    continue  # already checked above
+                    continue
                 try:
                     data = json.loads(dev_file.read_text(encoding="utf-8"))
                     if data.get("usi_dev_id") == usi_dev_id:
-                        return self._enrich_with_master(data)
+                        return dev_file
                 except Exception:
                     continue
-        # Fallback: legacy location in data_dir (USIdata/{slug}/usi_dev_{slug}.json)
+        # Legacy format
         for dev_file in self.data_dir.glob("*/usi_dev_*.json"):
             if re.match(r"usi_dev_[A-Z]+-\d+_", dev_file.name):
                 continue
             try:
                 data = json.loads(dev_file.read_text(encoding="utf-8"))
                 if data.get("usi_dev_id") == usi_dev_id:
-                    return self._enrich_with_master(data)
+                    return dev_file
             except Exception:
                 continue
         return None
+
+    def get_developer(self, dev_slug: str) -> dict | None:
+        """Loads developer data. Returns merged view: Level 2 + merged_from from Level 3."""
+        anchor = self._find_anchor_by_slug(dev_slug)
+        if not anchor:
+            return None
+            
+        try:
+            dev = json.loads(anchor.read_text(encoding="utf-8"))
+        except Exception as e:
+            logger.error(f"Error reading developer file {anchor}: {e}")
+            return None
+            
+        usi_dev_id = dev.get("usi_dev_id")
+        if usi_dev_id:
+            resources = self.get_developer_resources(usi_dev_id)
+            if resources:
+                files_dict = {}
+                for k, v in resources.get("files", {}).items():
+                    if v is None: continue
+                    if isinstance(v, list):
+                        files_dict[k] = [str(p) for p in v]
+                    else:
+                        files_dict[k] = str(v)
+                dev["resources"] = {
+                    "base_dir": str(resources["base_dir"]),
+                    "files": files_dict
+                }
+
+        return self._enrich_with_master(dev)
+
+    def get_developer_by_id(self, usi_dev_id: str) -> dict | None:
+        """Find developer by usi_dev_id. Fast path uses ID embedded in new filename."""
+        anchor = self._find_anchor_by_id(usi_dev_id)
+        if not anchor:
+            return None
+            
+        try:
+            dev = json.loads(anchor.read_text(encoding="utf-8"))
+            resources = self.get_developer_resources(usi_dev_id)
+            if resources:
+                files_dict = {}
+                for k, v in resources.get("files", {}).items():
+                    if v is None: continue
+                    if isinstance(v, list):
+                        files_dict[k] = [str(p) for p in v]
+                    else:
+                        files_dict[k] = str(v)
+                dev["resources"] = {
+                    "base_dir": str(resources["base_dir"]),
+                    "files": files_dict
+                }
+            return self._enrich_with_master(dev)
+        except Exception:
+            return None
 
     def get_developer_resources(self, usi_dev_id: str) -> dict | None:
         """
@@ -575,10 +600,13 @@ class DeveloperManager:
         
         if not entry:
             # Fallback direct lookup
-            dev_data = self.get_developer_by_id(usi_dev_id)
-            if not dev_data:
+            anchor = self._find_anchor_by_id(usi_dev_id)
+            if not anchor:
                 return None
-            entry = dev_data
+            try:
+                entry = json.loads(anchor.read_text(encoding="utf-8"))
+            except Exception:
+                return None
 
         dev_slug = entry.get("developer_slug")
         if not dev_slug:
@@ -594,14 +622,7 @@ class DeveloperManager:
             if matches:
                 anchor_file = matches[0]
             else:
-                # Fallback to general lookup
-                found_dev = self.get_developer_by_id(usi_dev_id)
-                if found_dev:
-                    # We need the path... get_developer_by_id doesn't return it currently.
-                    # Let's re-implement the search to get the Path.
-                    for p in self.dev_dir.glob(f"*/usi_dev_{usi_dev_id}_*.json"):
-                        anchor_file = p
-                        break
+                anchor_file = self._find_anchor_by_id(usi_dev_id)
 
         # Determine raw files
         raw_files = sorted(list(subdir.glob("raw_*.json")))

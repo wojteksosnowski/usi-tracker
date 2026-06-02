@@ -33,6 +33,20 @@ window.safeRender = safeRender;
 window.usiRegister('safeRender', safeRender);
 
 /**
+ * resolvePhotoUrl - Extracts a string URL from potentially complex image objects.
+ */
+function resolvePhotoUrl(photo) {
+  if (!photo) return null;
+  if (typeof photo === 'string') return photo;
+  if (typeof photo === 'object') {
+    return photo.thumbnail || photo.medium || photo.small || photo.large || photo.url || null;
+  }
+  return null;
+}
+window.resolvePhotoUrl = resolvePhotoUrl;
+window.usiRegister('resolvePhotoUrl', resolvePhotoUrl);
+
+/**
  * USI_INVESTMENT_SCHEMA - Central definition for investment data validation.
  */
 const USI_INVESTMENT_SCHEMA = {
@@ -173,7 +187,20 @@ function StandardCard({
   
   const safeTitle = safeRender(title, 'string', 'Brak tytułu');
   const safeSubtitle = safeRender(subtitle, 'string', '');
-  const safeImage = safeRender(image, 'object', null); 
+
+  // Handle complex image objects (Otodom pattern) or React elements
+  let finalImage = null;
+  if (image && !imgError) {
+    if (typeof image === 'object' && image.$$typeof) {
+      finalImage = image; // It's already a React element
+    } else {
+      // Use local function directly for safety in core.jsx
+      const src = typeof resolvePhotoUrl === 'function' ? resolvePhotoUrl(image) : null;
+      if (src) {
+        finalImage = <img src={src} alt="" className="usi-card-img" onError={() => setImgError(true)} />;
+      }
+    }
+  }
 
   return (
     <article 
@@ -183,20 +210,11 @@ function StandardCard({
       style={style}
     >
       <div className="usi-card-img-container">
-        {imgError ? (
-          <div className="usi-card-img-placeholder broken">⚠️</div>
-        ) : image ? (
-          typeof image === 'string' ? (
-            <img 
-              src={image} 
-              alt="" 
-              className="usi-card-img" 
-              onError={() => setImgError(true)} 
-            />
-          ) : safeImage
-        ) : (
-          <div className="usi-card-img-placeholder">📷</div>
-        )}
+        {!finalImage ? (
+          <div className={`usi-card-img-placeholder ${imgError ? 'broken' : ''}`}>
+            {imgError ? '⚠️' : '📷'}
+          </div>
+        ) : finalImage}
         <div className="usi-card-badges">
           {badges}
         </div>

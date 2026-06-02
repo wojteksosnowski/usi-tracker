@@ -1,7 +1,7 @@
 // view-detail.jsx — widok inwestycji (orchestrator)
 
 (function() {
-  const { React, usiRegister, useDataBus, useRatings, useMetadataConfig } = window;
+  const { usiRegister } = window;
 
   function getDistance(lat1, lon1, lat2, lon2) {
     const R = 6371; // km
@@ -15,7 +15,7 @@
   }
 
   function DetailRightPanel({ inv, onBack, onUpdateInv }) {
-    const { HeroBand, ModeC, DetailsA, Lightbox, DataBoundary } = window;
+    const { React, useDataBus, useRatings, useMetadataConfig, HeroBand, ModeC, DetailsA, Lightbox, DataBoundary } = window;
     const { bus, setVariable } = useDataBus();
     const detailMode = bus.detailMode || 'A';
     const setDetailMode = (m) => setVariable('detailMode', m);
@@ -24,15 +24,36 @@
     const [focusedCat, setFocusedCat] = React.useState(-1);
     const [lightbox, setLightbox] = React.useState(null);
 
-    const { ratings, handleRating, comment, handleComment, status, handleStatus, segment, handleSegment, saved } = useRatings(inv);
     const config = window.useConfig();
     const metaConfig = useMetadataConfig();
     const [localReviewed, setLocalReviewed] = React.useState(inv.reviewed);
     const { request } = window.useApi ? window.useApi() : { request: fetch };
+    const [fullInv, setFullInv] = React.useState(inv);
+    const { ratings, handleRating, comment, handleComment, status, handleStatus, segment, handleSegment, saved } = useRatings(fullInv);
+
+    React.useEffect(() => {
+        setFullInv(inv);
+        let active = true;
+        if (inv.usi_inv_id) {
+            request(`/api/investment/${inv.usi_inv_id}/data`)
+                .then(data => {
+                    if (active && data && !data.error) {
+                        setFullInv({
+                            ...data,
+                            // Use fetched photos if they exist, even if index had a thumbnail
+                            photos: (data.photos && data.photos.length > 0) ? data.photos : inv.photos,
+                            ratings: (data.ratings && Object.keys(data.ratings).length > 0) ? data.ratings : inv.ratings
+                        });
+                    }
+                })
+                .catch(err => console.error("Failed to load full investment data", err));
+        }
+        return () => { active = false; };
+    }, [inv.usi_inv_id, request]);
 
     const handleApprove = async () => {
         try {
-            const data = await request(`/api/investment/${inv.developer_slug}/${inv.investment_slug}/review?id=${inv.usi_inv_id}`, { method: 'POST' });
+            const data = await request(`/api/investment/${inv.usi_inv_id}/review`, { method: 'POST' });
             if (data && data.ok) {
                 setLocalReviewed(true);
                 setVariable('appStatus', { type: 'success', msg: 'Inwestycja została zatwierdzona.' });
@@ -89,7 +110,7 @@
     }, [lightbox, focusedCat, ratings, window.USI_CATEGORIES, handleRating]);
 
     return (
-      <DataBoundary data={inv}>
+      <DataBoundary data={fullInv}>
         {(validInv) => {
           const { Icon } = window;
           const containerClass = `detail-right-panel usi-scroll usi-p-24 ${detailMode === 'C' ? 'usi-overflow-hidden' : 'usi-overflow-auto'}`;

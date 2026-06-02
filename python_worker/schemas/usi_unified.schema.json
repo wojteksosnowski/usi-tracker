@@ -105,7 +105,9 @@
         "price_min": { "type": "number" },
         "price_max": { "type": "number" },
         "price_m2_min": { "type": "number" },
-        "price_m2_max": { "type": "number" }
+        "price_m2_max": { "type": "number" },
+        "rent_price_min": { "type": "number" },
+        "rent_price_max": { "type": "number" }
       }
     },
     "amenities": {
