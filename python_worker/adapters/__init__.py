@@ -51,10 +51,11 @@ def _get_segment(portal: str, raw: dict) -> str | None:
         # Fallback for registration-time signals (name/url)
         name = (raw.get("name") or "").lower()
         url = (raw.get("url") or "").lower()
-        if not signals.get("apartments") and any(kw in name or kw in url for kw in ("mieszkani", "apartament")):
-            signals["apartments"] = True
-        if not signals.get("houses") and any(kw in name or kw in url for kw in ("domy", "segmenty", "bliźniak")):
-            signals["houses"] = True
+        if not any(signals.values()):
+            if any(kw in name or kw in url for kw in ("mieszkani", "apartament", "/oferty/")):
+                signals["apartments"] = True
+            if any(kw in name or kw in url for kw in ("domy", "segmenty", "bliźniak", "/domy/")):
+                signals["houses"] = True
     elif portal in ("oto", "otodom"):
         # Otodom signals from target data
         t = _get_val(raw, "target.Offered_estates_type")
@@ -121,6 +122,8 @@ class RPAdapter:
 
     @classmethod
     def transform(cls, data: dict, inv_slug: str, dev_slug: str) -> dict:
+        if "raw_details" in data:
+            return cls._from_raw(data["raw_details"], inv_slug, dev_slug)
         if data.get("source") == "rynekpierwotny.pl":
             return cls._from_result(data, inv_slug, dev_slug)
         return cls._from_raw(data, inv_slug, dev_slug)
@@ -134,7 +137,15 @@ class RPAdapter:
         u["specifications"].update({
             "delivery_date": res.get("construction_date_upper"),
             "units_count": res.get("properties_count"),
+            "ceiling_height_min": round(float(res.get("ranges_height_min")) / 100, 2) if res.get("ranges_height_min") else None,
+            "ceiling_height_max": round(float(res.get("ranges_height_max")) / 100, 2) if res.get("ranges_height_max") else None,
             "segment": _get_segment("rp", res)
+        })
+        u["financials"].update({
+            "price_min": res.get("ranges_price_min"),
+            "price_max": res.get("ranges_price_max"),
+            "price_m2_min": res.get("ranges_price_m2_min"),
+            "price_m2_max": res.get("ranges_price_m2_max")
         })
         urls = res.get("image_urls", [])
         u["image_urls"] = urls
@@ -149,6 +160,15 @@ class RPAdapter:
         u = _unified_base(inv_slug, dev_slug, name)
 
         coords = _get_val(raw, cfg.get("geo_point_coordinates"))
+        if not coords and isinstance(raw.get("geo_point"), dict):
+            val = raw["geo_point"].get("value", {})
+            if isinstance(val, dict):
+                c_obj = val.get("coordinates", {})
+                if isinstance(c_obj, dict):
+                    coords = c_obj.get("value")
+                elif isinstance(c_obj, list):
+                    coords = c_obj
+
         lat = coords[1] if coords and len(coords) > 1 else None
         lng = coords[0] if coords and len(coords) > 0 else None
 
@@ -267,6 +287,8 @@ class OtodomAdapter:
 
     @classmethod
     def transform(cls, data: dict, inv_slug: str, dev_slug: str) -> dict:
+        if "raw_details" in data:
+            return cls._from_raw(data["raw_details"], inv_slug, dev_slug)
         if data.get("source") == "otodom.pl":
             return cls._from_result(data, inv_slug, dev_slug)
         return cls._from_raw(data, inv_slug, dev_slug)
@@ -420,14 +442,17 @@ class TOAdapter:
     """
     Transforms TabelaOfert data to the unified Merger schema.
     Accepts either a full scraper result (source="tabelaofert.pl")
-    or raw TO product dict (from raw_to_*.json on disk).
+    or raw TO detail dict (from raw_to_*.json on disk).
     """
 
     @classmethod
     def transform(cls, data: dict, inv_slug: str, dev_slug: str) -> dict:
+        if "raw_details" in data:
+            return cls._from_raw(data["raw_details"], inv_slug, dev_slug)
         if data.get("source") == "tabelaofert.pl":
             return cls._from_result(data, inv_slug, dev_slug)
         return cls._from_raw(data, inv_slug, dev_slug)
+
 
     @classmethod
     def _from_result(cls, res: dict, inv_slug: str, dev_slug: str) -> dict:
