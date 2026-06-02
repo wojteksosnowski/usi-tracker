@@ -203,12 +203,12 @@ class RPAdapter:
         url = raw.get("url")
         website = raw.get("website")
         
-        vendor_name = _get_val(raw, cfg.get("developer_name")) or _get_val(raw.get("vendor"), "name")
+        vendor_name = _get_val(raw, cfg.get("developer_name"))
         if vendor_name:
             u["developer"] = vendor_name
         
         if not url:
-            vendor_slug = _get_val(raw, cfg.get("developer_slug")) or _get_val(raw.get("vendor"), "slug")
+            vendor_slug = _get_val(raw, cfg.get("developer_slug"))
             offer_slug = raw.get("slug", "")
             if vendor_slug and offer_slug:
                 url = f"https://rynekpierwotny.pl/oferty/{vendor_slug}/{offer_slug}-{offer_id}/"
@@ -249,19 +249,15 @@ class RPAdapter:
         try:
             p_min = _get_val(raw, cfg.get("price_min"))
             p_max = _get_val(raw, cfg.get("price_max"))
-            # price_m2 paths not in fundamental config yet, keep for now if they are simple
-            pm2_min = raw.get("stats", {}).get("ranges_price_m2_min") # Fallback to manual for extra fields
-            pm2_max = raw.get("stats", {}).get("ranges_price_m2_max")
+            pm2_min = _get_val(raw, cfg.get("price_m2_min"))
+            pm2_max = _get_val(raw, cfg.get("price_m2_max"))
             
             u["financials"].update({
                 "price_min": float(p_min) if p_min is not None else None,
                 "price_max": float(p_max) if p_max is not None else None,
+                "price_m2_min": float(pm2_min) if pm2_min is not None else None,
+                "price_m2_max": float(pm2_max) if pm2_max is not None else None,
             })
-            # Manual fallback for legacy extraction of extras
-            if isinstance(_get_val(raw, "stats"), dict):
-                s = _get_val(raw, "stats")
-                u["financials"]["price_m2_min"] = float(s.get("ranges_price_m2_min")) if s.get("ranges_price_m2_min") else None
-                u["financials"]["price_m2_max"] = float(s.get("ranges_price_m2_max")) if s.get("ranges_price_m2_max") else None
         except (ValueError, TypeError):
             pass
 
@@ -352,7 +348,7 @@ class OtodomAdapter:
         lat = _get_val(raw, cfg.get("latitude"))
         lng = _get_val(raw, cfg.get("longitude"))
 
-        agency_name = _get_val(ad, cfg.get("developer_name")) or (ad.get("owner") or {}).get("name")
+        agency_name = _get_val(ad, cfg.get("developer_name"))
         url = ad.get("url")
 
         dq = dy = None
@@ -395,15 +391,15 @@ class OtodomAdapter:
             dq = old_del.get("quarter")
             dy = old_del.get("year")
 
-        title = _get_val(ad, cfg.get("name")) or ad.get("title")
+        title = _get_val(ad, cfg.get("name"))
         u = _unified_base(inv_slug, dev_slug, title, developer=agency_name)
         
         oto_src = {"url": url or ""}
-        oto_id = _get_val(raw, cfg.get("id")) or ad.get("id")
+        oto_id = _get_val(raw, cfg.get("id"))
         if oto_id:
             oto_src["id"] = str(oto_id)
         
-        agency_id = _get_val(ad, cfg.get("developer_id")) or (ad.get("owner") or {}).get("id")
+        agency_id = _get_val(ad, cfg.get("developer_id"))
         if agency_id:
             oto_src["agency_id"] = str(agency_id)
             
