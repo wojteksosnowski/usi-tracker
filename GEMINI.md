@@ -88,7 +88,9 @@ pip install -r python_worker/requirements.txt
 
 ### Data Ingestion & Scrapers
 - **Portal Normalization**: Always normalize portal identifiers to `rp`, `oto`, or `to` in the API layer before routing or saving.
-- **Portal Data Mapping**: The library `usi-scrapers` uses `portal_data_mapping.json` to define complex extractions. It natively handles segmentation (`evaluate_signals`), transaction types (`rent`/`sale`), and custom data transformations (`transform`: `cm_to_m`, `clean_street`, `rp_extract_city`, etc.). **CRITICAL RULE**: ALWAYS prioritize updating the JSON mapping in the library (`portal_data_mapping.json`) over writing manual parsing logic inside `python_worker/adapters/`. The adapters should be kept as thin as possible, serving only to assemble already clean data.
+- **Portal Data Mapping (THE HOLY GRAIL OF PARSING)**: The library `usi-scrapers` uses `portal_data_mapping.json` to define complex extractions. It natively handles segmentation (`evaluate_signals`), transaction types (`rent`/`sale`), and custom data transformations (`transform`: `cm_to_m`, `clean_street`, `rp_extract_city`, etc.). 
+  - 🚨 **CRITICAL RULE**: ALWAYS prioritize updating the JSON mapping in the library (`portal_data_mapping.json`) over writing manual parsing logic inside `python_worker/adapters/`. 
+  - **The adapters should be kept as thin as possible**, serving only to assemble already clean data. If you catch yourself writing `if "m2" in value:` or `split(" ")[0]` inside `RPAdapter`, **STOP** and move that logic to `portal_data_mapping.json` via a new transform!
 - **Developer Merging**: Use the `parent_id` model. Children records are filtered from main lists but retained for raw data integrity.
 - **Discovery Enrichment**: Discovery results must include developer name and vendor slug to ensure correct automated folder mapping.
 - **Raw Data Integrity**: Every registered investment must include a `raw_{portal}.json` file containing the complete original payload from the portal API.
