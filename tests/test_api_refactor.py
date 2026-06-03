@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, mock_open
 from flask import Flask, jsonify
 from pathlib import Path
 
@@ -55,19 +55,24 @@ def test_download_raw_uses_resolver(client, mock_inv_service):
     mock_inv_service.get_investment_resources.return_value = {
         "anchor": Path("/resolver/path/usi_inv_123.json")
     }
-    
-    # Mock download_raw_json and _find_inv_file
-    with patch("python_worker.main.download_raw_json", return_value=True):
-        with patch("builtins.open", MagicMock()):
-            with patch("json.load", return_value={"sources": {"rp": {"id": "rp123"}}}):
-                with patch("pathlib.Path.exists", return_value=True):
-                    response = client.post("/api/download-raw/dev-old/inv-old?id=123")
+    mock_inv_service.download_raw_json.return_value = True
+
+    # Mock _find_inv_file
+    with patch("python_worker.api.utils._find_inv_file") as mock_find:
+        mock_find.return_value = Path("/resolver/path/usi_inv_123.json")
+        
+        # Create dummy JSON to test the read part
+        with patch("builtins.open", mock_open(read_data='{"sources": {"rp": {"id": "123"}}}')):
+            with patch.object(Path, "exists", return_value=True):
+                response = client.post("/api/download-raw/dev/inv?id=USI-123")
                 
                 assert response.status_code == 200
-                assert response.json == {"ok": True}
-                
-                # Verified that it called the resolver with system_id
-                mock_inv_service.get_investment_resources.assert_called_once_with("123")
+                # It should have used get_investment_resources
+                mock_inv_service.get_investment_resources.assert_called_once_with("USI-123")
+                # It should NOT have fallen back to _find_inv_file
+                mock_find.assert_not_called()
+                # It should have called the service's download
+                mock_inv_service.download_raw_json.assert_called_once_with("rp", "123", "dev", "inv")
 
 # 3. Test /api/developer/logo
 def test_serve_logo_uses_resolver(client, mock_dev_manager):

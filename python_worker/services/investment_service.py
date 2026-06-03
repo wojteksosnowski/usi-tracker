@@ -108,6 +108,8 @@ class InvestmentService:
     def register_investment(self, *args, **kwargs):
         return self.sync.register_investment(*args, **kwargs)
 
+    def download_raw_json(self, portal: str, identifier: str, dev_slug: str, inv_slug: str):
+        return self.sync_svc.download_raw_json(portal, identifier, dev_slug, inv_slug)
     def update_investment(self, system_id, use_local_raw=False, skip_images=False, skip_index=False, skip_log=False):
         return self.sync.update_investment(system_id, use_local_raw, skip_images, skip_index, skip_log)
 

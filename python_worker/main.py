@@ -11,6 +11,7 @@ from usi_scrapers.fetcher import Fetcher
 from usi_scrapers import api as scraper_api
 from .logger_utils import log_to_processing_log
 from .developer_manager import DeveloperManager
+from .services.investment_service import InvestmentService
 
 from .audit_worker import run_audit_cli
 
@@ -28,40 +29,6 @@ logger = logging.getLogger("USIWorker")
 # Global config and fetcher for library operations
 lib_config = get_scraper_config()
 lib_fetcher = Fetcher(lib_config) if lib_config else None
-
-def download_raw_json(portal: str, identifier: str, dev_slug: str, inv_slug: str) -> Path | None:
-    """Helper to route raw download to the correct scraper in the library."""
-    if not lib_config or not lib_fetcher:
-        logger.error("Scraper library not properly configured.")
-        return None
-        
-    return scraper_api.download_raw(lib_config, lib_fetcher, portal, identifier, dev_slug, inv_slug)
-
-def process_discovery_queue(items: list[dict], portal: str, dev_slug: str):
-    """
-    Downloads raw JSONs for a list of discovered items.
-    """
-    from .portal_matcher import filter_new_investments
-    # Only download for net-new items
-    portal_key = "rp" if portal == "rp" else ("otodom" if portal == "oto" else "to")
-    filtered = filter_new_investments(items, portal_key)
-    new_items = [item for item in filtered if item.get("is_new")]
-    
-    if not new_items:
-        logger.info(f"No new items to download for {portal} ({dev_slug})")
-        return
-
-    logger.info(f"Downloading raw JSONs for {len(new_items)} new items on {portal}...")
-    for item in new_items:
-        inv_slug = item.get("slug")
-        identifier = item.get("id") or item.get("url")
-        if not inv_slug or not identifier:
-            continue
-            
-        try:
-            download_raw_json(portal, identifier, dev_slug, inv_slug)
-        except Exception as e:
-            logger.error(f"Failed to download raw JSON for {inv_slug}: {e}")
 
 def update_developer_profile(dev_slug: str):
     """
@@ -352,7 +319,7 @@ def main():
             if p in sources:
                 identifier = sources[p].get("id") or sources[p].get("url")
                 if identifier:
-                    if download_raw_json(p, identifier, dev_slug, inv_slug):
+                    if InvestmentService().download_raw_json(p, identifier, dev_slug, inv_slug):
                         success = True
         
         if success:

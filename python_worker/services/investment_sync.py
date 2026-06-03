@@ -235,6 +235,12 @@ class InvestmentSyncService:
 
         return portal_slug or fallback
 
+    def download_raw_json(self, portal: str, identifier: str, dev_slug: str, inv_slug: str):
+        if not self.lib_config or not self.fetcher:
+            logger.error("Scraper library not properly configured.")
+            return None
+        from usi_scrapers import api as scraper_api
+        return scraper_api.download_raw(self.lib_config, self.fetcher, portal, identifier, dev_slug, inv_slug)
     def update_investment(self, system_id, use_local_raw=False, skip_images=False, skip_index=False, skip_log=False):
         """
         Orchestrates the update of an investment:

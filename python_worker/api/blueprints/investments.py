@@ -329,7 +329,6 @@ def download_raw_route(dev_slug, inv_slug):
     if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
         abort(400)
     from python_worker.config import USI_DATA_DIR
-    from python_worker.main import download_raw_json
     from python_worker.api.utils import _find_inv_file
     from pathlib import Path
     system_id = request.args.get("id")
@@ -350,7 +349,7 @@ def download_raw_route(dev_slug, inv_slug):
         for p in ["rp", "oto", "to"]:
             if p in sources:
                 identifier = sources[p].get("id") or sources[p].get("url")
-                if identifier and download_raw_json(p, identifier, dev_slug, inv_slug):
+                if identifier and investment_service.download_raw_json(p, identifier, dev_slug, inv_slug):
                     success = True
         return jsonify({"ok": success})
     except Exception as e:
