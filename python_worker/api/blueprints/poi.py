@@ -123,6 +123,15 @@ def _fetch_wiki_articles(lat: float, lon: float) -> list[dict]:
 def get_poi(dev_slug, inv_slug):
     if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
         abort(400)
+        
+    system_id = request.args.get("id")
+    if system_id:
+        from python_worker.api.blueprints.investments import investment_service
+        inv = investment_service.get_investment(None, None, system_id=system_id)
+        if inv:
+            dev_slug = inv.get("developer_slug", dev_slug)
+            inv_slug = inv.get("investment_slug", inv_slug)
+            
     path = _poi_path(dev_slug, inv_slug)
     if not path.exists():
         return jsonify({"status": "missing"}), 404
@@ -137,7 +146,15 @@ def fetch_poi(dev_slug, inv_slug):
     if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
         abort(400)
 
-    inv = _load_inv(dev_slug, inv_slug)
+    system_id = request.args.get("id")
+    if system_id:
+        from python_worker.api.blueprints.investments import investment_service
+        inv = investment_service.get_investment(None, None, system_id=system_id)
+        if inv:
+            dev_slug = inv.get("developer_slug", dev_slug)
+            inv_slug = inv.get("investment_slug", inv_slug)
+    else:
+        inv = _load_inv(dev_slug, inv_slug)
     if not inv:
         return jsonify({"error": "Investment not found"}), 404
 

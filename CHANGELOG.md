@@ -1,4 +1,8 @@
 ## Aktualizacje — 2026-06-03
+- **Refaktoryzacja InvestmentService (Fasada)**: Rozbicie monolitycznego `InvestmentService` na 3 modularne komponenty (`InvestmentIdentityResolver`, `InvestmentSyncService`, `InvestmentEditorService`), rozwiązując problem "God Object" i poprawiając zgodność z zasadami SRP, zachowując 100% kompatybilność starego API poprzez wykorzystanie wzorca projektowego *Fasada*.
+- **Optymalizacja Fast-Path Image Sync**: Całkowicie wyeliminowano wąskie gardło I/O (`os.walk` po całym drzewie `Public/USI/`) na etapie aktualizacji obrazów. Proces ten zredukowano do szybkiego wyszukiwania tablicowego w uprzednio wygenerowanym obiekcie `image_paths` z poziomu jsona. Znacząco przyspieszyło to wykonywanie *Bulk Updates*.
+- **Naprawa Błędu W Pętli Pobierania**: Zlikwidowano krytyczny `TypeError` wewnątrz `process_batch`, który "cichaczem" powodował załamania pętli `update_investment` po zmuszeniu systemu do polityki *ID-Only*.
+- **Aktualizacja Dokumentacji**: Wzmocniono w dokumentacji rolę pliku `portal_data_mapping.json` – to on powinien być modyfikowany jako pierwszy przed próbą dodania kodu rzutującego do `python_worker/adapters/`.
 - **usi-scrapers v0.9.0**: Zaktualizowano bibliotekę `usi-scrapers` do wersji 0.9.0.
 - **Mapping API Refaktor**: Kompletnie zrefaktoryzowano kod adapterów (`python_worker/adapters/`), zastępując stare, ręczne reguły ekstrahujące (segmentacja, czyszczenie adresów, rzutowanie wartości, galerie zdjęć) nowymi deklaratywnymi możliwościami w `portal_data_mapping.json` (zagnieżdżone klucze `transform` oraz `evaluate_signals`).
 

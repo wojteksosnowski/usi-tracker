@@ -141,19 +141,8 @@ def _load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None,
              usi_file = _find_inv_file(inv_dir, inv_slug, system_id=system_id)
 
         if not usi_file:
-            # PRIORITY 0: If we don't have slugs but have ID, try to resolve slugs first
-            if not inv_dir and system_id and not system_id.startswith("legacy_"):
-                from python_worker.services.investment_service import InvestmentService
-                svc = InvestmentService(data_dir=data_dir, public_usi_dir=public_usi_dir)
-                resources = svc.get_investment_resources(system_id)
-                if resources:
-                    usi_file = resources["files"].get("anchor")
-                    dev_slug = resources["metadata"]["slug"].split("/")[0]
-                    inv_slug = resources["metadata"]["slug"].split("/")[1]
-                    inv_dir = resources["base_dir"]
-            
-            # PRIORITY 1: Resolve via Identity Service if ID provided and no file yet
-            if not usi_file and system_id and not system_id.startswith("legacy_"):
+            # PRIORITY 1: Resolve via Identity Service if ID provided
+            if system_id and not system_id.startswith("legacy_"):
                 from python_worker.services.investment_service import InvestmentService
                 svc = InvestmentService(data_dir=data_dir, public_usi_dir=public_usi_dir)
                 resources = svc.get_investment_resources(system_id)

@@ -43,7 +43,10 @@ def _inv_matches_dev(inv: dict, pm: dict) -> bool:
 
 
 investments_bp = Blueprint('investments', __name__)
+from python_worker.developer_manager import DeveloperManager
+from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
 investment_service = InvestmentService()
+developer_manager = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
 
 @investments_bp.route("/image/<path:filepath>")
 def serve_image(filepath):
@@ -72,7 +75,15 @@ def serve_dev_logo(dev_slug):
     if not _valid_slug(dev_slug):
         abort(400)
     
-    dev_dir = Path(USI_DEV_DIR) / dev_slug
+    usi_id = request.args.get("id")
+    dev_dir = None
+    if usi_id:
+        res = developer_manager.get_developer_resources(usi_id)
+        if res and res.get("directory"):
+            dev_dir = res["directory"]
+    if not dev_dir:
+        dev_dir = Path(USI_DEV_DIR) / dev_slug
+    
     if not dev_dir.exists():
         abort(404)
         
@@ -213,7 +224,12 @@ def investment_data_id(system_id):
 def investment_data(dev_slug, inv_slug):
     if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
         abort(400)
-    inv = investment_service.get_investment(dev_slug, inv_slug)
+    system_id = request.args.get("id")
+    inv = investment_service.get_investment(
+        dev_slug=None if system_id else dev_slug,
+        inv_slug=None if system_id else inv_slug,
+        system_id=system_id
+    )
     if inv is None:
         abort(404)
     return jsonify(inv)
@@ -233,7 +249,12 @@ def save_ratings(system_id):
 def save_deletion_list(dev_slug, inv_slug):
     if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
         abort(400)
-    inv = investment_service.get_investment(dev_slug, inv_slug)
+    system_id = request.args.get("id")
+    inv = investment_service.get_investment(
+        dev_slug=None if system_id else dev_slug,
+        inv_slug=None if system_id else inv_slug,
+        system_id=system_id
+    )
     if not inv:
         abort(404)
     system_id = inv.get("usi_inv_id") or inv.get("id")
@@ -250,21 +271,36 @@ def save_deletion_list(dev_slug, inv_slug):
 def reload_investment(dev_slug, inv_slug):
     if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
         abort(400)
-    inv = investment_service.get_investment(dev_slug, inv_slug)
+    system_id = request.args.get("id")
+    inv = investment_service.get_investment(
+        dev_slug=None if system_id else dev_slug,
+        inv_slug=None if system_id else inv_slug,
+        system_id=system_id
+    )
     if not inv:
         abort(404)
     system_id = inv.get("usi_inv_id") or inv.get("id")
     success = investment_service.update_investment(system_id)
     if not success:
         return jsonify({"ok": False, "error": "Failed to update"}), 500
-    updated_inv = investment_service.get_investment(dev_slug, inv_slug)
+    updated_system_id = request.args.get("id")
+    inv = investment_service.get_investment(
+        dev_slug=None if system_id else dev_slug,
+        inv_slug=None if system_id else inv_slug,
+        system_id=system_id
+    )
     return jsonify({"ok": True, "investment": updated_inv})
 
 @investments_bp.route("/refresh/<dev_slug>/<inv_slug>", methods=["POST"])
 def refresh_investment_route(dev_slug, inv_slug):
     if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
         abort(400)
-    inv = investment_service.get_investment(dev_slug, inv_slug)
+    system_id = request.args.get("id")
+    inv = investment_service.get_investment(
+        dev_slug=None if system_id else dev_slug,
+        inv_slug=None if system_id else inv_slug,
+        system_id=system_id
+    )
     if not inv:
         abort(404)
     
@@ -294,9 +330,15 @@ def download_raw_route(dev_slug, inv_slug):
     from python_worker.main import download_raw_json
     from python_worker.api.utils import _find_inv_file
     from pathlib import Path
-    inv_dir = Path(USI_DATA_DIR) / dev_slug / inv_slug
-    usi_file = _find_inv_file(inv_dir, inv_slug)
-    if not usi_file or not usi_file.exists():
+    system_id = request.args.get("id")
+    res = investment_service.get_investment_resources(system_id) if system_id else None
+    if res and res.get("anchor"):
+        usi_file = res["anchor"]
+    else:
+        inv_dir = Path(USI_DATA_DIR) / dev_slug / inv_slug
+        usi_file = _find_inv_file(inv_dir, inv_slug)
+        
+    if not usi_file or not Path(usi_file).exists():
         abort(404)
     try:
         with open(usi_file, "r") as f:
@@ -355,10 +397,7 @@ def verify_library():
 def list_developers():
     import time
     t0 = time.time()
-    from python_worker.developer_manager import DeveloperManager
-    from python_worker.config import USI_DATA_DIR
-    from pathlib import Path
-    dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
+    dm = developer_manager
     t1 = time.time()
     logger.info(f"[TIMING] /developers - DM Init: {t1-t0:.3f}s")
     

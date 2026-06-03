@@ -111,11 +111,11 @@ class RPAdapter:
         gallery_urls = _get_val(raw, cfg.get("gallery")) or raw.get("image_urls", [])
         
         amenity_codes = []
-        for feat in (_get_val(raw, "features") or raw.get("features") or []):
-            if isinstance(feat, dict):
-                code = feat.get("id") or feat.get("code")
-                if code is not None:
-                    amenity_codes.append(int(code))
+        for code in _get_val(raw, cfg.get("amenities")) or []:
+            try:
+                amenity_codes.append(int(code))
+            except ValueError:
+                pass
 
         offer_id = str(_get_val(raw, cfg.get("id")) or raw.get("id", ""))
         url = raw.get("url")
@@ -290,20 +290,16 @@ class OtodomAdapter:
             "segment": _get_val(ad, cfg.get("segment"))
         })
         
-        # Delivery date extraction remains because there are no delivery_quarter in mapping yet? 
-        # Wait, there is no delivery mapping in portal_data_mapping.json for otodom.
-        # It's "delivery_fallback_quarter", "delivery_fallback_year".
         dq = dy = None
-        for item in (ad.get("topInformation") or []):
-            if item.get("label") == "project_finish_date":
-                vals = item.get("values", [])
-                if vals:
-                    try:
-                        parts = vals[0].split("-")
-                        dy = int(parts[0])
-                        dq = (int(parts[1]) - 1) // 3 + 1
-                    except Exception:
-                        pass
+        del_date_str = _get_val(ad, cfg.get("delivery_date"))
+        if del_date_str and isinstance(del_date_str, str):
+            try:
+                parts = del_date_str.split("-")
+                dy = int(parts[0])
+                dq = (int(parts[1]) - 1) // 3 + 1
+            except Exception:
+                pass
+        
         if dq is None:
             dq = _get_val(ad, cfg.get("delivery_fallback_quarter"))
             dy = _get_val(ad, cfg.get("delivery_fallback_year"))
@@ -401,10 +397,7 @@ class TOAdapter:
         lat = _get_val(raw, cfg.get("latitude"))
         lng = _get_val(raw, cfg.get("longitude"))
 
-        amenity_labels = []
-        for prop in (raw.get("additionalProperty") or []):
-            if isinstance(prop, dict) and prop.get("name"):
-                amenity_labels.append(prop["name"])
+        amenity_labels = _get_val(raw, cfg.get("amenities")) or []
 
         title = _get_val(raw, cfg.get("name")) or raw.get("name")
         u = _unified_base(inv_slug, dev_slug, title, developer=developer_name)

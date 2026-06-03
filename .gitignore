@@ -37,6 +37,7 @@ config/secrets.json
 debug_*.py
 reproduce_*.py
 temp_*/
+forgettable/
 
 .gemini/
 gha-creds-*.json

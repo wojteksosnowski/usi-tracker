@@ -16,7 +16,8 @@ REPORTS_DIR = Path(USI_DATA_DIR) / "reports"
 def get_pending_summary():
     """Returns global count of unregistered investments found in discovery snapshots."""
     try:
-        dm = DeveloperManager(USI_DATA_DIR, USI_DEV_DIR)
+        from python_worker.api.blueprints.investments import developer_manager
+        dm = developer_manager
         count = dm.get_total_pending_count()
         return jsonify({
             "total_pending": count
@@ -52,14 +53,10 @@ def get_report_data(report_id):
         report_def = json.loads(report_file.read_text(encoding="utf-8"))
         filters = report_def.get("filters", {})
         
+        from python_worker.investment_index import get_index
         investments = []
-        data_root = Path(USI_DATA_DIR)
-        for dev_dir in data_root.iterdir():
-            if not dev_dir.is_dir() or dev_dir.name == "reports": continue
-            for inv_dir in dev_dir.iterdir():
-                if not inv_dir.is_dir(): continue
-                inv = _load_investment(dev_dir.name, inv_dir.name)
-                if inv:
+        for inv in get_index(Path(USI_DATA_DIR)):
+            if inv:
                     match = True
                     if "city" in filters:
                         city = filters["city"].lower()

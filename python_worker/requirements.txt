@@ -5,4 +5,4 @@ python-dotenv
 pytest
 requests-mock
 flask>=3.0
-usi-scrapers==0.9.0  # Updated to latest main on 2026-06-03
+usi-scrapers==0.9.1  # Updated to latest main on 2026-06-03

@@ -361,17 +361,17 @@ def main():
             logger.error("No valid sources found for download.")
 
     elif args.command == "rebuild-from-raw":
-        logger.info(f"Rebuilding {args.investment} from local raw files...")
+        logger.info(f"Rebuilding {args.inv_path} from local raw files...")
         try:
-            dev_slug, inv_slug = args.investment.split("/")
+            dev_slug, inv_slug = args.inv_path.split("/")
         except ValueError:
             logger.error("Investment path must be in format dev_slug/inv_slug")
             sys.exit(1)
             
         if update_investment(dev_slug, inv_slug, use_local_raw=True):
-            logger.info(f"Successfully rebuilt {args.investment}")
+            logger.info(f"Successfully rebuilt {args.inv_path}")
         else:
-            logger.error(f"Failed to rebuild {args.investment}. Ensure raw_*.json files exist.")
+            logger.error(f"Failed to rebuild {args.inv_path}. Ensure raw_*.json files exist.")
 
     elif args.command == "discover":
         logger.info(f"Discovering new investments for developer: {args.dev_slug}")

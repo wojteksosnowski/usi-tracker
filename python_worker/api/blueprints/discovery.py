@@ -17,10 +17,8 @@ def discover_dev_new(dev_slug):
         abort(400)
     usi_dev_id = request.args.get("id")
     if usi_dev_id:
-        from python_worker.developer_manager import DeveloperManager
-        from python_worker.config import USI_DATA_DIR
-        from pathlib import Path
-        dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
+        from python_worker.api.blueprints.investments import developer_manager
+        dm = developer_manager
         dev = dm.get_developer_by_id(usi_dev_id)
         if dev:
             dev_slug = dev["developer_slug"]
@@ -28,10 +26,8 @@ def discover_dev_new(dev_slug):
     def _run_with_event(job_id, d_slug, job_manager=None):
         result = discovery_service.discover_for_developer(job_id, d_slug, job_manager=job_manager)
         try:
-            from python_worker.developer_manager import DeveloperManager
-            from python_worker.config import USI_DATA_DIR
-            from pathlib import Path
-            dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
+            from python_worker.api.blueprints.investments import developer_manager
+            dm = developer_manager
             dm.log_event(d_slug, {"type": "discover", "by": "user", "found": result or 0})
         except Exception:
             pass
