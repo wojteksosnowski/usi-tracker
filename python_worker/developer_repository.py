@@ -130,30 +130,17 @@ class DeveloperRepository:
 
     def save_raw_json(self, data: dict, dev_slug: str, inv_slug: str, portal_prefix: str) -> Path:
         """Delegates raw investment JSON saving to the library manager."""
-        if self.tech_manager:
-            from usi_scrapers import api as scraper_api
-            return scraper_api.save_raw(self.tech_manager.config, data, dev_slug, inv_slug, portal_prefix)
-        inv_dir = self.data_dir / dev_slug / inv_slug
-        inv_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"raw_{portal_prefix}_{inv_slug}.json"
-        file_path = inv_dir / filename
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        return file_path
+        if not self.tech_manager:
+            raise RuntimeError("Strict immutability rule: raw files MUST be managed via TechnicalDataManager. Library not configured.")
+        from usi_scrapers import api as scraper_api
+        return scraper_api.save_raw(self.tech_manager.config, data, dev_slug, inv_slug, portal_prefix)
 
     def save_dev_raw_json(self, data: dict, dev_slug: str, portal_prefix: str, portal_id: str = None) -> Path:
         """Delegates raw developer JSON saving to the library manager."""
-        if self.tech_manager:
-            from usi_scrapers.utils.io import save_dev_raw_json as lib_save_dev_raw
-            return lib_save_dev_raw(data, self.tech_manager.config.public_dir, dev_slug, portal_prefix, portal_id=portal_id)
-        
-        # Fallback
-        filename = f"raw_{portal_prefix}_{portal_id}.json" if portal_id else f"raw_{portal_prefix}_{dev_slug}.json"
-        file_path = self.dev_dir / dev_slug / filename
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        return file_path
+        if not self.tech_manager:
+            raise RuntimeError("Strict immutability rule: raw files MUST be managed via TechnicalDataManager. Library not configured.")
+        from usi_scrapers.utils.io import save_dev_raw_json as lib_save_dev_raw
+        return lib_save_dev_raw(data, self.tech_manager.config.public_dir, dev_slug, portal_prefix, portal_id=portal_id)
 
     # -------------------------------------------------------------------------
     # Core CRUD — Level 2 files
