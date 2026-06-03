@@ -127,7 +127,7 @@ def get_poi(dev_slug, inv_slug):
     system_id = request.args.get("id")
     if system_id:
         from python_worker.api.blueprints.investments import investment_service
-        inv = investment_service.get_investment(None, None, system_id=system_id)
+        inv = investment_service.get_investment(system_id)
         if inv:
             dev_slug = inv.get("developer_slug", dev_slug)
             inv_slug = inv.get("investment_slug", inv_slug)
@@ -149,7 +149,7 @@ def fetch_poi(dev_slug, inv_slug):
     system_id = request.args.get("id")
     if system_id:
         from python_worker.api.blueprints.investments import investment_service
-        inv = investment_service.get_investment(None, None, system_id=system_id)
+        inv = investment_service.get_investment(system_id)
         if inv:
             dev_slug = inv.get("developer_slug", dev_slug)
             inv_slug = inv.get("investment_slug", inv_slug)

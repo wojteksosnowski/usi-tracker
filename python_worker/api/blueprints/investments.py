@@ -128,9 +128,11 @@ def list_investments():
                     parts = usi_file.name.split("_")
                     if len(parts) == 3:
                         portal = parts[1]
-                        inv = investment_service.get_investment(dev_dir.name, inv_dir.name, portal=portal)
+                        from python_worker.api.utils import _load_investment
+                        inv = _load_investment(dev_dir.name, inv_dir.name, data_dir=data_root, public_usi_dir=public_usi_root, portal=portal)
                     else:
-                        inv = investment_service.get_investment(dev_dir.name, inv_dir.name)
+                        from python_worker.api.utils import _load_investment
+                        inv = _load_investment(dev_dir.name, inv_dir.name, data_dir=data_root, public_usi_dir=public_usi_root)
                     if inv:
                         investments.append(inv)
 
@@ -215,7 +217,7 @@ def rebuild_index():
 
 @investments_bp.route("/investment/<system_id>/data")
 def investment_data_id(system_id):
-    inv = investment_service.get_investment(None, None, system_id=system_id)
+    inv = investment_service.get_investment(system_id)
     if inv is None:
         abort(404)
     return jsonify(inv)

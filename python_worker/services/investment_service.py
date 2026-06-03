@@ -40,14 +40,19 @@ class InvestmentService:
     # ---------------------------------------------------------
     # Viewing Data
     # ---------------------------------------------------------
-    def get_investment(self, dev_slug: str, inv_slug: str, portal: str | None = None, system_id: str | None = None) -> dict | None:
+    def get_investment(self, system_id: str) -> dict | None:
         """Loads an investment via ID-Only architecture."""
+        resources = self.get_investment_resources(system_id)
+        if not resources:
+            return None
+            
+        dev_slug, inv_slug = resources["metadata"]["slug"].split("/")
+        
         from python_worker.api.utils import _load_investment
         return _load_investment(
             dev_slug, inv_slug,
             data_dir=self.data_dir,
             public_usi_dir=self.public_usi_dir,
-            portal=portal,
             system_id=system_id
         )
 
