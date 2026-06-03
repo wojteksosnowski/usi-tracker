@@ -175,19 +175,10 @@ class DiscoveryService:
     def _save_discovery_snapshot(self, dev_slug, items):
         """Saves discovery results to a JSON file in the developer's directory."""
         try:
-            from python_worker.config import USI_DEV_DIR
-            dev_dir = Path(USI_DEV_DIR) / dev_slug
-            dev_dir.mkdir(parents=True, exist_ok=True)
-            discovery_file = dev_dir / "discovery.json"
-            
-            data = {
-                "dev_slug": dev_slug,
-                "checked_at": datetime.now().isoformat(),
-                "items": items
-            }
-            import json
-            with open(discovery_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            from python_worker.developer_repository import DeveloperRepository
+            from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
+            repo = DeveloperRepository(Path(USI_DATA_DIR), Path(USI_DEV_DIR))
+            repo.save_discovery_snapshot(dev_slug, items)
             logger.info(f"Saved discovery snapshot for {dev_slug} ({len(items)} items)")
         except Exception as e:
             logger.error(f"Failed to save discovery snapshot for {dev_slug}: {e}")

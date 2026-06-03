@@ -8,7 +8,9 @@ from python_worker.logger_utils import log_to_processing_log
 logger = logging.getLogger(__name__)
 
 class InvestmentEditorService:
-    def __init__(self, identity_resolver, data_dir: Path, public_usi_dir: Path):
+    def __init__(self, identity_resolver, data_dir: Path, public_usi_dir: Path, investment_repo=None):
+        from python_worker.investment_repository import InvestmentRepository
+        self.repo = investment_repo or InvestmentRepository(identity_resolver, data_dir)
         self.identity = identity_resolver
         self.data_dir = data_dir
         self.public_usi_dir = public_usi_dir
@@ -98,12 +100,12 @@ class InvestmentEditorService:
                 slug_parts = resources["metadata"]["slug"].split("/")
                 log_to_processing_log(slug_parts[0], slug_parts[1], f"Ratings updated via ID {system_id}. Changes: {len(changes)}")
             
-            usi_file.write_text(json.dumps(usi_data, ensure_ascii=False, indent=2))
+            self.repo.save_investment_json(system_id, usi_data)
         except Exception as e:
             logger.error(f"Service ratings update error for {system_id}: {e}")
 
         # Update legacy ratings file
-        ratings_file.write_text(json.dumps(existing_ratings, ensure_ascii=False, indent=2))
+        self.repo.save_ratings(system_id, existing_ratings)
 
         try:
             import python_worker.investment_index as inv_index
@@ -116,8 +118,26 @@ class InvestmentEditorService:
     def mark_as_reviewed(self, system_id):
         """Sets the reviewed flag to true for the specified investment."""
         resources = self.identity.get_investment_resources(system_id)
-        if not resources or not resources["files"].get("anchor"):
+        if not resources:
             logger.error(f"Cannot mark as reviewed: Investment {system_id} not found.")
+            return False
+            
+        slug_parts = resources["metadata"]["slug"].split("/")
+        
+        try:
+            data = self.repo.get_investment_json(system_id)
+            if not data:
+                return False
+
+            data["reviewed"] = True
+            data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
+
+            self.repo.save_investment_json(system_id, data)
+
+            log_to_processing_log(slug_parts[0], slug_parts[1], f"Investment {system_id} marked as reviewed by analyst.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to mark as reviewed for {system_id}: {e}")
             return False
             
         usi_file = resources["files"]["anchor"]
@@ -142,8 +162,33 @@ class InvestmentEditorService:
     def add_report(self, system_id, note):
         """Adds a problem report note to the investment record."""
         resources = self.identity.get_investment_resources(system_id)
-        if not resources or not resources["files"].get("anchor"):
+        if not resources:
             logger.error(f"Cannot add report: Investment {system_id} not found.")
+            return False
+            
+        slug_parts = resources["metadata"]["slug"].split("/")
+
+        try:
+            data = self.repo.get_investment_json(system_id)
+            if not data:
+                return False
+
+            reports = data.setdefault("issue_reports", [])
+            reports.insert(0, {
+                "note": note,
+                "at": datetime.now().isoformat()
+            })
+
+            audit = data.setdefault("audit", {})
+            audit["updated_at"] = datetime.now().isoformat()
+            audit["audit_needed"] = True
+
+            self.repo.save_investment_json(system_id, data)
+
+            log_to_processing_log(slug_parts[0], slug_parts[1], f"Issue reported for {system_id}: {note[:50]}...")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to add report for {system_id}: {e}")
             return False
             
         usi_file = resources["files"]["anchor"]
@@ -177,6 +222,20 @@ class InvestmentEditorService:
         if not resources:
             return False
             
+        try:
+            deleted = set(self.repo.get_deleted_items(system_id))
+            for path in paths:
+                deleted.add(path)
+                
+            self.repo.mark_as_deleted(system_id, list(deleted))
+            
+            slug_parts = resources["metadata"]["slug"].split("/")
+            log_to_processing_log(slug_parts[0], slug_parts[1], f"Marked {len(paths)} photos as deleted via ID {system_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to mark deleted photos for {system_id}: {e}")
+            return False
+            
         inv_dir = resources["base_dir"]
         deletion_file = inv_dir / "deletion_list.json"
         
@@ -188,7 +247,7 @@ class InvestmentEditorService:
             for path in paths:
                 deleted.add(path)
                 
-            deletion_file.write_text(json.dumps(list(deleted), indent=2))
+            self.repo.mark_as_deleted(system_id, list(deleted))
             
             slug_parts = resources["metadata"]["slug"].split("/")
             log_to_processing_log(slug_parts[0], slug_parts[1], f"Marked {len(paths)} photos as deleted via ID {system_id}")

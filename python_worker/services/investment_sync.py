@@ -18,7 +18,9 @@ def _primary_portal_id(sources: dict) -> tuple[str, str | None]:
     return "rp", None
 
 class InvestmentSyncService:
-    def __init__(self, identity_resolver, data_dir: Path, public_usi_dir: Path, developer_manager=None):
+    def __init__(self, identity_resolver, data_dir: Path, public_usi_dir: Path, developer_manager=None, investment_repo=None):
+        from python_worker.investment_repository import InvestmentRepository
+        self.repo = investment_repo or InvestmentRepository(identity_resolver, data_dir)
         self.identity = identity_resolver
         self.data_dir = data_dir
         self.public_usi_dir = public_usi_dir
@@ -190,9 +192,7 @@ class InvestmentSyncService:
             "audit": {"created_at": datetime.now().isoformat()}
         }
 
-        with open(usi_path, "w", encoding="utf-8") as f:
-            json.dump(skeleton, f, indent=2, ensure_ascii=False)
-
+        self.repo.create_investment_skeleton(dev_slug, inv_slug, portal, skeleton, item_id=item_id)
         try:
             import python_worker.investment_index as inv_index
             inv_index.upsert(self.data_dir, self.public_usi_dir, dev_slug, inv_slug)
@@ -535,15 +535,7 @@ class InvestmentSyncService:
                     logger.info(f"Backfilled developer ID into portal_mapping for {dev_slug}")
 
             # Save to canonical new-format path; fall back to existing file path
-            primary_portal, primary_id = _primary_portal_id(new_unified.get("sources", {}))
-            if primary_id:
-                out_path = inv_dir / f"usi_{primary_portal}_{primary_id}.json"
-            else:
-                out_path = actual_file or (inv_dir / f"usi_{inv_slug}.json")
-
-            with open(out_path, "w", encoding="utf-8") as f_out:
-                json.dump(new_unified, f_out, indent=2, ensure_ascii=False)
-
+            self.repo.save_investment_json(system_id, new_unified)
             if not skip_index:
                 try:
                     import python_worker.investment_index as inv_index

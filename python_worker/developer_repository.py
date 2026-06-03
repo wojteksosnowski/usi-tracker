@@ -135,6 +135,21 @@ class DeveloperRepository:
         from usi_scrapers import api as scraper_api
         return scraper_api.save_raw(self.tech_manager.config, data, dev_slug, inv_slug, portal_prefix)
 
+    def save_discovery_snapshot(self, dev_slug: str, items: list[dict]):
+        """Saves discovery results to a JSON file in the developer's directory."""
+        dev_dir = self.dev_dir / dev_slug
+        dev_dir.mkdir(parents=True, exist_ok=True)
+        discovery_file = dev_dir / "discovery.json"
+        
+        data = {
+            "dev_slug": dev_slug,
+            "checked_at": __import__("datetime").datetime.now().isoformat(),
+            "items": items
+        }
+        with open(discovery_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        return discovery_file
+
     def save_dev_raw_json(self, data: dict, dev_slug: str, portal_prefix: str, portal_id: str = None) -> Path:
         """Delegates raw developer JSON saving to the library manager."""
         if not self.tech_manager:

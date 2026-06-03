@@ -9,6 +9,7 @@ from python_worker.developer_manager import DeveloperManager
 from python_worker.services.investment_identity import InvestmentIdentityResolver
 from python_worker.services.investment_sync import InvestmentSyncService
 from python_worker.services.investment_editor import InvestmentEditorService
+from python_worker.investment_repository import InvestmentRepository
 
 class InvestmentService:
     """
@@ -27,8 +28,9 @@ class InvestmentService:
         
         # Subsystems
         self.identity = InvestmentIdentityResolver(self.data_dir, self.public_usi_dir)
-        self.sync = InvestmentSyncService(self.identity, self.data_dir, self.public_usi_dir, self.dm)
-        self.editor = InvestmentEditorService(self.identity, self.data_dir, self.public_usi_dir)
+        self.repo = InvestmentRepository(self.identity, self.data_dir)
+        self.sync = InvestmentSyncService(self.identity, self.data_dir, self.public_usi_dir, self.dm, self.repo)
+        self.editor = InvestmentEditorService(self.identity, self.data_dir, self.public_usi_dir, self.repo)
 
     # ---------------------------------------------------------
     # Identity & Path Resolution (Delegated)
