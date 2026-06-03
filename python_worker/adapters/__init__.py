@@ -99,85 +99,58 @@ class RPAdapter:
 
     @classmethod
     def _from_raw(cls, raw: dict, inv_slug: str, dev_slug: str) -> dict:
-        cfg = PORTAL_MAPPING.get("rp", {}).get("investment", {})
+        from usi_scrapers.mapping import transform_to_unified
+        m = transform_to_unified("rp", raw)
         
-        name = _get_val(raw, cfg.get("name")) or _get_val(raw, "name")
-        u = _unified_base(inv_slug, dev_slug, name)
-
-        lat = _get_val(raw, cfg.get("latitude"))
-        lng = _get_val(raw, cfg.get("longitude"))
-        delivery = _get_val(raw, cfg.get("construction_date_upper"))
-
-        gallery_urls = _get_val(raw, cfg.get("gallery")) or raw.get("image_urls", [])
+        u = _unified_base(inv_slug, dev_slug, m.get("name") or raw.get("name"), developer=m.get("developer_name"))
         
-        amenity_codes = []
-        for code in _get_val(raw, cfg.get("amenities")) or []:
-            try:
-                amenity_codes.append(int(code))
-            except ValueError:
-                pass
-
-        offer_id = str(_get_val(raw, cfg.get("id")) or raw.get("id", ""))
-        url = raw.get("url")
-        website = raw.get("website")
+        rp_src = {}
+        if m.get("id"): rp_src["id"] = str(m.get("id"))
+        if m.get("url"): rp_src["url"] = m.get("url")
+        if m.get("developer_id"): rp_src["vendor_id"] = str(m.get("developer_id"))
         
-        vendor_name = _get_val(raw, cfg.get("developer_name"))
-        if vendor_name:
-            u["developer"] = vendor_name
-        
-        if not url:
-            vendor_slug = _get_val(raw, cfg.get("developer_slug"))
-            offer_slug = raw.get("slug", "")
-            if vendor_slug and offer_slug:
-                url = f"https://rynekpierwotny.pl/oferty/{vendor_slug}/{offer_slug}-{offer_id}/"
-
-        rp_src = {"id": offer_id, "url": url}
-        vendor_id = _get_val(raw, cfg.get("developer_id"))
-        if vendor_id:
-            rp_src["vendor_id"] = str(vendor_id)
+        if not rp_src.get("url") and m.get("developer_slug") and raw.get("slug") and m.get("id"):
+            rp_src["url"] = f"https://rynekpierwotny.pl/oferty/{m.get('developer_slug')}/{raw.get('slug')}-{m.get('id')}/"
             
         u["sources"]["rp"] = rp_src
-        u["website"] = website
+        u["website"] = raw.get("website")
         
         u["location"].update({
-            "coords": [lat, lng],
-            "address": _get_val(raw, cfg.get("street")),
-            "city": _get_val(raw, cfg.get("city")),
-            "district": _get_val(raw, cfg.get("region")),
+            "coords": [m.get("latitude"), m.get("longitude")],
+            "address": m.get("street"),
+            "city": m.get("city"),
+            "district": m.get("region")
         })
 
+        is_rental = m.get("transaction_type") == "rent"
         try:
-            p_min = _get_val(raw, cfg.get("price_min"))
-            p_max = _get_val(raw, cfg.get("price_max"))
-            pm2_min = _get_val(raw, cfg.get("price_m2_min"))
-            pm2_max = _get_val(raw, cfg.get("price_m2_max"))
-            
-            is_rental = _get_val(raw, cfg.get("transaction_type")) == "rent"
+            p_min = float(m.get("price_min")) if m.get("price_min") is not None else None
+            p_max = float(m.get("price_max")) if m.get("price_max") is not None else None
+            pm2_min = float(m.get("price_m2_min")) if m.get("price_m2_min") is not None else None
+            pm2_max = float(m.get("price_m2_max")) if m.get("price_m2_max") is not None else None
             if is_rental:
-                u["financials"].update({"rent_price_min": float(p_min) if p_min is not None else None})
+                u["financials"].update({"rent_price_min": p_min})
             else:
-                u["financials"].update({
-                    "price_min": float(p_min) if p_min is not None else None,
-                    "price_max": float(p_max) if p_max is not None else None,
-                    "price_m2_min": float(pm2_min) if pm2_min is not None else None,
-                    "price_m2_max": float(pm2_max) if pm2_max is not None else None,
-                })
+                u["financials"].update({"price_min": p_min, "price_max": p_max, "price_m2_min": pm2_min, "price_m2_max": pm2_max})
         except (ValueError, TypeError):
             pass
 
         u["specifications"].update({
-            "delivery_date": delivery,
-            "units_count": _get_val(raw, cfg.get("units_count")) or raw.get("properties"),
-            "ceiling_height_min": _get_val(raw, cfg.get("ceiling_height_min")),
-            "ceiling_height_max": _get_val(raw, cfg.get("ceiling_height_max")),
-            "segment": _get_val(raw, cfg.get("segment"))
+            "delivery_date": m.get("delivery_date"),
+            "units_count": m.get("units_count") or raw.get("properties"),
+            "ceiling_height_min": m.get("ceiling_height_min"),
+            "ceiling_height_max": m.get("ceiling_height_max"),
+            "segment": m.get("segment")
         })
-        u["amenities"]["raw_codes"] = amenity_codes
-        u["image_urls"] = gallery_urls
-        u["images_count"] = len(gallery_urls)
+        
+        amenities = m.get("amenities") or []
+        u["amenities"]["raw_codes"] = [int(x) for x in amenities if str(x).isdigit()]
+        
+        gallery = m.get("gallery") or raw.get("image_urls") or []
+        u["image_urls"] = gallery
+        u["images_count"] = len(gallery)
+        
         return u
-
-
 class OtodomAdapter:
     @classmethod
     def transform(cls, data: dict, inv_slug: str, dev_slug: str) -> dict:
@@ -237,62 +210,44 @@ class OtodomAdapter:
 
     @classmethod
     def _from_raw(cls, raw: dict, inv_slug: str, dev_slug: str) -> dict:
-        ad = raw.get("ad") or raw
-        cfg = PORTAL_MAPPING.get("oto", {}).get("investment", {})
-
-        images = _get_val(ad, cfg.get("images"))
-        if not images:
-            images = ad.get("image_urls", [])
-
-        lat = _get_val(raw, cfg.get("latitude"))
-        lng = _get_val(raw, cfg.get("longitude"))
-
-        agency_name = _get_val(ad, cfg.get("developer_name"))
-        url = ad.get("url")
+        from usi_scrapers.mapping import transform_to_unified
+        m = transform_to_unified("oto", raw)
         
-        title = _get_val(ad, cfg.get("name"))
-        u = _unified_base(inv_slug, dev_slug, title, developer=agency_name)
+        u = _unified_base(inv_slug, dev_slug, m.get("name"), developer=m.get("developer_name"))
         
-        oto_src = {"url": url or ""}
-        oto_id = _get_val(raw, cfg.get("id"))
-        if oto_id:
-            oto_src["id"] = str(oto_id)
-        
-        agency_id = _get_val(ad, cfg.get("developer_id"))
-        if agency_id:
-            oto_src["agency_id"] = str(agency_id)
-            
+        oto_src = {"url": m.get("url") or (raw.get("ad") or raw).get("url") or ""}
+        if m.get("id"): oto_src["id"] = str(m.get("id"))
+        if m.get("developer_id"): oto_src["agency_id"] = str(m.get("developer_id"))
         u["sources"]["oto"] = oto_src
-        u["location"]["coords"] = [lat, lng]
-        u["location"]["address"] = _get_val(ad, cfg.get("street"))
-        u["location"]["city"] = _get_val(ad, cfg.get("city"))
-        u["location"]["district"] = _get_val(ad, cfg.get("region"))
-
-        price_min = _get_val(raw, cfg.get("price_min"))
-        price_m2_min = _get_val(raw, cfg.get("price_m2_min"))
         
-        is_rental = _get_val(ad, cfg.get("transaction_type")) == "rent"
+        u["location"].update({
+            "coords": [m.get("latitude"), m.get("longitude")],
+            "address": m.get("street"),
+            "city": m.get("city"),
+            "district": m.get("region")
+        })
 
-        if is_rental:
-            u["financials"].update({
-                "rent_price_min": float(price_min) if price_min else None,
-            })
-        else:
-            u["financials"].update({
-                "price_min": float(price_min) if price_min else None,
-                "price_m2_min": float(price_m2_min) if price_m2_min else None
-            })
+        is_rental = m.get("transaction_type") == "rent"
+        try:
+            p_min = float(m.get("price_min")) if m.get("price_min") is not None else None
+            pm2_min = float(m.get("price_m2_min")) if m.get("price_m2_min") is not None else None
+            if is_rental:
+                u["financials"].update({"rent_price_min": p_min})
+            else:
+                u["financials"].update({"price_min": p_min, "price_m2_min": pm2_min})
+        except (ValueError, TypeError):
+            pass
 
         u["specifications"].update({
-            "units_count": _get_val(ad, cfg.get("units_count")),
-            "ceiling_height_min": _get_val(ad, cfg.get("ceiling_height_min")),
-            "ceiling_height_max": _get_val(ad, cfg.get("ceiling_height_max")),
-            "segment": _get_val(ad, cfg.get("segment"))
+            "units_count": m.get("units_count"),
+            "ceiling_height_min": m.get("ceiling_height_min"),
+            "ceiling_height_max": m.get("ceiling_height_max"),
+            "segment": m.get("segment")
         })
         
+        del_date_str = m.get("delivery_date")
         dq = dy = None
-        del_date_str = _get_val(ad, cfg.get("delivery_date"))
-        if del_date_str and isinstance(del_date_str, str):
+        if del_date_str and isinstance(del_date_str, str) and "-" in del_date_str:
             try:
                 parts = del_date_str.split("-")
                 dy = int(parts[0])
@@ -301,20 +256,20 @@ class OtodomAdapter:
                 pass
         
         if dq is None:
-            dq = _get_val(ad, cfg.get("delivery_fallback_quarter"))
-            dy = _get_val(ad, cfg.get("delivery_fallback_year"))
-        
+            dq = m.get("delivery_fallback_quarter")
+            dy = m.get("delivery_fallback_year")
+            
         u["specifications"].update({
             "delivery_quarter": dq,
             "delivery_year": dy,
             "delivery_date": f"{dy}-Q{dq}" if dy and dq else None,
         })
         
-        u["image_urls"] = images
-        u["images_count"] = len(images)
+        gallery = m.get("images") or (raw.get("ad") or raw).get("image_urls") or []
+        u["image_urls"] = gallery
+        u["images_count"] = len(gallery)
+        
         return u
-
-
 class TOAdapter:
     @classmethod
     def transform(cls, data: dict, inv_slug: str, dev_slug: str) -> dict:
@@ -368,13 +323,27 @@ class TOAdapter:
 
     @classmethod
     def _from_raw(cls, raw: dict, inv_slug: str, dev_slug: str) -> dict:
-        cfg = PORTAL_MAPPING.get("to", {}).get("investment", {})
+        from usi_scrapers.mapping import transform_to_unified
+        m = transform_to_unified("to", raw)
+        
+        u = _unified_base(inv_slug, dev_slug, m.get("name") or raw.get("name"), developer=m.get("developer_name"))
+        
+        to_src = {"url": m.get("url") or raw.get("to_url") or ""}
+        if m.get("id"): to_src["id"] = str(m.get("id"))
+        if m.get("developer_id"): to_src["developer_id"] = str(m.get("developer_id"))
+        u["sources"]["to"] = to_src
+        
+        u["location"].update({
+            "coords": [m.get("latitude"), m.get("longitude")],
+            "address": m.get("street"),
+            "city": m.get("city"),
+            "district": m.get("region")
+        })
 
-        developer_name = _get_val(raw, cfg.get("developer_name"))
-        price_min = _get_val(raw, cfg.get("price_min"))
-        price_max = _get_val(raw, cfg.get("price_max"))
-        price_m2_min = _get_val(raw, cfg.get("price_m2_min"))
-        price_m2_max = _get_val(raw, cfg.get("price_m2_max"))
+        price_min = m.get("price_min")
+        price_max = m.get("price_max")
+        price_m2_min = m.get("price_m2_min")
+        price_m2_max = m.get("price_m2_max")
         
         if isinstance(raw.get("offers"), list) and raw.get("offers") and price_min is None:
             off = raw["offers"][0]
@@ -385,63 +354,38 @@ class TOAdapter:
                     price_m2_min = off.get("pricePerSqm")
 
         try:
-            price_min = float(price_min or 0) or None
-            price_max = float(price_max or 0) or None
-            price_m2_min = float(price_m2_min or 0) or None
-            price_m2_max = float(price_m2_max or 0) or None
+            p_min = float(price_min) if price_min is not None else None
+            p_max = float(price_max) if price_max is not None else None
+            pm2_min = float(price_m2_min) if price_m2_min is not None else None
+            pm2_max = float(price_m2_max) if price_m2_max is not None else None
+            
+            is_rental = m.get("transaction_type") == "rent"
+            if is_rental:
+                u["financials"].update({"rent_price_min": p_min})
+            else:
+                u["financials"].update({
+                    "price_min": p_min, 
+                    "price_max": p_max,
+                    "price_m2_min": pm2_min,
+                    "price_m2_max": pm2_max
+                })
         except (TypeError, ValueError):
-            price_min = price_max = price_m2_min = price_m2_max = None
-
-        urls = raw.get("_raw_gallery_urls") or raw.get("image_urls", [])
-
-        lat = _get_val(raw, cfg.get("latitude"))
-        lng = _get_val(raw, cfg.get("longitude"))
-
-        amenity_labels = _get_val(raw, cfg.get("amenities")) or []
-
-        title = _get_val(raw, cfg.get("name")) or raw.get("name")
-        u = _unified_base(inv_slug, dev_slug, title, developer=developer_name)
-        
-        to_src = {"url": raw.get("url") or raw.get("to_url") or ""}
-        to_id = _get_val(raw, cfg.get("id"))
-        if to_id:
-            to_src["id"] = str(to_id)
+            pass
             
-        dev_id = _get_val(raw, cfg.get("developer_id"))
-        if dev_id:
-            to_src["developer_id"] = str(dev_id)
-            
-        u["sources"]["to"] = to_src
-        u["location"].update({
-            "coords": [lat, lng],
-            "address": _get_val(raw, cfg.get("street")),
-            "city": _get_val(raw, cfg.get("city")),
-            "district": _get_val(raw, cfg.get("region"))
-        })
-        
-        is_rental = _get_val(raw, cfg.get("transaction_type")) == "rent"
-        if is_rental:
-            u["financials"].update({"rent_price_min": price_min})
-        else:
-            u["financials"].update({
-                "price_min": price_min, 
-                "price_max": price_max,
-                "price_m2_min": price_m2_min,
-                "price_m2_max": price_m2_max
-            })
-            
-        u["amenities"]["labels"] = amenity_labels
+        u["amenities"]["labels"] = m.get("amenities") or []
         u["specifications"].update({
-            "units_count": _get_val(raw, cfg.get("units_count")),
-            "ceiling_height_min": _get_val(raw, cfg.get("ceiling_height_min")),
-            "ceiling_height_max": _get_val(raw, cfg.get("ceiling_height_max")),
-            "segment": _get_val(raw, cfg.get("segment"))
+            "units_count": m.get("units_count"),
+            "ceiling_height_min": m.get("ceiling_height_min"),
+            "ceiling_height_max": m.get("ceiling_height_max"),
+            "segment": m.get("segment"),
+            "delivery_date": m.get("delivery_date")
         })
-        u["image_urls"] = urls
-        u["images_count"] = len(urls)
+        
+        gallery = raw.get("_raw_gallery_urls") or raw.get("image_urls") or []
+        u["image_urls"] = gallery
+        u["images_count"] = len(gallery)
+        
         return u
-
-
 class AdapterFactory:
     _adapters = {
         "rp": RPAdapter,
