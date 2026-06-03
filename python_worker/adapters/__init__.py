@@ -4,7 +4,6 @@ import logging
 from pathlib import Path
 from .merger import Merger
 from usi_scrapers import resolve_path, get_mapping
-from usi_scrapers.utils.classifier import classify_segment
 from python_worker.config import SEGMENTS_CONFIG_PATH
 
 logger = logging.getLogger(__name__)
@@ -34,59 +33,6 @@ def _get_val(data, key, default=None):
     val = resolve_path(data, key)
     return val if val is not None else default
 
-def _get_segment(portal: str, raw: dict) -> str | None:
-    """
-    Extracts diagnostic signals from raw portal data and classifies the investment segment
-    using the usi-scrapers InvestmentSegmentClassifier.
-    """
-    signals = {}
-    
-    if portal == "rp":
-        t = _get_val(raw, "type")
-        signals["apartments"] = (t == 1)
-        signals["houses"] = (t == 2)
-        signals["investment"] = "apartamenty-inwestycyjne" if t == 3 else None
-        signals["commercial"] = (t == 4)
-        
-        # Fallback for registration-time signals (name/url)
-        name = (raw.get("name") or "").lower()
-        url = (raw.get("url") or "").lower()
-        if not any(signals.values()):
-            if any(kw in name or kw in url for kw in ("mieszkani", "apartament", "/oferty/")):
-                signals["apartments"] = True
-            if any(kw in name or kw in url for kw in ("domy", "segmenty", "bliźniak", "/domy/")):
-                signals["houses"] = True
-    elif portal in ("oto", "otodom"):
-        # Otodom signals from target data
-        t = _get_val(raw, "target.Offered_estates_type")
-        signals["apartments"] = (t == "flats")
-        signals["houses"] = (t == "houses")
-        signals["investment"] = ["apartments"] if t == "investment" else None
-        signals["commercial"] = (t == "commercial")
-        # PRS/Rental detection
-        if _get_val(raw, "target.Transaction") == "rent":
-            signals["rental"] = True
-            
-        # Fallback for registration-time signals (name/url)
-        name = (raw.get("name") or "").lower()
-        url = (raw.get("url") or "").lower()
-        if not signals.get("apartments") and any(kw in name or kw in url for kw in ("mieszkani", "apartament")):
-            signals["apartments"] = True
-        if not signals.get("houses") and any(kw in name or kw in url for kw in ("domy", "segmenty", "bliźniak")):
-            signals["houses"] = True
-    elif portal == "to":
-        # TabelaOfert signals from raw category or name
-        cat = (raw.get("category_name") or raw.get("category") or "").lower()
-        signals["apartments"] = "mieszkania" in cat
-        signals["houses"] = any(kw in cat for kw in ("domy", "segmenty", "bliźniaki"))
-        signals["commercial"] = any(kw in cat for kw in ("użytkowe", "biurowe", "handlowe"))
-        # URL-based signals
-        url = (raw.get("url") or "").lower()
-        if "apartamenty-inwestycyjne" in url:
-            signals["investment"] = "apartamenty-inwestycyjne"
-
-    return classify_segment(signals)
-
 def _unified_base(inv_slug, dev_slug, name, developer=None):
     return {
         "investment_slug": inv_slug,
@@ -112,14 +58,7 @@ def _unified_base(inv_slug, dev_slug, name, developer=None):
         "image_paths": [],
     }
 
-
 class RPAdapter:
-    """
-    Transforms RynekPierwotny data to the unified Merger schema.
-    Accepts either a full scraper result (source="rynekpierwotny.pl")
-    or a raw RP API response dict (from raw_rp_*.json on disk).
-    """
-
     @classmethod
     def transform(cls, data: dict, inv_slug: str, dev_slug: str) -> dict:
         if "raw_details" in data:
@@ -130,6 +69,7 @@ class RPAdapter:
 
     @classmethod
     def _from_result(cls, res: dict, inv_slug: str, dev_slug: str) -> dict:
+        cfg = PORTAL_MAPPING.get("rp", {}).get("investment", {})
         u = _unified_base(inv_slug, dev_slug, res.get("name"), developer=res.get("developer_name"))
         lat, lng = res.get("latitude"), res.get("longitude")
         u["sources"]["rp"] = {"id": res.get("id"), "url": res.get("url")}
@@ -137,16 +77,21 @@ class RPAdapter:
         u["specifications"].update({
             "delivery_date": res.get("construction_date_upper"),
             "units_count": res.get("properties_count"),
-            "ceiling_height_min": round(float(res.get("ranges_height_min")) / 100, 2) if res.get("ranges_height_min") else None,
-            "ceiling_height_max": round(float(res.get("ranges_height_max")) / 100, 2) if res.get("ranges_height_max") else None,
-            "segment": _get_segment("rp", res)
+            "ceiling_height_min": _get_val(res, cfg.get("ceiling_height_min")),
+            "ceiling_height_max": _get_val(res, cfg.get("ceiling_height_max")),
+            "segment": _get_val(res, cfg.get("segment"))
         })
-        u["financials"].update({
-            "price_min": res.get("ranges_price_min"),
-            "price_max": res.get("ranges_price_max"),
-            "price_m2_min": res.get("ranges_price_m2_min"),
-            "price_m2_max": res.get("ranges_price_m2_max")
-        })
+        is_rental = _get_val(res, cfg.get("transaction_type")) == "rent"
+        p_min = res.get("ranges_price_min")
+        if is_rental:
+            u["financials"].update({"rent_price_min": p_min})
+        else:
+            u["financials"].update({
+                "price_min": p_min,
+                "price_max": res.get("ranges_price_max"),
+                "price_m2_min": res.get("ranges_price_m2_min"),
+                "price_m2_max": res.get("ranges_price_m2_max")
+            })
         urls = res.get("image_urls", [])
         u["image_urls"] = urls
         u["images_count"] = len(urls)
@@ -159,44 +104,12 @@ class RPAdapter:
         name = _get_val(raw, cfg.get("name")) or _get_val(raw, "name")
         u = _unified_base(inv_slug, dev_slug, name)
 
-        coords = _get_val(raw, cfg.get("geo_point_coordinates"))
-        
-        lat = coords[1] if coords and len(coords) > 1 else None
-        lng = coords[0] if coords and len(coords) > 0 else None
-
+        lat = _get_val(raw, cfg.get("latitude"))
+        lng = _get_val(raw, cfg.get("longitude"))
         delivery = _get_val(raw, cfg.get("construction_date_upper"))
 
-        gallery_urls = []
-        _gallery_prio = ["g_img_2000", "g_img_1500", "g_img_500"]
+        gallery_urls = _get_val(raw, cfg.get("gallery")) or raw.get("image_urls", [])
         
-        # 1. Check for library-injected _raw_gallery
-        gallery_data = raw.get("_raw_gallery", {})
-        gallery_items = gallery_data.get("gallery")
-        
-        # 2. Fallback to config-driven gallery
-        if not gallery_items:
-            gallery_items = _get_val(raw, cfg.get("gallery", "gallery"))
-            
-        if isinstance(gallery_items, list):
-            for item in gallery_items:
-                if isinstance(item, dict):
-                    img_obj = item.get("image", {})
-                    img = next((img_obj[k] for k in _gallery_prio if img_obj.get(k)), None)
-                    if img:
-                        gallery_urls.append(img)
-        
-        main_obj = _get_val(raw, cfg.get("main_image", "main_image"))
-        if isinstance(main_obj, dict):
-            _main_prio = ["m_img_1500", "m_img_500", "g_img_2000", "g_img_1500", "g_img_500"]
-            main = next((main_obj[k] for k in _main_prio if main_obj.get(k)), None)
-            if main and main not in gallery_urls:
-                gallery_urls.insert(0, main)
-        elif isinstance(main_obj, str) and main_obj not in gallery_urls:
-            gallery_urls.insert(0, main_obj)
-
-        if not gallery_urls:
-            gallery_urls = raw.get("image_urls", [])
-
         amenity_codes = []
         for feat in (_get_val(raw, "features") or raw.get("features") or []):
             if isinstance(feat, dict):
@@ -225,53 +138,39 @@ class RPAdapter:
             
         u["sources"]["rp"] = rp_src
         u["website"] = website
-        address = _get_val(raw, cfg.get("address")) or _get_val(raw, "address")
-        city = district = None
-        if address:
-            parts = [p.strip() for p in address.split(",")]
-            if len(parts) >= 1:
-                city = parts[0]
-            if len(parts) >= 3: # City, District, Street
-                district = parts[1]
-
+        
         u["location"].update({
             "coords": [lat, lng],
-            "address": address,
-            "city": city,
-            "district": district,
+            "address": _get_val(raw, cfg.get("street")),
+            "city": _get_val(raw, cfg.get("city")),
+            "district": _get_val(raw, cfg.get("region")),
         })
 
-        # Extract height and prices from config paths
-        h_min = h_max = None
-        try:
-            h_min_cm = _get_val(raw, cfg.get("ceiling_height_min"))
-            h_max_cm = _get_val(raw, cfg.get("ceiling_height_max"))
-            if h_min_cm: h_min = round(float(h_min_cm) / 100, 2)
-            if h_max_cm: h_max = round(float(h_max_cm) / 100, 2)
-        except (ValueError, TypeError):
-            pass
-            
         try:
             p_min = _get_val(raw, cfg.get("price_min"))
             p_max = _get_val(raw, cfg.get("price_max"))
             pm2_min = _get_val(raw, cfg.get("price_m2_min"))
             pm2_max = _get_val(raw, cfg.get("price_m2_max"))
             
-            u["financials"].update({
-                "price_min": float(p_min) if p_min is not None else None,
-                "price_max": float(p_max) if p_max is not None else None,
-                "price_m2_min": float(pm2_min) if pm2_min is not None else None,
-                "price_m2_max": float(pm2_max) if pm2_max is not None else None,
-            })
+            is_rental = _get_val(raw, cfg.get("transaction_type")) == "rent"
+            if is_rental:
+                u["financials"].update({"rent_price_min": float(p_min) if p_min is not None else None})
+            else:
+                u["financials"].update({
+                    "price_min": float(p_min) if p_min is not None else None,
+                    "price_max": float(p_max) if p_max is not None else None,
+                    "price_m2_min": float(pm2_min) if pm2_min is not None else None,
+                    "price_m2_max": float(pm2_max) if pm2_max is not None else None,
+                })
         except (ValueError, TypeError):
             pass
 
         u["specifications"].update({
             "delivery_date": delivery,
             "units_count": _get_val(raw, cfg.get("units_count")) or raw.get("properties"),
-            "ceiling_height_min": h_min,
-            "ceiling_height_max": h_max,
-            "segment": _get_segment("rp", raw)
+            "ceiling_height_min": _get_val(raw, cfg.get("ceiling_height_min")),
+            "ceiling_height_max": _get_val(raw, cfg.get("ceiling_height_max")),
+            "segment": _get_val(raw, cfg.get("segment"))
         })
         u["amenities"]["raw_codes"] = amenity_codes
         u["image_urls"] = gallery_urls
@@ -280,12 +179,6 @@ class RPAdapter:
 
 
 class OtodomAdapter:
-    """
-    Transforms Otodom data to the unified Merger schema.
-    Accepts either a full scraper result (source="otodom.pl")
-    or raw Otodom ad_data dict (from raw_oto_*.json on disk).
-    """
-
     @classmethod
     def transform(cls, data: dict, inv_slug: str, dev_slug: str) -> dict:
         if "raw_details" in data:
@@ -296,6 +189,7 @@ class OtodomAdapter:
 
     @classmethod
     def _from_result(cls, res: dict, inv_slug: str, dev_slug: str) -> dict:
+        cfg = PORTAL_MAPPING.get("oto", {}).get("investment", {})
         u = _unified_base(inv_slug, dev_slug,
                           res.get("title"), developer=res.get("agency_name"))
         lat, lng = res.get("latitude"), res.get("longitude")
@@ -307,26 +201,25 @@ class OtodomAdapter:
         
         u["location"]["coords"] = [lat, lng]
         dq, dy = res.get("delivery_quarter"), res.get("delivery_year")
+        ad = res.get("raw_details") or res
+        
         u["specifications"].update({
             "delivery_quarter": dq,
             "delivery_year": dy,
             "delivery_date": f"{dy}-Q{dq}" if dy and dq else None,
-            "segment": _get_segment("oto", res.get("raw_details") or res)
+            "segment": _get_val(ad, cfg.get("segment"))
         })
         urls = res.get("image_urls", [])
         u["image_urls"] = urls
         u["images_count"] = len(urls)
 
-        # Extract prices from result
         price = res.get("price")
         price_m2 = res.get("price_per_m")
-        is_rental = res.get("transaction") == "rent"
+        is_rental = _get_val(ad, cfg.get("transaction_type")) == "rent"
         
         if is_rental:
             u["financials"].update({
                 "rent_price_min": float(price) if price else None,
-                "price_min": None,
-                "price_m2_min": None
             })
         else:
             u["financials"].update({
@@ -334,36 +227,20 @@ class OtodomAdapter:
                 "price_m2_min": float(price_m2) if price_m2 else None
             })
 
-        # Supplement from raw_details if available (scrape_otodom doesn't pre-extract all fields)
-        ad = res.get("raw_details") or {}
-        addr_obj = (ad.get("location") or {}).get("address") or {}
-        if isinstance(addr_obj, dict):
-            street = (addr_obj.get("street") or {}).get("name") or ""
-            street_num = (addr_obj.get("street") or {}).get("number") or ""
-            street = re.sub(r'^ul\.\s*', '', street, flags=re.IGNORECASE).strip()
-            street_full = f"ul. {street} {street_num}".strip() if street else None
-            u["location"]["address"] = street_full or None
-            u["location"]["city"] = (addr_obj.get("city") or {}).get("name")
-            u["location"]["district"] = (addr_obj.get("district") or {}).get("name")
-        for item in (ad.get("topInformation") or []):
-            if item.get("label") == "number_of_units_in_project":
-                vals = item.get("values", [])
-                if vals:
-                    try:
-                        u["specifications"]["units_count"] = int(vals[0])
-                    except (ValueError, TypeError):
-                        pass
-                break
+        u["location"]["address"] = _get_val(ad, cfg.get("street"))
+        u["location"]["city"] = _get_val(ad, cfg.get("city"))
+        u["location"]["district"] = _get_val(ad, cfg.get("region"))
+        
+        u["specifications"]["units_count"] = _get_val(ad, cfg.get("units_count"))
 
         return u
 
     @classmethod
     def _from_raw(cls, raw: dict, inv_slug: str, dev_slug: str) -> dict:
-        # raw is the ad_data dict saved by scraper_otodom
-        ad = raw.get("ad") or raw  # old format had {"ad": {...}}
+        ad = raw.get("ad") or raw
         cfg = PORTAL_MAPPING.get("oto", {}).get("investment", {})
 
-        images = [img.get("large") for img in (ad.get("images") or []) if img.get("large")]
+        images = _get_val(ad, cfg.get("images"))
         if not images:
             images = ad.get("image_urls", [])
 
@@ -372,47 +249,7 @@ class OtodomAdapter:
 
         agency_name = _get_val(ad, cfg.get("developer_name"))
         url = ad.get("url")
-
-        dq = dy = None
-        units_count = None
-        h_min = h_max = None
         
-        # Try config-based units count first
-        units_val = _get_val(ad, cfg.get("units_count"))
-        if units_val:
-            try: units_count = int(units_val)
-            except (ValueError, TypeError): pass
-            
-        for item in (ad.get("topInformation") or []):
-            lbl = item.get("label")
-            vals = item.get("values", [])
-            if not vals:
-                continue
-
-            if lbl == "project_finish_date":
-                try:
-                    parts = vals[0].split("-")
-                    dy = int(parts[0])
-                    dq = (int(parts[1]) - 1) // 3 + 1
-                except Exception:
-                    pass
-            elif lbl == "number_of_units_in_project" and units_count is None:
-                try: units_count = int(vals[0])
-                except (ValueError, TypeError): pass
-        
-        try:
-            h_min_cm = _get_val(ad, cfg.get("ceiling_height_min"))
-            h_max_cm = _get_val(ad, cfg.get("ceiling_height_max"))
-            if h_min_cm: h_min = round(float(h_min_cm) / 100, 2)
-            if h_max_cm: h_max = round(float(h_max_cm) / 100, 2)
-        except (ValueError, TypeError):
-            pass
-
-        if dq is None:
-            old_del = ad.get("investmentEstimatedDelivery") or {}
-            dq = old_del.get("quarter")
-            dy = old_del.get("year")
-
         title = _get_val(ad, cfg.get("name"))
         u = _unified_base(inv_slug, dev_slug, title, developer=agency_name)
         
@@ -427,28 +264,18 @@ class OtodomAdapter:
             
         u["sources"]["oto"] = oto_src
         u["location"]["coords"] = [lat, lng]
-        addr_obj = (ad.get("location") or {}).get("address") or {}
-        if isinstance(addr_obj, dict) and addr_obj:
-            street = (addr_obj.get("street") or {}).get("name") or ""
-            street_num = (addr_obj.get("street") or {}).get("number") or ""
-            street = re.sub(r'^ul\.\s*', '', street, flags=re.IGNORECASE).strip()
-            street_full = f"ul. {street} {street_num}".strip() if street else None
-            u["location"]["address"] = street_full or None
-            u["location"]["city"] = (addr_obj.get("city") or {}).get("name")
-            u["location"]["district"] = (addr_obj.get("district") or {}).get("name")
+        u["location"]["address"] = _get_val(ad, cfg.get("street"))
+        u["location"]["city"] = _get_val(ad, cfg.get("city"))
+        u["location"]["district"] = _get_val(ad, cfg.get("region"))
 
         price_min = _get_val(raw, cfg.get("price_min"))
         price_m2_min = _get_val(raw, cfg.get("price_m2_min"))
         
-        # Check for rental transaction
-        is_rental = (_get_val(ad, "target.Transaction") == "rent" or 
-                     _get_val(ad, "target.MarketType") == "rent")
+        is_rental = _get_val(ad, cfg.get("transaction_type")) == "rent"
 
         if is_rental:
             u["financials"].update({
                 "rent_price_min": float(price_min) if price_min else None,
-                "price_min": None,
-                "price_m2_min": None
             })
         else:
             u["financials"].update({
@@ -457,26 +284,42 @@ class OtodomAdapter:
             })
 
         u["specifications"].update({
+            "units_count": _get_val(ad, cfg.get("units_count")),
+            "ceiling_height_min": _get_val(ad, cfg.get("ceiling_height_min")),
+            "ceiling_height_max": _get_val(ad, cfg.get("ceiling_height_max")),
+            "segment": _get_val(ad, cfg.get("segment"))
+        })
+        
+        # Delivery date extraction remains because there are no delivery_quarter in mapping yet? 
+        # Wait, there is no delivery mapping in portal_data_mapping.json for otodom.
+        # It's "delivery_fallback_quarter", "delivery_fallback_year".
+        dq = dy = None
+        for item in (ad.get("topInformation") or []):
+            if item.get("label") == "project_finish_date":
+                vals = item.get("values", [])
+                if vals:
+                    try:
+                        parts = vals[0].split("-")
+                        dy = int(parts[0])
+                        dq = (int(parts[1]) - 1) // 3 + 1
+                    except Exception:
+                        pass
+        if dq is None:
+            dq = _get_val(ad, cfg.get("delivery_fallback_quarter"))
+            dy = _get_val(ad, cfg.get("delivery_fallback_year"))
+        
+        u["specifications"].update({
             "delivery_quarter": dq,
             "delivery_year": dy,
             "delivery_date": f"{dy}-Q{dq}" if dy and dq else None,
-            "units_count": units_count,
-            "ceiling_height_min": h_min,
-            "ceiling_height_max": h_max,
-            "segment": _get_segment("oto", ad)
         })
+        
         u["image_urls"] = images
         u["images_count"] = len(images)
         return u
 
 
 class TOAdapter:
-    """
-    Transforms TabelaOfert data to the unified Merger schema.
-    Accepts either a full scraper result (source="tabelaofert.pl")
-    or raw TO detail dict (from raw_to_*.json on disk).
-    """
-
     @classmethod
     def transform(cls, data: dict, inv_slug: str, dev_slug: str) -> dict:
         if "raw_details" in data:
@@ -488,32 +331,20 @@ class TOAdapter:
 
     @classmethod
     def _from_result(cls, res: dict, inv_slug: str, dev_slug: str) -> dict:
+        cfg = PORTAL_MAPPING.get("to", {}).get("investment", {})
         u = _unified_base(inv_slug, dev_slug,
                           res.get("name"), developer=res.get("developer_name"))
         
-        city = res.get("city")
-        address = res.get("address")
+        raw_details = res.get("raw_details", {})
+        city = _get_val(raw_details, cfg.get("city")) or res.get("city")
+        address = _get_val(raw_details, cfg.get("street")) or res.get("address")
         lat, lng = res.get("latitude"), res.get("longitude")
-
-        # Fallback for location from description
-        desc = res.get("raw_details", {}).get("description") or ""
-        if (not city or not address) and desc:
-            # Matches: ✔️ Łódź, Śródmieście, ul. Telefoniczna 21 ✔️
-            # and variants like: Łódź, Śródmieście, ul. Telefoniczna 21
-            m = re.search(r'(?:✔️|✅|📍)?\s*([^,]+),\s*([^,]+),\s*(ul\.[^✔️✅📍\n]+)', desc)
-            if m:
-                if not city: city = m.group(1).strip()
-                if not address: address = m.group(3).strip()
 
         to_src = {"url": res.get("to_url") or ""}
         
-        # ID is usually passed top-level from scraper result
         if res.get("to_id"):
             to_src["id"] = str(res.get("to_id"))
             
-        # Developer ID needs to be extracted from raw_details if available
-        raw_details = res.get("raw_details", {})
-        cfg = PORTAL_MAPPING.get("to", {}).get("investment", {})
         dev_id = _get_val(raw_details, cfg.get("developer_id"))
         if dev_id:
             to_src["developer_id"] = str(dev_id)
@@ -523,10 +354,11 @@ class TOAdapter:
             "coords": [lat, lng],
             "address": address,
             "city": city,
+            "district": _get_val(raw_details, cfg.get("region"))
         })
         u["specifications"]["delivery_date"] = res.get("construction_date_upper")
         u["specifications"]["units_count"] = res.get("properties_count")
-        u["specifications"]["segment"] = _get_segment("to", res.get("raw_details") or res)
+        u["specifications"]["segment"] = _get_val(raw_details, cfg.get("segment"))
         u["financials"].update({
             "price_min": res.get("price_min"),
             "price_max": res.get("price_max"),
@@ -548,8 +380,6 @@ class TOAdapter:
         price_m2_min = _get_val(raw, cfg.get("price_m2_min"))
         price_m2_max = _get_val(raw, cfg.get("price_m2_max"))
         
-        # Fallback for multi-offer lists if JsonPathExtractor didn't handle it
-        # (though it should if the path matches)
         if isinstance(raw.get("offers"), list) and raw.get("offers") and price_min is None:
             off = raw["offers"][0]
             if isinstance(off, dict):
@@ -568,25 +398,13 @@ class TOAdapter:
 
         urls = raw.get("_raw_gallery_urls") or raw.get("image_urls", [])
 
-        ext_loc = raw.get("_extracted_location") or {}
-        lat = ext_loc.get("latitude")
-        lng = ext_loc.get("longitude")
-        city = ext_loc.get("city")
-        address = ext_loc.get("address")
+        lat = _get_val(raw, cfg.get("latitude"))
+        lng = _get_val(raw, cfg.get("longitude"))
 
         amenity_labels = []
         for prop in (raw.get("additionalProperty") or []):
             if isinstance(prop, dict) and prop.get("name"):
                 amenity_labels.append(prop["name"])
-
-        h_min = h_max = None
-        height_val = _get_val(raw, cfg.get("ceiling_height_min"))
-        if height_val and isinstance(height_val, str):
-            # Extract number from string like "270 cm"
-            h_match = re.search(r'(\d+)', height_val)
-            if h_match:
-                try: h_min = h_max = round(float(h_match.group(1)) / 100, 2)
-                except: pass
 
         title = _get_val(raw, cfg.get("name")) or raw.get("name")
         u = _unified_base(inv_slug, dev_slug, title, developer=developer_name)
@@ -601,19 +419,30 @@ class TOAdapter:
             to_src["developer_id"] = str(dev_id)
             
         u["sources"]["to"] = to_src
-        u["location"].update({"coords": [lat, lng], "address": address, "city": city})
-        u["financials"].update({
-            "price_min": price_min, 
-            "price_max": price_max,
-            "price_m2_min": price_m2_min,
-            "price_m2_max": price_m2_max
+        u["location"].update({
+            "coords": [lat, lng],
+            "address": _get_val(raw, cfg.get("street")),
+            "city": _get_val(raw, cfg.get("city")),
+            "district": _get_val(raw, cfg.get("region"))
         })
+        
+        is_rental = _get_val(raw, cfg.get("transaction_type")) == "rent"
+        if is_rental:
+            u["financials"].update({"rent_price_min": price_min})
+        else:
+            u["financials"].update({
+                "price_min": price_min, 
+                "price_max": price_max,
+                "price_m2_min": price_m2_min,
+                "price_m2_max": price_m2_max
+            })
+            
         u["amenities"]["labels"] = amenity_labels
         u["specifications"].update({
             "units_count": _get_val(raw, cfg.get("units_count")),
-            "ceiling_height_min": h_min,
-            "ceiling_height_max": h_max,
-            "segment": _get_segment("to", raw)
+            "ceiling_height_min": _get_val(raw, cfg.get("ceiling_height_min")),
+            "ceiling_height_max": _get_val(raw, cfg.get("ceiling_height_max")),
+            "segment": _get_val(raw, cfg.get("segment"))
         })
         u["image_urls"] = urls
         u["images_count"] = len(urls)

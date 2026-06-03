@@ -1,3 +1,7 @@
+## Aktualizacje — 2026-06-03
+- **usi-scrapers v0.9.0**: Zaktualizowano bibliotekę `usi-scrapers` do wersji 0.9.0.
+- **Mapping API Refaktor**: Kompletnie zrefaktoryzowano kod adapterów (`python_worker/adapters/`), zastępując stare, ręczne reguły ekstrahujące (segmentacja, czyszczenie adresów, rzutowanie wartości, galerie zdjęć) nowymi deklaratywnymi możliwościami w `portal_data_mapping.json` (zagnieżdżone klucze `transform` oraz `evaluate_signals`).
+
 ## Aktualizacje — 2026-06-02
 - **Scraper Delegation**: Zaktualizowano bibliotekę `usi-scrapers` do v0.8.5 wspierającą zaawansowane mapowanie (operator `|`).
 - **Refaktoryzacja RPAdapter**: Usunięto przestarzały kod fallbacków dla lokalizacji i dat zakończenia z RynekPierwotny, delegując odpowiedzialność do zaktualizowanego API mapującego z `usi-scrapers`.
