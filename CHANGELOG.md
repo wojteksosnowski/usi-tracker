@@ -1,5 +1,12 @@
 # Changelog
 
+## Wersja 0.9.34 — Kamień 18 (Przeniesienie logiki obrazów i optymalizacja lookupów) — 2026-06-04
+- **Refaktoryzacja lookupów**: Ostatecznie zweryfikowano i przypieczętowano usunięcie logiki `find_inv_file(dev_slug, inv_slug)` na rzecz wyłącznego korzystania z systemowych identyfikatorów z wykorzystaniem mechanizmów tożsamości.
+- **Delegacja logiki I/O**: Usunięto lokalne, zawodne heurystyki naprawy ścieżek obrazków (`_find_by_*`), przerzucając odpowiedzialność za to zadanie do biblioteki `usi-scrapers`.
+
+### Wnioski ze zmian
+- Oczyszczenie USI Trackera z mechanizmów naprawczych I/O ugruntowuje jego pozycję jako warstwy orchestracji danych, pozostawiając szczegóły komunikacji technicznej dedykowanej bibliotece.
+
 ## Wersja 0.9.33 — Kamień 06 (Ostateczne wyparcie slugów i porządki) — 2026-06-04
 - **ID-Only Finalization**: Całkowicie wyeliminowano funkcję `find_inv_file` i powiązane z nią aliasy. System lokalizuje teraz wszystkie zasoby wyłącznie poprzez systemowe identyfikatory ID.
 - **Wielkie sprzątanie**: Usunięto ponad 20 przestarzałych skryptów migracyjnych, audytowych i narzędziowych (`migrate*`, `audit*`, `fix*`) oraz katalogi śmieciowe (`scratch`, `forgettable`, `tmp_USIdev`).

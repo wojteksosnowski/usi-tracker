@@ -39,7 +39,7 @@ def test_register_investment_uses_tech_manager_path(sync_service, mock_identity,
     sync_service.repo = MagicMock()
     sync_service.resolver = MagicMock()
     
-    # We no longer need to mock _find_inv_file as it is removed.
+
     # The register_investment method will use tech_manager to resolve paths.
     sync_service.register_investment(portal, "Dev Name", inv_slug, "Inv Name", item_id=item_id)
         
