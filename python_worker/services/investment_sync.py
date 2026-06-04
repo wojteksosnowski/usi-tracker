@@ -307,16 +307,7 @@ class InvestmentSyncService:
             if res and "raw_details" in res:
                 raw_data = res["raw_details"]
                 
-                # Fast path: prioritize standardized developer_slug from the library
-                if res.get("developer_slug"):
-                    canonical_dev_slug = res["developer_slug"]
-                else:
-                    canonical_dev_slug = self._canonical_slug_from_raw(raw_prefix, raw_data, dev_slug)
-                
                 if self.tech_manager:
-                    # Save raw data using canonical slug (for library mapping)
-                    raw_data["developer_slug"] = canonical_dev_slug
-                    raw_data["investment_slug"] = inv_slug
                     self.tech_manager.save_raw_data(raw_data, raw_prefix)
                 else:
                     logger.error(f"Cannot save raw data for {inv_slug}: TechnicalDataManager is not available.")
@@ -753,8 +744,6 @@ class InvestmentSyncService:
                         from usi_scrapers.manager import TechnicalDataManager
                         manager = TechnicalDataManager(self.lib_config)
                         inv_dir.mkdir(parents=True, exist_ok=True)
-                        data["developer_slug"] = dev_slug
-                        data["investment_slug"] = inv_slug
                         manager.save_raw_data(data, raw_prefix)
                         
                         target_image_dir = self.public_usi_dir / dev_slug / inv_slug

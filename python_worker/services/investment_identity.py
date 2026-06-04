@@ -63,18 +63,35 @@ class InvestmentIdentityResolver:
     def _map_resources_from_entry(self, entry: dict) -> dict:
         dev_slug = entry["developer_slug"]
         inv_slug = entry["investment_slug"]
-        inv_dir = self.data_dir / dev_slug / inv_slug
         
         portal = entry.get("portal")
         portal_id = entry.get("portal_id")
         
         if not portal or not portal_id:
-            sources = entry.get("sources", {})
+            sources = entry.get("sources") or {}
             for p in ("rp", "oto", "to"):
                 if p in sources and sources[p].get("id"):
                     portal = p
                     portal_id = sources[p].get("id")
                     break
+
+        # Use TechnicalDataManager logic for path resolution
+        from python_worker.config import get_scraper_config
+        from usi_scrapers.manager import TechnicalDataManager
+        from usi_scrapers.utils.io import get_investment_dir, get_image_dir
+        
+        config = get_scraper_config()
+        if config and portal and portal_id:
+            tech_manager = TechnicalDataManager(config)
+            resolved_dir = tech_manager.get_investment_path(portal, str(portal_id))
+            inv_dir = resolved_dir if resolved_dir else get_investment_dir(dev_slug, inv_slug, Path(config.public_dir))
+            images_dir = tech_manager.get_image_path(portal, str(portal_id))
+            if not images_dir:
+                images_dir = get_image_dir(dev_slug, inv_slug, Path(config.public_dir))
+        else:
+            public_dir = self.data_dir.parent
+            inv_dir = get_investment_dir(dev_slug, inv_slug, public_dir)
+            images_dir = get_image_dir(dev_slug, inv_slug, public_dir)
         
         # Determine anchor file precisely
         anchor_file = None
@@ -123,8 +140,8 @@ class InvestmentIdentityResolver:
                     meta_file = p
                     break
         
-        # Images dir
-        images_dir = self.public_usi_dir / dev_slug / inv_slug
+        # Images dir already resolved above via tech_manager
+        # Fallback check if it was pinned to a different dev folder
         if not images_dir.exists():
             # Check if it was pinned to a different dev folder
             if anchor_file:

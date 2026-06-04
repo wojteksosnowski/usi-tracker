@@ -1,7 +1,9 @@
 import json
 from pathlib import Path
+import logging
 from functools import lru_cache
 
+logger = logging.getLogger(__name__)
 from python_worker.config import USI_DATA_DIR, PUBLIC_USI_DIR
 from python_worker.developer_manager import DeveloperManager
 
@@ -130,7 +132,16 @@ class InvestmentService:
 
     def download_raw_json(self, portal: str, identifier: str, dev_slug: str, inv_slug: str):
         return self.sync_svc.download_raw_json(portal, identifier, dev_slug, inv_slug)
-    def update_investment(self, system_id, use_local_raw=False, skip_images=False, skip_index=False, skip_log=False):
+    def update_investment(self, system_id, inv_slug=None, use_local_raw=False, skip_images=False, skip_index=False, skip_log=False):
+        if inv_slug is not None and isinstance(inv_slug, str):
+            # Legacy call: (dev_slug, inv_slug, use_local_raw=...)
+            dev_slug = system_id
+            resources = self.identity.get_investment_resources_by_slug(dev_slug, inv_slug)
+            if not resources:
+                logger.warning(f"Investment resources not found skipping legacy ID: {dev_slug}/{inv_slug}")
+                return False
+            system_id = resources["id"]
+
         return self.sync.update_investment(system_id, use_local_raw, skip_images, skip_index, skip_log)
 
     def process_batch(self, portal, investments, on_progress_callback=None):
@@ -139,14 +150,8 @@ class InvestmentService:
     # ---------------------------------------------------------
     # Editor Operations (Delegated)
     # ---------------------------------------------------------
-    def save_ratings(self, dev_slug, inv_slug, payload=None):
-        if payload is None:
-            # New call: (system_id, payload)
-            system_id = dev_slug
-            payload = inv_slug
-            return self.editor.save_ratings(system_id, payload)
-        # Legacy call: (dev, inv, payload)
-        return self.editor.save_ratings(dev_slug, inv_slug, payload)
+    def save_ratings(self, system_id, payload):
+        return self.editor.save_ratings(system_id, payload)
 
     def mark_as_reviewed(self, system_id):
         return self.editor.mark_as_reviewed(system_id)

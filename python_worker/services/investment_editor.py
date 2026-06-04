@@ -15,23 +15,9 @@ class InvestmentEditorService:
         self.data_dir = data_dir
         self.public_usi_dir = public_usi_dir
 
-    def save_ratings(self, system_id, payload_or_inv, maybe_payload=None):
+    def save_ratings(self, system_id, payload):
         from python_worker.api.utils import _CATS, USI_STATUSES
         
-        if maybe_payload is not None:
-            # Legacy call: (dev, inv, payload)
-            dev_slug = system_id
-            inv_slug = payload_or_inv
-            payload = maybe_payload
-            # Resolve system_id from slugs
-            from python_worker.investment_index import get_id_by_slug
-            system_id = get_id_by_slug(self.data_dir, f"{dev_slug}/{inv_slug}")
-            if not system_id:
-                # Fallback to direct repo call if possible
-                return self.repo.save_ratings(dev_slug, payload, inv_slug=inv_slug)
-        else:
-            payload = payload_or_inv
-
         resources = self.identity.get_investment_resources(system_id)
         if not resources or not resources["files"]["anchor"]:
             logger.error(f"Cannot save ratings: Investment {system_id} not found.")
@@ -119,7 +105,7 @@ class InvestmentEditorService:
             logger.error(f"Service ratings update error for {system_id}: {e}")
 
         # Update legacy ratings file
-        self.repo.save_ratings(system_id, existing_ratings)
+        ratings_file.write_text(json.dumps(existing_ratings, ensure_ascii=False, indent=2))
 
         try:
             import python_worker.investment_index as inv_index
@@ -232,28 +218,44 @@ class InvestmentEditorService:
             return False
 
     def mark_deleted_photos(self, system_id, paths_or_inv, maybe_paths=None):
+        resources = None
+        inv_slug = None
+        dev_slug = None
         if maybe_paths is not None:
             # Legacy call: (dev, inv, paths)
             dev_slug = system_id
             inv_slug = paths_or_inv
             paths = maybe_paths
-            from python_worker.investment_index import get_id_by_slug
-            system_id = get_id_by_slug(self.data_dir, f"{dev_slug}/{inv_slug}")
-            if not system_id:
-                return self.repo.mark_as_deleted(dev_slug, paths, inv_slug=inv_slug)
+            resources = self.identity.get_investment_resources_by_slug(dev_slug, inv_slug)
+            if not resources:
+                return False
+            system_id = resources["id"]
         else:
             paths = paths_or_inv
+            resources = self.identity.get_investment_resources(system_id)
 
-        resources = self.identity.get_investment_resources(system_id)
-        if not resources:
+        if not resources or not resources["files"].get("anchor") or not resources["files"]["anchor"].exists():
             return False
             
         try:
-            deleted = set(self.repo.get_deleted_items(system_id))
+            # We can read the deletion list from base_dir if we have resources
+            base_dir = resources["base_dir"]
+            deletion_file = base_dir / "deletion_list.json"
+            deleted = set()
+            if deletion_file.exists():
+                with open(deletion_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        deleted = set(data.get("paths", []))
+                    else:
+                        deleted = set(data)
+                    
             for path in paths:
                 deleted.add(path)
                 
-            self.repo.mark_as_deleted(system_id, list(deleted))
+            base_dir.mkdir(parents=True, exist_ok=True)
+            with open(deletion_file, "w", encoding="utf-8") as f:
+                json.dump({"paths": list(deleted)}, f, indent=2, ensure_ascii=False)
             
             slug_parts = resources["metadata"]["slug"].split("/")
             log_to_processing_log(slug_parts[0], slug_parts[1], f"Marked {len(paths)} photos as deleted via ID {system_id}")

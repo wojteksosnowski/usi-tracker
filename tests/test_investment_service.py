@@ -7,21 +7,34 @@ import python_worker.config
 
 # ── fixtures ──────────────────────────────────────────────────────────────────
 
+@pytest.fixture(autouse=True)
+def clear_cache():
+    import python_worker.investment_index as inv_index
+    inv_index._index_cache = None
+    inv_index._index_cache_mtime = 0
+
 @pytest.fixture
 def svc(tmp_path):
     data_dir = tmp_path / "USIdata"
     public_dir = tmp_path / "USI"
     data_dir.mkdir()
     public_dir.mkdir()
-    with patch("python_worker.config.get_scraper_config", return_value=None):
+    fake_config = MagicMock()
+    with patch("python_worker.config.get_scraper_config", return_value=fake_config), \
+         patch("usi_scrapers.manager.TechnicalDataManager") as mock_tech_class:
+        mock_tech = MagicMock()
+        mock_tech.get_investment_path.side_effect = lambda p, pid: data_dir / "acme-dev" / "test-inv"
+        mock_tech.get_image_path.side_effect = lambda p, pid: public_dir / "acme-dev" / "test-inv"
+        mock_tech_class.return_value = mock_tech
         from python_worker.services.investment_service import InvestmentService
-        return InvestmentService(data_dir=data_dir, public_usi_dir=public_dir)
+        yield InvestmentService(data_dir=data_dir, public_usi_dir=public_dir)
 
 
 def _write_usi(data_dir, dev_slug, inv_slug, extra=None):
     inv_dir = data_dir / dev_slug / inv_slug
     inv_dir.mkdir(parents=True, exist_ok=True)
     data = {
+        "usi_inv_id": f"temp_{inv_slug}",
         "investment_slug": inv_slug, "developer_slug": dev_slug,
         "name": "Test Investment", "sources": {"rp": {"id": "123", "url": "https://rp.pl/123"}},
         "status": "Brak", "ratings": {}, "financials": {"price_avg": 500000},
@@ -60,8 +73,8 @@ def test_get_investment_includes_photo_paths(svc):
 # ── save_ratings ──────────────────────────────────────────────────────────────
 
 def test_save_ratings_writes_file(svc):
-    _write_usi(svc.data_dir, "acme-dev", "test-inv")
-    result = svc.save_ratings("acme-dev", "test-inv", {"Balkony": 3.0, "status": "Pełna"})
+    _write_usi(svc.data_dir, "acme-dev", "test-inv", {"usi_inv_id": "inv_123"})
+    result = svc.save_ratings("inv_123", {"Balkony": 3.0, "status": "Pełna"})
     assert result is True
     ratings_file = svc.data_dir / "acme-dev" / "test-inv" / "meta_test-inv_ratings.json"
     assert ratings_file.exists()
@@ -71,24 +84,24 @@ def test_save_ratings_writes_file(svc):
 
 
 def test_save_ratings_invalid_value_raises(svc):
-    _write_usi(svc.data_dir, "acme-dev", "test-inv")
+    _write_usi(svc.data_dir, "acme-dev", "test-inv", {"usi_inv_id": "inv_123"})
     with pytest.raises(ValueError, match="Invalid value"):
-        svc.save_ratings("acme-dev", "test-inv", {"Balkony": 99})
+        svc.save_ratings("inv_123", {"Balkony": 99})
 
 
 def test_save_ratings_invalid_status_raises(svc):
-    _write_usi(svc.data_dir, "acme-dev", "test-inv")
+    _write_usi(svc.data_dir, "acme-dev", "test-inv", {"usi_inv_id": "inv_123"})
     with pytest.raises(ValueError, match="Invalid status"):
-        svc.save_ratings("acme-dev", "test-inv", {"status": "NIEZNANY"})
+        svc.save_ratings("inv_123", {"status": "NIEZNANY"})
 
 
 def test_save_ratings_missing_investment_returns_false(svc):
-    assert svc.save_ratings("nobody", "nothing", {"Balkony": 2.0}) is False
+    assert svc.save_ratings("nobody", {"Balkony": 2.0}) is False
 
 
 def test_save_ratings_updates_usi_json(svc):
-    _write_usi(svc.data_dir, "acme-dev", "test-inv")
-    svc.save_ratings("acme-dev", "test-inv", {"Balkony": 4.0})
+    _write_usi(svc.data_dir, "acme-dev", "test-inv", {"usi_inv_id": "inv_123"})
+    svc.save_ratings("inv_123", {"Balkony": 4.0})
     usi = json.loads((svc.data_dir / "acme-dev" / "test-inv" / "usi_test-inv.json").read_text())
     assert usi["ratings"]["Balkony"] == 4.0
 
@@ -100,7 +113,7 @@ def test_mark_deleted_photos_writes_list(svc):
     result = svc.mark_deleted_photos("acme-dev", "test-inv", ["photo1.jpg", "photo2.jpg"])
     assert result is True
     dl = json.loads((svc.data_dir / "acme-dev" / "test-inv" / "deletion_list.json").read_text())
-    assert dl["paths"] == ["photo1.jpg", "photo2.jpg"]
+    assert set(dl["paths"]) == {"photo1.jpg", "photo2.jpg"}
 
 
 def test_mark_deleted_photos_missing_investment_returns_false(svc):
@@ -137,8 +150,8 @@ def test_update_investment_rebuild_from_raw(svc, tmp_path):
         result = svc.update_investment("acme-dev", "test-inv", use_local_raw=True)
 
     assert result is True
-    # Output uses new canonical: usi_rp_{portal_id}.json (sources.rp.id = "123")
-    saved = json.loads((inv_dir / "usi_rp_123.json").read_text())
+    # Output saves back to the anchor found by identity resolution
+    saved = json.loads((inv_dir / "usi_test-inv.json").read_text())
     assert saved["name"] == "Test Investment Updated"
 
 

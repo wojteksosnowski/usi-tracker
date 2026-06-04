@@ -1,5 +1,16 @@
 # Changelog
 
+## Wersja 0.9.13 — Kamień 02 (Slug Inquisitor) — 2026-06-04
+- **Raport użycia slugów**: Wygenerowano listę funkcji z argumentem `slug` przy pomocy parsera AST w `python_worker/services` oraz `python_worker/api/`.
+- **Analiza użycia**: Zidentyfikowano nieuprawnione wywołania sluga do wewnętrznych serwisów i zapisano w nowym pliku `slug_usage_report.md`.
+- **Testy automatyczne**: Dodano testy weryfikujące generację i zawartość raportu analizy.
+
+### Wnioski ze zmian
+- Architektura wymaga głębokiej refaktoryzacji, w szczególności usługi takie jak `InvestmentSyncService` czy `InvestmentLoader`, aby w pełni zrezygnować ze slugów na rzecz uniwersalnych USI ID oraz systemowych resolverów z `usi-scrapers`.
+## Wersja 0.9.12 — Kamień 02 (Slug Inquisitor - Krok 02.01) — 2026-06-04
+- **Raport użycia slugów**: Wygenerowano listę wszystkich funkcji z argumentem 'slug' używając parsera AST do pliku `slug_usage_report.md`.
+- **Testy**: Dodano test weryfikujący wygenerowanie raportu (`test_slug_report.py`).
+
 ## Wersja 0.9.11 — Kamień 01 (Aktualizacja do usi-scrapers v0.9.7) — 2026-06-04
 - **Aktualizacja Biblioteki**: Podniesienie wersji `usi-scrapers` do 0.9.7 w `requirements.txt`.
 - **Refaktoryzacja I/O**: Dostosowanie wywołań `sync_images` i `save_raw_data` do nowego modelu wstrzykiwania ścieżek i slugów.

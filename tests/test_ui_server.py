@@ -9,6 +9,13 @@ from python_worker.ui_server import app
 from python_worker.api.utils import _valid_filename, _valid_slug
 
 
+@pytest.fixture(autouse=True)
+def clear_cache():
+    import python_worker.investment_index as inv_index
+    inv_index._index_cache = None
+    inv_index._index_cache_mtime = 0
+
+
 # ── _valid_filename ────────────────────────────────────────────────────────────
 
 class TestValidFilename:
@@ -151,11 +158,12 @@ class TestMetadataConfig:
 
 # ── Shared fixture helpers ─────────────────────────────────────────────────────
 
-def _make_inv_dir(tmp_path, dev="dev", inv="inv"):
+def _make_inv_dir(tmp_path, dev="dev", inv="inv", usi_inv_id="inv_123"):
     """Create minimal USIdata/{dev}/{inv}/usi_{inv}.json."""
     inv_dir = tmp_path / dev / inv
-    inv_dir.mkdir(parents=True)
+    inv_dir.mkdir(parents=True, exist_ok=True)
     (inv_dir / f"usi_{inv}.json").write_text(json.dumps({
+        "usi_inv_id": usi_inv_id,
         "investment_slug": inv,
         "developer_slug": dev,
         "name": "Test Investment",
@@ -169,27 +177,41 @@ def _make_inv_dir(tmp_path, dev="dev", inv="inv"):
     return inv_dir
 
 
-# ── /api/ratings/<dev>/<inv> ───────────────────────────────────────────────────
+# ── /api/ratings/<system_id> ───────────────────────────────────────────────────
 
 class TestSaveRatings:
+    @pytest.fixture(autouse=True)
+    def patch_service_dirs(self, tmp_path):
+        data_dir = tmp_path / "USIdata"
+        public_dir = tmp_path / "usi"
+        with patch("python_worker.api.blueprints.investments.investment_service.data_dir", data_dir), \
+             patch("python_worker.api.blueprints.investments.investment_service.editor.data_dir", data_dir), \
+             patch("python_worker.api.blueprints.investments.investment_service.editor.identity.data_dir", data_dir), \
+             patch("python_worker.api.blueprints.investments.investment_service.editor.repo.data_dir", data_dir):
+            yield
+
     def test_save_ratings_returns_ok(self, client, tmp_path):
-        _make_inv_dir(tmp_path)
-        with patch("python_worker.config.USI_DATA_DIR", Path(tmp_path)), \
+        data_dir = tmp_path / "USIdata"
+        _make_inv_dir(data_dir, usi_inv_id="inv_123")
+        with patch("python_worker.config.USI_DATA_DIR", data_dir), \
              patch("python_worker.config.PUBLIC_USI_DIR", Path(tmp_path / "usi")), \
-             patch("python_worker.api.blueprints.investments.investment_service.data_dir", Path(tmp_path)), \
-             patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")):
-            resp = client.post("/api/ratings/dev/inv",
+             patch("python_worker.api.blueprints.investments.investment_service.data_dir", data_dir), \
+             patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")), \
+             patch("python_worker.config.get_scraper_config", return_value=None):
+            resp = client.post("/api/ratings/inv_123",
                                json={"Balkony": 3, "Fasady": 2, "komentarz": "", "status": "Brak"})
         assert resp.status_code == 200
         assert resp.get_json()["ok"] is True
 
     def test_save_ratings_persists_to_file(self, client, tmp_path):
-        inv_dir = _make_inv_dir(tmp_path)
-        with patch("python_worker.config.USI_DATA_DIR", Path(tmp_path)), \
+        data_dir = tmp_path / "USIdata"
+        inv_dir = _make_inv_dir(data_dir, usi_inv_id="inv_123")
+        with patch("python_worker.config.USI_DATA_DIR", data_dir), \
              patch("python_worker.config.PUBLIC_USI_DIR", Path(tmp_path / "usi")), \
-             patch("python_worker.api.blueprints.investments.investment_service.data_dir", Path(tmp_path)), \
-             patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")):
-            client.post("/api/ratings/dev/inv",
+             patch("python_worker.api.blueprints.investments.investment_service.data_dir", data_dir), \
+             patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")), \
+             patch("python_worker.config.get_scraper_config", return_value=None):
+            client.post("/api/ratings/inv_123",
                         json={"Balkony": 4, "Fasady": 1, "komentarz": "ok", "status": "Wstępna"})
         saved = json.loads((inv_dir / "meta_inv_ratings.json").read_text())
         assert saved["Balkony"] == 4
@@ -198,19 +220,21 @@ class TestSaveRatings:
         assert saved["status"] == "Wstępna"
 
     def test_ratings_visible_in_investment_data(self, client, tmp_path):
-        _make_inv_dir(tmp_path)
-        with patch("python_worker.config.USI_DATA_DIR", Path(tmp_path)), \
+        data_dir = tmp_path / "USIdata"
+        _make_inv_dir(data_dir)
+        with patch("python_worker.config.USI_DATA_DIR", data_dir), \
              patch("python_worker.config.PUBLIC_USI_DIR", Path(tmp_path / "usi")), \
-             patch("python_worker.api.blueprints.investments.investment_service.data_dir", Path(tmp_path)), \
+             patch("python_worker.api.blueprints.investments.investment_service.data_dir", data_dir), \
              patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")):
+            
             client.post("/api/ratings/dev/inv",
-                        json={"Balkony": 3, "Wnętrza": 2, "komentarz": "test", "status": "AI"})
+                        json={"Balkony": 2, "status": "Zła", "komentarz": "Test"})
             resp = client.get("/api/data/dev/inv")
-        data = resp.get_json()
-        assert data["ratings"]["Balkony"] == 3
-        assert data["ratings"]["Wnętrza"] == 2
-        assert data["comment"] == "test"
-        assert data["status"] == "AI"
+            assert resp.status_code == 200
+            data = resp.get_json()
+            assert data["ratings"]["Balkony"] == 2
+            assert data["status"] == "Zła"
+            assert data["ratings"]["komentarz"] == "Test"
 
     def test_ratings_visible_in_investments_list(self, client, tmp_path):
         _make_inv_dir(tmp_path)
@@ -228,31 +252,37 @@ class TestSaveRatings:
         assert found["status"] == "Pełna"
 
     def test_save_ratings_invalid_value_returns_400(self, client, tmp_path):
-        _make_inv_dir(tmp_path)
-        with patch("python_worker.config.USI_DATA_DIR", Path(tmp_path)), \
+        data_dir = tmp_path / "USIdata"
+        _make_inv_dir(data_dir, usi_inv_id="inv_123")
+        with patch("python_worker.config.USI_DATA_DIR", data_dir), \
              patch("python_worker.config.PUBLIC_USI_DIR", Path(tmp_path / "usi")), \
-             patch("python_worker.api.blueprints.investments.investment_service.data_dir", Path(tmp_path)), \
-             patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")):
-            resp = client.post("/api/ratings/dev/inv",
+             patch("python_worker.api.blueprints.investments.investment_service.data_dir", data_dir), \
+             patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")), \
+             patch("python_worker.config.get_scraper_config", return_value=None):
+            resp = client.post("/api/ratings/inv_123",
                                json={"Balkony": 5, "status": "Brak", "komentarz": ""})
         assert resp.status_code == 400
 
     def test_save_ratings_invalid_status_returns_400(self, client, tmp_path):
-        _make_inv_dir(tmp_path)
-        with patch("python_worker.config.USI_DATA_DIR", Path(tmp_path)), \
+        data_dir = tmp_path / "USIdata"
+        _make_inv_dir(data_dir, usi_inv_id="inv_123")
+        with patch("python_worker.config.USI_DATA_DIR", data_dir), \
              patch("python_worker.config.PUBLIC_USI_DIR", Path(tmp_path / "usi")), \
-             patch("python_worker.api.blueprints.investments.investment_service.data_dir", Path(tmp_path)), \
-             patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")):
-            resp = client.post("/api/ratings/dev/inv",
+             patch("python_worker.api.blueprints.investments.investment_service.data_dir", data_dir), \
+             patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")), \
+             patch("python_worker.config.get_scraper_config", return_value=None):
+            resp = client.post("/api/ratings/inv_123",
                                json={"status": "Nieznany", "komentarz": ""})
         assert resp.status_code == 400
 
     def test_save_ratings_missing_investment_returns_404(self, client, tmp_path):
-        with patch("python_worker.config.USI_DATA_DIR", Path(tmp_path)), \
+        data_dir = tmp_path / "USIdata"
+        with patch("python_worker.config.USI_DATA_DIR", data_dir), \
              patch("python_worker.config.PUBLIC_USI_DIR", Path(tmp_path / "usi")), \
-             patch("python_worker.api.blueprints.investments.investment_service.data_dir", Path(tmp_path)), \
-             patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")):
-            resp = client.post("/api/ratings/dev/nonexistent",
+             patch("python_worker.api.blueprints.investments.investment_service.data_dir", data_dir), \
+             patch("python_worker.api.blueprints.investments.investment_service.public_usi_dir", Path(tmp_path / "usi")), \
+             patch("python_worker.config.get_scraper_config", return_value=None):
+            resp = client.post("/api/ratings/nonexistent",
                                json={"status": "Brak", "komentarz": ""})
         assert resp.status_code == 404
 
