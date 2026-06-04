@@ -1,9 +1,0 @@
---- tests/test_ui_server.py
-+++ tests/test_ui_server.py
-@@ -174,6 +174,9 @@
-         "ratings": {},
-         "status": "Brak"
-     }))
-+    index_file = tmp_path / "investment_index.jsonl"
-+    index_file.write_text(json.dumps({"developer_slug": dev, "investment_slug": inv, "usi_inv_id": usi_inv_id}) + "\n")
-     return inv_dir

@@ -302,14 +302,23 @@ def main():
             logger.error("Investment path must be in format dev_slug/inv_slug")
             sys.exit(1)
             
-        from python_worker.api.utils import _find_inv_file
-        inv_dir = USI_DATA_DIR / dev_slug / inv_slug
-        usi_file = _find_inv_file(inv_dir, inv_slug)
-        if not usi_file or not usi_file.exists():
-            logger.error(f"Investment info not found in: {inv_dir}")
+        # Resolve ID from slugs via index
+        from .investment_index import load as load_index
+        index = load_index(USI_DATA_DIR)
+        entry = next((e for e in index if e.get("developer_slug") == dev_slug and e.get("investment_slug") == inv_slug), None)
+        system_id = entry.get("usi_inv_id") if entry else None
+        
+        if not system_id:
+            logger.error(f"Could not find USI ID for {args.inv_path} in index")
             sys.exit(1)
             
-        with open(usi_file, "r") as f:
+        svc = InvestmentService()
+        resources = svc.get_investment_resources(system_id)
+        if not resources or not resources["files"].get("anchor"):
+            logger.error(f"Investment info not found for ID: {system_id}")
+            sys.exit(1)
+            
+        with open(resources["files"]["anchor"], "r") as f:
             data = json.load(f)
             sources = data.get("sources", {})
             

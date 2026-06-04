@@ -5,7 +5,6 @@ from pathlib import Path
 from python_worker.config import USI_DATA_DIR, USI_DEV_DIR, PUBLIC_USI_DIR
 from python_worker.developer_manager import DeveloperManager
 import python_worker.investment_index as inv_index
-from python_worker.api.utils import _find_inv_file
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -170,10 +169,10 @@ def detect_similar_invs(data_dir: Path, target_dev_slug: str = None, target_inv_
             
             if new_suggestions:
                 # Save suggestions to inv1
-                dev_slug = inv1["developer_slug"]
-                inv_slug = inv1["slug"].split("/")[-1]
-                inv_dir = data_dir / dev_slug / inv_slug
-                usi_file = _find_inv_file(inv_dir, inv_slug, inv1_id)
+                from python_worker.services.investment_service import InvestmentService
+                svc = InvestmentService(data_dir=data_dir)
+                resources = svc.get_investment_resources(inv1_id)
+                usi_file = resources["files"].get("anchor") if resources else None
                 
                 if usi_file:
                     with open(usi_file, "r", encoding="utf-8") as f:

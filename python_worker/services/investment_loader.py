@@ -9,36 +9,6 @@ from python_worker.services.image_resolver import resolve_images
 
 logger = logging.getLogger(__name__)
 
-def find_inv_file(inv_dir: Path, inv_slug: str, system_id: str = None) -> Path | None:
-    """Find the canonical investment JSON in inv_dir (by system_id first, then new format, then legacy)."""
-    if system_id:
-        if system_id.startswith("MASTER-"):
-            pass
-        elif "_" in system_id and not system_id.startswith("legacy_"):
-            portal, portal_id = system_id.split("_", 1)
-            f = inv_dir / f"usi_{portal}_{portal_id}.json"
-            if f.exists():
-                return f
-        else:
-            for f in inv_dir.glob("usi_*.json"):
-                if f.name == f"{system_id.replace('legacy_', '')}.json":
-                    return f
-
-    for p in ("rp", "oto", "to"):
-        candidates = sorted(inv_dir.glob(f"usi_{p}_*.json"))
-        if candidates:
-            return candidates[0]
-
-    for legacy in (
-        inv_dir / f"usi_{inv_slug}.json",
-        inv_dir / f"usi_rp_{inv_slug}.json",
-        inv_dir / f"usi_oto_{inv_slug}.json",
-        inv_dir / f"usi_to_{inv_slug}.json",
-    ):
-        if legacy.exists():
-            return legacy
-    return None
-
 def load_investment(system_id: str | None = None, usi_file: Path | None = None, data_dir: Path | None = None, public_usi_dir: Path | None = None, fast_index: bool = False, **kwargs) -> dict | None:
 
     """

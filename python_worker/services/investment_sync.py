@@ -5,7 +5,6 @@ from pathlib import Path
 
 from python_worker.adapters import AdapterFactory, Merger
 from python_worker.logger_utils import log_to_processing_log
-from python_worker.api.utils import _find_inv_file
 from python_worker.developer_manager import DeveloperManager
 
 logger = logging.getLogger(__name__)
@@ -164,7 +163,17 @@ class InvestmentSyncService:
             inv_dir = self.data_dir / dev_slug / inv_slug
 
         # 1. Check if investment already exists (any file format)
-        existing_file = _find_inv_file(inv_dir, inv_slug)
+        existing_file = None
+        if portal and item_id:
+            target_anchor = inv_dir / f"usi_{portal}_{item_id}.json"
+            if target_anchor.exists():
+                existing_file = target_anchor
+        
+        if not existing_file:
+            usi_files = [f for f in inv_dir.glob("usi_*.json") if "usi_dev_" not in f.name]
+            if usi_files:
+                existing_file = usi_files[0]
+
         if existing_file:
             if allow_existing:
                 import json

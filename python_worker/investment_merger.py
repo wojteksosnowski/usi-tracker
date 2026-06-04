@@ -7,7 +7,7 @@ from typing import Optional
 from python_worker.config import USI_DATA_DIR, PUBLIC_USI_DIR
 from python_worker.developer_manager import DeveloperManager
 import python_worker.investment_index as inv_index
-from python_worker.api.utils import _find_inv_file
+from python_worker.services.investment_identity import InvestmentIdentityResolver
 from python_worker.logger_utils import log_to_processing_log
 
 logger = logging.getLogger(__name__)
@@ -17,6 +17,7 @@ class InvestmentMerger:
         self.data_dir = data_dir or Path(USI_DATA_DIR)
         self.public_dir = public_dir or Path(PUBLIC_USI_DIR)
         self.dm = DeveloperManager(self.data_dir)
+        self.identity = InvestmentIdentityResolver(self.data_dir, self.public_dir)
 
     def _load_json(self, path: Path) -> dict:
         if not path.exists() or not path.is_file():
@@ -102,8 +103,10 @@ class InvestmentMerger:
         t_inv_dir = self.data_dir / t_dev_slug / t_inv_slug
         s_inv_dir = self.data_dir / s_dev_slug / s_inv_slug
 
-        t_usi_file = _find_inv_file(t_inv_dir, t_inv_slug, target_inv_id)
-        s_usi_file = _find_inv_file(s_inv_dir, s_inv_slug, source_inv_id)
+        t_res = self.identity.get_investment_resources(target_inv_id)
+        t_usi_file = t_res["files"].get("anchor") if t_res else None
+        s_res = self.identity.get_investment_resources(source_inv_id)
+        s_usi_file = s_res["files"].get("anchor") if s_res else None
 
         if not t_usi_file or not s_usi_file:
             logger.error("Underlying USI JSON files not found.")
@@ -235,7 +238,8 @@ class InvestmentMerger:
         s_dev_slug = source_entry["developer_slug"]
         s_inv_slug = source_entry["slug"].split("/")[-1]
         s_inv_dir = self.data_dir / s_dev_slug / s_inv_slug
-        s_usi_file = _find_inv_file(s_inv_dir, s_inv_slug, source_inv_id)
+        s_res = self.identity.get_investment_resources(source_inv_id)
+        s_usi_file = s_res["files"].get("anchor") if s_res else None
 
         if not s_usi_file:
             return False
@@ -312,7 +316,8 @@ class InvestmentMerger:
             t_dev_slug = target_entry["developer_slug"]
             t_inv_slug = target_entry["slug"].split("/")[-1]
             t_inv_dir = self.data_dir / t_dev_slug / t_inv_slug
-            t_usi_file = _find_inv_file(t_inv_dir, t_inv_slug, target_inv_id)
+            t_res = self.identity.get_investment_resources(target_inv_id)
+            t_usi_file = t_res["files"].get("anchor") if t_res else None
             if t_usi_file:
                 with open(t_usi_file, "r", encoding="utf-8") as f:
                     t_data = json.load(f)

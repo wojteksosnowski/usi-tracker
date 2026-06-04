@@ -1,5 +1,14 @@
 # Changelog
 
+## Wersja 0.9.33 — Kamień 06 (Ostateczne wyparcie slugów i porządki) — 2026-06-04
+- **ID-Only Finalization**: Całkowicie wyeliminowano funkcję `find_inv_file` i powiązane z nią aliasy. System lokalizuje teraz wszystkie zasoby wyłącznie poprzez systemowe identyfikatory ID.
+- **Wielkie sprzątanie**: Usunięto ponad 20 przestarzałych skryptów migracyjnych, audytowych i narzędziowych (`migrate*`, `audit*`, `fix*`) oraz katalogi śmieciowe (`scratch`, `forgettable`, `tmp_USIdev`).
+- **Stabilizacja testów**: Zaktualizowano testy integracyjne w celu dopasowania ich do nowej, odchudzonej architektury.
+- **Optymalizacja I/O**: Usunięto moduł `repair_image_paths.py`, kończąc erę heurystyk opartych na slugach.
+
+### Wnioski ze zmian
+- Tracker osiągnął stan docelowy: jest "cienkim" klientem, delegującym całe techniczne I/O do biblioteki `usi-scrapers`. Usunięcie długu technicznego w postaci skryptów legacy drastycznie poprawia czytelność repozytorium i ułatwia wdrożenie nowych deweloperów.
+
 ## Wersja 0.9.32 — Kamień 05 (Wielka czystka slugów w systemie) — 2026-06-04
 - **ID-Only API & Frontend**: Zaktualizowano wszystkie trasy Flask w `investments.py` oraz `crawler_api.py` do obsługi unikalnych identyfikatorów `system_id`, jednocześnie synchronizując całą warstwę React.
 - **Refaktoryzacja Serwisów**: Warstwy Discovery, Sync i Image Resolver zostały całkowicie uniezależnione od parametrów slug.

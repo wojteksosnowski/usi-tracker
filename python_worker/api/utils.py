@@ -13,16 +13,12 @@ from python_worker.services.amenity_scorer import (
 )
 
 from python_worker.services.investment_loader import (
-    find_inv_file as _find_inv_file,
     load_investment as _real_load_investment
 )
 
 def _load_investment(*args, **kwargs):
-    # Support legacy positional args: (dev_slug, inv_slug)
-    if len(args) == 2:
-        kwargs['dev_slug'] = args[0]
-        kwargs['inv_slug'] = args[1]
-    elif len(args) == 1:
+    # Support positional arg for system_id
+    if len(args) == 1:
         kwargs['system_id'] = args[0]
     return _real_load_investment(**kwargs)
 
