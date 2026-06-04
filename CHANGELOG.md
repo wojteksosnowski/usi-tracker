@@ -1,5 +1,12 @@
 # Changelog
 
+## Wersja 0.9.23 — Kamień 11 (Slug Generation Removal) — 2026-06-04
+- **Usunięcie slugify_dev**: Skasowano lokalny generator slugów z `portal_matcher.py`.
+- **Pełna tożsamość portalowa**: System w 100% polega na slugach dostarczanych przez portale lub ID, co eliminuje dryf nazewnictwa deweloperów.
+
+### Wnioski ze zmian
+- Eliminacja lokalnego generowania slugów z nazw deweloperów domyka proces standaryzacji tożsamości. Kolejny etap usuwania "martwego kodu" upraszcza architekturę i zwiększa jej przewidywalność.
+
 ## Wersja 0.9.22 — Kamień 10 (API Identity Enforcement) — 2026-06-04
 - **Usunięcie get_id_by_slug**: Skasowano przestarzały helper w `investment_index.py`, eliminując kolejny punkt nieuprawnionej rezolucji slug→ID.
 - **Monitoring fallbacków API**: Wprowadzono logowanie ostrzeżeń w `_resolve_system_id` dla zapytań nieposiadających parametru `id`. Umożliwia to precyzyjną identyfikację legacy-kodu w warstwie UI.

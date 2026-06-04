@@ -121,14 +121,6 @@ Poniżej znajduje się lista funkcji, które przyjmują argumenty zawierające s
 Utworz zadanie dla kazdego naruszenia. Sprawdz czy jest ono uzasadnione. Staraj sie wykorzystywac jak najwiecej istniejacych funkcji i API. Zasada ID-only i thin-client. Zaplanuj testy.
 
 
-### Kamień 11 Generowanie slugów dla developerów
-```
-# python_worker/portal_matcher.py
-def slugify_dev(name: str) -> str
-```
-Problem: Tworzysz slug z nazwy. Ale jeśli portal daje Ci już vendor.slug (RynekPierwotny) — czemu go przetwarzać?
-
-Rozwiązanie: Zamiast generować slug z nazwy, wziąć go z portalu, fallback na ID.
 
 ### Kamień 13 
 
@@ -152,6 +144,76 @@ def get_investment_resources(usi_inv_id):
     entry = index[usi_inv_id]
     return tech_manager.resolve_paths(entry["portal"], entry["portal_id"])
 
-### Kamień 15 Porządki
-Po repo porozrzucane sa pliki nie majace zwiazku z dzialaniem repo. Wyczysc je.
+### Kamień 15 Identyfikacja nazwy dewelopera z URL
+Python
+# ❌ Tracker robi sam (python_worker/api/blueprints/investments.py):
+developer_name = data.get("agency_name")  # Otodom
+# lub ręczny scraping HTML
 
+# ✅ API ma już:
+from usi_scrapers.api import identify_developer
+name = identify_developer(fetcher, portal="otodom", url="https://...")
+Gdzie to siedzi w tracker: Głownie w logice discovery i podczas rejestracji — powinno być delegowane do usi-scrapers.
+
+### Kamień 16 Geocodowanie adresu
+Python
+# ❌ Tracker robi sam (python_worker/here_maps.py):
+def geocode_address(address: str):
+    # Własna implementacja z HERE API
+
+# ✅ Powinno być w usi-scrapers (lub dedykowanym serwisie)
+# Tracker nigdy nie powinien wywoływać HERE API bezpośrednio
+Problem: here_maps.py istnieje i jest used w python_worker/api/utils.py do wzbogacania wyników — to powinno być serwisem niezależnym, nie częścią trackera.
+
+### Kamień 17 Zapis surowych danych
+Python
+# ❌ Tracker robi:
+from python_worker.repair_image_paths import _resolve_paths
+paths = _resolve_paths(raw_paths, image_urls, dev_slug, inv_slug, ...)
+
+# ✅ Api usi-scrapers już ma:
+from usi_scrapers.api import save_raw, save_raw_developer
+save_raw(config, data, portal_prefix="rp", portal_id="123")
+Tracker powinien: Wyłącznie wywoływać usi-scrapers API, nigdy nie pisać bezpośrednio do USIdata/.
+
+### Kamień 18 
+
+# python_worker/here_maps.py
+# → Tego nie powinno być w tracker. Jeśli potrzebne, to jako oddzielny moduł.
+# Tracker to FETCH-ONLY. Transformacje (takie jak HERE maps) to obowiązek aplikacji matki.
+
+# python_worker/repair_image_paths.py → Cały plik
+# Funkcje _find_by_* to heurystyka. Bez pewnych ID + portal_id = brak gwarancji.
+
+# python_worker/investment_loader.py → find_inv_file()
+# Zamienić na ID-based lookup:
+# ZAMIAST: find_inv_file(dev_slug, inv_slug)
+# POWINNO: identity.get_investment_resources(usi_inv_id) → files["anchor"]
+
+### Kamień 19 
+
+# python_worker/investment_identity.py
+# ❌ get_investment_resources_by_slug(dev_slug, inv_slug)
+# ✅ Tylko get_investment_resources(usi_inv_id)
+
+# Jeśli brakuje ID, fail-fast + log do operacyjnego — nie fallback.
+
+### Kamień 20
+
+# python_worker/services/investment_sync.py
+# ❌ Własny scraping dev name:
+developer_name = data.get("agency_name")
+
+# ✅ API:
+from usi_scrapers.api import identify_developer
+name = identify_developer(fetcher, portal, url)
+
+# ❌ Własne zapisy raw:
+# ✅ Delegować to usi-scrapers.api.save_raw()
+
+
+
+
+
+### Kamień 99 Porządki
+Po repo porozrzucane sa pliki nie majace zwiazku z dzialaniem repo. Wyczysc je.

@@ -40,14 +40,6 @@ def normalize_name(name: str) -> str:
     return nfkd.encode("ascii", "ignore").decode("ascii").lower().strip()
 
 
-def slugify_dev(name: str) -> str:
-    if not name:
-        return ""
-    text = name.translate(_SLUG_REPLACE)
-    nfkd = unicodedata.normalize("NFKD", text)
-    return re.sub(r"[^a-z0-9]+", "-", nfkd.encode("ascii", "ignore").decode("ascii").lower()).strip("-")
-
-
 def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     R = 6_371_000
     φ1, φ2 = math.radians(lat1), math.radians(lat2)
