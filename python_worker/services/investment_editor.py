@@ -166,24 +166,12 @@ class InvestmentEditorService:
             return False
 
 
-    def mark_deleted_photos(self, system_id, paths_or_inv, maybe_paths=None):
-        resources = None
-        inv_slug = None
-        dev_slug = None
-        if maybe_paths is not None:
-            # Legacy call: (dev, inv, paths)
-            dev_slug = system_id
-            inv_slug = paths_or_inv
-            paths = maybe_paths
-            resources = self.identity.get_investment_resources_by_slug(dev_slug, inv_slug)
-            if not resources:
-                return False
-            system_id = resources["id"]
-        else:
-            paths = paths_or_inv
-            resources = self.identity.get_investment_resources(system_id)
+    def mark_deleted_photos(self, system_id, paths):
+        """Saves a list of property IDs to a deletion_list.json file in the investment directory."""
+        resources = self.identity.get_investment_resources(system_id)
 
         if not resources or not resources["files"].get("anchor") or not resources["files"]["anchor"].exists():
+            logger.error(f"Cannot mark deleted photos: Investment {system_id} not found.")
             return False
 
         try:

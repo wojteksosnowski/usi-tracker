@@ -244,12 +244,16 @@ class InvestmentSyncService:
         
         return portal_slug or fallback
 
-    def download_raw_json(self, portal: str, identifier: str, dev_slug: str, inv_slug: str):
+    def download_raw_json(self, portal: str, identifier: str, system_id: str):
         if not self.lib_config or not self.fetcher:
             logger.error("Scraper library not properly configured.")
             return None
             
-        resources = self.resolver.get_investment_resources_by_slug(dev_slug, inv_slug)
+        resources = self.resolver.get_investment_resources(system_id)
+        if not resources:
+            logger.error(f"Cannot download raw JSON: Investment {system_id} not found.")
+            return None
+
         target_dir = resources["base_dir"]
         
         from usi_scrapers import api as scraper_api
@@ -650,13 +654,18 @@ class InvestmentSyncService:
                 if portal == "rp":
                     ident = item.get("id") or url
 
-                if dev_slug and inv_slug:
-                    resources = self.resolver.get_investment_resources_by_slug(dev_slug, inv_slug)
-                    target_dir = resources["base_dir"]
-                    target_image_dir = resources["images_dir"]
-                else:
-                    target_dir = None
-                    target_image_dir = None
+                # 4. Resolve physical paths via ID-only architecture
+                target_dir = None
+                target_image_dir = None
+                
+                portal_id = str(ident) if (ident and not str(ident).startswith("http")) else None
+                if portal_id and self.tech_manager:
+                    target_dir = self.tech_manager.get_investment_path(portal, portal_id)
+                    target_image_dir = self.tech_manager.get_image_path(portal, portal_id)
+                elif dev_slug and inv_slug:
+                    # Emergency fallback if no ID but we have slugs (should be avoided)
+                    target_dir = self.data_dir / dev_slug / inv_slug
+                    target_image_dir = self.public_usi_dir / dev_slug / inv_slug
 
                 targets.append({
                     "identifier": ident,

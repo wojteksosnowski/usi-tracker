@@ -1,5 +1,15 @@
 # Changelog
 
+## Wersja 0.9.25 — Kamień 14 (Resource Resolution Modernization) — 2026-06-04
+- **Optymalizacja InvestmentIdentityResolver**: Wprowadzono właściwość `tech_manager` (lazy-loading), która zapewnia efektywny dostęp do API biblioteki bez wielokrotnej reinicjalizacji.
+- **Eliminacja get_investment_resources_by_slug**: Całkowicie usunięto przestarzałą metodę, wymuszając korzystanie z tożsamości ID w całym systemie.
+- **Refaktoryzacja warstwy usług**: Zaktualizowano `InvestmentEditorService`, `InvestmentService` oraz `InvestmentSyncService`, usuwając legacy-fallbacki oparte na slugach.
+- **Modernizacja batch identifier preparation**: Przeniesiono rezolucję ścieżek w operacjach wsadowych na API `TechnicalDataManager`.
+- **Weryfikacja regresji**: Dodano `tests/test_id_resolution_final.py` potwierdzający poprawność mapowania po usunięciu starych metod.
+
+### Wnioski ze zmian
+- System rygorystycznie wymusza rezolucję ścieżek po ID, co definitywnie rozwiązuje problem "dryfu" danych przy zmianie slugów przez portale. Centralizacja wiedzy o strukturze plików w `TechnicalDataManager` poprawia spójność i ułatwia przyszłe migracje.
+
 ## Wersja 0.9.24 — Kamień 13 (ID-Keyed Skeleton Creation) — 2026-06-04
 - **Refaktoryzacja InvestmentRepository.create_investment_skeleton**: Zmieniono sygnaturę i implementację na ID-keyed, wykorzystując `TechnicalDataManager` do ustalania ścieżek.
 - **Aktualizacja InvestmentSyncService**: Dostosowano przepływ rejestracji nowych inwestycji do nowej architektury, eliminując zależność od slugów przy tworzeniu katalogów.

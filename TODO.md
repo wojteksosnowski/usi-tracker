@@ -122,18 +122,6 @@ Utworz zadanie dla kazdego naruszenia. Sprawdz czy jest ono uzasadnione. Staraj 
 
 
 
-### Kamień 14
-
-# Zamiast:
-def get_investment_resources_by_slug(dev_slug, inv_slug):
-    # szukaj na dysku
-
-# Powinno być:
-def get_investment_resources(usi_inv_id):
-    index = load_index()  # O(1)
-    entry = index[usi_inv_id]
-    return tech_manager.resolve_paths(entry["portal"], entry["portal_id"])
-
 ### Kamień 15 Identyfikacja nazwy dewelopera z URL
 Python
 # ❌ Tracker robi sam (python_worker/api/blueprints/investments.py):
@@ -202,7 +190,8 @@ name = identify_developer(fetcher, portal, url)
 # ✅ Delegować to usi-scrapers.api.save_raw()
 
 
-
+### Kamień 21
+Sprawdź czy skrypty typu migrate* oraz audit* w python_worker/ sa jeszcze uzywane. Zidentyfikuj skrypty i metody uzywane tylko raz, ktore nie sa wywolywane przez frontend i sluza tylko refactoringowi starych danych.
 
 
 ### Kamień 99 Porządki

@@ -130,18 +130,10 @@ class InvestmentService:
     def register_investment(self, *args, **kwargs):
         return self.sync.register_investment(*args, **kwargs)
 
-    def download_raw_json(self, portal: str, identifier: str, dev_slug: str, inv_slug: str):
-        return self.sync_svc.download_raw_json(portal, identifier, dev_slug, inv_slug)
-    def update_investment(self, system_id, inv_slug=None, use_local_raw=False, skip_images=False, skip_index=False, skip_log=False):
-        if inv_slug is not None and isinstance(inv_slug, str):
-            # Legacy call: (dev_slug, inv_slug, use_local_raw=...)
-            dev_slug = system_id
-            resources = self.identity.get_investment_resources_by_slug(dev_slug, inv_slug)
-            if not resources:
-                logger.warning(f"Investment resources not found skipping legacy ID: {dev_slug}/{inv_slug}")
-                return False
-            system_id = resources["id"]
+    def download_raw_json(self, portal: str, identifier: str, system_id: str):
+        return self.sync.download_raw_json(portal, identifier, system_id)
 
+    def update_investment(self, system_id, use_local_raw=False, skip_images=False, skip_index=False, skip_log=False):
         return self.sync.update_investment(system_id, use_local_raw, skip_images, skip_index, skip_log)
 
     def process_batch(self, portal, investments, on_progress_callback=None):
@@ -159,11 +151,5 @@ class InvestmentService:
     def add_report(self, system_id, note):
         return self.editor.add_report(system_id, note)
 
-    def mark_deleted_photos(self, dev_slug, inv_slug, paths=None):
-        if paths is None:
-            # New call: (system_id, paths)
-            system_id = dev_slug
-            paths = inv_slug
-            return self.editor.mark_deleted_photos(system_id, paths)
-        # Legacy call: (dev, inv, paths)
-        return self.editor.mark_deleted_photos(dev_slug, inv_slug, paths)
+    def mark_deleted_photos(self, system_id, paths):
+        return self.editor.mark_deleted_photos(system_id, paths)

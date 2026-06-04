@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from python_worker.config import get_scraper_config
 
 class InvestmentIdentityResolver:
     """
@@ -13,6 +14,16 @@ class InvestmentIdentityResolver:
     def __init__(self, data_dir: Path | str, public_usi_dir: Path | str):
         self.data_dir = Path(data_dir) if isinstance(data_dir, str) else data_dir
         self.public_usi_dir = Path(public_usi_dir) if isinstance(public_usi_dir, str) else public_usi_dir
+        self._tech_manager = None
+
+    @property
+    def tech_manager(self):
+        if self._tech_manager is None:
+            from usi_scrapers.manager import TechnicalDataManager
+            config = get_scraper_config()
+            if config:
+                self._tech_manager = TechnicalDataManager(config)
+        return self._tech_manager
 
     def build_index(self):
         """Triggers a full rebuild of the investment index."""
@@ -48,20 +59,6 @@ class InvestmentIdentityResolver:
 
         return self._map_resources_from_entry(entry)
 
-    def get_investment_resources_by_slug(self, dev_slug: str, inv_slug: str) -> dict | None:
-        """
-        @deprecated: Always use get_investment_resources(usi_inv_id).
-        Legacy fallback method to resolve resources by slug.
-        """
-        from python_worker.investment_index import load as load_index
-        index = load_index(self.data_dir)
-        entry = next((e for e in index if e.get("developer_slug") == dev_slug and e.get("investment_slug") == inv_slug), None)
-        
-        if not entry:
-            return None
-
-        return self.get_investment_resources(entry["usi_inv_id"])
-
     def _map_resources_from_entry(self, entry: dict) -> dict | None:
         """Determines physical file locations strictly via TechnicalDataManager."""
         portal = entry.get("portal")
@@ -75,17 +72,11 @@ class InvestmentIdentityResolver:
                     portal_id = sources[p].get("id")
                     break
 
-        from python_worker.config import get_scraper_config
-        from usi_scrapers.manager import TechnicalDataManager
-        import logging
-        
-        config = get_scraper_config()
-        if not config or not portal or not portal_id:
+        if not self.tech_manager or not portal or not portal_id:
             return None
 
-        tech_manager = TechnicalDataManager(config)
-        inv_dir = tech_manager.get_investment_path(portal, str(portal_id))
-        images_dir = tech_manager.get_image_path(portal, str(portal_id))
+        inv_dir = self.tech_manager.get_investment_path(portal, str(portal_id))
+        images_dir = self.tech_manager.get_image_path(portal, str(portal_id))
         
         if not inv_dir:
             return None
