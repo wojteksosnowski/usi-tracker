@@ -13,7 +13,6 @@ from .logger_utils import log_to_processing_log
 from .developer_manager import DeveloperManager
 from .services.investment_service import InvestmentService
 
-from .audit_worker import run_audit_cli
 
 # Set up logging for the whole application
 _LOG_FILE = Path(__file__).parent.parent / "logs" / "worker.log"
@@ -186,9 +185,6 @@ def main():
     parser_update_inv.add_argument("inv_path", help="Investment path (e.g., dev_slug/inv_slug)")
     parser_update_inv.add_argument("--use-local-raw", action="store_true", help="Use local raw JSON if available")
 
-    # Command: migrate
-    parser_migrate = subparsers.add_parser("migrate", help="Run the full database migration (legacy)")
-    parser_migrate.add_argument("--limit", type=int, help="Limit number of investments")
 
     # Command: discover
     parser_discover = subparsers.add_parser("discover", help="Discover new investments for a developer")
@@ -235,8 +231,6 @@ def main():
     parser_suggest_invs.add_argument("--dev", type=str, help="Developer slug to scan within")
     parser_suggest_invs.add_argument("--inv", type=str, help="Specific investment USI ID to scan for")
 
-    # Command: run-audit
-    subparsers.add_parser("run-audit", help="Scan and process investments flagged for audit")
 
     # Command: rebuild-index
     subparsers.add_parser("rebuild-index", help="Rebuild the investment list index (_index.json in USIdata)")
@@ -458,8 +452,6 @@ def main():
         detect_similar_invs(Path(USI_DATA_DIR), args.dev, args.inv)
         logger.info("Suggestion algorithm finished.")
 
-    elif args.command == "run-audit":
-        run_audit_cli()
 
     elif args.command == "rebuild-index":
         from .investment_index import rebuild as rebuild_index

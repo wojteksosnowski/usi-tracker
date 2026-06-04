@@ -1,5 +1,12 @@
 # Changelog
 
+## Wersja 0.9.37 — Kamień 21 (Wielkie sprzątanie martwego kodu i CLI) — 2026-06-04
+- **Usunięcie legacy skryptów**: Wyczyszczono repozytorium z nieużywanych, jednorazowych skryptów refaktoryzacyjnych (m.in. `mass_update_rp.py`, `verify_ingestion.py`, `ui_baseline_helper.py`).
+- **Oczyszczenie CLI**: Z usuniętego już w poprzednich wersjach pliku `audit_worker.py` usunięto pozostałości w parserze `main.py` (komendy `run-audit`, `migrate`), zdejmując z CLI warstwę martwego kodu. 
+
+### Wnioski ze zmian
+- Cykliczne audytowanie i usuwanie "narzędziówek" typu "one-off script" podnosi czytelność repozytorium i zmniejsza jego dług techniczny na rzecz utrzymania solidnej struktury docelowej.
+
 ## Wersja 0.9.36 — Kamień 20 (Wyeliminowanie logiki I/O z procesu Sync) — 2026-06-04
 - **Scraping**: Usunięto lokalną logikę odczytu nazw dewelopera. System polega teraz całkowicie na API biblioteki `usi-scrapers` (`identify_developer`), zachowując w ten sposób pełną separację od mechanizmów zewnętrznych struktur domów ogłoszeniowych.
 - **Oddelegowanie zapisu (I/O)**: Oczyszczono tracker z wewnętrznych procedur zapisujących surowy ładunek RAW; korzysta on wyłącznie z interfejsu API do persystencji ustrukturyzowanych danych, zamykając ścieżkę generowania śmieciowych katalogów dla błędnych ID.

@@ -3,9 +3,6 @@
 
 
 
-## Kamień 21
-Zidentyfikuj skrypty i metody uzywane tylko raz, ktore nie sa wywolywane przez frontend i sluza tylko refactoringowi starych danych.
-
 ## Kamień 22
 Zaktualizuj usi-scrapers. Nowe API pozwala na fallback w przypadku blednych sciezek obrazow.
 
