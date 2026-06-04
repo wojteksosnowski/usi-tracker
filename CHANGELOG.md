@@ -1,5 +1,10 @@
 # Changelog
 
+## Wersja 0.9.39 — Kamień 23 (Testy API UI) — 2026-06-04
+- **Testy API**: Wprowadzono plik testowy `tests/test_api_endpoints.py` weryfikujący poprawność ładowania wszystkich wystawionych dla interfejsu webowego (UI) endpointów (w tym `config`, `metadata-config`, `investments`, `developers`).
+
+### Wnioski ze zmian
+- Obudowanie endpointów UI testami gwarantuje wczesne wykrycie ewentualnych uszkodzeń ścieżek dostępowych (Blueprints) na poziomie interfejsu przed użyciem produkcyjnym.
 ## Wersja 0.9.38 — Kamień 22 (Aktualizacja biblioteki) — 2026-06-04
 - **Aktualizacja zależności**: Podniesiono wersję biblioteki `usi-scrapers` do `0.9.8`, która wprowadza odporność i wsparcie fallback dla pobierania zdjęć (błędne ścieżki).
 - **Testy**: Usprawniono i zweryfikowano testy integracyjne po aktualizacji.
