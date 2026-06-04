@@ -44,39 +44,25 @@ class InvestmentService:
     # ---------------------------------------------------------
     # Viewing Data
     # ---------------------------------------------------------
-    def get_investment(self, dev_slug: str = None, inv_slug: str = None, system_id: str = None) -> dict | None:
+    def get_investment(self, system_id: str) -> dict | None:
         """
-        Loads an investment. 
-        Supports both:
-        - get_investment(system_id="123")
-        - get_investment(dev_slug, inv_slug) (legacy fallback)
+        Loads an investment by system_id.
         """
-        if not system_id and dev_slug and inv_slug:
-            # Legacy call: (dev_slug, inv_slug)
-            pass 
-        elif system_id:
-            # New call: (system_id)
-            resources = self.get_investment_resources(system_id)
-            if not resources:
-                return None
-            dev_slug, inv_slug = resources["metadata"]["slug"].split("/")
-        elif dev_slug and not inv_slug:
-            # Called as get_investment(system_id) where system_id is first positional
-            system_id = dev_slug
-            resources = self.get_investment_resources(system_id)
-            if not resources:
-                return None
-            dev_slug, inv_slug = resources["metadata"]["slug"].split("/")
-        else:
+        if not system_id:
             return None
+
+        resources = self.get_investment_resources(system_id)
+        if not resources:
+            return None
+        dev_slug, inv_slug = resources["metadata"]["slug"].split("/")
             
         from python_worker.api.utils import _load_investment
         return _load_investment(
-            dev_slug, inv_slug,
+            system_id=system_id,
             data_dir=self.data_dir,
-            public_usi_dir=self.public_usi_dir,
-            system_id=system_id
+            public_usi_dir=self.public_usi_dir
         )
+
 
     @lru_cache(maxsize=128)
     def get_unified_view(self, inv_id: str) -> dict:

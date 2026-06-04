@@ -11,32 +11,25 @@ _VALID_PORTALS = {"rp", "oto", "to"}
 discovery_bp = Blueprint('discovery', __name__)
 discovery_service = DiscoveryService()
 
-@discovery_bp.route("/developer/<dev_slug>/discover", methods=["POST"])
-def discover_dev_new(dev_slug):
-    if not _valid_slug(dev_slug):
+@discovery_bp.route("/developer/<system_id>/discover", methods=["POST"])
+def discover_dev_new(system_id):
+    if not system_id:
         abort(400)
-    usi_dev_id = request.args.get("id")
-    if usi_dev_id:
-        from python_worker.api.blueprints.investments import developer_manager
-        dm = developer_manager
-        dev = dm.get_developer_by_id(usi_dev_id)
-        if dev:
-            dev_slug = dev["developer_slug"]
 
-    def _run_with_event(job_id, d_slug, job_manager=None):
-        result = discovery_service.discover_for_developer(job_id, d_slug, job_manager=job_manager)
+    def _run_with_event(job_id, s_id, job_manager=None):
+        result = discovery_service.discover_for_developer(s_id, job_id=job_id, job_manager=job_manager)
         try:
             from python_worker.api.blueprints.investments import developer_manager
             dm = developer_manager
-            dm.log_event(d_slug, {"type": "discover", "by": "user", "found": result or 0})
+            dm.log_event(s_id, {"type": "discover", "by": "user", "found": result or 0})
         except Exception:
             pass
         return result
 
     job_id = job_manager.start_job(
-        f"Discovery: {dev_slug}",
+        f"Discovery: {system_id}",
         _run_with_event,
-        dev_slug,
+        system_id,
         job_manager=job_manager
     )
     return jsonify({"ok": True, "job_id": job_id})

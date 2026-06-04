@@ -101,7 +101,7 @@ def load_investment(system_id: str | None = None, usi_file: Path | None = None, 
             photos_to_delete = len(dl.get("paths", []))
         except Exception: pass
 
-    images = resolve_images(usi, inv_dir, public_usi_dir, dev_slug, inv_slug, resources, fast_index)
+    images = resolve_images(usi, inv_dir, public_usi_dir, resources, fast_index)
 
     am_data = usi.get("amenities", {})
     labels = am_data.get("labels", [])

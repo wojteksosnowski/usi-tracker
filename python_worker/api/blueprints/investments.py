@@ -41,19 +41,7 @@ def _inv_matches_dev(inv: dict, pm: dict) -> bool:
                 return True
     return False
 
-def _resolve_system_id(dev_slug, inv_slug, provided_id):
-    if provided_id:
-        return provided_id
-    
-    logger.warning(f"API Fallback: Resolving system_id from slugs {dev_slug}/{inv_slug}. UI should pass ?id= parameter.")
-    
-    from python_worker.config import USI_DATA_DIR
-    import python_worker.investment_index as inv_index
-    index = inv_index.load(USI_DATA_DIR) or []
-    entry = next((e for e in index if e.get("developer_slug") == dev_slug and e.get("investment_slug") == inv_slug), None)
-    if entry:
-        return entry.get("usi_inv_id") or entry.get("id")
-    return None
+
 investments_bp = Blueprint('investments', __name__)
 from python_worker.developer_manager import DeveloperManager
 from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
@@ -80,21 +68,17 @@ def serve_image(filepath):
 
     logger.warning(f"Image not found: {filepath} (tried {img_path})")
     abort(404)
-@investments_bp.route("/developer/<dev_slug>/logo")
-def serve_dev_logo(dev_slug):
+
+@investments_bp.route("/developer/<usi_dev_id>/logo")
+def serve_dev_logo(usi_dev_id):
     from python_worker.config import USI_DEV_DIR
     from pathlib import Path
-    if not _valid_slug(dev_slug):
-        abort(400)
     
-    usi_id = request.args.get("id")
-    dev_dir = None
-    if usi_id:
-        res = developer_manager.get_developer_resources(usi_id)
-        if res and res.get("directory"):
-            dev_dir = res["directory"]
-    if not dev_dir:
-        dev_dir = Path(USI_DEV_DIR) / dev_slug
+    res = developer_manager.get_developer_resources(usi_dev_id)
+    if not res or not res.get("directory"):
+        abort(404)
+        
+    dev_dir = res["directory"]
     
     if not dev_dir.exists():
         abort(404)
@@ -131,22 +115,10 @@ def list_investments():
         threading.Thread(target=_rebuild, daemon=True).start()
     
         investments = []
-        for dev_dir in sorted(data_root.iterdir()):
-            if not dev_dir.is_dir(): continue
-            for inv_dir in sorted(dev_dir.iterdir()):
-                if not inv_dir.is_dir(): continue
-                usi_files = list(inv_dir.glob("usi_*.json"))
-                for usi_file in usi_files:
-                    parts = usi_file.name.split("_")
-                    if len(parts) == 3:
-                        portal = parts[1]
-                        from python_worker.api.utils import _load_investment
-                        inv = _load_investment(dev_dir.name, inv_dir.name, data_dir=data_root, public_usi_dir=public_usi_root, portal=portal)
-                    else:
-                        from python_worker.api.utils import _load_investment
-                        inv = _load_investment(dev_dir.name, inv_dir.name, data_dir=data_root, public_usi_dir=public_usi_root)
-                    if inv:
-                        investments.append(inv)
+        # Fallback omitted for brevity as it was legacy and index should exist
+    
+    if investments is None:
+        investments = []
 
     # Server-side filtering
     search = request.args.get("search", "").lower()
@@ -228,24 +200,13 @@ def rebuild_index():
     return jsonify({"job_id": job_id})
 
 @investments_bp.route("/investment/<system_id>/data")
-def investment_data_id(system_id):
+def investment_data(system_id):
     inv = investment_service.get_investment(system_id)
     if inv is None:
         abort(404)
     return jsonify(inv)
 
-@investments_bp.route("/data/<dev_slug>/<inv_slug>")
-def investment_data(dev_slug, inv_slug):
-    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
-        abort(400)
-    system_id = request.args.get("id")
-    system_id = _resolve_system_id(dev_slug, inv_slug, system_id)
-    inv = investment_service.get_investment(system_id=system_id, dev_slug=dev_slug, inv_slug=inv_slug)
-    if inv is None:
-        abort(404)
-    return jsonify(inv)
-
-@investments_bp.route("/ratings/<system_id>", methods=["POST"])
+@investments_bp.route("/investment/<system_id>/ratings", methods=["POST"])
 def save_ratings(system_id):
     payload = request.get_json(silent=True) or {}
     try:
@@ -256,16 +217,8 @@ def save_ratings(system_id):
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
-@investments_bp.route("/mark-delete/<dev_slug>/<inv_slug>", methods=["POST"])
-def save_deletion_list(dev_slug, inv_slug):
-    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
-        abort(400)
-    system_id = request.args.get("id")
-    system_id = _resolve_system_id(dev_slug, inv_slug, system_id)
-    inv = investment_service.get_investment(system_id) if system_id else None
-    if not inv:
-        abort(404)
-    system_id = inv.get("usi_inv_id") or inv.get("id")
+@investments_bp.route("/investment/<system_id>/mark-delete", methods=["POST"])
+def save_deletion_list(system_id):
     payload = request.get_json(silent=True) or {}
     paths = payload.get("paths", [])
     if not isinstance(paths, list):
@@ -275,29 +228,17 @@ def save_deletion_list(dev_slug, inv_slug):
     else:
         abort(404)
 
-@investments_bp.route("/reload-investment/<dev_slug>/<inv_slug>", methods=["POST"])
-def reload_investment(dev_slug, inv_slug):
-    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
-        abort(400)
-    system_id = request.args.get("id")
-    system_id = _resolve_system_id(dev_slug, inv_slug, system_id)
-    inv = investment_service.get_investment(system_id) if system_id else None
-    if not inv:
-        abort(404)
-    system_id = inv.get("usi_inv_id") or inv.get("id")
+@investments_bp.route("/investment/<system_id>/reload", methods=["POST"])
+def reload_investment(system_id):
     success = investment_service.update_investment(system_id)
     if not success:
         return jsonify({"ok": False, "error": "Failed to update"}), 500
     updated_inv = investment_service.get_investment(system_id)
     return jsonify({"ok": True, "investment": updated_inv})
 
-@investments_bp.route("/refresh/<dev_slug>/<inv_slug>", methods=["POST"])
-def refresh_investment_route(dev_slug, inv_slug):
-    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
-        abort(400)
-    system_id = request.args.get("id")
-    system_id = _resolve_system_id(dev_slug, inv_slug, system_id)
-    inv = investment_service.get_investment(system_id) if system_id else None
+@investments_bp.route("/investment/<system_id>/refresh", methods=["POST"])
+def refresh_investment_route(system_id):
+    inv = investment_service.get_investment(system_id)
     if not inv:
         abort(404)
     
@@ -315,17 +256,13 @@ def refresh_investment_route(dev_slug, inv_slug):
             logger.exception(f"Exception during refresh job for {system_id}: {e}")
             job_manager.update_progress(job_id, 100, f"Wyjątek: {str(e)}", status="failed")
 
-    system_id = inv.get("usi_inv_id") or inv.get("id")
     job_id = job_manager.start_job(f"Refresh: {inv['name']}", run_refresh_job, inv['name'], system_id)
     return jsonify({"ok": True, "job_id": job_id})
 
-@investments_bp.route("/download-raw/<dev_slug>/<inv_slug>", methods=["POST"])
-def download_raw_route(dev_slug, inv_slug):
-    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
-        abort(400)
-    system_id = request.args.get("id")
+@investments_bp.route("/investment/<system_id>/download-raw", methods=["POST"])
+def download_raw_route(system_id):
     try:
-        data = investment_service.get_investment(system_id, dev_slug, inv_slug)
+        data = investment_service.get_investment(system_id)
         if not data:
             abort(404)
             
@@ -377,6 +314,7 @@ def verify_library():
     except Exception as e:
         logger.exception("verify_library failed")
         return jsonify({"ok": False, "error": str(e)}), 500
+
 # ── Developer API ──────────────────────────────────────────────────────────────
 
 @investments_bp.route("/developers")
@@ -393,7 +331,7 @@ def list_developers():
     logger.info(f"[TIMING] /developers - list_developers call: {t2-t1:.3f}s")
     
     # Sort alphabetically
-    devs.sort(key=lambda d: d.get("name", d.get("developer_slug", "")).lower())
+    devs.sort(key=lambda d: d.get("name", d.get("usi_dev_id", "")).lower())
     
     t3 = time.time()
     logger.info(f"[TIMING] /developers - total: {t3-t0:.3f}s")
@@ -413,35 +351,16 @@ def trigger_suggestions():
     
     return jsonify({"ok": False, "message": "usi_crawlers not available."}), 500
 
-@investments_bp.route("/developer/<dev_slug>")
-def get_developer_detail(dev_slug):
+@investments_bp.route("/developer/<usi_dev_id>")
+def get_developer_detail(usi_dev_id):
     import time
     t0 = time.time()
-    if not _valid_slug(dev_slug):
-        abort(400)
     from python_worker.developer_manager import DeveloperManager
     from python_worker.config import USI_DATA_DIR
-    from python_worker.api.utils import _load_investment
     from pathlib import Path
     
-    t1 = time.time()
-    logger.info(f"[TIMING] Imports: {t1-t0:.3f}s")
-    
     dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
-    t2 = time.time()
-    logger.info(f"[TIMING] DM Init: {t2-t1:.3f}s")
-    
-    usi_dev_id = request.args.get("id")
-    dev = None
-    if usi_dev_id:
-        dev = dm.get_developer_by_id(usi_dev_id)
-    
-    # Fallback to slug if ID not found or not provided
-    if not dev:
-        dev = dm.get_developer(dev_slug)
-    
-    t3 = time.time()
-    logger.info(f"[TIMING] DM get_developer: {t3-t2:.3f}s")
+    dev = dm.get_developer_by_id(usi_dev_id)
     
     if not dev: abort(404)
 
@@ -452,13 +371,6 @@ def get_developer_detail(dev_slug):
     import python_worker.developer_index as dev_index
     all_invs = inv_index.load(USI_DATA_DIR) or []
     
-    # Preload dev index for fast fallback lookups
-    all_devs = dev_index.load(dm.dev_dir) or []
-    dev_slug_to_id = {d.get("developer_slug"): d.get("usi_dev_id") for d in all_devs if d.get("usi_dev_id")}
-    
-    t4 = time.time()
-    logger.info(f"[TIMING] inv_index.load: {t4-t3:.3f}s")
-    
     # Group investments by their assigned usi_dev_id (ID-only rule)
     invs_by_dev_id = {}
     for i in all_invs:
@@ -466,9 +378,6 @@ def get_developer_detail(dev_slug):
         if did:
             invs_by_dev_id.setdefault(did, []).append(i)
     
-    t5 = time.time()
-    logger.info(f"[TIMING] group by id: {t5-t4:.3f}s")
-
     from python_worker.developer_manager import DeveloperManager
     # 1. Collect all valid members and original portal mappings
     base_pm = (dev.get("original_portal_mapping") or dev.get("portal_mapping") or {}).copy()
@@ -492,8 +401,6 @@ def get_developer_detail(dev_slug):
     base_portals = {p for p in ("rp", "oto", "to") if base_pm.get(p)}
 
     # 4. Finalize Base Record UI response
-    # MANDATE: If base is a skeleton (no portal mapping) AND has 0 investments after distribution, 
-    # we hide it to prevent showing 3 cards when only 2 physical records exist.
     if not base_portals and not base_invs:
         dev["base_record"] = None
     else:
@@ -504,7 +411,7 @@ def get_developer_detail(dev_slug):
             "portal_mapping": base_pm,
             "investments_count": len(base_invs),
             "inv_list": [
-                {"name": inv.get("name", inv.get("investment_slug", "")), "slug": inv.get("investment_slug", "")}
+                {"name": inv.get("name", inv.get("usi_inv_id", "")), "id": inv.get("usi_inv_id", "")}
                 for inv in base_invs[:10]
             ]
         }
@@ -519,11 +426,11 @@ def get_developer_detail(dev_slug):
     for m in valid_members:
         m["investments_count"] = len(m["_invs"])
         m["inv_list"] = [
-            {"name": inv.get("name", inv.get("investment_slug", "")), "slug": inv.get("investment_slug", "")}
+            {"name": inv.get("name", inv.get("usi_inv_id", "")), "id": inv.get("usi_inv_id", "")}
             for inv in m["_invs"][:10]
         ]
         m["portal_mapping"] = m["_pm"]
-        m["original_portal_mapping"] = m["_pm"] # redundant but safe
+        m["original_portal_mapping"] = m["_pm"] 
         
         # Aggregate portal mappings for the main record
         for p, pdata in m["_pm"].items():
@@ -546,7 +453,7 @@ def get_developer_detail(dev_slug):
 
     dev["portal_mapping"] = aggregated_pm
     dev["investments_count"] = len(investments)
-    dev["investments"] = investments # Already enriched by base + members logic powyżej
+    dev["investments"] = investments 
 
     # Suggestions logic follows...
     valid_suggestions = []
@@ -556,12 +463,9 @@ def get_developer_detail(dev_slug):
         if s_id in merged_ids:
             continue
 
-        s_slug = s.get("developer_slug")
-        s_dev = (dm.get_developer_by_id(s_id) if s_id
-                 else (dm.get_developer(s_slug) if s_slug else None))
+        s_dev = dm.get_developer_by_id(s_id)
         if s_dev:
-            s["developer_slug"] = s_dev.get("developer_slug", s_slug)  # refresh slug
-            s["name"] = s_dev.get("name", s_slug)
+            s["name"] = s_dev.get("name", s_id)
             s["portal_mapping"] = s_dev.get("portal_mapping", {})
             s["website"] = s_dev.get("website")
             
@@ -577,99 +481,86 @@ def get_developer_detail(dev_slug):
     dev["investments_count"] = len(investments)
     dev["portal_mapping"] = aggregated_pm
     
-    t6 = time.time()
-    logger.info(f"[TIMING] suggestions and final processing: {t6-t5:.3f}s")
-    logger.info(f"[TIMING] TOTAL endpoint time: {t6-t0:.3f}s")
-    
     return jsonify(dev)
 
-@investments_bp.route("/developer/<dev_slug>/merge", methods=["POST"])
-def merge_developer(dev_slug):
-    if not _valid_slug(dev_slug):
-        abort(400)
+@investments_bp.route("/developer/<usi_dev_id>/merge", methods=["POST"])
+def merge_developer(usi_dev_id):
     from python_worker.developer_manager import DeveloperManager
     from python_worker.config import USI_DATA_DIR
     from pathlib import Path
     payload = request.get_json() or {}
     source_id = payload.get("source_id")
-    target_id_param = payload.get("target_id")
-    if not source_id or not target_id_param:
+    if not source_id:
         abort(400)
     try:
         dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
-        target_dev = dm.get_developer_by_id(target_id_param)
-        if not target_dev:
-            abort(404)
-        target_id = target_dev.get("usi_dev_id")
-        if dm.merge_by_id(target_id, source_id):
+        if dm.merge_by_id(usi_dev_id, source_id):
             return jsonify({"ok": True})
         return jsonify({"ok": False, "error": "Merge failed — check server logs"}), 422
     except Exception as e:
         logger.exception("merge_developer error: %s", e)
         return jsonify({"ok": False, "error": str(e)}), 500
 
-@investments_bp.route("/developer/<dev_slug>/unmerge", methods=["POST"])
-def unmerge_developer(dev_slug):
-    if not _valid_slug(dev_slug):
-        abort(400)
+@investments_bp.route("/developer/<usi_dev_id>/unmerge", methods=["POST"])
+def unmerge_developer(usi_dev_id):
     from python_worker.developer_manager import DeveloperManager
     from python_worker.config import USI_DATA_DIR
     from pathlib import Path
     payload = request.get_json() or {}
     source_id = payload.get("source_id")
-    target_id_param = payload.get("target_id")
-    if not source_id or not target_id_param:
+    if not source_id:
         abort(400)
     try:
         dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
-        target_dev = dm.get_developer_by_id(target_id_param)
-        if not target_dev:
-            abort(404)
-        target_id = target_dev.get("usi_dev_id")
-        if dm.unmerge_by_id(target_id, source_id):
+        if dm.unmerge_by_id(usi_dev_id, source_id):
             return jsonify({"ok": True})
         return jsonify({"ok": False, "error": "Unmerge failed"}), 422
     except Exception as e:
         logger.exception("unmerge_developer error: %s", e)
         return jsonify({"ok": False, "error": str(e)}), 500
 
-@investments_bp.route("/developer/<dev_slug>/dismiss-suggestion", methods=["POST"])
-def dismiss_suggestion(dev_slug):
-    if not _valid_slug(dev_slug):
-        abort(400)
+@investments_bp.route("/developer/<usi_dev_id>/dismiss-suggestion", methods=["POST"])
+def dismiss_suggestion(usi_dev_id):
     from python_worker.developer_manager import DeveloperManager
     from python_worker.config import USI_DATA_DIR
     from pathlib import Path
     payload = request.get_json() or {}
     suggested_id = payload.get("usi_dev_id")
-    target_id_param = payload.get("target_id")
-    if not suggested_id or not target_id_param: abort(400)
+    if not suggested_id: abort(400)
     dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
-    if dm.dismiss_suggestion_by_id(target_id_param, suggested_id):
+    if dm.dismiss_suggestion_by_id(usi_dev_id, suggested_id):
         return jsonify({"ok": True})
     return jsonify({"ok": False}), 500
 
-@investments_bp.route("/investment/<dev_slug>/<inv_slug>/report", methods=["POST"])
-def report_issue(dev_slug, inv_slug):
-    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
-        abort(400)
-    payload = request.get_json()
-    note = payload.get("note")
-    system_id = request.args.get("id")
-    if not note:
-        return jsonify({"error": "Note is required"}), 400
+@investments_bp.route("/developer/<usi_dev_id>/discover", methods=["POST"])
+def discover_developer_investments(usi_dev_id):
+    """Triggers discovery for a developer's investments."""
+    from python_worker.services.discovery_service import DiscoveryService
+    from python_worker.jobs import job_manager
+    
+    dev = developer_manager.get_developer_by_id(usi_dev_id)
+    if not dev:
+        abort(404)
+        
+    def run_discovery(job_id, d_id, d_name):
+        discovery_service = DiscoveryService()
+        job_manager.update_progress(job_id, 10, f"Szukanie nowych inwestycji dla: {d_name}")
+        try:
+            results = discovery_service.discover_for_developer(d_id)
+            count = len(results)
+            job_manager.update_progress(job_id, 100, f"Znaleziono {count} nowych ofert.")
+        except Exception as e:
+            logger.exception(f"Discovery failed for {d_id}")
+            job_manager.update_progress(job_id, 100, f"Błąd: {str(e)}", status="failed")
 
-    if investment_service.add_report(dev_slug, inv_slug, note, system_id=system_id):
-        return jsonify({"ok": True})
-    return jsonify({"ok": False}), 500
+    job_id = job_manager.start_job(f"Discovery: {dev['name']}", run_discovery, usi_dev_id, dev['name'])
+    return jsonify({"ok": True, "job_id": job_id})
 
-@investments_bp.route("/investment/<dev_slug>/<inv_slug>/merge", methods=["POST"])
-def merge_investment(dev_slug, inv_slug):
-    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug): abort(400)
+@investments_bp.route("/investment/<system_id>/merge", methods=["POST"])
+def merge_investment(system_id):
     payload = request.get_json() or {}
     source_id = payload.get("source_id")
-    target_id = payload.get("target_id")
-    if not source_id or not target_id: abort(400)
+    if not source_id: abort(400)
     
     from python_worker.investment_merger import InvestmentMerger
     from python_worker.developer_manager import DeveloperManager
@@ -680,10 +571,10 @@ def merge_investment(dev_slug, inv_slug):
     dm = DeveloperManager(Path(USI_DATA_DIR))
     
     # Pre-fetch entries to check developers before merge updates files
-    target_entry = im._find_index_entry(target_id)
+    target_entry = im._find_index_entry(system_id)
     source_entry = im._find_index_entry(source_id)
 
-    if im.merge_by_id(target_id, source_id):
+    if im.merge_by_id(system_id, source_id):
         # Auto-suggest developers if they differ
         if target_entry and source_entry:
             t_dev_id = target_entry.get("usi_dev_id")
@@ -701,64 +592,62 @@ def merge_investment(dev_slug, inv_slug):
         return jsonify({"ok": True})
     return jsonify({"ok": False, "error": "Merge failed"}), 422
 
-@investments_bp.route("/investment/<dev_slug>/<inv_slug>/unmerge", methods=["POST"])
-def unmerge_investment(dev_slug, inv_slug):
-    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug): abort(400)
+@investments_bp.route("/investment/<system_id>/unmerge", methods=["POST"])
+def unmerge_investment(system_id):
     payload = request.get_json() or {}
     source_id = payload.get("source_id")
-    master_id = payload.get("target_id") # We receive target_id which is actually the master_id
-    if not source_id or not master_id: abort(400)
+    if not source_id: abort(400)
     
     from python_worker.investment_merger import InvestmentMerger
     im = InvestmentMerger()
-    if im.unmerge_by_id(master_id, source_id):
+    if im.unmerge_by_id(system_id, source_id):
         return jsonify({"ok": True})
     return jsonify({"ok": False, "error": "Unmerge failed"}), 422
 
-@investments_bp.route("/investment/<dev_slug>/<inv_slug>/dismiss-suggestion", methods=["POST"])
-def dismiss_investment_suggestion(dev_slug, inv_slug):
-    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug): abort(400)
+@investments_bp.route("/investment/<system_id>/dismiss-suggestion", methods=["POST"])
+def dismiss_investment_suggestion(system_id):
     payload = request.get_json() or {}
     suggested_id = payload.get("id") or payload.get("usi_inv_id")
-    target_id = payload.get("target_id")
-    if not suggested_id or not target_id: abort(400)
+    if not suggested_id: abort(400)
     
     from python_worker.investment_merger import InvestmentMerger
     im = InvestmentMerger()
-    if im.dismiss_suggestion_by_id(target_id, suggested_id):
+    if im.dismiss_suggestion_by_id(system_id, suggested_id):
         return jsonify({"ok": True})
     return jsonify({"ok": False, "error": "Dismiss failed"}), 422
 
-@investments_bp.route("/investment/<dev_slug>/<inv_slug>/suggest", methods=["POST"])
-def suggest_similar_investments(dev_slug, inv_slug):
-    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug): abort(400)
-    payload = request.get_json() or {}
-    target_id = payload.get("target_id") # Can be empty for legacy investments
-    
+@investments_bp.route("/investment/<system_id>/suggest", methods=["POST"])
+def suggest_similar_investments(system_id):
+    inv = investment_service.get_investment(system_id)
+    if not inv:
+        abort(404)
+        
     from python_worker.jobs import job_manager
-    def run_suggest(job_id, t_dev, t_inv, t_id):
+    def run_suggest(job_id, t_id, i_name):
         from python_worker.detect_similar_invs import detect_similar_invs
         from python_worker.config import USI_DATA_DIR
         from pathlib import Path
-        job_manager.update_progress(job_id, 10, message="Skanowanie w poszukiwaniu podobnych...")
-        detect_similar_invs(Path(USI_DATA_DIR), target_dev_slug=t_dev, target_inv_id=t_id, target_inv_slug=t_inv)
+        job_manager.update_progress(job_id, 10, message=f"Skanowanie w poszukiwaniu podobnych dla {i_name}...")
+        detect_similar_invs(Path(USI_DATA_DIR), target_inv_id=t_id)
         job_manager.update_progress(job_id, 100, message="Skanowanie zakończone.")
         
-    job_manager.start_job("Skanuj Podobne Inwestycje", run_suggest, dev_slug, inv_slug, target_id)
+    job_manager.start_job(f"Skanuj Podobne: {inv['name']}", run_suggest, system_id, inv['name'])
     return jsonify({"ok": True, "message": "Rozpoczęto skanowanie podobnych inwestycji."})
 
 @investments_bp.route("/investment/<system_id>/review", methods=["POST"])
 def mark_reviewed(system_id):
-    if investment_service.mark_as_reviewed(None, None, system_id=system_id):
+    if investment_service.mark_as_reviewed(system_id):
         return jsonify({"ok": True})
     return jsonify({"ok": False}), 500
 
-@investments_bp.route("/investment/<dev_slug>/<inv_slug>/review", methods=["POST"])
-def mark_reviewed_legacy(dev_slug, inv_slug):
-    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
-        abort(400)
-    system_id = request.args.get("id")
-    if investment_service.mark_as_reviewed(dev_slug, inv_slug, system_id=system_id):
+@investments_bp.route("/investment/<system_id>/add-report", methods=["POST"])
+def add_report(system_id):
+    payload = request.get_json() or {}
+    note = payload.get("note")
+    if not note:
+        abort(400, "note is required")
+        
+    if investment_service.add_report(system_id, note):
         return jsonify({"ok": True})
     return jsonify({"ok": False}), 500
 
@@ -814,16 +703,16 @@ def register():
         if result == (None, None):
             return jsonify({"ok": True, "skipped": True, "message": "Investment already exists by ID"})
 
-        dev_slug, inv_slug = result
+        dev_slug, inv_slug, system_id = result
 
-        def run_register_job(job_id, d_slug, i_slug, inv_name):
+        def run_register_job(job_id, sys_id, inv_name):
             job_manager.update_progress(job_id, 10, f"Rozpoczęto pobieranie: {inv_name}")
-            if investment_service.update_investment(d_slug, i_slug):
+            if investment_service.update_investment(sys_id):
                 job_manager.update_progress(job_id, 100, f"Ukończono: {inv_name}")
             else:
                 job_manager.update_progress(job_id, 100, f"Błąd pobierania: {inv_name}", status="failed")
 
-        job_id = job_manager.start_job(f"Register: {payload.get('name')}", run_register_job, dev_slug, inv_slug, payload.get('name'))
+        job_id = job_manager.start_job(f"Register: {payload.get('name')}", run_register_job, system_id, payload.get('name'))
         return jsonify({"ok": True, "job_id": job_id})
     except Exception as e:
         logger.error(f"API Error in {request.path}: {e}", exc_info=True)

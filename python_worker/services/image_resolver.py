@@ -5,7 +5,7 @@ logger = logging.getLogger(__name__)
 
 _IMG_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 
-def resolve_images(usi: dict, inv_dir: Path, public_usi_dir: Path, dev_slug: str, inv_slug: str, resources: dict | None = None, fast_index: bool = False) -> list[str]:
+def resolve_images(usi: dict, inv_dir: Path, public_usi_dir: Path, resources: dict | None = None, fast_index: bool = False) -> list[str]:
     """
     Resolves authoritative image paths for an investment.
     Prioritizes explicit paths saved in JSON over directory scanning.
@@ -33,24 +33,20 @@ def resolve_images(usi: dict, inv_dir: Path, public_usi_dir: Path, dev_slug: str
 
     # 2. Fallback or Supplement: Directory scan
     if not fast_index:
-        if resources and resources.get("images_dir"):
-            img_dir = resources["images_dir"]
-        else:
-            img_dir = public_usi_dir / dev_slug / inv_slug
+        img_dir = resources.get("images_dir") if resources else None
             
         def _scan(d: Path) -> list:
-            if not d.is_dir(): return []
+            if not d or not d.is_dir(): return []
+            rel_dir = d.relative_to(public_usi_dir)
             return sorted(
-                f"/api/image/{d.parent.name}/{d.name}/{p.name}"
+                f"/api/image/{rel_dir}/{p.name}"
                 for p in d.iterdir()
                 if p.suffix.lower() in _IMG_EXT and not p.name.startswith('.')
             )
 
         local_found = []
-        for candidate in (img_dir, public_usi_dir / Path(inv_dir).parent.name / inv_slug):
-            local_found = _scan(candidate)
-            if local_found:
-                break
+        if img_dir:
+            local_found = _scan(img_dir)
         
         for img in local_found:
             if img not in images:
@@ -80,3 +76,4 @@ def resolve_images(usi: dict, inv_dir: Path, public_usi_dir: Path, dev_slug: str
         images = portal_urls[:1]
 
     return images
+

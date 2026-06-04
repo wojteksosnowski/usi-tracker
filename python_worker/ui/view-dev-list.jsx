@@ -131,7 +131,7 @@ function DeveloperCard({ dev, onSelect }) {
   const hasOto = !!portals.oto;
   const hasTo = !!portals.to;
 
-  const logoUrl = `/api/developer/${dev.developer_slug}/logo`;
+  const logoUrl = `/api/developer/${dev.usi_dev_id}/logo`;
 
   return (
     <StandardCard

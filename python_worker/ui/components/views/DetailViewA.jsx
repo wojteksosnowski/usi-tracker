@@ -17,14 +17,14 @@
     React.useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
     const handleRefresh = async () => {
-        if (!inv.developer_slug || !inv.investment_slug) return;
+        if (!inv.usi_inv_id) return;
         setRefreshing(true);
         setRefreshLabel('Uruchamianie…');
         setVariable('appStatus', { type: 'info', msg: 'Odświeżanie danych…' });
 
         let jobId = null;
         try {
-            const res = await fetch(`/api/refresh/${inv.developer_slug}/${inv.investment_slug}`, { method: 'POST' });
+            const res = await fetch(`/api/investment/${inv.usi_inv_id}/refresh`, { method: 'POST' });
             const data = await res.json();
             if (!data.ok) {
                 setVariable('appStatus', { type: 'error', msg: 'Błąd startu: ' + (data.error || 'nieznany błąd') });
@@ -143,7 +143,7 @@
 
     const handleSuggest = () => {
         setSuggesting(true);
-        request(`/api/investment/${inv.developer_slug}/${inv.investment_slug}/suggest`, { 
+        request(`/api/investment/${inv.usi_inv_id}/suggest`, { 
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ target_id: inv.usi_inv_id })
@@ -165,7 +165,7 @@
             name: suggestion.name
         }, ...prev]);
 
-        request(`/api/investment/${inv.developer_slug}/${inv.investment_slug}/merge`, {
+        request(`/api/investment/${inv.usi_inv_id}/merge`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ source_id, target_id: inv.usi_inv_id })
@@ -178,7 +178,7 @@
 
     const handleUnmerge = (memberId) => {
         setLocalMerged(prev => prev.filter(m => m.usi_inv_id !== memberId));
-        request(`/api/investment/${inv.developer_slug}/${inv.investment_slug}/unmerge`, {
+        request(`/api/investment/${inv.usi_inv_id}/unmerge`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ source_id: memberId, target_id: inv.master_id || inv.usi_inv_id })
@@ -191,7 +191,7 @@
 
     const handleDismiss = (suggested_id) => {
         setLocalSuggestions(prev => prev.filter(s => s.usi_inv_id !== suggested_id));
-        request(`/api/investment/${inv.developer_slug}/${inv.investment_slug}/dismiss-suggestion`, {
+        request(`/api/investment/${inv.usi_inv_id}/dismiss-suggestion`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ usi_inv_id: suggested_id, target_id: inv.usi_inv_id })

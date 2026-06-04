@@ -36,21 +36,15 @@ def crawler_resume():
     return jsonify({"ok": True})
 
 
-@crawler_bp.route("/crawler/badge-reset/<dev_slug>", methods=["POST"])
-def badge_reset(dev_slug):
-    if not _valid_slug(dev_slug):
+@crawler_bp.route("/crawler/badge-reset/<system_id>", methods=["POST"])
+def badge_reset(system_id):
+    if not system_id:
         abort(400)
-    usi_dev_id = request.args.get("id")
-    if usi_dev_id:
-        from python_worker.api.blueprints.investments import developer_manager
-        dm = developer_manager
-        dev = dm.get_developer_by_id(usi_dev_id)
-        if dev:
-            dev_slug = dev["developer_slug"]
     c = _get_crawler()
     if c:
-        c.reset_badge(dev_slug)
+        c.reset_badge(system_id)
     return jsonify({"ok": True})
+
 
 
 @crawler_bp.route("/crawler/exploration", methods=["GET"])

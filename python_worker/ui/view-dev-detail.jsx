@@ -52,9 +52,7 @@ function DeveloperDetail({
 
   const load = React.useCallback((silent = false) => {
     if (!silent) setLoading(true);
-    const endpoint = usi_dev_id
-      ? `/api/developer/${dev_slug}?id=${usi_dev_id}`
-      : `/api/developer/${dev_slug}`;
+    const endpoint = `/api/developer/${usi_dev_id}`;
     request(endpoint, { noCache: true })
       .then(data => {
         setDeveloper(data);
@@ -64,13 +62,13 @@ function DeveloperDetail({
         console.error("Failed to load developer", err);
         if (!silent) setLoading(false);
       });
-  }, [dev_slug, usi_dev_id, request]);
+  }, [usi_dev_id, request]);
 
   React.useEffect(() => {
     load();
     // Reset crawler badge when user opens developer detail
-    fetch(`/api/crawler/badge-reset/${dev_slug}?id=${usi_dev_id}`, { method: 'POST' }).catch(() => {});
-  }, [load, dev_slug]);
+    fetch(`/api/crawler/badge-reset/${usi_dev_id}`, { method: 'POST' }).catch(() => {});
+  }, [load, usi_dev_id]);
 
   const handleSuggest = () => {
     setSuggesting(true);
@@ -94,11 +92,11 @@ function DeveloperDetail({
 
   const handleUpdate = React.useCallback(() => {
     if (activeJobId) return;
-    request(`/api/developer/${dev_slug}/discover?id=${usi_dev_id}`, { method: 'POST' })
+    request(`/api/developer/${usi_dev_id}/discover`, { method: 'POST' })
       .then(data => {
         if (data.job_id) setActiveJobId(data.job_id);
       });
-  }, [activeJobId, dev_slug, request]);
+  }, [activeJobId, usi_dev_id, request]);
 
   React.useEffect(() => {
     if (onRegisterDiscover) onRegisterDiscover(handleUpdate, !!activeJobId);
@@ -134,7 +132,7 @@ function DeveloperDetail({
     setArrivingSlug(source_slug);
     setTimeout(() => setArrivingSlug(null), 600);
 
-    fetch(`/api/developer/${dev_slug}/merge`, {
+    fetch(`/api/developer/${usi_dev_id}/merge`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source_id, target_id: usi_dev_id })
@@ -162,7 +160,7 @@ function DeveloperDetail({
   const handleUnmerge = (memberId) => {
     const leaving = localMerged.find(m => m.usi_dev_id === memberId);
     setLocalMerged(prev => prev.filter(m => m.usi_dev_id !== memberId));
-    fetch(`/api/developer/${dev_slug}/unmerge`, {
+    fetch(`/api/developer/${usi_dev_id}/unmerge`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source_id: memberId, target_id: usi_dev_id })
@@ -188,7 +186,7 @@ function DeveloperDetail({
   const handleDismiss = (suggested_id) => {
     const dismissed = localSuggestions.find(s => s.usi_dev_id === suggested_id);
     setLocalSuggestions(prev => prev.filter(s => s.usi_dev_id !== suggested_id));
-    request(`/api/developer/${dev_slug}/dismiss-suggestion`, {
+    request(`/api/developer/${usi_dev_id}/dismiss-suggestion`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ target_id: usi_dev_id, usi_dev_id: suggested_id })
@@ -335,7 +333,7 @@ function DeveloperHeroBand({ dev }) {
     meta.phone,
   ].filter(Boolean);
 
-  const logoUrl = `/api/developer/${dev.developer_slug}/logo`;
+  const logoUrl = `/api/developer/${dev.usi_dev_id}/logo`;
 
   return (
     <div data-component="DeveloperHeroBand" className="developer-hero-band" style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 24, alignItems: 'center' }}>

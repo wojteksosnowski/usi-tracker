@@ -169,7 +169,7 @@
     const load = React.useCallback((forceRefresh = false) => {
       if (!devSlug || !invSlug) return;
       setState('loading');
-      const base = `/api/poi/${devSlug}/${invSlug}`;
+      const base = `/api/poi/${investment.usi_inv_id}`;
       const url = forceRefresh ? base + '/fetch' : base;
       const opts = forceRefresh ? { method: 'POST' } : {};
       fetch(url, opts)

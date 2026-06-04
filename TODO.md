@@ -1,58 +1,5 @@
 # TODO
 
-
-### Kamień 05
-Poniżej znajduje się lista funkcji, które przyjmują argumenty zawierające słowo 'slug'.
-
-- `crawler_api.py` -> `badge_reset`
-- `discovery.py` -> `_run_with_event`
-- `discovery.py` -> `discover_dev_new`
-- `discovery_service.py` -> `_register_new_investment` - to powinno is po API i ID
-- `discovery_service.py` -> `_save_discovery_snapshot` - to powinno is po API i ID
-- `discovery_service.py` -> `discover_for_developer` - to powinno is po API i ID
-- `discovery_service.py` -> `get_unregistered_count` - to powinno is po API i ID
-- `image_resolver.py` -> `resolve_images` - to powinno is po API i ID
-- `investment_identity.py` -> `get_investment_resources_by_slug` - co kurwa?! resolve by slug? Po co?
-- `investment_loader.py` -> `find_inv_file`
-- `investment_loader.py` -> `load_investment`
-- `investment_service.py` -> `download_raw_json`
-- `investment_service.py` -> `get_investment`
-- `investment_service.py` -> `mark_deleted_photos`
-- `investment_service.py` -> `update_investment`
-- `investment_sync.py` -> `_backfill_developer_mapping`
-- `investment_sync.py` -> `_check_investment_exists`
-- `investment_sync.py` -> `_fetch_and_transform_portal_data`
-- `investment_sync.py` -> `_resolve_developer_for_registration`
-- `investment_sync.py` -> `_sync_investment_images`
-- `investment_sync.py` -> `download_raw_json` - to powinno robić API usi-scrapers
-- `investment_sync.py` -> `register_investment`
-- `investments.py` -> `_resolve_system_id`
-- `investments.py` -> `dismiss_investment_suggestion`
-- `investments.py` -> `dismiss_suggestion`
-- `investments.py` -> `download_raw_route`
-- `investments.py` -> `get_developer_detail`
-- `investments.py` -> `investment_data`
-- `investments.py` -> `mark_reviewed_legacy` - sprawdzic czy nie jest to zapomniany kod
-- `investments.py` -> `merge_developer`
-- `investments.py` -> `merge_investment`
-- `investments.py` -> `refresh_investment_route`
-- `investments.py` -> `reload_investment`
-- `investments.py` -> `report_issue` - do usuniecia, i tak nie dziala
-- `investments.py` -> `run_register_job`
-- `investments.py` -> `save_deletion_list`
-- `investments.py` -> `serve_dev_logo`
-- `investments.py` -> `suggest_similar_investments`
-- `investments.py` -> `unmerge_developer`
-- `investments.py` -> `unmerge_investment`
-- `poi.py` -> `_load_inv` - to powinno is po API i ID, poi jest wyszukiwane dla geopoint a nie dla slug!
-- `poi.py` -> `_poi_path` - to powinno is po API i ID
-- `poi.py` -> `fetch_poi` - to powinno is po API i ID
-- `poi.py` -> `get_poi` - to powinno is po API i ID
-
-W kroku 1 - Utworz zadanie dla kazdego naruszenia. W kroku 2 - Sprawdz czy jest ono uzasadnione. Staraj sie wykorzystywac jak najwiecej istniejacych funkcji i API. Zasada ID-only i thin-client. Zaplanuj testy.
-
-
-
 ### Kamień 18 
 
 # python_worker/here_maps.py

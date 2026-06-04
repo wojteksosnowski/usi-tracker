@@ -339,7 +339,7 @@ class InvestmentSyncService:
                 log_to_processing_log(dev_slug, inv_slug, f"Fetch failed — {portal_name}: {error_msg}")
                 return None, None, f"{portal_name} ({error_msg})"
 
-    def _sync_investment_images(self, new_unified, all_urls, img_dev_slug, inv_slug, skip_images, usi_data, resources):
+    def _sync_investment_images(self, system_id, new_unified, all_urls, skip_images, usi_data, resources):
         """Synchronizes images for the investment."""
         if skip_images:
             # Pełne pominięcie jakichkolwiek operacji dyskowych na katalogu obrazów
@@ -347,8 +347,10 @@ class InvestmentSyncService:
             new_unified["images_count"] = usi_data.get("images_count", 0)
             return
 
+        target_image_dir = resources.get("images_dir")
+
         if all_urls and self.tech_manager:
-            logger.info(f"Synchronizing images for {inv_slug} ({len(all_urls)} URLs)")
+            logger.info(f"Synchronizing images for {system_id} ({len(all_urls)} URLs)")
             
             # FAST-PATH: Try to find files already downloaded based on previous state and canonical folder
             try:
@@ -375,11 +377,11 @@ class InvestmentSyncService:
                         if not expected_set: break
                         
                 # 2. Check the canonical images directory for this investment
-                if expected_set and resources.get("images_dir") and resources["images_dir"].exists():
-                    for file in os.listdir(resources["images_dir"]):
+                if expected_set and target_image_dir and target_image_dir.exists():
+                    for file in os.listdir(target_image_dir):
                         bname = os.path.splitext(file)[0]
                         if bname in expected_set:
-                            rel_path = os.path.relpath(os.path.join(resources["images_dir"], file), self.public_usi_dir)
+                            rel_path = os.path.relpath(os.path.join(target_image_dir, file), self.public_usi_dir)
                             path_str = f"/Public/USI/{rel_path}"
                             for url in basename_to_urls[bname]:
                                 found_paths[url] = path_str
@@ -398,13 +400,10 @@ class InvestmentSyncService:
 
             saved_filenames = []
             if urls_to_download:
-                # Use resources to get canonical images_dir if possible
-                target_image_dir = resources.get("images_dir")
                 if not target_image_dir:
-                     # Fallback to slug-based for new investments being updated for the first time
-                     target_image_dir = self.public_usi_dir / img_dev_slug / inv_slug
-                     
-                saved_filenames = self.tech_manager.sync_images(urls_to_download, target_image_dir)
+                     logger.warning(f"Could not determine image directory for {system_id}")
+                else:
+                     saved_filenames = self.tech_manager.sync_images(urls_to_download, target_image_dir)
                         
             unique_paths = []
             for url in all_urls:
@@ -413,38 +412,49 @@ class InvestmentSyncService:
                     if p not in unique_paths:
                         unique_paths.append(p)
             
-            for fname in saved_filenames:
-                if fname:
-                    p = f"/Public/USI/{img_dev_slug}/{inv_slug}/{fname}"
-                    if p not in unique_paths:
-                        unique_paths.append(p)
+            if target_image_dir:
+                rel_dir = target_image_dir.relative_to(self.public_usi_dir)
+                for fname in saved_filenames:
+                    if fname:
+                        p = f"/Public/USI/{rel_dir}/{fname}"
+                        if p not in unique_paths:
+                            unique_paths.append(p)
             
             new_unified["image_paths"] = unique_paths
             new_unified["images_count"] = len(unique_paths)
-            logger.info(f"Image sync complete for {inv_slug}: {len(unique_paths)}/{len(all_urls)} paths resolved")
+            logger.info(f"Image sync complete for {system_id}: {len(unique_paths)}/{len(all_urls)} paths resolved")
             
         elif all_urls and not self.tech_manager:
-            logger.warning(f"Image sync skipped for {inv_slug}: tech_manager not available (check SCRAPERAPI_KEY / config)")
-            log_to_processing_log(img_dev_slug, inv_slug, "Image sync skipped: scraper config unavailable")
+            logger.warning(f"Image sync skipped for {system_id}: tech_manager not available (check SCRAPERAPI_KEY / config)")
+            log_to_processing_log(system_id, "unknown", "Image sync skipped: scraper config unavailable")
         else:
             # No URLs from scraper — keep whatever is already on disk
-            img_dir = self.tech_manager.get_image_path(img_dev_slug, inv_slug) if self.tech_manager else \
-                      (self.public_usi_dir / img_dev_slug / inv_slug)
-            if img_dir.is_dir():
+            img_dir = target_image_dir
+            if img_dir and img_dir.is_dir():
                 on_disk = sorted(p.name for p in img_dir.iterdir()
                                  if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"})
                 if on_disk:
-                    new_unified["image_paths"] = [f"/Public/USI/{img_dev_slug}/{inv_slug}/{fname}" for fname in on_disk]
+                    rel_dir = img_dir.relative_to(self.public_usi_dir)
+                    new_unified["image_paths"] = [f"/Public/USI/{rel_dir}/{fname}" for fname in on_disk]
                     new_unified["images_count"] = len(on_disk)
 
-    def _backfill_developer_mapping(self, dev_slug, new_unified):
+
+    def _backfill_developer_mapping(self, system_id, new_unified):
         """Backfills developer ID into portal_mapping if missing."""
+        # Find developer by investment system_id
+        resources = self.identity.get_investment_resources(system_id)
+        if not resources: return
+        
+        slug_parts = resources["metadata"]["slug"].split("/")
+        dev_slug = slug_parts[0]
+        
         dev_record = self.dm.get_developer(dev_slug)
         if not dev_record:
             return
 
         needs_update = False
         pm = dev_record.setdefault("portal_mapping", {"rp": None, "oto": None, "to": None})
+
         new_src = new_unified.get("sources", {})
         
         # Check RP
@@ -592,10 +602,10 @@ class InvestmentSyncService:
 
             # Technical layer: Image synchronization via library
             all_urls = new_unified.get("image_urls", [])
-            self._sync_investment_images(new_unified, all_urls, img_dev_slug, inv_slug, skip_images, usi_data, resources)
+            self._sync_investment_images(system_id, new_unified, all_urls, skip_images, usi_data, resources)
 
             # Backfill developer ID into portal_mapping if missing
-            self._backfill_developer_mapping(dev_slug, new_unified)
+            self._backfill_developer_mapping(system_id, new_unified)
 
             # Save to canonical new-format path; fall back to existing file path
             self.repo.save_investment_json(system_id, new_unified)

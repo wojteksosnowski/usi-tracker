@@ -19,22 +19,20 @@ class DiscoveryService:
         self.fetcher = Fetcher(self.config) if self.config else None
         self.isvc = InvestmentService(data_dir=data_dir)
 
-    def discover_for_developer(self, job_id=None, dev_slug=None, job_manager=None, download=False, auto_register=True):
+    def discover_for_developer(self, system_id, job_id=None, job_manager=None, download=False, auto_register=True):
         """
-        Discovers and optionally registers new investments for a developer.
+        Discovers and optionally registers new investments for a developer by ID.
         Saves a snapshot of found items to Public/USIdev/{dev}/discovery.json.
         """
-        # If called from CLI: discover_for_developer(slug, download=True)
-        # If called from JobManager: discover_for_developer(job_id, slug, ...)
-        if dev_slug is None and job_id is not None:
-            dev_slug = job_id
-            job_id = None
-
         from python_worker.developer_manager import DeveloperManager
         dm = DeveloperManager(self.data_dir, self.data_dir.parent / "USIdev")
-        dev = dm.get_developer(dev_slug)
+        dev = dm.get_developer_by_id(system_id)
         if not dev:
-            raise ValueError(f"Developer {dev_slug} not found")
+            raise ValueError(f"Developer with ID {system_id} not found")
+
+        dev_slug = dev.get("developer_slug")
+        if not dev_slug:
+             raise ValueError(f"Developer {system_id} has no associated slug.")
 
         mapping = dev.get("portal_mapping", {})
         if job_manager and job_id:
@@ -87,7 +85,7 @@ class DiscoveryService:
                     # process_batch will handle registration ONLY after successful download.
                     # This prevents 'skeleton' fragments if download fails.
                     if auto_register and not download:
-                        self._register_new_investment(dev_slug, item, portal_key)
+                        self._register_new_investment(system_id, item, portal_key)
                         item["registered"] = True # Mark as registered in snapshot
                     elif auto_register and download:
                         # We mark as registered in snapshot because they are targeted for immediate ingestion
@@ -131,10 +129,17 @@ class DiscoveryService:
 
         return ingested_total if download else found_total
 
-    def get_unregistered_count(self, dev_slug: str, identifiers: dict = None) -> int:
+    def get_unregistered_count(self, system_id: str, identifiers: dict = None) -> int:
         """Returns count of items in discovery.json that are not yet registered."""
         try:
-            dev_dir = self.data_dir.parent / "USIdev" / dev_slug
+            from python_worker.developer_manager import DeveloperManager
+            dm = DeveloperManager(self.data_dir)
+            dev = dm.get_developer_by_id(system_id)
+            if not dev: return 0
+            
+            dev_dir = dev.get("directory")
+            if not dev_dir: return 0
+            
             discovery_file = dev_dir / "discovery.json"
             if not discovery_file.exists():
                 return 0
@@ -145,8 +150,6 @@ class DiscoveryService:
             
             # Recalculate 'registered' status against current DB to be accurate
             if identifiers is None:
-                from python_worker.developer_manager import DeveloperManager
-                dm = DeveloperManager(self.data_dir)
                 identifiers = dm.get_existing_identifiers()
             
             rp_ids = identifiers.get("rp_ids", set())
@@ -169,21 +172,22 @@ class DiscoveryService:
                     count += 1
             return count
         except Exception as e:
-            logger.debug(f"Error getting unregistered count for {dev_slug}: {e}")
+            logger.debug(f"Error getting unregistered count for {system_id}: {e}")
             return 0
 
-    def _save_discovery_snapshot(self, dev_slug, items):
+    def _save_discovery_snapshot(self, system_id, items):
         """Saves discovery results to a JSON file in the developer's directory."""
         try:
             from python_worker.developer_repository import DeveloperRepository
             from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
             repo = DeveloperRepository(Path(USI_DATA_DIR), Path(USI_DEV_DIR))
-            repo.save_discovery_snapshot(dev_slug, items)
-            logger.info(f"Saved discovery snapshot for {dev_slug} ({len(items)} items)")
+            repo.save_discovery_snapshot(system_id, items)
+            logger.info(f"Saved discovery snapshot for {system_id} ({len(items)} items)")
         except Exception as e:
-            logger.error(f"Failed to save discovery snapshot for {dev_slug}: {e}")
+            logger.error(f"Failed to save discovery snapshot for {system_id}: {e}")
 
-    def _register_new_investment(self, dev_slug, item, portal):
+
+    def _register_new_investment(self, system_id, item, portal):
         """Helper to create a skeleton usi_*.json for a newly discovered investment."""
         inv_slug = item.get("slug")
         url = item.get("url")
@@ -204,7 +208,7 @@ class DiscoveryService:
         
         # Extract vendor ID for ID-first registration
         from usi_scrapers import resolve_path
-        vendor_id = resolve_path(item, portal, "vendor.id|ad.agency.id|agency_id|developer_id")
+        vendor_id = resolve_path(item, "vendor.id|ad.agency.id|agency_id|developer_id")
 
         # Delegate registration to InvestmentService (which now handles canonical slugs from library)
         return self.isvc.register_investment(
@@ -215,8 +219,7 @@ class DiscoveryService:
             item_id=item.get("id"),
             url=url,
             allow_existing=True,
-            vendor_id=vendor_id,
-            force_dev_slug=dev_slug
+            vendor_id=vendor_id
         )
 
     def discovery_by_portal(self, portal, identifier=None, limit=None, pages=None):

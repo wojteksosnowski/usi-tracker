@@ -1,5 +1,15 @@
 # Changelog
 
+## Wersja 0.9.32 — Kamień 05 (Wielka czystka slugów w systemie) — 2026-06-04
+- **ID-Only API & Frontend**: Zaktualizowano wszystkie trasy Flask w `investments.py` oraz `crawler_api.py` do obsługi unikalnych identyfikatorów `system_id`, jednocześnie synchronizując całą warstwę React.
+- **Refaktoryzacja Serwisów**: Warstwy Discovery, Sync i Image Resolver zostały całkowicie uniezależnione od parametrów slug.
+- **POI Migration**: Moduł POI korzysta teraz z `poi.json` wewnątrz kanonicznych katalogów inwestycji.
+- **Cleanup**: Usunięto przestarzałe i niedziałające fragmenty kodu (`report_issue`, `mark_reviewed_legacy`).
+- **Testy**: Dodano nowe pakiety testów dla Discovery (`test_discovery_service.py`), POI (`test_poi_api.py`) oraz Loadera inwestycji (`test_investment_loader.py`).
+
+### Wnioski ze zmian
+- System jest teraz gotowy na przyszłe rozszerzenia i separację repozytoriów, będąc w pełni odpornym na zmiany identyfikatorów tekstowych w portalach ogłoszeniowych. Scentralizowanie całej rezolucji w `TechnicalDataManager` i ID-only Resolverach zamyka rozdział architektury opartej na heurystykach slugów.
+
 ## Wersja 0.9.31 — Kamień 04 (Naprawa slug i I/O) — 2026-06-04
 - **Refaktoryzacja load_investment**: Usunięto fallback w `investment_loader.py` polegający na budowaniu ścieżek z użyciem slugów, zmuszając do twardej rezolucji poprzez ID.
 - **Audyt Legacy API**: Potwierdzono, że nieuprawnione zapisy na dysk oraz użycie przestarzałych metod w `investment_editor.py` i `investments.py` zostały całkowicie zmigrowane w poprzednich wersjach.

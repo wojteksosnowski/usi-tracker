@@ -4,8 +4,7 @@ import time
 from pathlib import Path
 from flask import Blueprint, jsonify, abort, request
 
-from python_worker.api.utils import _valid_slug
-from python_worker.config import USI_DATA_DIR, HERE_API_KEY
+from python_worker.config import HERE_API_KEY
 from python_worker.services.here_maps_service import HereMapsService
 
 logger = logging.getLogger(__name__)
@@ -14,21 +13,12 @@ poi_bp = Blueprint('poi', __name__)
 
 WIKI_RADIUS_M = 2000
 
-def _poi_path(dev_slug: str, inv_slug: str) -> Path:
-    return USI_DATA_DIR / dev_slug / inv_slug / f"poi_{inv_slug}.json"
-
-
-def _load_inv(dev_slug: str, inv_slug: str) -> dict | None:
-    from python_worker.api.utils import _find_inv_file
-    inv_dir = USI_DATA_DIR / dev_slug / inv_slug
-    p = _find_inv_file(inv_dir, inv_slug)
-    if not p or not p.exists():
+def _poi_path(system_id: str) -> Path | None:
+    from python_worker.api.blueprints.investments import investment_service
+    resources = investment_service.get_investment_resources(system_id)
+    if not resources or not resources.get("base_dir"):
         return None
-    try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except Exception:
-        return None
-
+    return resources["base_dir"] / "poi.json"
 
 def _fetch_wiki_articles(lat: float, lon: float) -> list[dict]:
     import urllib.request
@@ -63,21 +53,24 @@ def _fetch_wiki_articles(lat: float, lon: float) -> list[dict]:
         return []
 
 
-@poi_bp.route("/poi/<dev_slug>/<inv_slug>", methods=["GET"])
-def get_poi(dev_slug, inv_slug):
-    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
+@poi_bp.route("/poi/<system_id>", methods=["GET"])
+def get_poi(system_id):
+    if not system_id:
         abort(400)
         
-    system_id = request.args.get("id")
-    if system_id:
+    path = _poi_path(system_id)
+    if not path or not path.exists():
+        # Fallback for old name poi_{inv_slug}.json
         from python_worker.api.blueprints.investments import investment_service
         inv = investment_service.get_investment(system_id)
-        if inv:
-            dev_slug = inv.get("developer_slug", dev_slug)
-            inv_slug = inv.get("investment_slug", inv_slug)
-            
-    path = _poi_path(dev_slug, inv_slug)
-    if not path.exists():
+        if inv and inv.get("investment_slug"):
+            res = investment_service.get_investment_resources(system_id)
+            if res and res.get("base_dir"):
+                 legacy_path = res["base_dir"] / f"poi_{inv['investment_slug']}.json"
+                 if legacy_path.exists():
+                     path = legacy_path
+
+    if not path or not path.exists():
         return jsonify({"status": "missing"}), 404
     try:
         return jsonify(json.loads(path.read_text(encoding="utf-8")))
@@ -85,20 +78,13 @@ def get_poi(dev_slug, inv_slug):
         abort(500)
 
 
-@poi_bp.route("/poi/<dev_slug>/<inv_slug>/fetch", methods=["POST"])
-def fetch_poi(dev_slug, inv_slug):
-    if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
+@poi_bp.route("/poi/<system_id>/fetch", methods=["POST"])
+def fetch_poi(system_id):
+    if not system_id:
         abort(400)
 
-    system_id = request.args.get("id")
-    if system_id:
-        from python_worker.api.blueprints.investments import investment_service
-        inv = investment_service.get_investment(system_id)
-        if inv:
-            dev_slug = inv.get("developer_slug", dev_slug)
-            inv_slug = inv.get("investment_slug", inv_slug)
-    else:
-        inv = _load_inv(dev_slug, inv_slug)
+    from python_worker.api.blueprints.investments import investment_service
+    inv = investment_service.get_investment(system_id)
     if not inv:
         return jsonify({"error": "Investment not found"}), 404
 
@@ -126,7 +112,10 @@ def fetch_poi(dev_slug, inv_slug):
         "wiki_articles": wiki_articles,
     }
 
-    path = _poi_path(dev_slug, inv_slug)
+    path = _poi_path(system_id)
+    if not path:
+        abort(500)
+        
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
