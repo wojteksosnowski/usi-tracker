@@ -122,16 +122,6 @@ Utworz zadanie dla kazdego naruszenia. Sprawdz czy jest ono uzasadnione. Staraj 
 
 
 
-### Kamień 13 
-
-# Zamiast:
-def create_investment_skeleton(..., inv_slug, portal, skeleton):
-    # inv_slug jest keyem
-
-# Powinno być:
-def create_investment_skeleton(..., usi_inv_id, dev_slug):
-    # ID jest keyem, directory name pochodzi z niego lub z portal_id
-
 ### Kamień 14
 
 # Zamiast:

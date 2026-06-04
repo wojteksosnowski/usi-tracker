@@ -1,5 +1,13 @@
 # Changelog
 
+## Wersja 0.9.24 — Kamień 13 (ID-Keyed Skeleton Creation) — 2026-06-04
+- **Refaktoryzacja InvestmentRepository.create_investment_skeleton**: Zmieniono sygnaturę i implementację na ID-keyed, wykorzystując `TechnicalDataManager` do ustalania ścieżek.
+- **Aktualizacja InvestmentSyncService**: Dostosowano przepływ rejestracji nowych inwestycji do nowej architektury, eliminując zależność od slugów przy tworzeniu katalogów.
+- **Weryfikacja testowa**: Dodano `tests/test_skeleton_creation.py` sprawdzający poprawność zapisu szkieletów oraz mechanizm fallbacku w przypadku braku konfiguracji.
+
+### Wnioski ze zmian
+- Przejście na ID-keyed skeleton creation to kluczowy krok w odpinaniu systemu od niestabilnych slugów portalowych. Użycie `TechnicalDataManager` jako jedynego źródła prawdy o ścieżkach zapobiega fragmentacji danych na etapie ich pierwotnego pobierania.
+
 ## Wersja 0.9.23 — Kamień 11 (Slug Generation Removal) — 2026-06-04
 - **Usunięcie slugify_dev**: Skasowano lokalny generator slugów z `portal_matcher.py`.
 - **Pełna tożsamość portalowa**: System w 100% polega na slugach dostarczanych przez portale lub ID, co eliminuje dryf nazewnictwa deweloperów.

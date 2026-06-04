@@ -214,7 +214,7 @@ class InvestmentSyncService:
             "audit": {"created_at": datetime.now().isoformat()}
         }
 
-        self.repo.create_investment_skeleton(dev_slug, inv_slug, portal, skeleton, item_id=item_id)
+        self.repo.create_investment_skeleton(skeleton["usi_inv_id"], portal, str(item_id) if item_id else None, skeleton)
         if hasattr(self, 'resolver') and self.resolver:
             self.resolver.build_index()
             

@@ -2,6 +2,7 @@ import json
 import logging
 from pathlib import Path
 from datetime import datetime
+from python_worker.config import get_scraper_config
 
 logger = logging.getLogger("USIWorker.InvestmentRepo")
 
@@ -41,15 +42,26 @@ class InvestmentRepository:
         with open(target_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
-    def create_investment_skeleton(self, dev_slug: str, inv_slug: str, portal: str, skeleton_data: dict, item_id: str = None) -> Path:
+    def create_investment_skeleton(self, system_id: str, portal: str, portal_id: str, skeleton_data: dict) -> Path:
         """
         Creates a new investment directory and its initial usi_*.json file.
-        This is a special case where the system_id might not yet be resolvable 
-        because the directory doesn't exist yet.
+        This uses the ID-only architecture, resolving paths via TechnicalDataManager.
         """
-        inv_dir = self.data_dir / dev_slug / inv_slug
+        from usi_scrapers.manager import TechnicalDataManager
+        
+        config = get_scraper_config()
+        if not config:
+            # Fallback if config is missing, though it shouldn't be in production
+            logger.warning("Scraper config missing during skeleton creation. Using legacy path structure as emergency fallback.")
+            dev_slug = skeleton_data.get("developer_slug", "unknown")
+            inv_slug = skeleton_data.get("investment_slug", system_id)
+            inv_dir = self.data_dir / dev_slug / inv_slug
+        else:
+            tech_manager = TechnicalDataManager(config)
+            inv_dir = tech_manager.get_investment_path(portal, portal_id)
+
         inv_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"usi_{portal}_{item_id}.json" if item_id else f"usi_{portal}_{inv_slug}.json"
+        filename = f"usi_{system_id}.json"
         target_file = inv_dir / filename
         
         with open(target_file, "w", encoding="utf-8") as f:
