@@ -3,9 +3,6 @@
 
 
 
-## Kamień 22
-Zaktualizuj usi-scrapers. Nowe API pozwala na fallback w przypadku blednych sciezek obrazow.
-
 ## Kamień 23
 Usi-tracker ma wystaiowe API zeby moglo z niego porzystać UI. Przygotuj test wszystkich endpointów UI.
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## Wersja 0.9.38 — Kamień 22 (Aktualizacja biblioteki) — 2026-06-04
+- **Aktualizacja zależności**: Podniesiono wersję biblioteki `usi-scrapers` do `0.9.8`, która wprowadza odporność i wsparcie fallback dla pobierania zdjęć (błędne ścieżki).
+- **Testy**: Usprawniono i zweryfikowano testy integracyjne po aktualizacji.
+
+### Wnioski ze zmian
+- Dzięki bieżącym aktualizacjom zewnętrznych paczek, tracker sprawniej radzi sobie z niedoskonałościami po stronie portali ogłoszeniowych (brakujące obrazki) bazując na mechanizmach biblioteki.
+
 ## Wersja 0.9.37 — Kamień 21 (Wielkie sprzątanie martwego kodu i CLI) — 2026-06-04
 - **Usunięcie legacy skryptów**: Wyczyszczono repozytorium z nieużywanych, jednorazowych skryptów refaktoryzacyjnych (m.in. `mass_update_rp.py`, `verify_ingestion.py`, `ui_baseline_helper.py`).
 - **Oczyszczenie CLI**: Z usuniętego już w poprzednich wersjach pliku `audit_worker.py` usunięto pozostałości w parserze `main.py` (komendy `run-audit`, `migrate`), zdejmując z CLI warstwę martwego kodu. 
