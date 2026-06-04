@@ -1,5 +1,14 @@
 # Changelog
 
+## Wersja 0.9.21 — Kamień 09 (Deterministic Path Resolvers) — 2026-06-04
+- **Refaktoryzacja InvestmentIdentityResolver**: Wprowadzono w 100% deterministyczną rezolucję zasobów bazującą na portal ID. Skasowano kaskadowe fallbacki zgadujące foldery na podstawie slugów.
+- **Deprecjonowanie slug-identity**: Oznaczono `get_investment_resources_by_slug` jako przestarzałe, wymuszając korzystanie z tożsamości ID.
+- **Modernizacja repair_image_paths.py**: Całkowicie usunięto metody `_find_by_*`. Skrypt deleguje teraz rezolucję ścieżek do `TechnicalDataManager`, co eliminuje ryzyko błędnych napraw przy kolizjach nazw.
+- **Testy determinizmu**: Dodano `tests/test_deterministic_mapping.py` weryfikujący poprawność nowej architektury resolution.
+
+### Wnioski ze zmian
+- Rezygnacja z heurystyk na rzecz twardych ID portalowych eliminuje ryzyko "przypadkowego" dopasowania zasobów. Centralizacja wiedzy o strukturze dyskowej w `TechnicalDataManager` pozwala na bezpieczne przenoszenie plików między folderami deweloperów.
+
 ## Wersja 0.9.20 — Kamień 08 (Bidirectional Mapping Cleanup) — 2026-06-04
 - **Usunięcie helperów slug**: Skasowano metody `resolve_dev_slug` i `resolve_id_to_slug` z `DeveloperManager` i `DeveloperRepository`.
 - **Uproszczenie API**: Eliminacja zbędnych delegacji w fasadzie managera deweloperów, wymuszająca korzystanie z tożsamości bazującej na ID.

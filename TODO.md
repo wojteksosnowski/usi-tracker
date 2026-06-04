@@ -119,26 +119,7 @@ Poniżej znajduje się lista funkcji, które przyjmują argumenty zawierające s
 - `poi.py` -> `get_poi` - to powinno is po API i ID
 
 Utworz zadanie dla kazdego naruszenia. Sprawdz czy jest ono uzasadnione. Staraj sie wykorzystywac jak najwiecej istniejacych funkcji i API. Zasada ID-only i thin-client. Zaplanuj testy.
-### Kamień 09 Wieloetapowe resolvery path'ów
 
-```
-# python_worker/services/investment_identity.py
-def get_investment_resources_by_slug(dev_slug, inv_slug)  # Fallback!
-
-# python_worker/repair_image_paths.py
-def _find_by_filename(filename, public_usi_dir)
-def _find_by_cdn_stem(image_urls, public_usi_dir)
-def _find_by_inv_prefix(inv_slug, dev_slug, public_usi_dir)
-def _find_by_exact_inv_slug(inv_slug, public_usi_dir)
-```
-
-Problem: Cztery metody próbujące odgadnąć lokalizację obrazków. To znaczy, że system nie ma pewności gdzie są pliki. Fallback to symptom źle zaprojektowanej struktury.
-
-Rozwiązanie:
-
-Store usi_inv_id + portal_id zawsze w JSONie
-TechnicalDataManager z usi-scrapers powinien być JEDYNYM źródłem struktury dir
-Usunąć _find_by_* — zamiast tego użyć API: tech_manager.get_image_path(portal, portal_id)
 
 ### Kamień 10 Index do mapowania slug→ID
 ```

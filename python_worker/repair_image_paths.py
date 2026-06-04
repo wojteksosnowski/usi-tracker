@@ -27,133 +27,55 @@ _IMG_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 
 def _list_images(d: Path) -> list[str]:
     """Zwraca posortowaną listę /Public/USI/... ścieżek dla katalogu d."""
-    if not d.is_dir():
+    if not d or not d.is_dir():
         return []
-    rel = d.relative_to(DROPBOX_PATH)
-    return sorted(
-        f"/{rel}/{p.name}"
-        for p in d.iterdir()
-        if p.suffix.lower() in _IMG_EXT and not p.name.startswith(".")
-    )
-
-
-def _find_by_filename(filename: str, public_usi_dir: Path) -> Path | None:
-    """Szuka pliku o dokładnej nazwie w całym drzewie public_usi_dir."""
-    hits = list(public_usi_dir.glob(f"*/*/{filename}"))
-    return hits[0].parent if hits else None
-
-
-def _find_by_cdn_stem(image_urls: list, public_usi_dir: Path) -> Path | None:
-    """Wyciąga stem CDN z pierwszego URL i szuka pliku na dysku."""
-    for url in image_urls:
-        stem = url.split("/files/")[-1].split("/image")[0]
-        if not stem or "/" in stem:
-            continue
-        for ext in _IMG_EXT:
-            hits = list(public_usi_dir.glob(f"*/*/{stem}{ext}"))
-            if hits:
-                return hits[0].parent
-    return None
-
-
-def _find_by_inv_prefix(inv_slug: str, dev_slug: str, public_usi_dir: Path) -> Path | None:
-    """Szuka katalogu w obrębie dev_slug którego nazwa zaczyna się od inv_slug."""
-    best_dir: Path | None = None
-    best_count = 0
-    dev_dir = public_usi_dir / dev_slug
-    if not dev_dir.is_dir():
-        return None
-    for d in dev_dir.iterdir():
-        if d.is_dir() and d.name.startswith(inv_slug):
-            count = sum(1 for p in d.iterdir() if p.suffix.lower() in _IMG_EXT)
-            if count > best_count:
-                best_count = count
-                best_dir = d
-    return best_dir if best_count > 0 else None
-
-
-def _find_by_exact_inv_slug(inv_slug: str, public_usi_dir: Path) -> Path | None:
-    """Szuka katalogu o dokładnej nazwie inv_slug pod dowolnym dev w public_usi_dir."""
-    best_dir: Path | None = None
-    best_count = 0
-    for dev_dir in public_usi_dir.iterdir():
-        if not dev_dir.is_dir():
-            continue
-        candidate = dev_dir / inv_slug
-        if candidate.is_dir():
-            count = sum(1 for p in candidate.iterdir() if p.suffix.lower() in _IMG_EXT)
-            if count > best_count:
-                best_count = count
-                best_dir = candidate
-    return best_dir if best_count > 0 else None
+    try:
+        # Try to find PUBLIC_USI_DIR in the path
+        import os
+        from python_worker.config import PUBLIC_USI_DIR
+        rel = os.path.relpath(d, Path(PUBLIC_USI_DIR).parent)
+        return sorted(
+            f"/{rel}/{p.name}"
+            for p in d.iterdir()
+            if p.suffix.lower() in _IMG_EXT and not p.name.startswith(".")
+        )
+    except Exception:
+        return []
 
 
 def _resolve_paths(
+    portal: str,
+    portal_id: str,
     raw_paths: list[str],
-    image_urls: list[str],
-    dev_slug: str,
-    inv_slug: str,
-    public_usi_dir: Path,
-    global_index: dict
+    tech_manager: any
 ) -> tuple[list[str], str]:
     """
     Zwraca (poprawne_ścieżki, metoda).
-    Poprawne_ścieżki to lista /Public/USI/... istniejących na dysku.
+    Wykorzystuje TechnicalDataManager do deterministycznej rezolucji.
     """
-    # Krok 1 — zweryfikuj istniejące ścieżki
-    valid = [p for p in raw_paths if (DROPBOX_PATH / p.lstrip("/")).exists()]
-    if valid:
-        return valid, "existing"
+    if not portal or not portal_id or not tech_manager:
+        return [], "missing_id"
 
-    # Krok 2 — szukaj po nazwie pliku (przeniesienie 1:1)
-    for p in raw_paths:
-        filename = Path(p).name
-        bname = filename.rsplit(".", 1)[0]
-        if bname in global_index:
-            found_dir = Path(DROPBOX_PATH) / global_index[bname][0].lstrip("/")
-            return _list_images(found_dir.parent), "by_filename"
-
-    # Krok 3 — szukaj po stemie CDN z image_urls
-    for url in image_urls:
-        stem = url.split("/files/")[-1].split("/image")[0]
-        if not stem or "/" in stem:
-            continue
-        if stem in global_index:
-            found_dir = Path(DROPBOX_PATH) / global_index[stem][0].lstrip("/")
-            return _list_images(found_dir.parent), "by_cdn_stem"
-
-    # Krok 4 — dokładne dopasowanie inv_slug pod dowolnym dev (inwestycja przeniesiona)
-    found_dir = _find_by_exact_inv_slug(inv_slug, public_usi_dir)
-    if found_dir:
-        return _list_images(found_dir), "by_exact_inv_slug"
-
-    # Krok 5 — szukaj po prefiksie inv_slug w obrębie dev_slug (niestandardowe nazwy plików)
-    found_dir = _find_by_inv_prefix(inv_slug, dev_slug, public_usi_dir)
-    if found_dir:
-        return _list_images(found_dir), "by_prefix"
+    # Deterministyczna ścieżka z biblioteki
+    found_dir = tech_manager.get_image_path(portal, str(portal_id))
+    
+    if found_dir and found_dir.is_dir():
+        images = _list_images(found_dir)
+        if images:
+            return images, "deterministic"
 
     return [], "not_found"
 
 
 def repair(apply: bool = False) -> dict:
     data_dir = Path(USI_DATA_DIR)
-    public_usi_dir = Path(PUBLIC_USI_DIR)
+    
+    from python_worker.config import get_scraper_config
+    from usi_scrapers.manager import TechnicalDataManager
+    config = get_scraper_config()
+    tech_manager = TechnicalDataManager(config) if config else None
 
-    import os
-    logger.info("Budowanie globalnego indeksu plików z /Public/USI ...")
-    global_index = {}
-    for root, dirs, files in os.walk(public_usi_dir):
-        for file in files:
-            if file.startswith("."):
-                continue
-            bname = file.rsplit(".", 1)[0]
-            if bname not in global_index:
-                global_index[bname] = []
-            rel_path = os.path.relpath(os.path.join(root, file), public_usi_dir)
-            global_index[bname].append(f"/Public/USI/{rel_path}")
-    logger.info(f"Zbudowano indeks dla {sum(len(v) for v in global_index.values())} plików.")
-
-    stats = {"ok": 0, "fixed": 0, "not_found": 0}
+    stats = {"ok": 0, "fixed": 0, "not_found": 0, "missing_id": 0}
     fixes: list[dict] = []
 
     for usi_file in sorted(data_dir.glob("*/*/usi_*.json")):
@@ -166,23 +88,32 @@ def repair(apply: bool = False) -> dict:
         dev_slug = usi_file.parent.parent.name
         inv_slug = usi_file.parent.name
         existing_paths = d.get("image_paths") or []
-        img_list_str = d.get("ratings", {}).get("imgList", "")
-        image_urls = d.get("image_urls", [])
+        
+        # Determine portal/portal_id
+        portal = d.get("portal")
+        portal_id = d.get("portal_id")
+        if not portal or not portal_id:
+            sources = d.get("sources") or {}
+            for p in ("rp", "oto", "to"):
+                if p in sources and sources[p].get("id"):
+                    portal = p
+                    portal_id = sources[p].get("id")
+                    break
 
         # Jeśli image_paths już są w całości czynne — nic nie rób
+        from python_worker.config import DROPBOX_PATH
         if existing_paths and all((DROPBOX_PATH / p.lstrip("/")).exists() for p in existing_paths):
             stats["ok"] += 1
             continue
 
-        # Zbierz kandydatów z imgList (image_paths są puste lub mają zepsute ścieżki)
-        img_list_paths = [p.strip() for p in img_list_str.split(",") if p.strip()] if img_list_str else []
-        raw_paths = list(dict.fromkeys(existing_paths + img_list_paths))
-
-        corrected, method = _resolve_paths(raw_paths, image_urls, dev_slug, inv_slug, public_usi_dir, global_index)
+        corrected, method = _resolve_paths(portal, portal_id, existing_paths, tech_manager)
 
         if not corrected:
-            stats["not_found"] += 1
-            fixes.append({"slug": f"{dev_slug}/{inv_slug}", "method": "not_found", "old": existing_paths[:2]})
+            if method == "missing_id":
+                stats["missing_id"] += 1
+            else:
+                stats["not_found"] += 1
+            fixes.append({"slug": f"{dev_slug}/{inv_slug}", "method": method, "old": existing_paths[:2]})
             continue
 
         stats["fixed"] += 1
@@ -201,7 +132,8 @@ def repair(apply: bool = False) -> dict:
     if apply:
         try:
             import python_worker.investment_index as inv_index
-            count = inv_index.rebuild(data_dir, public_usi_dir)
+            from python_worker.config import PUBLIC_USI_DIR
+            count = inv_index.rebuild(data_dir, Path(PUBLIC_USI_DIR))
             logger.info(f"Indeks przebudowany: {count}")
         except Exception as e:
             logger.warning(f"Błąd przebudowy indeksu: {e}")

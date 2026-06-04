@@ -48,42 +48,22 @@ class InvestmentIdentityResolver:
 
         return self._map_resources_from_entry(entry)
 
-    def get_investment_resources_by_slug(self, dev_slug: str, inv_slug: str) -> dict:
-        """Fallback method to resolve resources by slug when ID is not yet available."""
-        from python_worker.investment_index import get_index
-        index = get_index(self.data_dir)
+    def get_investment_resources_by_slug(self, dev_slug: str, inv_slug: str) -> dict | None:
+        """
+        @deprecated: Always use get_investment_resources(usi_inv_id).
+        Legacy fallback method to resolve resources by slug.
+        """
+        from python_worker.investment_index import load as load_index
+        index = load_index(self.data_dir)
         entry = next((e for e in index if e.get("developer_slug") == dev_slug and e.get("investment_slug") == inv_slug), None)
-        if not entry and not index:
-            for p in self.data_dir.rglob(f"usi_*.json"):
-                try:
-                    data = json.loads(p.read_text())
-                    if p.parent.name == inv_slug and p.parent.parent.name == dev_slug:
-                        entry = {
-                            "usi_inv_id": data.get("usi_inv_id"),
-                            "developer_slug": dev_slug,
-                            "investment_slug": inv_slug,
-                            "portal": data.get("portal"),
-                            "portal_id": data.get("portal_id"),
-                            "sources": data.get("sources")
-                        }
-                        break
-                except: continue
         
         if not entry:
-            entry = {
-                "usi_inv_id": f"temp_{inv_slug}",
-                "developer_slug": dev_slug,
-                "investment_slug": inv_slug,
-                "portal": None,
-                "portal_id": None,
-                "sources": {}
-            }
-        return self._map_resources_from_entry(entry)
+            return None
 
-    def _map_resources_from_entry(self, entry: dict) -> dict:
-        dev_slug = entry["developer_slug"]
-        inv_slug = entry["investment_slug"]
-        
+        return self.get_investment_resources(entry["usi_inv_id"])
+
+    def _map_resources_from_entry(self, entry: dict) -> dict | None:
+        """Determines physical file locations strictly via TechnicalDataManager."""
         portal = entry.get("portal")
         portal_id = entry.get("portal_id")
         
@@ -95,98 +75,27 @@ class InvestmentIdentityResolver:
                     portal_id = sources[p].get("id")
                     break
 
-        # Use TechnicalDataManager logic for path resolution
         from python_worker.config import get_scraper_config
         from usi_scrapers.manager import TechnicalDataManager
+        import logging
         
         config = get_scraper_config()
-        resolved_dir = None
-        images_dir = None
-        if config and portal and portal_id:
-            tech_manager = TechnicalDataManager(config)
-            resolved_dir = tech_manager.get_investment_path(portal, str(portal_id))
-            images_dir = tech_manager.get_image_path(portal, str(portal_id))
-            
-        if not resolved_dir:
-            resolved_dir = self.data_dir / dev_slug / inv_slug
-        if not images_dir:
-            images_dir = self.public_usi_dir / dev_slug / inv_slug
-        
-        inv_dir = resolved_dir
-        
-        # Determine anchor file precisely
-        anchor_file = None
-        if portal and portal_id:
-            f = inv_dir / f"usi_{portal}_{portal_id}.json"
-            if f.exists():
-                anchor_file = f
-        
-        if not anchor_file:
-            # Fallback for legacy slug-based anchors
-            candidates = [
-                inv_dir / f"usi_{inv_slug}.json", 
-                inv_dir / f"usi_rp_{inv_slug}.json", 
-                inv_dir / f"usi_oto_{inv_slug}.json", 
-                inv_dir / f"usi_to_{inv_slug}.json"
-            ]
-            if entry.get("usi_inv_id"):
-                candidates.insert(0, inv_dir / f"usi_{entry.get('usi_inv_id')}.json")
-            
-            for p in candidates:
-                if p.exists():
-                    anchor_file = p
-                    break
-            
-            if not anchor_file:
-                for f in inv_dir.glob("usi_*.json"):
-                    if not f.name.startswith("usi_dev_"):
-                        anchor_file = f
-                        break
+        if not config or not portal or not portal_id:
+            return None
 
-        # Determine raw file
-        raw_file = None
-        if portal and portal_id:
-            f = inv_dir / f"raw_{portal}_{portal_id}.json"
-            if f.exists():
-                raw_file = f
+        tech_manager = TechnicalDataManager(config)
+        inv_dir = tech_manager.get_investment_path(portal, str(portal_id))
+        images_dir = tech_manager.get_image_path(portal, str(portal_id))
         
-        if not raw_file and portal:
-            # Try slug-based raw file
-            f = inv_dir / f"raw_{portal}_{inv_slug}.json"
-            if f.exists():
-                raw_file = f
-        
-        if not raw_file:
-            # Last resort: find any raw file for this portal
-            matches = sorted(list(inv_dir.glob(f"raw_{portal}_*.json"))) if portal else []
-            if matches:
-                raw_file = matches[-1]
+        if not inv_dir:
+            return None
 
-        # Determine meta/ratings file
-        meta_file = inv_dir / f"meta_{inv_slug}_ratings.json"
-        if not meta_file.exists():
-            # Fallback for legacy meta files
-            for p in (inv_dir / f"meta_rp_{inv_slug}.json", 
-                      inv_dir / f"meta_oto_{inv_slug}.json", 
-                      inv_dir / f"meta_to_{inv_slug}.json"):
-                if p.exists():
-                    meta_file = p
-                    break
+        anchor_file = inv_dir / f"usi_{portal}_{portal_id}.json"
+        raw_file = inv_dir / f"raw_{portal}_{portal_id}.json"
         
-        # Images dir already resolved above via tech_manager
-        # Fallback check if it was pinned to a different dev folder
-        if not images_dir.exists():
-            # Check if it was pinned to a different dev folder
-            if anchor_file:
-                try:
-                    data = json.loads(anchor_file.read_text())
-                    img_list = data.get("ratings", {}).get("imgList") or ""
-                    if "/Public/USI/" in img_list:
-                        import re
-                        m = re.search(r'/Public/USI/([^/]+)/', img_list)
-                        if m:
-                            images_dir = self.public_usi_dir / m.group(1) / inv_slug
-                except: pass
+        # Meta/ratings files are still partially slug-based in names, but located in ID-resolved folder
+        inv_slug = entry.get("investment_slug")
+        meta_file = inv_dir / f"meta_{inv_slug}_ratings.json" if inv_slug else None
 
         return {
             "id": entry["usi_inv_id"],
@@ -198,10 +107,11 @@ class InvestmentIdentityResolver:
                 "meta": meta_file if meta_file and meta_file.exists() else None,
                 "logs": [inv_dir / "deletion_list.json"] if (inv_dir / "deletion_list.json").exists() else []
             },
-            "images_dir": images_dir if images_dir.exists() else None,
+            "images_dir": images_dir if images_dir and images_dir.exists() else None,
             "metadata": {
                 "portal": portal,
                 "portal_id": portal_id,
-                "slug": f"{dev_slug}/{inv_slug}"
+                "slug": f"{entry.get('developer_slug')}/{inv_slug}"
             }
         }
+
