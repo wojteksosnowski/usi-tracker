@@ -1,5 +1,14 @@
 # Changelog
 
+## Wersja 0.9.26 — Kamień 15 (Developer Identification Delegation) — 2026-06-04
+- **Delegacja identyfikacji do biblioteki**: Zaimplementowano wykorzystanie API `identify_developer` z `usi-scrapers` do pozyskiwania kanonicznych nazw deweloperów z adresów URL.
+- **Refaktoryzacja Blueprintu register**: Usunięto przesyłanie sztucznych nazw deweloperów ("Nieznany Deweloper"), co wymusza rzetelną identyfikację przez warstwę usług.
+- **Modernizacja DiscoveryService**: Oczyszczono mechanizm rejestracji nowych inwestycji z manualnej ekstrakcji `vendor_id` i zgadywania nazw deweloperów.
+- **Weryfikacja integracji**: Dodano `tests/test_developer_identification.py` potwierdzający poprawność delegacji wywołań do biblioteki.
+
+### Wnioski ze zmian
+- Eliminacja lokalnego zgadywania nazw na rzecz zapytań do API portali gwarantuje, że system operuje na danych identycznych z tymi widocznymi dla użytkownika końcowego. Redukcja odpowiedzialności trackera w tym obszarze upraszcza kod i ułatwia jego utrzymanie.
+
 ## Wersja 0.9.25 — Kamień 14 (Resource Resolution Modernization) — 2026-06-04
 - **Optymalizacja InvestmentIdentityResolver**: Wprowadzono właściwość `tech_manager` (lazy-loading), która zapewnia efektywny dostęp do API biblioteki bez wielokrotnej reinicjalizacji.
 - **Eliminacja get_investment_resources_by_slug**: Całkowicie usunięto przestarzałą metodę, wymuszając korzystanie z tożsamości ID w całym systemie.

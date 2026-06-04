@@ -796,9 +796,14 @@ def register():
         elif "otodom" in portal or portal == "oto": portal = "oto"
         elif "tabelaofert" in portal or portal == "to": portal = "to"
 
+        dev_name = payload.get("developer_name")
+        # Ensure we don't pass dummy values that mask identification
+        if dev_name and dev_name.lower() in ("nieznany deweloper", "unknown", "nieznany-deweloper", ""):
+            dev_name = None
+
         result = investment_service.register_investment(
             portal=portal,
-            developer_name=payload.get("developer_name"),
+            developer_name=dev_name,
             inv_slug=payload.get("inv_slug"),
             name=payload.get("name"),
             item_id=payload.get("id"),

@@ -203,20 +203,13 @@ class DiscoveryService:
             logger.warning(f"No slug from URL/discovery for '{item['name']}' (portal={portal}) - using 'unknown'")
         
         # Extract vendor ID for ID-first registration
-        vendor_id = None
-        if portal == "rp":
-            vendor = item.get("vendor")
-            if isinstance(vendor, dict):
-                vendor_id = vendor.get("id")
-        elif portal in ("otodom", "oto"):
-            vendor_id = item.get("agency_id") or item.get("developer_id") or item.get("vendor_id")
-        elif portal in ("to", "tabelaofert"):
-            vendor_id = item.get("developer_id") or item.get("vendor_id")
+        from usi_scrapers import resolve_path
+        vendor_id = resolve_path(item, portal, "vendor.id|ad.agency.id|agency_id|developer_id")
 
         # Delegate registration to InvestmentService (which now handles canonical slugs from library)
         return self.isvc.register_investment(
             portal=portal_key,
-            developer_name=dev_slug.replace("-", " ").title(), # Folder name as dev name hint
+            developer_name=item.get("developer_name") or item.get("developer"), # Pass real name if available, else None
             inv_slug=inv_slug,
             name=item["name"],
             item_id=item.get("id"),

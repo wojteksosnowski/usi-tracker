@@ -122,17 +122,6 @@ Utworz zadanie dla kazdego naruszenia. Sprawdz czy jest ono uzasadnione. Staraj 
 
 
 
-### Kamień 15 Identyfikacja nazwy dewelopera z URL
-Python
-# ❌ Tracker robi sam (python_worker/api/blueprints/investments.py):
-developer_name = data.get("agency_name")  # Otodom
-# lub ręczny scraping HTML
-
-# ✅ API ma już:
-from usi_scrapers.api import identify_developer
-name = identify_developer(fetcher, portal="otodom", url="https://...")
-Gdzie to siedzi w tracker: Głownie w logice discovery i podczas rejestracji — powinno być delegowane do usi-scrapers.
-
 ### Kamień 16 Geocodowanie adresu
 Python
 # ❌ Tracker robi sam (python_worker/here_maps.py):
