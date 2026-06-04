@@ -1,5 +1,18 @@
 # Changelog
 
+## Wersja 0.9.44 — Kamień 04 (Wydzielenie ImageSyncService) — 2026-06-05
+- **Refaktoryzacja struktury**: Usunięto powiązania logiki synchronizacji zdjęć z `InvestmentSyncService` i wydzielono do odrębnej usługi `ImageSyncService` w nowym pliku `image_sync.py`.
+
+### Wnioski ze zmian
+- Architektura oparta o zasadę pojedynczej odpowiedzialności (SRP): Zmniejszenie "couplingu" w głównym kontrolerze na rzecz wyspecjalizowanych mikrousług ułatwia testowanie oraz zmniejsza ryzyko regresji przy modyfikacjach.
+
+## Wersja 0.9.46 — Kamień 04 (Wydzielenie ImageSyncService - Krok 04.01) — 2026-06-05
+- **Wydzielenie logiki**: Utworzono `ImageSyncService` w `python_worker/services/image_sync.py` i przeniesiono do niej logikę metody `_sync_investment_images` z `InvestmentSyncService`. Poprawiono inicjalizację.
+- Zaktualizowano `TODO.md`: Oznaczono zadania Kroku 04.01 jako wykonane i dodano podsumowanie.
+
+## Wersja 0.9.45 — Kamień 04 (Rozpakowanie zadań) — 2026-06-05
+- Zaktualizowano `TODO.md` aby dokładnie rozpakować zadania dla Kamienia 04 (Wydzielenie ImageSyncService) oraz dodano zarysy Kamieni 05 i 06.
+
 ## Wersja 0.9.43 — Kamień 03 (Weryfikacja odpowiedzialności za pobieranie obrazków) — 2026-06-05
 - **Weryfikacja integracyjna**: Potwierdzono, że logika pobierania zasobów graficznych (zdjęć) w serwisie `InvestmentSyncService` nie zawiera samodzielnych wywołań HTTP. Proces jest prawidłowo delegowany do obiektu `tech_manager` (z zewnętrznej biblioteki `usi-scrapers`).
 
