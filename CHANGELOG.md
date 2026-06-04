@@ -1,5 +1,11 @@
 # Changelog
 
+## Wersja 0.9.40 — Czystka TODO — 2026-06-05
+- **Wyczyszczenie TODO**: Usunięto zrealizowane zadania.
+
+### Wnioski ze zmian
+- Oczyszczenie TODO po udanym wdrożeniu przygotowuje przestrzeń do planowania kolejnych zadań.
+
 ## Wersja 0.9.39 — Kamień 23 (Testy API UI) — 2026-06-04
 - **Testy API**: Wprowadzono plik testowy `tests/test_api_endpoints.py` weryfikujący poprawność ładowania wszystkich wystawionych dla interfejsu webowego (UI) endpointów (w tym `config`, `metadata-config`, `investments`, `developers`).
 
