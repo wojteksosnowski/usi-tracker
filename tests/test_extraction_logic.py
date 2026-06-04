@@ -31,12 +31,13 @@ def test_rp_adapter_geo():
     raw_data = {
         "id": 1,
         "name": "Geo Test",
-        "geo_point": {"type": "Point", "value": {"coordinates": [21.01, 52.23]}},
-        "address": "ul. Testowa 1, Warszawa",
+        "geo_point": {"type": "Point", "coordinates": [21.01, 52.23]},
+        "address": "Warszawa, ul. Testowa 1",
     }
     result = RPAdapter.transform(raw_data, "geo-inv", "dev")
     assert result["location"]["coords"] == [52.23, 21.01]
-    assert result["location"]["address"] == "ul. Testowa 1, Warszawa"
+    assert result["location"]["address"] == "Warszawa, ul. Testowa 1"
+    assert result["location"]["city"] == "Warszawa"
 
 
 def test_rp_adapter_get_val_wrapped_name():
@@ -78,13 +79,15 @@ def test_rp_adapter_from_scraper_result():
 
 def test_otodom_adapter_extraction():
     raw_data = {
-        "id": 999,
-        "title": "Test Otodom Investment",
-        "url": "https://otodom.pl/999",
-        "images": [
-            {"large": "https://cdn.oto.pl/1.jpg"},
-            {"large": "https://cdn.oto.pl/2.jpg"}
-        ]
+        "ad": {
+            "id": 999,
+            "title": "Test Otodom Investment",
+            "url": "https://otodom.pl/999",
+            "images": [
+                {"large": "https://cdn.oto.pl/1.jpg"},
+                {"large": "https://cdn.oto.pl/2.jpg"}
+            ]
+        }
     }
     result = OtodomAdapter.transform(raw_data, "test-inv", "test-dev")
     assert result["name"] == "Test Otodom Investment"
@@ -109,11 +112,13 @@ def test_otodom_adapter_old_nested_format():
 
 def test_otodom_adapter_delivery_from_topInformation():
     raw_data = {
-        "title": "Delivery Test",
-        "topInformation": [
-            {"label": "project_finish_date", "values": ["2025-06-01"]}
-        ],
-        "images": [],
+        "ad": {
+            "title": "Delivery Test",
+            "topInformation": [
+                {"label": "project_finish_date", "values": ["2025-06-01"]}
+            ],
+            "images": [],
+        }
     }
     result = OtodomAdapter.transform(raw_data, "inv", "dev")
     assert result["specifications"]["delivery_year"] == 2025

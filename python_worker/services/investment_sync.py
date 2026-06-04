@@ -315,7 +315,9 @@ class InvestmentSyncService:
                 
                 if self.tech_manager:
                     # Save raw data using canonical slug (for library mapping)
-                    self.tech_manager.save_raw_data(raw_data, canonical_dev_slug, inv_slug, raw_prefix)
+                    raw_data["developer_slug"] = canonical_dev_slug
+                    raw_data["investment_slug"] = inv_slug
+                    self.tech_manager.save_raw_data(raw_data, raw_prefix)
                 else:
                     logger.error(f"Cannot save raw data for {inv_slug}: TechnicalDataManager is not available.")
                     raise RuntimeError("TechnicalDataManager is required for saving raw portal data.")
@@ -388,7 +390,8 @@ class InvestmentSyncService:
 
             saved_filenames = []
             if urls_to_download:
-                saved_filenames = self.tech_manager.sync_images(urls_to_download, img_dev_slug, inv_slug)
+                target_image_dir = self.public_usi_dir / img_dev_slug / inv_slug
+                saved_filenames = self.tech_manager.sync_images(urls_to_download, target_image_dir)
                         
             unique_paths = []
             for url in all_urls:
@@ -750,9 +753,11 @@ class InvestmentSyncService:
                         from usi_scrapers.manager import TechnicalDataManager
                         manager = TechnicalDataManager(self.lib_config)
                         inv_dir.mkdir(parents=True, exist_ok=True)
-                        manager.save_raw_data(data, inv_dir, raw_prefix)
+                        data["developer_slug"] = dev_slug
+                        data["investment_slug"] = inv_slug
+                        manager.save_raw_data(data, raw_prefix)
                         
-                        target_image_dir = self.public_dir / dev_slug / inv_slug
+                        target_image_dir = self.public_usi_dir / dev_slug / inv_slug
                         if "image_urls" in data:
                             target_image_dir.mkdir(parents=True, exist_ok=True)
                             manager.sync_images(data["image_urls"], target_image_dir)

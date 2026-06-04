@@ -82,8 +82,9 @@ def check_portal(portal_key, temp_data_dir, temp_assets_dir):
         
         all_urls = res.get("image_urls", [])
         if all_urls:
-            saved = tm.sync_images(all_urls, test["dev_slug"], test["inv_slug"])
-            logger.info(f"Saved {len([f for f in saved if f])} images to {temp_assets_dir}")
+            target_image_dir = Path(temp_assets_dir) / test["dev_slug"] / test["inv_slug"]
+            saved = tm.sync_images(all_urls, target_image_dir)
+            logger.info(f"Saved {len([f for f in saved if f])} images to {target_image_dir}")
 
         # 4. Validate Critical Fields
         errors = []

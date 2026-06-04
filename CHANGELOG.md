@@ -1,5 +1,16 @@
 # Changelog
 
+## Wersja 0.9.11 — Kamień 01 (Aktualizacja do usi-scrapers v0.9.7) — 2026-06-04
+- **Aktualizacja Biblioteki**: Podniesienie wersji `usi-scrapers` do 0.9.7 w `requirements.txt`.
+- **Refaktoryzacja I/O**: Dostosowanie wywołań `sync_images` i `save_raw_data` do nowego modelu wstrzykiwania ścieżek i slugów.
+- **Warstwa Kompatybilności**: Wdrożenie shimów w `InvestmentService` i `InvestmentRepository` wspierających zarówno USI ID, jak i legacy slugi w testach i API.
+- **Poprawki Ekstrakcji**: Naprawa unwrappingu wartości RP oraz dostosowanie testów do zagnieżdżonego formatu Otodom (`ad.`).
+- **Stabilizacja Inwestycji**: Usunięcie błędów `AttributeError` poprzez przywrócenie delegacji `dev_dir`, `build_index` i `append_dev_log`.
+
+### Wnioski ze zmian
+- Zachowanie kompatybilności wstecznej (shimy) w serwisach biznesowych jest niezbędne podczas migracji na architekturę ID-only, aby umożliwić stopniową aktualizację ogromnej bazy testów bez blokowania rozwoju.
+- Ścisłe powiązanie transformatorów adresu z formatem portalu (np. `City, Street`) oznacza, że każda zmiana formatu musi być odzwierciedlona w mockach testowych w celu zachowania spójności.
+
 ## Wersja 0.9.10 — Kamień 02 (Wdrozenie zmian na podstawie wczesniejszej analizy) — 2026-06-04
 - **Natywne Transformatory (usi-scrapers)**: Wdrożono mechanizmy transformujące (parsowanie dat Otodom, rzutowanie float) bezpośrednio w `usi-scrapers`, odciążając adaptery w głównym repozytorium z manualnego parsowania stringów.
 - **Architektura I/O Isolation**: Całkowicie wyizolowano logikę ścieżek z biblioteki zewnętrznej. Funkcje takie jak zapisu JSON czy pobierania zdjęć przyjmują teraz gotowe instancje `Path`, wymuszając stosowanie systemowego `IdentityResolver` wewnątrz trackera.

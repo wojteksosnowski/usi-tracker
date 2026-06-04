@@ -42,14 +42,32 @@ class InvestmentService:
     # ---------------------------------------------------------
     # Viewing Data
     # ---------------------------------------------------------
-    def get_investment(self, system_id: str) -> dict | None:
-        """Loads an investment via ID-Only architecture."""
-        resources = self.get_investment_resources(system_id)
-        if not resources:
+    def get_investment(self, dev_slug: str = None, inv_slug: str = None, system_id: str = None) -> dict | None:
+        """
+        Loads an investment. 
+        Supports both:
+        - get_investment(system_id="123")
+        - get_investment(dev_slug, inv_slug) (legacy fallback)
+        """
+        if not system_id and dev_slug and inv_slug:
+            # Legacy call: (dev_slug, inv_slug)
+            pass 
+        elif system_id:
+            # New call: (system_id)
+            resources = self.get_investment_resources(system_id)
+            if not resources:
+                return None
+            dev_slug, inv_slug = resources["metadata"]["slug"].split("/")
+        elif dev_slug and not inv_slug:
+            # Called as get_investment(system_id) where system_id is first positional
+            system_id = dev_slug
+            resources = self.get_investment_resources(system_id)
+            if not resources:
+                return None
+            dev_slug, inv_slug = resources["metadata"]["slug"].split("/")
+        else:
             return None
             
-        dev_slug, inv_slug = resources["metadata"]["slug"].split("/")
-        
         from python_worker.api.utils import _load_investment
         return _load_investment(
             dev_slug, inv_slug,
@@ -121,8 +139,14 @@ class InvestmentService:
     # ---------------------------------------------------------
     # Editor Operations (Delegated)
     # ---------------------------------------------------------
-    def save_ratings(self, system_id, payload):
-        return self.editor.save_ratings(system_id, payload)
+    def save_ratings(self, dev_slug, inv_slug, payload=None):
+        if payload is None:
+            # New call: (system_id, payload)
+            system_id = dev_slug
+            payload = inv_slug
+            return self.editor.save_ratings(system_id, payload)
+        # Legacy call: (dev, inv, payload)
+        return self.editor.save_ratings(dev_slug, inv_slug, payload)
 
     def mark_as_reviewed(self, system_id):
         return self.editor.mark_as_reviewed(system_id)
@@ -130,5 +154,11 @@ class InvestmentService:
     def add_report(self, system_id, note):
         return self.editor.add_report(system_id, note)
 
-    def mark_deleted_photos(self, system_id, paths):
-        return self.editor.mark_deleted_photos(system_id, paths)
+    def mark_deleted_photos(self, dev_slug, inv_slug, paths=None):
+        if paths is None:
+            # New call: (system_id, paths)
+            system_id = dev_slug
+            paths = inv_slug
+            return self.editor.mark_deleted_photos(system_id, paths)
+        # Legacy call: (dev, inv, paths)
+        return self.editor.mark_deleted_photos(dev_slug, inv_slug, paths)

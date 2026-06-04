@@ -14,6 +14,12 @@ class DeveloperManager:
         self.indexer = DeveloperIndexer(self.repo)
         self.merger = DeveloperMergeManager(self.repo, self.indexer)
 
+    @property
+    def dev_dir(self): return self.repo.dev_dir
+
+    @property
+    def data_dir(self): return self.repo.data_dir
+
     # Repository Delegation
     def get_developer(self, dev_slug: str): return self.repo.get_developer(dev_slug)
     def get_developer_by_id(self, usi_dev_id: str): return self.repo.get_developer_by_id(usi_dev_id)

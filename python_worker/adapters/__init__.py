@@ -28,17 +28,23 @@ except Exception as e:
     logger.error(f"Failed to load segments config: {e}")
     SEGMENTS_CONFIG = {"segments": [], "mapping": {}}
 
+def _unwrap(val):
+    """Unwraps RP-style {value, type} structures."""
+    if isinstance(val, dict) and "value" in val and "type" in val:
+        return val["value"]
+    return val
+
 def _get_val(data, key, default=None):
-    """Delegates to usi-scrapers resolve_path (which handles RP {value, type} unwrapping since v0.7.0)."""
-    val = resolve_path(data, key)
+    """Delegates to usi-scrapers resolve_path and handles RP {value, type} unwrapping."""
+    val = _unwrap(resolve_path(data, key))
     return val if val is not None else default
 
 def _unified_base(inv_slug, dev_slug, name, developer=None):
     return {
         "investment_slug": inv_slug,
         "developer_slug": dev_slug,
-        "name": name,
-        "developer": developer,
+        "name": _unwrap(name),
+        "developer": _unwrap(developer),
         "website": None,
         "sources": {},
         "location": {"coords": [None, None], "address": None, "city": None, "district": None},
@@ -61,7 +67,7 @@ def _unified_base(inv_slug, dev_slug, name, developer=None):
 class RPAdapter:
     @classmethod
     def transform(cls, data: dict, inv_slug: str, dev_slug: str) -> dict:
-        if "raw_details" in data:
+        if data.get("raw_details"):
             return cls._from_raw(data["raw_details"], inv_slug, dev_slug)
         if data.get("source") == "rynekpierwotny.pl":
             return cls._from_result(data, inv_slug, dev_slug)
@@ -101,6 +107,7 @@ class RPAdapter:
     def _from_raw(cls, raw: dict, inv_slug: str, dev_slug: str) -> dict:
         from usi_scrapers.mapping import transform_to_unified
         m = transform_to_unified("rp", raw)
+        m = {k: _unwrap(v) for k, v in m.items()}
         
         u = _unified_base(inv_slug, dev_slug, m.get("name") or raw.get("name"), developer=m.get("developer_name"))
         
@@ -117,7 +124,7 @@ class RPAdapter:
         
         u["location"].update({
             "coords": [m.get("latitude"), m.get("longitude")],
-            "address": m.get("street"),
+            "address": m.get("address"),
             "city": m.get("city"),
             "district": m.get("region")
         })
@@ -153,7 +160,7 @@ class RPAdapter:
 class OtodomAdapter:
     @classmethod
     def transform(cls, data: dict, inv_slug: str, dev_slug: str) -> dict:
-        if "raw_details" in data:
+        if data.get("raw_details"):
             return cls._from_raw(data["raw_details"], inv_slug, dev_slug)
         if data.get("source") == "otodom.pl":
             return cls._from_result(data, inv_slug, dev_slug)
@@ -211,6 +218,7 @@ class OtodomAdapter:
     def _from_raw(cls, raw: dict, inv_slug: str, dev_slug: str) -> dict:
         from usi_scrapers.mapping import transform_to_unified
         m = transform_to_unified("oto", raw)
+        m = {k: _unwrap(v) for k, v in m.items()}
         
         u = _unified_base(inv_slug, dev_slug, m.get("name"), developer=m.get("developer_name"))
         
@@ -221,7 +229,7 @@ class OtodomAdapter:
         
         u["location"].update({
             "coords": [m.get("latitude"), m.get("longitude")],
-            "address": m.get("street"),
+            "address": m.get("address"),
             "city": m.get("city"),
             "district": m.get("region")
         })
@@ -267,7 +275,7 @@ class OtodomAdapter:
 class TOAdapter:
     @classmethod
     def transform(cls, data: dict, inv_slug: str, dev_slug: str) -> dict:
-        if "raw_details" in data:
+        if data.get("raw_details"):
             return cls._from_raw(data["raw_details"], inv_slug, dev_slug)
         if data.get("source") == "tabelaofert.pl":
             return cls._from_result(data, inv_slug, dev_slug)
@@ -319,6 +327,7 @@ class TOAdapter:
     def _from_raw(cls, raw: dict, inv_slug: str, dev_slug: str) -> dict:
         from usi_scrapers.mapping import transform_to_unified
         m = transform_to_unified("to", raw)
+        m = {k: _unwrap(v) for k, v in m.items()}
         
         u = _unified_base(inv_slug, dev_slug, m.get("name") or raw.get("name"), developer=m.get("developer_name"))
         
@@ -329,7 +338,7 @@ class TOAdapter:
         
         u["location"].update({
             "coords": [m.get("latitude"), m.get("longitude")],
-            "address": m.get("street"),
+            "address": m.get("address"),
             "city": m.get("city"),
             "district": m.get("region")
         })

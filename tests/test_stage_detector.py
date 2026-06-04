@@ -1,11 +1,11 @@
 import pytest
-from .stage_detector import (
+from python_worker.stage_detector import (
     is_multistage,
     extract_groups_id,
     extract_stages,
     build_stage_url,
 )
-from .url_parser import parse_url
+from python_worker.url_parser import parse_url
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 

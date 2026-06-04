@@ -1,5 +1,5 @@
 import pytest
-from .portal_matcher import (
+from python_worker.portal_matcher import (
     normalize_name,
     haversine_m,
     find_matches,

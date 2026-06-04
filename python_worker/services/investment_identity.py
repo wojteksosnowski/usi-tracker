@@ -14,6 +14,11 @@ class InvestmentIdentityResolver:
         self.data_dir = Path(data_dir) if isinstance(data_dir, str) else data_dir
         self.public_usi_dir = Path(public_usi_dir) if isinstance(public_usi_dir, str) else public_usi_dir
 
+    def build_index(self):
+        """Triggers a full rebuild of the investment index."""
+        from python_worker.investment_index import rebuild
+        return rebuild(self.data_dir, self.public_usi_dir)
+
     def get_investment_resources(self, inv_id: str) -> dict | None:
         from python_worker.investment_index import load as load_index
         index = load_index(self.data_dir)

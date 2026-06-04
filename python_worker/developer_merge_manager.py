@@ -16,7 +16,10 @@ class DeveloperMergeManager:
         self.repo = repo
         self.indexer = indexer
 
-    def merge_by_id(self, target_id: str, source_id: str) -> bool:
+    def append_dev_log(self, dev_slug: str, event: dict):
+        return self.repo.append_dev_log(dev_slug, event)
+
+    def merge_by_id(self, source_id: str, target_id: str) -> bool:
         """Merge two developers by usi_dev_id."""
         target_dev = self.repo.get_developer_by_id(target_id)
         source_dev = self.repo.get_developer_by_id(source_id)

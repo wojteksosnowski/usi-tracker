@@ -1,5 +1,5 @@
 import pytest
-from .here_maps import build_here_url, enrich_with_here_map
+from python_worker.here_maps import build_here_url, enrich_with_here_map
 
 
 LAT = 54.15963

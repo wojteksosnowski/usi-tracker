@@ -15,9 +15,23 @@ class InvestmentEditorService:
         self.data_dir = data_dir
         self.public_usi_dir = public_usi_dir
 
-    def save_ratings(self, system_id, payload):
+    def save_ratings(self, system_id, payload_or_inv, maybe_payload=None):
         from python_worker.api.utils import _CATS, USI_STATUSES
         
+        if maybe_payload is not None:
+            # Legacy call: (dev, inv, payload)
+            dev_slug = system_id
+            inv_slug = payload_or_inv
+            payload = maybe_payload
+            # Resolve system_id from slugs
+            from python_worker.investment_index import get_id_by_slug
+            system_id = get_id_by_slug(self.data_dir, f"{dev_slug}/{inv_slug}")
+            if not system_id:
+                # Fallback to direct repo call if possible
+                return self.repo.save_ratings(dev_slug, payload, inv_slug=inv_slug)
+        else:
+            payload = payload_or_inv
+
         resources = self.identity.get_investment_resources(system_id)
         if not resources or not resources["files"]["anchor"]:
             logger.error(f"Cannot save ratings: Investment {system_id} not found.")
@@ -217,7 +231,19 @@ class InvestmentEditorService:
             logger.error(f"Failed to add report for {system_id}: {e}")
             return False
 
-    def mark_deleted_photos(self, system_id, paths):
+    def mark_deleted_photos(self, system_id, paths_or_inv, maybe_paths=None):
+        if maybe_paths is not None:
+            # Legacy call: (dev, inv, paths)
+            dev_slug = system_id
+            inv_slug = paths_or_inv
+            paths = maybe_paths
+            from python_worker.investment_index import get_id_by_slug
+            system_id = get_id_by_slug(self.data_dir, f"{dev_slug}/{inv_slug}")
+            if not system_id:
+                return self.repo.mark_as_deleted(dev_slug, paths, inv_slug=inv_slug)
+        else:
+            paths = paths_or_inv
+
         resources = self.identity.get_investment_resources(system_id)
         if not resources:
             return False
