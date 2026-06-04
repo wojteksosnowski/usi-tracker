@@ -230,28 +230,18 @@ class InvestmentSyncService:
 
     def _canonical_slug_from_raw(self, portal: str, raw_details: dict, fallback: str) -> str:
         """Resolves the canonical USI developer slug by reading it from portal raw data."""
-        portal_id = None
-        portal_slug = None
-
-        if portal == "rp":
-            vendor = raw_details.get("vendor") or {}
-            portal_id = str(vendor.get("id", "")) or None
-            portal_slug = vendor.get("slug")
-        elif portal == "oto":
-            agency = (raw_details.get("ad") or {}).get("agency") or {}
-            raw_id = agency.get("id")
-            portal_id = str(raw_id) if raw_id else None
-            url = agency.get("url", "")
-            if url and "-ID" in url:
-                portal_slug = url.rstrip("/").split("/")[-1].rsplit("-ID", 1)[0]
-        elif portal == "to":
-            portal_slug = raw_details.get("developer_slug")
-
+        from usi_scrapers import resolve_path
+        
+        # Use authoritative portal ID resolution from library mapping
+        portal_id = resolve_path(raw_details, portal, "vendor.id|ad.agency.id|developer_id")
         if portal_id:
-            dev_record = self.dm.find_developer_by_id(portal, portal_id)
+            dev_record = self.dm.find_developer_by_id(portal, str(portal_id))
             if dev_record:
                 return dev_record["developer_slug"]
 
+        # If no USI record found by ID, use the slug provided by the portal (metadata only)
+        portal_slug = resolve_path(raw_details, portal, "vendor.slug|ad.agency.slug|developer_slug")
+        
         return portal_slug or fallback
 
     def download_raw_json(self, portal: str, identifier: str, dev_slug: str, inv_slug: str):

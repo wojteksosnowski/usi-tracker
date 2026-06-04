@@ -1,5 +1,14 @@
 # Changelog
 
+## Wersja 0.9.19 — Kamień 07 (ID Resolution Cleanup) — 2026-06-04
+- **Konsolidacja get_developer**: Usunięto duplikację metod w `DeveloperRepository`. Nowa implementacja priorytetyzuje USI ID i wyszukiwanie w indeksie O(1), wspierając fallback do nazw (case-insensitive).
+- **Deprecjonowanie slug-based lookups**: Oznaczono `_find_anchor_by_slug` jako przestarzałe, wymuszając korzystanie z tożsamości bazującej na ID.
+- **Refaktoryzacja InvestmentSyncService**: Zmodernizowano `_canonical_slug_from_raw`, która używa teraz `usi_scrapers.resolve_path` do ekstrakcji portal ID i mapowania go na kanoniczny slug USI.
+- **Stabilizacja testowa**: Wdrożono `tests/test_id_resolution.py` oraz `tests/test_canonical_slug_resolution.py` potwierdzające odporność systemu na dryf slugów.
+
+### Wnioski ze zmian
+- Eliminacja lokalnego "zgadywania" slugów na rzecz systemowej rezolucji ID znacząco zwiększa odporność systemu na zmiany w strukturze folderów portalowych. Użycie silnika mapowania z biblioteki pozwala na ujednolicenie logiki ekstrakcji kluczowych identyfikatorów.
+
 ## Wersja 0.9.18 — Kamień 06 (Czystka po crawlerach) — 2026-06-04
 - **Usunięcie legacy crawlera**: Skasowano przestarzałą implementację `python_worker/crawler.py` oraz jej testy.
 - **Integracja usi-crawlers**: Pełne przejście na `WedrowiecDaemon` i `DoktorDaemon` z zewnętrznej biblioteki przez centralny moduł `python_worker/daemons.py`.

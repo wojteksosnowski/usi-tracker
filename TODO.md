@@ -120,19 +120,6 @@ Poniżej znajduje się lista funkcji, które przyjmują argumenty zawierające s
 
 Utworz zadanie dla kazdego naruszenia. Sprawdz czy jest ono uzasadnione. Staraj sie wykorzystywac jak najwiecej istniejacych funkcji i API. Zasada ID-only i thin-client. Zaplanuj testy.
 
-### Kamień 07 Funkcje rozwiązujące slugi na ID (główny problem)
-```
-# python_worker/developer_repository.py
-def _find_anchor_by_slug(self, dev_slug: str)
-def _find_anchor_by_id(self, usi_dev_id: str)  # Czemu oba?
-
-# python_worker/services/investment_sync.py
-def _canonical_slug_from_raw(self, portal, raw_details, fallback)
-```
-
-Problem: Przepisanie rezolucji slug→ID z usi-scrapers w localnym kodzie. W manifeście piszesz "Portal slug immutability" — czyli slugi to dane, nie zaś ścieżki do rozwiązywania. Gdyby usi_inv_id zawsze był dostępny, te funkcje były by zbędne.
-
-Rozwiązanie: Wymuszać usi_inv_id zaraz po discovery, nigdy nie pracować z samym slugiem.
 
 ### Kamień 08 Funkcje rozwiązujące slug↔ID w obie strony
 ```

@@ -260,6 +260,10 @@ class DeveloperRepository:
         return file_path
 
     def _find_anchor_by_slug(self, dev_slug: str):
+        """
+        @deprecated: Use get_developer_by_id or index-based lookup.
+        Finds developer anchor file by slug via disk scan.
+        """
         for candidate in [
             self._dev_file_path(dev_slug),
             self._dev_file_path_old_canonical(dev_slug),
@@ -304,35 +308,40 @@ class DeveloperRepository:
                 continue
         return None
 
-    def get_developer(self, dev_slug: str) -> dict | None:
-        """Loads developer data. Returns merged view: Level 2 + merged_from from Level 3."""
-        anchor = self._find_anchor_by_slug(dev_slug)
+    def get_developer(self, dev_slug_or_id: str, identifiers: dict = None) -> dict | None:
+        """Loads developer data. Returns merged view: Level 2 + merged_from from Level 3.
+        Handles both USI IDs and slugs, prioritizing ID lookup."""
+        if not dev_slug_or_id:
+            return None
+            
+        # 1. If it looks like a USI ID, use the fast ID path
+        if str(dev_slug_or_id).startswith("DEV-"):
+            return self.get_developer_by_id(dev_slug_or_id)
+            
+        # 2. Try O(1) index lookup to find the ID by slug or name
+        from . import developer_index
+        index = developer_index.load(self.dev_dir)
+        if index:
+            # Match by slug
+            entry = next((e for e in index if e.get("developer_slug") == dev_slug_or_id), None)
+            # Match by name (case-insensitive)
+            if not entry:
+                entry = next((e for e in index if e.get("name") and e["name"].lower() == dev_slug_or_id.lower()), None)
+                
+            if entry and entry.get("usi_dev_id"):
+                return self.get_developer_by_id(entry["usi_dev_id"])
+
+        # 3. Fallback: Search disk for anchor by slug (legacy)
+        anchor = self._find_anchor_by_slug(dev_slug_or_id)
         if not anchor:
             return None
             
         try:
             dev = json.loads(anchor.read_text(encoding="utf-8"))
+            return self._enrich_with_master(dev, identifiers)
         except Exception as e:
             logger.error(f"Error reading developer file {anchor}: {e}")
             return None
-            
-        usi_dev_id = dev.get("usi_dev_id")
-        if usi_dev_id:
-            resources = self.get_developer_resources(usi_dev_id)
-            if resources:
-                files_dict = {}
-                for k, v in resources.get("files", {}).items():
-                    if v is None: continue
-                    if isinstance(v, list):
-                        files_dict[k] = [str(p) for p in v]
-                    else:
-                        files_dict[k] = str(v)
-                dev["resources"] = {
-                    "base_dir": str(resources["base_dir"]),
-                    "files": files_dict
-                }
-
-        return self._enrich_with_master(dev)
 
     def get_developer_by_id(self, usi_dev_id: str) -> dict | None:
         """Find developer by usi_dev_id. Fast path uses ID embedded in new filename."""
@@ -537,14 +546,6 @@ class DeveloperRepository:
                 total += ds.get_unregistered_count(slug, identifiers)
                 seen_slugs.add(slug)
         return total
-
-    def get_developer(self, slug: str, identifiers: dict = None) -> dict:
-        """Returns single developer profile enriched with stats."""
-        base_slug = self.resolve_dev_slug(slug)
-        for dev in self.list_developers(identifiers=identifiers):
-            if dev["developer_slug"] == base_slug:
-                return dev
-        return None
 
     # -------------------------------------------------------------------------
     # Merge / Unmerge
