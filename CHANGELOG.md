@@ -1,5 +1,11 @@
 # Changelog
 
+## Wersja 0.9.35 — Kamień 19 (Ostateczne wymuszenie polityki ID-only) — 2026-06-04
+- **Identity Resolver**: Ostatecznie zweryfikowano brak użycia funkcji `get_investment_resources_by_slug`. Rezolucja zasobów odbywa się wyłącznie na bazie systemowych identyfikatorów.
+- **Odporność i Fail-Fast**: System ładujący inwestycje rygorystycznie zgłasza błędy w przypadku przekazania zdezaktualizowanych kluczy opartych na slugach, unikając ryzykownych zachowań typu fallback.
+
+### Wnioski ze zmian
+- Architektura oparta o systemowe identyfikatory jest teraz szczelna. Gwarantuje to spójność operacji oraz chroni przed sytuacjami, w których dynamiczne zmiany slugów po stronie portali ogłoszeniowych prowadziły do rozszczepienia rekordów.
 ## Wersja 0.9.34 — Kamień 18 (Przeniesienie logiki obrazów i optymalizacja lookupów) — 2026-06-04
 - **Refaktoryzacja lookupów**: Ostatecznie zweryfikowano i przypieczętowano usunięcie logiki `find_inv_file(dev_slug, inv_slug)` na rzecz wyłącznego korzystania z systemowych identyfikatorów z wykorzystaniem mechanizmów tożsamości.
 - **Delegacja logiki I/O**: Usunięto lokalne, zawodne heurystyki naprawy ścieżek obrazków (`_find_by_*`), przerzucając odpowiedzialność za to zadanie do biblioteki `usi-scrapers`.

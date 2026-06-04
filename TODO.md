@@ -1,14 +1,6 @@
 # TODO
 
 
-### Kamień 19 
-
-# python_worker/investment_identity.py
-# ❌ get_investment_resources_by_slug(dev_slug, inv_slug)
-# ✅ Tylko get_investment_resources(usi_inv_id)
-
-# Jeśli brakuje ID, fail-fast + log do operacyjnego — nie fallback.
-
 ## Kamień 20
 
 # python_worker/services/investment_sync.py
@@ -27,6 +19,9 @@ name = identify_developer(fetcher, portal, url)
 Zidentyfikuj skrypty i metody uzywane tylko raz, ktore nie sa wywolywane przez frontend i sluza tylko refactoringowi starych danych.
 
 ## Kamień 22
+Zaktualizuj usi-scrapers. Nowe API pozwala na fallback w przypadku blednych sciezek obrazow.
+
+## Kamień 23
 Usi-tracker ma wystaiowe API zeby moglo z niego porzystać UI. Przygotuj test wszystkich endpointów UI.
 
 
