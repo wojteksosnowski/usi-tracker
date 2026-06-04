@@ -1,5 +1,13 @@
 # Changelog
 
+## Wersja 0.9.31 — Kamień 04 (Naprawa slug i I/O) — 2026-06-04
+- **Refaktoryzacja load_investment**: Usunięto fallback w `investment_loader.py` polegający na budowaniu ścieżek z użyciem slugów, zmuszając do twardej rezolucji poprzez ID.
+- **Audyt Legacy API**: Potwierdzono, że nieuprawnione zapisy na dysk oraz użycie przestarzałych metod w `investment_editor.py` i `investments.py` zostały całkowicie zmigrowane w poprzednich wersjach.
+- **Dodanie testów**: Stworzono `test_investment_loader.py`, który weryfikuje poprawność odrzucania operacji z brakującymi systemowymi tożsamościami.
+
+### Wnioski ze zmian
+- Ujednolicanie całego systemu w stronę "ID-only" ogranicza luki dla rzadkich brzegowych wariantów. Zamknięcie furtki z przestarzałą rezolucją plików uodparnia tracker na potencjalnie niestabilną zmianę identyfikatorów slug ze strony portali ogłoszeniowych.
+
 ## Wersja 0.9.30 — Kamień 03 (Raw Inquisitor) — 2026-06-04
 - **Audyt Zapisów (Raw I/O)**: Wygenerowano raport `raw_io_usage_report.md` wskazujący wszystkie funkcje dokonujące lokalnego zapisu w systemie.
 - **Weryfikacja Uprawnień**: Zaktualizowano raport o listę nieuprawnionych wywołań naruszających architekturę "Thin-Client", ze wskazówkami do refaktoryzacji.

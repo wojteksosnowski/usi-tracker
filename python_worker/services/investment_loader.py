@@ -28,7 +28,7 @@ def find_inv_file(inv_dir: Path, inv_slug: str, system_id: str = None) -> Path |
         candidates = sorted(inv_dir.glob(f"usi_{p}_*.json"))
         if candidates:
             return candidates[0]
-            
+
     for legacy in (
         inv_dir / f"usi_{inv_slug}.json",
         inv_dir / f"usi_rp_{inv_slug}.json",
@@ -39,60 +39,48 @@ def find_inv_file(inv_dir: Path, inv_slug: str, system_id: str = None) -> Path |
             return legacy
     return None
 
-def load_investment(system_id: str | None = None, dev_slug: str | None = None, inv_slug: str | None = None, data_dir: Path | None = None, public_usi_dir: Path | None = None, portal: str | None = None, usi_file: Path | None = None, fast_index: bool = False) -> dict | None:
+def load_investment(system_id: str | None = None, usi_file: Path | None = None, data_dir: Path | None = None, public_usi_dir: Path | None = None, fast_index: bool = False, **kwargs) -> dict | None:
+
     """
     Unified loader for investment data from disk.
     Combines usi_*.json with photos scan and ratings.
+    Resolves resources exclusively by system_id or direct usi_file.
     """
     if data_dir is None: data_dir = Path(USI_DATA_DIR)
     if public_usi_dir is None: public_usi_dir = Path(PUBLIC_USI_DIR)
     data_dir = Path(data_dir) if isinstance(data_dir, str) else data_dir
     public_usi_dir = Path(public_usi_dir) if public_usi_dir and isinstance(public_usi_dir, str) else public_usi_dir
-    inv_dir = data_dir / dev_slug / inv_slug if dev_slug and inv_slug else None
     resources = None
+    inv_dir = None
+    dev_slug = None
+    inv_slug = None
 
-    if not usi_file:
-        if fast_index and inv_dir and inv_dir.exists() and inv_slug:
-             usi_file = find_inv_file(inv_dir, inv_slug, system_id=system_id)
+    if not usi_file and not system_id:
+        logger.error("load_investment: Failed to load investment. Neither system_id nor usi_file provided.")
+        return None
 
-        if not usi_file:
-            if system_id and not str(system_id).startswith("legacy_"):
-                from python_worker.services.investment_service import InvestmentService
-                svc = InvestmentService(data_dir=data_dir, public_usi_dir=public_usi_dir)
-                resources = svc.get_investment_resources(system_id)
-                if resources:
-                    usi_file = resources["files"].get("anchor")
-                    dev_slug = resources["metadata"]["slug"].split("/")[0]
-                    inv_slug = resources["metadata"]["slug"].split("/")[1]
-                    inv_dir = resources["base_dir"]
-
-    if not usi_file:
-        if not inv_dir: return None
-        if system_id and inv_slug:
-            usi_file = find_inv_file(inv_dir, inv_slug, system_id=system_id)
-        elif portal:
-            candidates = sorted(inv_dir.glob(f"usi_{portal}_*.json"))
-            usi_file = candidates[0] if candidates else (inv_dir / f"usi_{portal}_{inv_slug}.json")
+    if not usi_file and system_id:
+        if str(system_id).startswith("legacy_"):
+            logger.error(f"load_investment: Cannot load legacy ID {system_id}. Must use direct usi_file.")
+            return None
+        from python_worker.services.investment_service import InvestmentService
+        svc = InvestmentService(data_dir=data_dir, public_usi_dir=public_usi_dir)
+        resources = svc.get_investment_resources(system_id)
+        if resources:
+            usi_file = resources["files"].get("anchor")
+            slug_parts = resources["metadata"]["slug"].split("/")
+            if len(slug_parts) >= 2:
+                dev_slug = slug_parts[0]
+                inv_slug = slug_parts[1]
+            inv_dir = resources["base_dir"]
         else:
-            for p in ("rp", "oto", "to"):
-                candidates = sorted(inv_dir.glob(f"usi_{p}_*.json"))
-                if candidates:
-                    usi_file = candidates[0]
-                    break
-            if not usi_file:
-                for legacy in (
-                    inv_dir / f"usi_{inv_slug}.json",
-                    inv_dir / f"usi_rp_{inv_slug}.json",
-                    inv_dir / f"usi_oto_{inv_slug}.json",
-                    inv_dir / f"usi_to_{inv_slug}.json",
-                ):
-                    if legacy.exists():
-                        usi_file = legacy
-                        break
+            logger.error(f"load_investment: Could not resolve resources for ID {system_id}.")
+            return None
 
     if not usi_file or not usi_file.exists():
+        logger.error(f"load_investment: Anchor file not found for ID {system_id}.")
         return None
-    
+
     if not inv_dir:
         inv_dir = usi_file.parent
         inv_slug = inv_dir.name

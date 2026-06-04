@@ -1,28 +1,6 @@
 # TODO
 
 
-## Kamień 04 - Naprawa slug i I/O
-
-### Krok 04.01
-Naprawa nieuprawnionych wywołań slugów
-- [x] Refaktoryzacja `python_worker/services/investment_sync.py` -> `_fetch_and_transform_portal_data`: usunąć operowanie na slug i użyć system_id.
-- [x] Zmodyfikowanie testów dla `investment_sync.py`.
-
-**Podsumowanie:** Zrefaktoryzowano metodę _fetch_and_transform_portal_data w InvestmentSyncService, aby przyjmowała system_id zamiast dev_slug i inv_slug, korzystając z InvestmentIdentityResolver do dynamicznego pozyskiwania ścieżek. Dodano test potwierdzający to zachowanie.
-
-### Krok 04.02
-Naprawa nieuprawnionych wywołań slugów (kontynuacja)
-- [ ] Refaktoryzacja `python_worker/services/investment_loader.py` -> `load_investment`.
-- [ ] Refaktoryzacja `python_worker/services/investment_identity.py` -> `get_investment_resources_by_slug`.
-- [ ] Aktualizacja związanych z nimi testów jednostkowych.
-
-### Krok 04.03
-Naprawa nieuprawnionych zapisów na dysk (Raw I/O)
-- [ ] Przenieść logikę zapisów z `investment_editor.py` (`mark_as_reviewed`, `save_ratings`) na odpowiednie warstwy abstrakcji.
-- [ ] Zamienić w `investments.py` -> `download_raw_route` ręczny zapis na wywołanie z `usi-scrapers`.
-- [ ] Uruchomić pełen pakiet testów w celu weryfikacji.
-
-
 ### Kamień 05
 Poniżej znajduje się lista funkcji, które przyjmują argumenty zawierające słowo 'slug'.
 
@@ -71,7 +49,7 @@ Poniżej znajduje się lista funkcji, które przyjmują argumenty zawierające s
 - `poi.py` -> `fetch_poi` - to powinno is po API i ID
 - `poi.py` -> `get_poi` - to powinno is po API i ID
 
-Utworz zadanie dla kazdego naruszenia. Sprawdz czy jest ono uzasadnione. Staraj sie wykorzystywac jak najwiecej istniejacych funkcji i API. Zasada ID-only i thin-client. Zaplanuj testy.
+W kroku 1 - Utworz zadanie dla kazdego naruszenia. W kroku 2 - Sprawdz czy jest ono uzasadnione. Staraj sie wykorzystywac jak najwiecej istniejacych funkcji i API. Zasada ID-only i thin-client. Zaplanuj testy.
 
 
 
