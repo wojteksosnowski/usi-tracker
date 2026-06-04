@@ -15,7 +15,6 @@ from python_worker.api.blueprints.discovery import discovery_bp
 from python_worker.api.blueprints.reports import reports_bp
 from python_worker.api.blueprints.poi import poi_bp
 from python_worker.api.blueprints.crawler_api import crawler_bp
-from python_worker.api.blueprints.crawler_api import crawler_bp
 logger = logging.getLogger(__name__)
 
 UI_DIR = Path(__file__).parent / "ui"

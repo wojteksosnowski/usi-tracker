@@ -1,5 +1,14 @@
 # Changelog
 
+## Wersja 0.9.18 — Kamień 06 (Czystka po crawlerach) — 2026-06-04
+- **Usunięcie legacy crawlera**: Skasowano przestarzałą implementację `python_worker/crawler.py` oraz jej testy.
+- **Integracja usi-crawlers**: Pełne przejście na `WedrowiecDaemon` i `DoktorDaemon` z zewnętrznej biblioteki przez centralny moduł `python_worker/daemons.py`.
+- **Naprawa ui_server.py**: Usunięto błąd podwójnego importu Blueprintów crawlera.
+- **Nowe testy integracyjne**: Dodano `tests/test_crawler_api_new.py` weryfikujący poprawność komunikacji API z nowymi daemonami.
+
+### Wnioski ze zmian
+- Delegacja logiki daemonów do zewnętrznej biblioteki znacząco upraszcza kod główny trackera, czyniąc go bardziej "thin-client". Centralizacja instancji w `daemons.py` ułatwia testowanie i zarządzanie cyklem życia procesów tła.
+
 ## Wersja 0.9.17 — Kamień 12 (Naprawa testów) — 2026-06-04
 - **Inwentaryzacja testów legacy**: Dokumentacja 35 scenariuszy testowych w `tests/LEGACY_TESTS.md` przed ich usunięciem.
 - **Reset środowiska testowego**: Usunięcie wszystkich przestarzałych plików `.py` i wyczyszczenie `__pycache__` w celu eliminacji długu technologicznego.

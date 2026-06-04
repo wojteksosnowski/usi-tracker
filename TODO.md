@@ -120,21 +120,6 @@ Poniżej znajduje się lista funkcji, które przyjmują argumenty zawierające s
 
 Utworz zadanie dla kazdego naruszenia. Sprawdz czy jest ono uzasadnione. Staraj sie wykorzystywac jak najwiecej istniejacych funkcji i API. Zasada ID-only i thin-client. Zaplanuj testy.
 
-### Kamień 06
-Czystka po crawlerach. Nalezy znaleźć wszystkie pozostalosci po crawlerach i je usunac z kodu.
-
-### Krok 06.01
-Usunięcie starej implementacji crawlera (`python_worker/crawler.py`) i związanych testów, ponieważ system używa teraz zewnętrznej biblioteki `usi-crawlers`.
-- [ ] Usunąć plik `python_worker/crawler.py`.
-- [ ] Usunąć plik `tests/test_wedrowiec.py`.
-- [ ] Zweryfikować, że `python_worker/main.py` oraz inne moduły poprawnie ładują daemony z `python_worker/daemons.py`.
-
-### Krok 06.02
-Dostosowanie warstwy API i UI do nowego układu crawlerów.
-- [ ] Sprawdzić i oczyścić `python_worker/api/blueprints/crawler_api.py`, upewniając się, że nie zawiera odwołań do starych aliasów.
-- [ ] Upewnić się, że endpointy obsługują odpowiedzi z `WedrowiecDaemon` z biblioteki `usi-crawlers`.
-- [ ] Utworzyć szybki test integracyjny (jeśli brakuje) potwierdzający, że API działa z nowymi daemonami.
-
 ### Kamień 07 Funkcje rozwiązujące slugi na ID (główny problem)
 ```
 # python_worker/developer_repository.py
