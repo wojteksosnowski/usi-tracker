@@ -25,7 +25,8 @@ def test_get_poi_success(client, tmp_path):
     poi_file = tmp_path / "poi.json"
     poi_file.write_text('{"status": "ok"}')
     
-    with patch("python_worker.api.blueprints.poi._poi_path") as mock_path:
+    with patch("python_worker.api.blueprints.poi._poi_path") as mock_path, \
+         patch("python_worker.api.blueprints.investments.investment_service.repo.get_investment_json", return_value={"id": "mock"}):
         mock_path.return_value = poi_file
         
         resp = client.get(f"/poi/{system_id}")
@@ -46,6 +47,8 @@ def test_fetch_poi_success(mock_wiki, mock_here, client, tmp_path):
     mock_inv = {"location": {"coords": [52.0, 21.0]}}
     
     with patch("python_worker.api.blueprints.investments.investment_service.get_investment", return_value=mock_inv), \
+         patch("python_worker.api.blueprints.investments.investment_service.repo.get_investment_json", return_value={"id": "mock"}), \
+         patch("python_worker.api.blueprints.investments.investment_service.repo.save_investment_json") as mock_save, \
          patch("python_worker.api.blueprints.poi._poi_path", return_value=poi_file):
              
         resp = client.post(f"/poi/{system_id}/fetch")
@@ -57,6 +60,8 @@ def test_fetch_poi_success(mock_wiki, mock_here, client, tmp_path):
         assert len(data["here_places"]) == 1
         assert len(data["wiki_articles"]) == 1
         
-        assert poi_file.exists()
-        saved = json.loads(poi_file.read_text())
-        assert saved["lat"] == 52.0
+        assert mock_save.called
+        saved_args = mock_save.call_args[0]
+        saved = saved_args[1]
+        assert "poi" in saved
+        assert saved["poi"]["lat"] == 52.0

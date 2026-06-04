@@ -161,13 +161,20 @@
   };
 
   function PoiModule({ inv }) {
-    const [state, setState] = React.useState('idle'); // idle | loading | done | error | no-coords
-    const [data, setData] = React.useState(null);
-    const devSlug = inv?.developer_slug;
-    const invSlug = inv?.investment_slug;
+    const hasInitialPoi = !!inv?.poi;
+    const [state, setState] = React.useState(hasInitialPoi ? 'done' : 'idle');
+    const [data, setData] = React.useState(hasInitialPoi ? inv.poi : null);
+
+    // Update if inv.poi changes
+    React.useEffect(() => {
+        if (inv?.poi) {
+            setData(inv.poi);
+            setState('done');
+        }
+    }, [inv?.poi]);
 
     const load = React.useCallback((forceRefresh = false) => {
-      if (!devSlug || !invSlug) return;
+      if (!inv?.usi_inv_id) return;
       setState('loading');
       const base = `/api/poi/${inv.usi_inv_id}`;
       const url = forceRefresh ? base + '/fetch' : base;
@@ -182,9 +189,13 @@
           setState('done');
         })
         .catch(() => setState('error'));
-    }, [devSlug, invSlug]);
+    }, [inv?.usi_inv_id]);
 
-    React.useEffect(() => { load(false); }, [load]);
+    React.useEffect(() => { 
+        if (!hasInitialPoi) {
+            load(false); 
+        }
+    }, [load, hasInitialPoi]);
 
     const grouped = React.useMemo(() => {
       if (!data?.here_places) return {};

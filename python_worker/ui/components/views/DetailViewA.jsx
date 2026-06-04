@@ -1,7 +1,7 @@
 // DetailViewA.jsx — widok szczegółowy tryb A
 
 (function() {
-  const { React, usiRegister, MetadataPanel, RatingsPanel, ModuleWrapper, NearbyInvestmentsModule, PoiModule, ModuleTypes, Gallery, Lightbox, Icon } = window;
+  const { React, usiRegister, MetadataPanel, RatingsPanel, ModuleWrapper, NearbyInvestmentsModule, PoiModule, ModuleTypes, Gallery, Lightbox, Icon, ModuleErrorBoundary } = window;
 
   const DetailsA = ({ inv, ratings, handleRating, comment, handleComment, status, handleStatus, 
       segment, handleSegment, saved, focusedCat, onFocusedCatChange, metaConfig, onUpdateInv }) => {
@@ -105,7 +105,9 @@
               height={400}
            />
            <div className="usi-h-24" />
-           <PoiModule inv={inv} />
+           <ModuleErrorBoundary>
+               <PoiModule inv={inv} />
+           </ModuleErrorBoundary>
         </div>
 
         <div className="detail-meta-column usi-scroll usi-p-16">

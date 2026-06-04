@@ -65,10 +65,6 @@ class InvestmentSyncService:
                 if hash_id and hash_id in existing_ids.get("oto_ids", set()):
                     logger.info(f"Found existing Otodom record by hash ID {hash_id} for new ID {item_id}")
                     id_exists = True
-                
-                if not id_exists and inv_slug in existing_ids.get("oto_slugs", set()):
-                    logger.info(f"Found existing Otodom record by slug {inv_slug} for new ID {item_id}")
-                    id_exists = True
 
         elif portal == "to" and item_id and str(item_id) in existing_ids.get("to_ids", set()):
             id_exists = True

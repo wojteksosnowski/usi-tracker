@@ -52,15 +52,9 @@ def resolve_images(usi: dict, inv_dir: Path, public_usi_dir: Path, resources: di
             if img not in images:
                 images.append(img)
 
-        # Locate by CDN filename from image_urls
-        if not images and public_usi_dir.is_dir():
-            for url in usi.get("image_urls", []):
-                stem = url.split("/files/")[-1].split("/image")[0]
-                if not stem or "/" in stem: continue
-                hits = list(public_usi_dir.glob(f"*/*/{stem}.*"))
-                if hits:
-                    images = _scan(hits[0].parent)
-                    break
+        # The legacy global CDN filename glob scan has been removed.
+        # It caused severe performance hangs (O(N) full drive scan per missing image url)
+        # and violated the ID-only architecture. Fallback to portal URLs is handled below.
     elif not images:
         # Legacy fallback for index
         pass

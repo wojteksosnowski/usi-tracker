@@ -1,5 +1,13 @@
 # Changelog
 
+## Wersja 0.9.47 — Kamień 07 i 08 (Wydajność POI i Oczyszczenie ID) — 2026-06-05
+- **Optymalizacja stabilności**: Usunięto przestarzałą metodę iterującą za pomocą `glob` po całym dysku w poszukiwaniu brakujących obrazów POI, co wyeliminowało błędy TimeOut oraz blokowanie CPU (Kamień 07).
+- **Zabezpieczenie widoku**: Dodano `ModuleErrorBoundary` chroniący front-endową galerię przed wyjątkami.
+- **Wzmocnienie ID-only**: Usunięto szukanie po starym `inv_slug` w `_check_investment_exists` przy deduplikacji rekordów w Otodom.
+
+### Wnioski ze zmian
+- Legacy fallbacks mogą stać się bombą zegarową: metoda, która miała za zadanie "tylko pomóc" przy braku zasobów (skan nazwy pliku), potrafiła zablokować działanie całej aplikacji przy wielotysięcznej bazie. Zawsze należy egzekwować architekturę `ID-only`.
+
 ## Wersja 0.9.46 — Kamień 06 (Uproszczenie process_batch) — 2026-06-05
 - **Poprawa czytelności kodu**: Zrefaktoryzowano skomplikowaną metodę `process_batch` w `InvestmentSyncService`, wydzielając logikę parsowania i uzupełniania danych do zwięzłego helpera `_merge_batch_info`.
 
