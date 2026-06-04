@@ -121,15 +121,6 @@ Poniżej znajduje się lista funkcji, które przyjmują argumenty zawierające s
 Utworz zadanie dla kazdego naruszenia. Sprawdz czy jest ono uzasadnione. Staraj sie wykorzystywac jak najwiecej istniejacych funkcji i API. Zasada ID-only i thin-client. Zaplanuj testy.
 
 
-### Kamień 10 Index do mapowania slug→ID
-```
-# python_worker/investment_index.py
-def get_id_by_slug(data_dir, full_slug)
-```
-Problem: Jeśli to ma być fallback "gdy ID brakuje", to rozwiązuje objaw, nie przyczynę. Jeśli to ma być cache — to czemu nie po prostu czytać z JSONa?
-
-Rozwiązanie: Usunąć index dla slugów. Index powinien być tylko do szybkiego wczytania listy bez parsowania każdego JSON.
-
 ### Kamień 11 Generowanie slugów dla developerów
 ```
 # python_worker/portal_matcher.py

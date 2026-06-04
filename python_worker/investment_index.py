@@ -33,14 +33,6 @@ def get_index(data_dir: Path) -> list:
         logger.warning(f"Could not read investment index: {e}")
         return []
 
-def get_id_by_slug(data_dir: Path, full_slug: str) -> str | None:
-    """Resolves a 'dev_slug/inv_slug' string to a USI ID using the index."""
-    index = get_index(data_dir)
-    for entry in index:
-        if entry.get("slug") == full_slug:
-            return entry.get("usi_inv_id")
-    return None
-
 # Alias for backward compatibility
 load = get_index
 

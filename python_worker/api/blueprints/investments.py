@@ -44,6 +44,9 @@ def _inv_matches_dev(inv: dict, pm: dict) -> bool:
 def _resolve_system_id(dev_slug, inv_slug, provided_id):
     if provided_id:
         return provided_id
+    
+    logger.warning(f"API Fallback: Resolving system_id from slugs {dev_slug}/{inv_slug}. UI should pass ?id= parameter.")
+    
     from python_worker.config import USI_DATA_DIR
     import python_worker.investment_index as inv_index
     index = inv_index.load(USI_DATA_DIR) or []

@@ -1,5 +1,13 @@
 # Changelog
 
+## Wersja 0.9.22 — Kamień 10 (API Identity Enforcement) — 2026-06-04
+- **Usunięcie get_id_by_slug**: Skasowano przestarzały helper w `investment_index.py`, eliminując kolejny punkt nieuprawnionej rezolucji slug→ID.
+- **Monitoring fallbacków API**: Wprowadzono logowanie ostrzeżeń w `_resolve_system_id` dla zapytań nieposiadających parametru `id`. Umożliwia to precyzyjną identyfikację legacy-kodu w warstwie UI.
+- **Weryfikacja stabilności**: Potwierdzono poprawne działanie systemu po czystce indeksu zestawem testów regresyjnych.
+
+### Wnioski ze zmian
+- Eliminacja helperów slugowych w indeksie domyka proces izolacji tożsamości ID. Logowanie ostrzeżeń w API pozwala na monitorowanie długu technicznego w UI bez wpływu na UX, wyznaczając jasny kierunek dalszej refaktoryzacji.
+
 ## Wersja 0.9.21 — Kamień 09 (Deterministic Path Resolvers) — 2026-06-04
 - **Refaktoryzacja InvestmentIdentityResolver**: Wprowadzono w 100% deterministyczną rezolucję zasobów bazującą na portal ID. Skasowano kaskadowe fallbacki zgadujące foldery na podstawie slugów.
 - **Deprecjonowanie slug-identity**: Oznaczono `get_investment_resources_by_slug` jako przestarzałe, wymuszając korzystanie z tożsamości ID.
@@ -93,7 +101,7 @@
 * Przeprowadzono głęboki audyt mechanizmów wejścia/wyjścia z paczki `usi-scrapers` oraz jej silnika do transformowania surowych odpowiedzi z portali.
 * Zidentyfikowano problem grubych adapterów w głównym repozytorium (manualne formatowanie dat i parsowanie walut m.in. w `OtodomAdapter`), które powinny zostać przeniesione jako natywne funkcje do biblioteki scraperów.
 * Zdiagnozowano krytyczne naruszenie reguły **ID-only** – serwisy `investment_sync.py` wymieniają informacje poprzez slugi (wymuszając na bibliotece zewnętrzne sklejanie ścieżek), omijając w pełni stabilny mechanizm weryfikujący `IdentityResolver`.
-* Automatycznie sformułowano i opublikowano przy użyciu API GitHuba (jako Issue #2) kompleksowy raport refaktoryzacyjny do wdrożenia w repozytorium paczki scraperów.
+* Automatycznie sformułowano i opublikowali przy użyciu API GitHuba (jako Issue #2) kompleksowy raport refaktoryzacyjny do wdrożenia w repozytorium paczki scraperów.
 
 ## Aktualizacje — 2026-06-03
 - **Wdrożenie InvestmentRepository**: Całkowicie usunięto logikę I/O z serwisów biznesowych (`InvestmentEditorService`, `InvestmentSyncService`, `DiscoveryService`) wprowadzając centralne `InvestmentRepository`. Repozytorium w hermetyczny sposób posługuje się `InvestmentIdentityResolver` by ukryć fizyczne ścieżki i spełnić ostatecznie postulat architektury *ID-only*.
