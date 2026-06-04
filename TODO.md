@@ -119,19 +119,6 @@ Poniżej znajduje się lista funkcji, które przyjmują argumenty zawierające s
 - `poi.py` -> `get_poi` - to powinno is po API i ID
 
 Utworz zadanie dla kazdego naruszenia. Sprawdz czy jest ono uzasadnione. Staraj sie wykorzystywac jak najwiecej istniejacych funkcji i API. Zasada ID-only i thin-client. Zaplanuj testy.
-
-
-### Kamień 08 Funkcje rozwiązujące slug↔ID w obie strony
-```
-# python_worker/developer_manager.py
-def resolve_dev_slug(self, *args, **kwargs)
-def resolve_id_to_slug(self, *args, **kwargs)
-```
-
-Problem: Bidirekcyjne mapowanie suggeruje, że system nie ma jednego źródła prawdy. Jeśli usi_dev_id byłby pierwszy, to slug byłby tylko metadata w JSONie.
-
-Rozwiązanie: Usunąć resolve_dev_slug(). Zamiast niego: zawsze pracować z ID, a slug wyciągać z JSONa.
-
 ### Kamień 09 Wieloetapowe resolvery path'ów
 
 ```
@@ -193,5 +180,6 @@ def get_investment_resources(usi_inv_id):
     entry = index[usi_inv_id]
     return tech_manager.resolve_paths(entry["portal"], entry["portal_id"])
 
-### Kamień 15 
+### Kamień 15 Porządki
+Po repo porozrzucane sa pliki nie majace zwiazku z dzialaniem repo. Wyczysc je.
 

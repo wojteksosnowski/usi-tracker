@@ -444,11 +444,6 @@ class DeveloperRepository:
             }
         }
 
-    def resolve_id_to_slug(self, usi_dev_id: str) -> str | None:
-        """Return developer_slug for a given usi_dev_id, or None if not found."""
-        dev = self.get_developer_by_id(usi_dev_id)
-        return dev.get("developer_slug") if dev else None
-
     def list_developers(self, only_merged: bool = False, identifiers: dict = None) -> list:
         """Returns top-level developer records; merged-source children excluded."""
         from . import developer_index
@@ -550,25 +545,6 @@ class DeveloperRepository:
     # -------------------------------------------------------------------------
     # Merge / Unmerge
     # -------------------------------------------------------------------------
-
-    def resolve_dev_slug(self, name: str) -> str:
-        """Standardizes a developer name into a slug."""
-        if not name:
-            return "unknown"
-            
-        # First check if it's already a valid slug
-        for dev in self.list_developers(only_merged=False):
-            if dev.get("developer_slug") == name:
-                return name
-        
-        # Fallback: Find by name in current index (case-insensitive)
-        for dev in self.list_developers(only_merged=False):
-            if dev.get("name") and dev["name"].lower() == name.lower():
-                return dev["developer_slug"]
-
-        # WE HAVE A NAME, BUT NO RECORD. 
-        # Mandate: Never slugify(name). Fallback to 'unknown' to force manual/ID link.
-        return "unknown"
 
     def log_event(self, dev_slug: str, event: dict) -> bool:
         """Append a generic event to the developer's log file."""

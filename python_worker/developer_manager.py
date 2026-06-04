@@ -30,8 +30,6 @@ class DeveloperManager:
     def create_developer_file(self, *args, **kwargs): return self.repo.create_developer_file(*args, **kwargs)
     def append_dev_log(self, *args, **kwargs): return self.repo.append_dev_log(*args, **kwargs)
     def log_event(self, *args, **kwargs): return self.repo.log_event(*args, **kwargs)
-    def resolve_dev_slug(self, *args, **kwargs): return self.repo.resolve_dev_slug(*args, **kwargs)
-    def resolve_id_to_slug(self, *args, **kwargs): return self.repo.resolve_id_to_slug(*args, **kwargs)
     def get_total_pending_count(self): return self.repo.get_total_pending_count(self.indexer.get_existing_identifiers())
     def get_developer(self, slug: str): return self.repo.get_developer(slug, self.indexer.get_existing_identifiers())
 

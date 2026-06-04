@@ -1,5 +1,13 @@
 # Changelog
 
+## Wersja 0.9.20 — Kamień 08 (Bidirectional Mapping Cleanup) — 2026-06-04
+- **Usunięcie helperów slug**: Skasowano metody `resolve_dev_slug` i `resolve_id_to_slug` z `DeveloperManager` i `DeveloperRepository`.
+- **Uproszczenie API**: Eliminacja zbędnych delegacji w fasadzie managera deweloperów, wymuszająca korzystanie z tożsamości bazującej na ID.
+- **Weryfikacja regresji**: Potwierdzono poprawne działanie systemu przy użyciu skonsolidowanej logiki `get_developer` w istniejących testach.
+
+### Wnioski ze zmian
+- Redukcja publicznego API o pomocniki bazujące na slugach zapobiega powstawaniu niejawnego kodu parsującego i wspiera architekturę ID-only. Brak zewnętrznych wywołań tych metod potwierdził ich status jako długu technologicznego.
+
 ## Wersja 0.9.19 — Kamień 07 (ID Resolution Cleanup) — 2026-06-04
 - **Konsolidacja get_developer**: Usunięto duplikację metod w `DeveloperRepository`. Nowa implementacja priorytetyzuje USI ID i wyszukiwanie w indeksie O(1), wspierając fallback do nazw (case-insensitive).
 - **Deprecjonowanie slug-based lookups**: Oznaczono `_find_anchor_by_slug` jako przestarzałe, wymuszając korzystanie z tożsamości bazującej na ID.
