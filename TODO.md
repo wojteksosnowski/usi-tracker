@@ -1,8 +1,14 @@
 # TODO
 
+## Kamień 04 
+Z 'investment_sync.py' Wydzielić ImageSyncService — ma najmniej coupling-u
+Python
+python_worker/services/image_sync.py
 
-## Kamień 03
+## Kamień 05 
+Z 'investment_sync.py' Wydzielić DeveloperResolver
+Python
+python_worker/services/developer_resolver.py
 
-Sprawdzic czy python_worker/services/investment_sync.py pobiera samemu obrazy z portali. Jezeli tak jest to nalezy kategorycznie mu tego zabranoic - to jest odpowiedzialnosc usi-scrapers!
-
-## Kamie
+## Kamień 06 
+W 'investment_sync.py' Uprościć process_batch() używając _prepare_batch_identifiers() jako helper Nie robimy nowej klasy, ale czyszczenie flow.

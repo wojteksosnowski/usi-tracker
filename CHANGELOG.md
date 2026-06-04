@@ -1,5 +1,17 @@
 # Changelog
 
+## Wersja 0.9.43 — Kamień 03 (Weryfikacja odpowiedzialności za pobieranie obrazków) — 2026-06-05
+- **Weryfikacja integracyjna**: Potwierdzono, że logika pobierania zasobów graficznych (zdjęć) w serwisie `InvestmentSyncService` nie zawiera samodzielnych wywołań HTTP. Proces jest prawidłowo delegowany do obiektu `tech_manager` (z zewnętrznej biblioteki `usi-scrapers`).
+
+### Wnioski ze zmian
+- Centralizacja odpowiedzialności: Pozostawienie operacji I/O i zarządzania mediami w bibliotece `usi-scrapers` gwarantuje jednolitość struktury pobierania. Kod `usi-tracker` aktualnie spełnia reguły ścisłego oddzielenia logiki biznesowej od logiki scrapowania.
+
+## Wersja 0.9.44 — Kamień 03 (Inspekcja kodu synchronizacji zdjęć - Krok 03.01) — 2026-06-05
+- **Weryfikacja obrazków**: Przeprowadzono inspekcję kodu `python_worker/services/investment_sync.py`. Potwierdzono, że logika pobierania zdjęć nie używa bezpośrednio bibliotek HTTP (np. requests) i prawidłowo deleguje to zadanie do `usi-scrapers` (`tech_manager.sync_images`). Zaktualizowano odpowiednio `TODO.md`.
+
+## Wersja 0.9.43 — Aktualizacja TODO.md — 2026-06-05
+- Zaktualizowano plik `TODO.md` o szczegółowe kroki weryfikacji odpowiedzialności za pobieranie obrazków w ramach zadania (Kamień 03).
+
 ## Wersja 0.9.42 — Kamień 02 (Opanowanie wycieku stanu UI oraz integracja POI z USI JSON) — 2026-06-05
 - **Poprawa wycieku stanu indeksu zdjęć**: Naprawiono błędną zależność `inv.slug` na poprawną `inv.usi_inv_id` w widoku szczegółów. Poprawia to odświeżanie zdjęć po zmianie inwestycji.
 - **Integracja zapisu POI do JSON**: Zmodyfikowano `poi.py` by czytał i zapisywał POI (Places of Interest) jako węzeł w głównym pliku inwestycji (`usi_*.json`), upraszczając strukturę danych i eliminując niepotrzebne zapytania asynchroniczne.
