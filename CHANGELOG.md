@@ -1,5 +1,11 @@
 # Changelog
 
+## Wersja 0.9.41 — Kamień 01 (Pierwszy blad UI) — 2026-06-05
+- **Poprawa błędu UI**: Rozwiązano problem `ReferenceError: investment is not defined` w widokach, naprawiając błędne użycie nazwy zmiennej w module odpowiedzialnym za punkty POI (`modules-ui.jsx`).
+
+### Wnioski ze zmian
+- Konsekwentne stosowanie ujednoliconych nazw zmiennych (np. `inv` zamiast `investment`) w parametrach i właściwościach komponentów pomaga unikać błędów referencji i przerw w działaniu interfejsu.
+
 ## Wersja 0.9.40 — Czystka TODO — 2026-06-05
 - **Wyczyszczenie TODO**: Usunięto zrealizowane zadania.
 
