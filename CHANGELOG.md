@@ -1,5 +1,11 @@
 # Changelog
 
+## Wersja 0.9.45 — Kamień 05 (Wydzielenie DeveloperResolver) — 2026-06-05
+- **Hermetyzacja logiki domenowej**: Usunięto odpowiedzialność za rozwiązywanie profilów i mapowań deweloperów z serwisu głównego, zamykając ją w nowym komponencie `DeveloperResolver`.
+
+### Wnioski ze zmian
+- Architektura oparta o SRP: Krok ten stanowi kontynuację porządkowania masywnej klasy `InvestmentSyncService`. Oddzielenie identyfikacji developerów sprawia, że główny serwis odpowiada teraz tylko za wysokopoziomową orkiestrację przepływu synchronizacji.
+
 ## Wersja 0.9.44 — Kamień 04 (Wydzielenie ImageSyncService) — 2026-06-05
 - **Refaktoryzacja struktury**: Usunięto powiązania logiki synchronizacji zdjęć z `InvestmentSyncService` i wydzielono do odrębnej usługi `ImageSyncService` w nowym pliku `image_sync.py`.
 
