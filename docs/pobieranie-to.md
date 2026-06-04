@@ -38,7 +38,7 @@ TO serwuje zdjęcia przez CDN z parametrami w URL (np. `quality_70,scale_500`).
 
 ### Fallback Geokodowania (HERE Maps)
 Wiele ofert na TO nie posiada współrzędnych w kodzie strony.
-- **Rozwiązanie**: Jeśli `TOAdapter` nie znajdzie lat/lng, automatycznie wykorzystuje `geocode_address` z modułu `here_maps.py`, aby wyznaczyć punkt na podstawie adresu tekstowego.
+- **Rozwiązanie**: Jeśli `TOAdapter` nie znajdzie lat/lng, automatycznie wykorzystuje `geocode_address` z usługi `HereMapsService`, aby wyznaczyć punkt na podstawie adresu tekstowego.
 
 ### Czyszczenie Nazewnictwa
 TO często dodaje przyrostki do nazw (np. "Inwestycja X - TabelaOfert.pl").

@@ -1,5 +1,15 @@
 # Changelog
 
+## Wersja 0.9.27 — Kamień 16 (Geocoding & HERE API Encapsulation) — 2026-06-04
+- **Utworzenie HereMapsService**: Skonsolidowano całą logikę obsługi HERE API (geokodowanie, POI, statyczne mapy) w nowej usłudze, eliminując rozproszenie tych funkcji w projekcie.
+- **Refaktoryzacja Blueprintu poi**: Zastąpiono bezpośrednie wywołania do API HERE przez `urllib` i `requests` czystymi wywołaniami do `HereMapsService`.
+- **Usunięcie modułu here_maps.py**: Pozbyto się przestarzałego pliku z głównego katalogu, przenosząc jego niezbędną logikę do warstwy serwisowej.
+- **Aktualizacja dokumentacji**: Dostosowano przewodniki techniczne oraz dokumentację integracji z portalami do nowej struktury usług.
+- **Weryfikacja testowa**: Dodano `tests/test_here_service.py` sprawdzający poprawność komunikacji z API geokodowania i miejsc.
+
+### Wnioski ze zmian
+- Centralizacja usług zewnętrznych w dedykowanych klasach znacząco podnosi testowalność systemu poprzez ułatwienie mockowania. System zyskał twardą barierę między logiką biznesową a specyficznymi protokołami zewnętrznych dostawców map.
+
 ## Wersja 0.9.26 — Kamień 15 (Developer Identification Delegation) — 2026-06-04
 - **Delegacja identyfikacji do biblioteki**: Zaimplementowano wykorzystanie API `identify_developer` z `usi-scrapers` do pozyskiwania kanonicznych nazw deweloperów z adresów URL.
 - **Refaktoryzacja Blueprintu register**: Usunięto przesyłanie sztucznych nazw deweloperów ("Nieznany Deweloper"), co wymusza rzetelną identyfikację przez warstwę usług.

@@ -16,7 +16,7 @@ This report documents the purpose and coverage of the tests in the `tests/` dire
 | `test_discovery_service.py` | Tests the discovery of new investments and basic registration flow. |
 | `test_extraction_logic.py` | Deep verification of field extraction logic for RP, Otodom, and TabelaOfert. |
 | `test_fix_segment_filter.py` | Verifies the logic for filtering investments by property segment. |
-| `test_here_maps.py` | Tests integration with HERE Maps API for coordinate enrichment and map generation. |
+| `test_here_service.py` | Tests integration with HERE Maps API (geocoding, POI, maps) via `HereMapsService`. |
 | `test_investment_identity.py` | Tests `InvestmentIdentityResolver` (early adoption of TechnicalDataManager). |
 | `test_investment_merger_v3.py` | Tests the V3 logic for merging multiple portal records into a unified USI record. |
 | `test_investment_service_optimizations.py` | Benchmarks and verifies performance optimizations in data loading. |

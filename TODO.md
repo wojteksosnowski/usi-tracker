@@ -122,16 +122,6 @@ Utworz zadanie dla kazdego naruszenia. Sprawdz czy jest ono uzasadnione. Staraj 
 
 
 
-### Kamień 16 Geocodowanie adresu
-Python
-# ❌ Tracker robi sam (python_worker/here_maps.py):
-def geocode_address(address: str):
-    # Własna implementacja z HERE API
-
-# ✅ Powinno być w usi-scrapers (lub dedykowanym serwisie)
-# Tracker nigdy nie powinien wywoływać HERE API bezpośrednio
-Problem: here_maps.py istnieje i jest used w python_worker/api/utils.py do wzbogacania wyników — to powinno być serwisem niezależnym, nie częścią trackera.
-
 ### Kamień 17 Zapis surowych danych
 Python
 # ❌ Tracker robi:

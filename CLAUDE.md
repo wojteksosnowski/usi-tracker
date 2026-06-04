@@ -151,7 +151,7 @@ logs/            Runtime logs (worker.log)
 | `listings.py` | Batch fetch of recent investments from both portals; produces `app_latest_results*.json` |
 | `image_saver.py` | Downloads and deduplicates images into `Public/USI/{dev_slug}/{inv_slug}/` |
 | `url_parser.py` | Classifies URLs as RynekPierwotny or Otodom; extracts slugs and IDs |
-| `here_maps.py` | Generates HERE Maps satellite image URLs; `enrich_with_here_map` adds `map_url` |
+| `services/here_maps_service.py` | Enkapsuluje wywołania do HERE API (geokodowanie, POI, statyczne mapy) |
 | `stage_detector.py` | Reads raw RP files, detects multi-stage investments, writes stage metadata back to `usi_*.json` |
 | `portal_matcher.py` | Cross-portal fuzzy matcher (name + geo similarity); `filter_new_investments` used by discover flow |
 | `logger_utils.py` | `log_to_processing_log(dev_slug, inv_slug, message)` — appends to per-investment log file |

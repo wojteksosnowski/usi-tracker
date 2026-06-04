@@ -6,26 +6,13 @@ from flask import Blueprint, jsonify, abort, request
 
 from python_worker.api.utils import _valid_slug
 from python_worker.config import USI_DATA_DIR, HERE_API_KEY
+from python_worker.services.here_maps_service import HereMapsService
 
 logger = logging.getLogger(__name__)
 
 poi_bp = Blueprint('poi', __name__)
 
-# HERE Places Browse API — category IDs
-HERE_CATEGORIES = {
-    "food":          "100-1000",
-    "entertainment": "200-2000",
-    "outdoor":       "300-3000",
-    "transport":     "400-4000",
-    "shopping":      "600-6000",
-    "education":     "700-7000",
-    "health":        "800-8000",
-}
-
 WIKI_RADIUS_M = 2000
-HERE_RADIUS_M = 2000
-HERE_LIMIT_PER_CAT = 5
-
 
 def _poi_path(dev_slug: str, inv_slug: str) -> Path:
     return USI_DATA_DIR / dev_slug / inv_slug / f"poi_{inv_slug}.json"
@@ -41,49 +28,6 @@ def _load_inv(dev_slug: str, inv_slug: str) -> dict | None:
         return json.loads(p.read_text(encoding="utf-8"))
     except Exception:
         return None
-
-
-def _fetch_here_places(lat: float, lon: float) -> list[dict]:
-    import urllib.request
-    import urllib.parse
-
-    results = []
-    seen_ids = set()
-
-    for cat_name, cat_id in HERE_CATEGORIES.items():
-        params = urllib.parse.urlencode({
-            "at": f"{lat},{lon}",
-            "categories": cat_id,
-            "limit": HERE_LIMIT_PER_CAT,
-            "radius": HERE_RADIUS_M,
-            "lang": "pl",
-            "apiKey": HERE_API_KEY,
-        })
-        url = f"https://browse.search.hereapi.com/v1/browse?{params}"
-        try:
-            with urllib.request.urlopen(url, timeout=10) as resp:
-                data = json.loads(resp.read().decode())
-            for item in data.get("items", []):
-                pid = item.get("id", "")
-                if pid in seen_ids:
-                    continue
-                seen_ids.add(pid)
-                cat_label = (item.get("categories") or [{}])[0].get("name", cat_name)
-                results.append({
-                    "id": pid,
-                    "category": cat_name,
-                    "category_label": cat_label,
-                    "name": item.get("title", ""),
-                    "address": item.get("address", {}).get("label", ""),
-                    "distance": item.get("distance", 0),
-                    "lat": (item.get("position") or {}).get("lat"),
-                    "lon": (item.get("position") or {}).get("lng"),
-                })
-        except Exception as e:
-            logger.warning("HERE Places fetch failed for cat %s: %s", cat_name, e)
-
-    results.sort(key=lambda x: x["distance"])
-    return results
 
 
 def _fetch_wiki_articles(lat: float, lon: float) -> list[dict]:
@@ -170,7 +114,8 @@ def fetch_poi(dev_slug, inv_slug):
 
     lat, lon = float(lat), float(lon)
 
-    here_places = _fetch_here_places(lat, lon)
+    here_svc = HereMapsService(HERE_API_KEY)
+    here_places = here_svc.fetch_places(lat, lon)
     wiki_articles = _fetch_wiki_articles(lat, lon)
 
     payload = {
@@ -182,6 +127,7 @@ def fetch_poi(dev_slug, inv_slug):
     }
 
     path = _poi_path(dev_slug, inv_slug)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     return jsonify(payload)
