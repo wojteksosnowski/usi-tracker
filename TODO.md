@@ -1,18 +1,6 @@
 # TODO
 
 
-## Kamień 20
-
-# python_worker/services/investment_sync.py
-# ❌ Własny scraping dev name:
-developer_name = data.get("agency_name")
-
-# ✅ API:
-from usi_scrapers.api import identify_developer
-name = identify_developer(fetcher, portal, url)
-
-# ❌ Własne zapisy raw:
-# ✅ Delegować to usi-scrapers.api.save_raw()
 
 
 ## Kamień 21

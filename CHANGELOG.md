@@ -1,5 +1,11 @@
 # Changelog
 
+## Wersja 0.9.36 — Kamień 20 (Wyeliminowanie logiki I/O z procesu Sync) — 2026-06-04
+- **Scraping**: Usunięto lokalną logikę odczytu nazw dewelopera. System polega teraz całkowicie na API biblioteki `usi-scrapers` (`identify_developer`), zachowując w ten sposób pełną separację od mechanizmów zewnętrznych struktur domów ogłoszeniowych.
+- **Oddelegowanie zapisu (I/O)**: Oczyszczono tracker z wewnętrznych procedur zapisujących surowy ładunek RAW; korzysta on wyłącznie z interfejsu API do persystencji ustrukturyzowanych danych, zamykając ścieżkę generowania śmieciowych katalogów dla błędnych ID.
+
+### Wnioski ze zmian
+- Dzięki delegacji operacji parsowania surowych atrybutów i logiki zapisu surowych ładunków na zewnątrz (I/O), tracker stał się o wiele lżejszy. Warstwa synchronizacji odpowiada już tylko za zawiadowanie modelami biznesowymi i obsługą relacji między obiektami w domenie.
 ## Wersja 0.9.35 — Kamień 19 (Ostateczne wymuszenie polityki ID-only) — 2026-06-04
 - **Identity Resolver**: Ostatecznie zweryfikowano brak użycia funkcji `get_investment_resources_by_slug`. Rezolucja zasobów odbywa się wyłącznie na bazie systemowych identyfikatorów.
 - **Odporność i Fail-Fast**: System ładujący inwestycje rygorystycznie zgłasza błędy w przypadku przekazania zdezaktualizowanych kluczy opartych na slugach, unikając ryzykownych zachowań typu fallback.
