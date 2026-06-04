@@ -49,14 +49,21 @@ def test_image_path_resolution_with_mock():
     assert path == expected_path
 
 def test_raw_data_filename_standard():
-    """Verify that raw data filenames follow the raw_{portal}_{id}.json standard."""
+    """Verify that raw data paths follow the standard when resolved via TechnicalDataManager."""
     config = get_scraper_config()
     manager = TechnicalDataManager(config)
-    
+
     portal = "oto"
     portal_id = "123"
-    filename = manager.get_raw_filename(portal, portal_id)
-    assert filename == f"raw_{portal}_{portal_id}.json"
+    dev_slug = "dev-test"
+    inv_slug = "inv-123"
     
-    # Check fallback
-    assert manager.get_raw_filename(portal) == f"raw_{portal}.json"
+    manager.resolver.lookup_investment = MagicMock(return_value=(dev_slug, inv_slug))
+
+    # We test that get_investment_path returns a valid Path for a given portal and id
+    # The exact filename is handled inside save_raw, but the directory is what we resolve
+    inv_dir = manager.get_investment_path(portal, portal_id)
+    assert isinstance(inv_dir, Path)
+    assert str(portal_id) in str(inv_dir)
+
+

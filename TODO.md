@@ -1,24 +1,6 @@
 # TODO
 
 
-## Kamień 03 - Raw Inquisitor
-
-### Krok 03.01
-Przygotowanie listy wszystkich funkcji, które zapisują pliki na dysk, i zapis do pliku Markdown.
-- [x] Zidentyfikować funkcje i metody dokonujące zapisu na dysk (np. `open(..., 'w')`, `Path.write_text`, `json.dump`) w katalogu `python_worker/services/` i `python_worker/api/`.
-- [x] Zapisać znalezioną listę w nowym pliku `raw_io_usage_report.md`.
-- [x] Utworzyć zadanie testowe weryfikujące wygenerowanie tego raportu.
-
-**Podsumowanie:** Zidentyfikowano wszystkie funkcje wykonujące zapis na dysk i wygenerowano raport raw_io_usage_report.md. Dodano również test weryfikujący to zadanie.
-
-### Krok 03.02
-Weryfikacja uprawnień do zapisu plików na dysk i wskazanie nieuprawnionych wystąpień.
-- [x] Przeanalizować funkcje wymienione w raporcie pod kątem łamania zasady "Brak lokalnych zapisów – używać API usi-scrapers".
-- [x] Zaktualizować `raw_io_usage_report.md` o listę nieuprawnionych zapisów wraz z rekomendacjami refaktoryzacji.
-- [x] Utworzyć test weryfikujący poprawność wykrywania łamania zasad zapisu plików w projekcie.
-
-**Podsumowanie:** Zaktualizowano raport raw_io_usage_report.md o analizę poprawności użycia I/O oraz utworzono zadanie testowe dla weryfikacji tego kroku.
-
 ## Kamień 04 - Naprawa slug i I/O
 
 ### Krok 04.01

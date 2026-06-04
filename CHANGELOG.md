@@ -1,5 +1,13 @@
 # Changelog
 
+## Wersja 0.9.30 — Kamień 03 (Raw Inquisitor) — 2026-06-04
+- **Audyt Zapisów (Raw I/O)**: Wygenerowano raport `raw_io_usage_report.md` wskazujący wszystkie funkcje dokonujące lokalnego zapisu w systemie.
+- **Weryfikacja Uprawnień**: Zaktualizowano raport o listę nieuprawnionych wywołań naruszających architekturę "Thin-Client", ze wskazówkami do refaktoryzacji.
+- **Testy**: Upewniono się, że procedury audytujące I/O działają poprawnie i są weryfikowalne.
+
+### Wnioski ze zmian
+- Zmapowanie wszystkich punktów zapisu ułatwi nam planowanie następnych kroków czyszczenia trackera, zapobiegając dalszemu łamaniu zasady delegacji do biblioteki. Pozwala to na bardziej świadomą migrację nieuprawnionych operacji IO do `usi-scrapers`.
+
 ## Wersja 0.9.29 — Kamień 01 (Integracja TechnicalDataManager i Czyszczenie Serwisów) — 2026-06-04
 - **ID-Only Resolution**: `InvestmentIdentityResolver` został zintegrowany z `TechnicalDataManager`, całkowicie eliminując ręczne budowanie ścieżek na podstawie slugów.
 - **Wyczyszczenie Serwisów**: Usunięto logikę fallbacków w `InvestmentEditorService.save_ratings` i zaktualizowano oznaczanie rekordów.
