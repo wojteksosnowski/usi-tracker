@@ -1,5 +1,11 @@
 # Changelog
 
+## Wersja 0.9.46 — Kamień 06 (Uproszczenie process_batch) — 2026-06-05
+- **Poprawa czytelności kodu**: Zrefaktoryzowano skomplikowaną metodę `process_batch` w `InvestmentSyncService`, wydzielając logikę parsowania i uzupełniania danych do zwięzłego helpera `_merge_batch_info`.
+
+### Wnioski ze zmian
+- Ograniczenie długu technicznego: Pozbycie się kilkudziesięciu linijek duplikowanej logiki z pętli optymalizuje czytelność i pozwala skupić główną metodę procesowania jedynie na wywołaniach rejestrujących. Używanie mniejszych metod (helperów) podnosi testowalność platformy i zmniejsza ryzyko pomyłek.
+
 ## Wersja 0.9.45 — Kamień 05 (Wydzielenie DeveloperResolver) — 2026-06-05
 - **Hermetyzacja logiki domenowej**: Usunięto odpowiedzialność za rozwiązywanie profilów i mapowań deweloperów z serwisu głównego, zamykając ją w nowym komponencie `DeveloperResolver`.
 

@@ -506,110 +506,73 @@ class InvestmentSyncService:
         return targets, to_process
 
     def process_batch(self, portal, investments, on_progress_callback=None):
-        """
-        Processes a batch of investments using the library's process_batch function.
-        Downloads data first, then registers and unifies only successful ones.
-        """
         from usi_scrapers import api as scraper_api
-        from python_worker.slug_utils import slugify
+        from python_worker.config import get_scraper_config
+        from usi_scrapers.fetcher import Fetcher
         
         targets, to_process = self._prepare_batch_identifiers(portal, investments)
-
         if not targets:
             return False
 
-        # 2. Call library process_batch
-        # REFRESH CONFIG: Ensure library sees newly created USIdev files
-        from python_worker.config import get_scraper_config
-        from usi_scrapers.fetcher import Fetcher
         self.lib_config = get_scraper_config()
         self.fetcher = Fetcher(self.lib_config)
 
-        # This will save raw_*.json files to disk for successful items
         batch_results = scraper_api.process_batch(
             self.lib_config, self.fetcher, portal, targets, on_progress=on_progress_callback
         )
 
-        # 3. Finalize: Register and Update ONLY if raw data exists
         success_count = 0
         raw_prefix = "rp" if portal == "rp" else ("oto" if portal == "oto" else "to")
 
         for info, data in zip(to_process, batch_results):
             try:
-                # Fallbacks in case scraping failed completely
-                dev_slug = info["dev_slug"]
-                inv_slug = info["inv_slug"]
-                vendor_id = info["vendor_id"]
-                
-                # Use precise data returned from library if available
-                if data and isinstance(data, dict):
-                    if data.get("developer_slug"):
-                        dev_slug = data["developer_slug"]
-                        logger.info(f"Using developer_slug '{dev_slug}' from library result for {info['ident']}")
-                    if data.get("investment_slug"):
-                        inv_slug = data["investment_slug"]
-                    if data.get("id"):
-                        info["item_id"] = data["id"]
-                    
-                    # Normalized vendor_id from library
-                    if data.get("vendor_id"):
-                        vendor_id = data["vendor_id"]
-                    # Backward compatibility fallback
-                    elif data.get("agency_id"):
-                        vendor_id = data["agency_id"]
-
+                dev_slug, inv_slug, vendor_id, item_id = self._merge_batch_info(info, data)
                 if not dev_slug or not inv_slug:
-                    logger.warning(f"Could not finalize batch item {info['ident']} - missing slugs (dev={dev_slug}, inv={inv_slug}).")
+                    logger.warning(f"Missing slugs for {info['ident']} - skipping.")
                     continue
 
                 inv_dir = self.data_dir / dev_slug / inv_slug
-                raw_files = list(inv_dir.glob(f"raw_{raw_prefix}_*.json"))
-
-                if not raw_files:
+                if not list(inv_dir.glob(f"raw_{raw_prefix}_*.json")):
                     if data and isinstance(data, dict) and "error" not in data:
-                        logger.info(f"Saving raw data delayed for {dev_slug}/{inv_slug}.")
-                        # Use high-level API for saving raw data
                         scraper_api.save_raw(self.lib_config, data, raw_prefix, dev_slug=dev_slug, inv_slug=inv_slug)
-                        
                         if "image_urls" in data and self.tech_manager:
-                            # Use library to resolve and sync images
-                            portal_id = data.get("id") or info.get("item_id")
-                            target_image_dir = self.tech_manager.get_image_path(portal, portal_id)
+                            target_image_dir = self.tech_manager.get_image_path(portal, item_id)
                             if target_image_dir:
                                 target_image_dir.mkdir(parents=True, exist_ok=True)
                                 self.tech_manager.sync_images(data["image_urls"], target_image_dir)
                     else:
-                        logger.warning(f"Batch download failed for {inv_slug} (no raw data found in {dev_slug}/{inv_slug}) - skipping registration.")
+                        logger.warning(f"Batch download failed for {inv_slug} - skipping registration.")
                         continue
 
-                if portal == "oto":
-                    logger.info(f"Finalizing Otodom registration: item_id={info['item_id']}, vendor_id={vendor_id}")
-
-                # Register (creates usi_*.json skeleton and ID)
                 res = self.register_investment(
                     portal=info["portal"],
                     developer_name=info["dev_name"] or dev_slug.replace("-", " ").title(),
                     inv_slug=inv_slug,
                     name=info["name"] or (data.get("title") if isinstance(data, dict) else None),
-                    item_id=info["item_id"],
+                    item_id=item_id,
                     url=info["url"],
                     allow_existing=True,
                     vendor_id=vendor_id,
                     force_dev_slug=dev_slug
                 )
                 
-                if res and res[0]: # res is (dev_slug, inv_slug, system_id)
-                    # Unify and Sync images
-                    system_id = res[2] if len(res) > 2 else (f"{info['portal']}_{info['item_id']}" if info.get("item_id") else f"legacy_{inv_slug}")
-                    if self.update_investment(system_id, use_local_raw=True):
-                        success_count += 1
-                else:
-                    logger.info(f"Investment {inv_slug} already exists or duplicate ID - skipping batch update.")
-
+                if res:
+                    self.update_investment(res["system_id"], use_local_raw=True, skip_images=True, skip_index=True)
+                    success_count += 1
             except Exception as e:
-                logger.error(f"Post-batch processing failed for {info['inv_slug']}: {e}")
+                logger.error(f"Error finalizing batch item {info.get('ident')}: {e}")
 
-        logger.info(f"Batch processing complete: {success_count}/{len(to_process)} investments fully ingested.")
-        if success_count > 0:
-            self.dm.invalidate_identifiers_cache()
-        return success_count
+        return success_count > 0
+
+    def _merge_batch_info(self, info, data):
+        dev_slug = info.get("dev_slug")
+        inv_slug = info.get("inv_slug")
+        vendor_id = info.get("vendor_id")
+        item_id = info.get("item_id")
+        if data and isinstance(data, dict):
+            dev_slug = data.get("developer_slug") or dev_slug
+            inv_slug = data.get("investment_slug") or inv_slug
+            item_id = data.get("id") or item_id
+            vendor_id = data.get("vendor_id") or data.get("agency_id") or vendor_id
+        return dev_slug, inv_slug, vendor_id, item_id
+
