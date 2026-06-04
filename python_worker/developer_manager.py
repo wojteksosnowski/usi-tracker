@@ -18,7 +18,7 @@ class DeveloperManager:
     def get_developer(self, dev_slug: str): return self.repo.get_developer(dev_slug)
     def get_developer_by_id(self, usi_dev_id: str): return self.repo.get_developer_by_id(usi_dev_id)
     def get_developer_resources(self, usi_dev_id: str): return self.repo.get_developer_resources(usi_dev_id)
-    def list_developers(self, only_merged: bool = False): return self.repo.list_developers(only_merged)
+    def list_developers(self, only_merged: bool = False): return self.repo.list_developers(only_merged, self.indexer.get_existing_identifiers())
     def save_raw_json(self, *args, **kwargs): return self.repo.save_raw_json(*args, **kwargs)
     def save_dev_raw_json(self, *args, **kwargs): return self.repo.save_dev_raw_json(*args, **kwargs)
     def create_developer_file(self, *args, **kwargs): return self.repo.create_developer_file(*args, **kwargs)
@@ -26,11 +26,13 @@ class DeveloperManager:
     def log_event(self, *args, **kwargs): return self.repo.log_event(*args, **kwargs)
     def resolve_dev_slug(self, *args, **kwargs): return self.repo.resolve_dev_slug(*args, **kwargs)
     def resolve_id_to_slug(self, *args, **kwargs): return self.repo.resolve_id_to_slug(*args, **kwargs)
-    def get_total_pending_count(self): return self.repo.get_total_pending_count()
+    def get_total_pending_count(self): return self.repo.get_total_pending_count(self.indexer.get_existing_identifiers())
+    def get_developer(self, slug: str): return self.repo.get_developer(slug, self.indexer.get_existing_identifiers())
 
     # Indexer Delegation
     def generate_usi_id(self, prefix: str): return self.indexer.generate_usi_id(prefix)
     def get_existing_identifiers(self): return self.indexer.get_existing_identifiers()
+    def invalidate_identifiers_cache(self): return self.indexer.invalidate_identifiers_cache()
     def find_developer_by_id(self, *args, **kwargs): return self.indexer.find_developer_by_id(*args, **kwargs)
     def find_by_portal_id(self, *args, **kwargs): return self.indexer.find_by_portal_id(*args, **kwargs)
 

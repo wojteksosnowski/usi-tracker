@@ -9,8 +9,9 @@ logger = logging.getLogger(__name__)
 _index_cache = None
 _index_cache_mtime = 0
 
-def _index_path(data_dir: Path) -> Path:
-    return data_dir / "_index.json"
+def _index_path(data_dir: Path | str) -> Path:
+    from pathlib import Path
+    return Path(data_dir) / "_index.json"
 
 def get_index(data_dir: Path) -> list:
     """Returns the list of indexed investments, cached in memory."""

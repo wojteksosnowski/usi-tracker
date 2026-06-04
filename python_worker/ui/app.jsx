@@ -348,10 +348,7 @@
                     <>
                       <div className="usi-divider-v" />
                       <FilterGroup label="Opcje">
-                        <label className="usi-label-clickable">
-                          <input type="checkbox" checked={bus.filters?.onlyUnreviewed || false} onChange={e => setVariable('filters.onlyUnreviewed', e.target.checked)} />
-                          Tylko nieprzejrzane
-                        </label>
+
                         <label className="usi-label-clickable">
                           <input type="checkbox" checked={bus.filters?.onlyNoPhotos || false} onChange={e => setVariable('filters.onlyNoPhotos', e.target.checked)} />
                           Brak zdjęć

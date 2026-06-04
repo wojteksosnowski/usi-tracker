@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 class DeveloperRepository:
 
     def __init__(self, data_dir: Path, dev_dir: Path = None):
-        self.data_dir = data_dir
-        self.dev_dir = dev_dir or (data_dir.parent / "USIdev")
+        self.data_dir = Path(data_dir) if isinstance(data_dir, str) else data_dir
+        self.dev_dir = Path(dev_dir) if dev_dir else (self.data_dir.parent / "USIdev")
         self.dev_raw_dir = self.dev_dir / "raw"
         try:
             self.dev_dir.mkdir(parents=True, exist_ok=True)
@@ -105,6 +105,10 @@ class DeveloperRepository:
         }
         master_dev["master_id"] = dm_id
         return master
+
+    def generate_usi_id(self, prefix: str) -> str:
+        from python_worker.developer_indexer import DeveloperIndexer
+        return DeveloperIndexer(self).generate_usi_id(prefix)
 
     # -------------------------------------------------------------------------
     # Log helpers
@@ -430,7 +434,7 @@ class DeveloperRepository:
         dev = self.get_developer_by_id(usi_dev_id)
         return dev.get("developer_slug") if dev else None
 
-    def list_developers(self, only_merged: bool = False) -> list:
+    def list_developers(self, only_merged: bool = False, identifiers: dict = None) -> list:
         """Returns top-level developer records; merged-source children excluded."""
         from . import developer_index
         indexed = developer_index.load(self.dev_dir)
@@ -483,7 +487,7 @@ class DeveloperRepository:
                 pass
 
         def _add(dev: dict) -> None:
-            dev = self._enrich_with_master(dev)
+            dev = self._enrich_with_master(dev, identifiers)
             if _should_include(dev, child_ids):
                 developers.append(dev)
 
@@ -504,11 +508,11 @@ class DeveloperRepository:
 
         return developers
 
-    def get_total_pending_count(self) -> int:
+    def get_total_pending_count(self, identifiers: dict) -> int:
         """Returns sum of unregistered investments for all active developers."""
         from .services.discovery_service import DiscoveryService
         ds = DiscoveryService(self.data_dir)
-        identifiers = self.get_existing_identifiers()
+
         total = 0
         seen_slugs = set()
         for dev in self.list_developers():
@@ -517,6 +521,14 @@ class DeveloperRepository:
                 total += ds.get_unregistered_count(slug, identifiers)
                 seen_slugs.add(slug)
         return total
+
+    def get_developer(self, slug: str, identifiers: dict = None) -> dict:
+        """Returns single developer profile enriched with stats."""
+        base_slug = self.resolve_dev_slug(slug)
+        for dev in self.list_developers(identifiers=identifiers):
+            if dev["developer_slug"] == base_slug:
+                return dev
+        return None
 
     # -------------------------------------------------------------------------
     # Merge / Unmerge
@@ -544,7 +556,7 @@ class DeveloperRepository:
         self.append_dev_log(dev_slug, event)
         return True
 
-    def _enrich_with_master(self, dev: dict) -> dict:
+    def _enrich_with_master(self, dev: dict, identifiers: dict = None) -> dict:
         """Add merged_from from Level 3, aggregate portal mappings, count investments & set mtime."""
         master_id = dev.get("master_id")
         if master_id:
@@ -619,13 +631,16 @@ class DeveloperRepository:
         try:
             from python_worker.services.discovery_service import DiscoveryService
             ds = DiscoveryService(self.data_dir)
-            identifiers = self.get_existing_identifiers()
+            if identifiers is None:
+                identifiers = {}
             dev["unregistered_count"] = ds.get_unregistered_count(base_slug, identifiers)
         except Exception as e:
             logger.warning(f"Failed to get unregistered_count for {base_slug}: {e}")
             dev["unregistered_count"] = 0
 
         return dev
+
+
 
     @property
     def _inv_index_data(self):

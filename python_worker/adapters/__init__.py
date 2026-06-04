@@ -123,17 +123,16 @@ class RPAdapter:
         })
 
         is_rental = m.get("transaction_type") == "rent"
-        try:
-            p_min = float(m.get("price_min")) if m.get("price_min") is not None else None
-            p_max = float(m.get("price_max")) if m.get("price_max") is not None else None
-            pm2_min = float(m.get("price_m2_min")) if m.get("price_m2_min") is not None else None
-            pm2_max = float(m.get("price_m2_max")) if m.get("price_m2_max") is not None else None
-            if is_rental:
-                u["financials"].update({"rent_price_min": p_min})
-            else:
-                u["financials"].update({"price_min": p_min, "price_max": p_max, "price_m2_min": pm2_min, "price_m2_max": pm2_max})
-        except (ValueError, TypeError):
-            pass
+        p_min = m.get("price_min")
+        if is_rental:
+            u["financials"].update({"rent_price_min": p_min})
+        else:
+            u["financials"].update({
+                "price_min": p_min, 
+                "price_max": m.get("price_max"), 
+                "price_m2_min": m.get("price_m2_min"), 
+                "price_m2_max": m.get("price_m2_max")
+            })
 
         u["specifications"].update({
             "delivery_date": m.get("delivery_date"),
@@ -228,15 +227,14 @@ class OtodomAdapter:
         })
 
         is_rental = m.get("transaction_type") == "rent"
-        try:
-            p_min = float(m.get("price_min")) if m.get("price_min") is not None else None
-            pm2_min = float(m.get("price_m2_min")) if m.get("price_m2_min") is not None else None
-            if is_rental:
-                u["financials"].update({"rent_price_min": p_min})
-            else:
-                u["financials"].update({"price_min": p_min, "price_m2_min": pm2_min})
-        except (ValueError, TypeError):
-            pass
+        p_min = m.get("price_min")
+        if is_rental:
+            u["financials"].update({"rent_price_min": p_min})
+        else:
+            u["financials"].update({
+                "price_min": p_min, 
+                "price_m2_min": m.get("price_m2_min")
+            })
 
         u["specifications"].update({
             "units_count": m.get("units_count"),
@@ -246,23 +244,19 @@ class OtodomAdapter:
         })
         
         del_date_str = m.get("delivery_date")
-        dq = dy = None
-        if del_date_str and isinstance(del_date_str, str) and "-" in del_date_str:
-            try:
-                parts = del_date_str.split("-")
-                dy = int(parts[0])
-                dq = (int(parts[1]) - 1) // 3 + 1
-            except Exception:
-                pass
+        dq = m.get("delivery_fallback_quarter")
+        dy = m.get("delivery_fallback_year")
         
-        if dq is None:
-            dq = m.get("delivery_fallback_quarter")
-            dy = m.get("delivery_fallback_year")
+        if del_date_str and isinstance(del_date_str, str) and "-Q" in del_date_str:
+            parts = del_date_str.split("-Q")
+            if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+                dy = int(parts[0])
+                dq = int(parts[1])
             
         u["specifications"].update({
             "delivery_quarter": dq,
             "delivery_year": dy,
-            "delivery_date": f"{dy}-Q{dq}" if dy and dq else None,
+            "delivery_date": del_date_str or (f"{dy}-Q{dq}" if dy and dq else None),
         })
         
         gallery = m.get("images") or (raw.get("ad") or raw).get("image_urls") or []
@@ -353,24 +347,21 @@ class TOAdapter:
                 if price_m2_min is None:
                     price_m2_min = off.get("pricePerSqm")
 
-        try:
-            p_min = float(price_min) if price_min is not None else None
-            p_max = float(price_max) if price_max is not None else None
-            pm2_min = float(price_m2_min) if price_m2_min is not None else None
-            pm2_max = float(price_m2_max) if price_m2_max is not None else None
-            
-            is_rental = m.get("transaction_type") == "rent"
-            if is_rental:
-                u["financials"].update({"rent_price_min": p_min})
-            else:
-                u["financials"].update({
-                    "price_min": p_min, 
-                    "price_max": p_max,
-                    "price_m2_min": pm2_min,
-                    "price_m2_max": pm2_max
-                })
-        except (TypeError, ValueError):
-            pass
+        p_min = m.get("price_min") if price_min is None else price_min
+        p_max = m.get("price_max") if price_max is None else price_max
+        pm2_min = m.get("price_m2_min") if price_m2_min is None else price_m2_min
+        pm2_max = m.get("price_m2_max") if price_m2_max is None else price_m2_max
+        
+        is_rental = m.get("transaction_type") == "rent"
+        if is_rental:
+            u["financials"].update({"rent_price_min": p_min})
+        else:
+            u["financials"].update({
+                "price_min": p_min, 
+                "price_max": p_max,
+                "price_m2_min": pm2_min,
+                "price_m2_max": pm2_max
+            })
             
         u["amenities"]["labels"] = m.get("amenities") or []
         u["specifications"].update({

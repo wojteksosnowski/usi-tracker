@@ -10,6 +10,9 @@ from python_worker.slug_utils import slugify
 _counter_lock = threading.Lock()
 logger = logging.getLogger(__name__)
 
+_global_identifiers_cache = None
+_global_identifiers_cache_time = None
+
 class DeveloperIndexer:
 
     def __init__(self, repo):
@@ -43,6 +46,11 @@ class DeveloperIndexer:
     # -------------------------------------------------------------------------
     # File path helpers
     # -------------------------------------------------------------------------
+
+    def invalidate_identifiers_cache(self):
+        global _global_identifiers_cache, _global_identifiers_cache_time
+        _global_identifiers_cache = None
+        _global_identifiers_cache_time = None
 
     def get_existing_identifiers(self) -> dict:
         """
@@ -137,7 +145,7 @@ class DeveloperIndexer:
         if portal == "oto":
             clean_id = re.sub(r"^ID", "", clean_id)
 
-        for dev in self.list_developers(only_merged=False):
+        for dev in self.repo.list_developers(only_merged=False):
             pm = dev.get("portal_mapping", {})
             p_data = pm.get(portal)
             if not p_data:

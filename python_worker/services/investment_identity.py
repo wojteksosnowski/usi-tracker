@@ -10,9 +10,9 @@ class InvestmentIdentityResolver:
     This is the primary method for resolving physical resources. Never use slugs
     for file lookup if an ID is available.
     """
-    def __init__(self, data_dir: Path, public_usi_dir: Path):
-        self.data_dir = data_dir
-        self.public_usi_dir = public_usi_dir
+    def __init__(self, data_dir: Path | str, public_usi_dir: Path | str):
+        self.data_dir = Path(data_dir) if isinstance(data_dir, str) else data_dir
+        self.public_usi_dir = Path(public_usi_dir) if isinstance(public_usi_dir, str) else public_usi_dir
 
     def get_investment_resources(self, inv_id: str) -> dict | None:
         from python_worker.investment_index import load as load_index
@@ -41,6 +41,18 @@ class InvestmentIdentityResolver:
         if not entry:
             return None
 
+        return self._map_resources_from_entry(entry)
+
+    def get_investment_resources_by_slug(self, dev_slug: str, inv_slug: str) -> dict:
+        """Fallback method to resolve resources by slug when ID is not yet available."""
+        entry = {
+            "usi_inv_id": f"temp_{inv_slug}",
+            "developer_slug": dev_slug,
+            "investment_slug": inv_slug,
+            "portal": None,
+            "portal_id": None,
+            "sources": {}
+        }
         return self._map_resources_from_entry(entry)
 
     def _map_resources_from_entry(self, entry: dict) -> dict:

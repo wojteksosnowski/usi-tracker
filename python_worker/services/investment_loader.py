@@ -46,7 +46,8 @@ def load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None, 
     """
     if data_dir is None: data_dir = Path(USI_DATA_DIR)
     if public_usi_dir is None: public_usi_dir = Path(PUBLIC_USI_DIR)
-    
+    data_dir = Path(data_dir) if isinstance(data_dir, str) else data_dir
+    public_usi_dir = Path(public_usi_dir) if public_usi_dir and isinstance(public_usi_dir, str) else public_usi_dir
     inv_dir = data_dir / dev_slug / inv_slug if dev_slug and inv_slug else None
     resources = None
 

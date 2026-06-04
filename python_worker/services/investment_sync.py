@@ -36,19 +36,21 @@ class InvestmentSyncService:
         else:
             self.fetcher = None
             self.tech_manager = None
+            
+        from python_worker.services.investment_identity import InvestmentIdentityResolver
+        self.resolver = InvestmentIdentityResolver(self.data_dir, self.public_usi_dir)
 
-    def register_investment(self, portal, developer_name, inv_slug, name, item_id=None, url=None, allow_existing=False, vendor_id=None, force_dev_slug=None):
-        from python_worker.developer_manager import DeveloperManager
+    def _resolve_developer_for_registration(self, portal, developer_name, url, vendor_id, force_dev_slug):
         from usi_scrapers import api as scraper_api
         from python_worker.url_parser import parse_url
-        from python_worker.adapters import _get_segment
 
         developer_record = None
         dev_slug = force_dev_slug
+        inv_slug_from_url = None
 
         # PRIORITY 1: Identify by Vendor ID (if provided)
         if not dev_slug and vendor_id:
-            developer_record = dm.find_developer_by_id(portal, str(vendor_id))
+            developer_record = self.dm.find_developer_by_id(portal, str(vendor_id))
             if developer_record:
                 dev_slug = developer_record["developer_slug"]
                 developer_name = developer_record["name"]
@@ -58,7 +60,7 @@ class InvestmentSyncService:
         if not dev_slug and not developer_record and url:
             parsed = parse_url(url)
             if parsed.get("investment_slug") and parsed["investment_slug"] != "unknown":
-                inv_slug = parsed["investment_slug"]
+                inv_slug_from_url = parsed["investment_slug"]
             if parsed.get("developer_slug") and parsed["developer_slug"] != "unknown":
                 # Only overwrite if we don't have a better name already
                 # or if we are dealing with 'Nieznany Deweloper'
@@ -87,7 +89,7 @@ class InvestmentSyncService:
                 dev_slug = developer_record["developer_slug"]
         
         # Auto-create developer profile ONLY if we have a real slug (not 'unknown')
-        if dev_slug != "unknown" and not dm.get_developer(dev_slug):
+        if dev_slug != "unknown" and not self.dm.get_developer(dev_slug):
             logger.info(f"Auto-creating developer profile for: {developer_name} ({dev_slug})")
             
             # Initialize portal mapping if we have enough info
@@ -105,17 +107,10 @@ class InvestmentSyncService:
                 "portal_mapping": initial_pm
             })
 
-        inv_dir = self.data_dir / dev_slug / inv_slug
+        return dev_slug, developer_name, inv_slug_from_url
 
-        # 1. Check if investment already exists (any file format)
-        if _find_inv_file(inv_dir, inv_slug):
-            if allow_existing:
-                return dev_slug, inv_slug
-            raise ValueError(f"Investment already exists: {dev_slug}/{inv_slug}")
-
-        # 2. Check for ID-based duplication across all investments
-        # This prevents 500 errors when portal changes slug/dev but ID remains same
-        existing_ids = dm.get_existing_identifiers()
+    def _check_investment_exists(self, portal, item_id, inv_slug, url):
+        existing_ids = self.dm.get_existing_identifiers()
         id_exists = False
         if portal == "rp" and item_id and str(item_id) in existing_ids.get("rp_ids", set()):
             id_exists = True
@@ -141,37 +136,62 @@ class InvestmentSyncService:
 
         elif portal == "to" and item_id and str(item_id) in existing_ids.get("to_ids", set()):
             id_exists = True
+            
+        return id_exists
 
-        if id_exists:
+    def register_investment(self, portal, developer_name, inv_slug, name, item_id=None, url=None, allow_existing=False, vendor_id=None, force_dev_slug=None):
+
+        dev_slug, resolved_developer_name, inv_slug_from_url = self._resolve_developer_for_registration(
+            portal, developer_name, url, vendor_id, force_dev_slug
+        )
+        if inv_slug_from_url and not force_dev_slug:
+             # Just use it if original lacked logic
+             pass
+        
+        # Update dev_slug based on parsed URL if it existed
+        if inv_slug_from_url and not dev_slug: # Note: this was handled somewhat implicitly before
+             pass
+        
+        # Better fallback: if inv_slug wasn't passed, but url provided it
+        if inv_slug_from_url and not inv_slug:
+             inv_slug = inv_slug_from_url
+
+        inv_dir = self.data_dir / dev_slug / inv_slug
+
+        # 1. Check if investment already exists (any file format)
+        existing_file = _find_inv_file(inv_dir, inv_slug)
+        if existing_file:
+            if allow_existing:
+                import json
+                try:
+                    data = json.loads(existing_file.read_text(encoding="utf-8"))
+                    usi_inv_id = data.get("usi_inv_id")
+                except Exception:
+                    usi_inv_id = None
+                return dev_slug, inv_slug, usi_inv_id
+            raise ValueError(f"Investment already exists: {dev_slug}/{inv_slug}")
+
+        # 2. Check for ID-based duplication across all investments
+        if self._check_investment_exists(portal, item_id, inv_slug, url):
             logger.info(f"Investment with ID {item_id} ({portal}) already exists in system. Skipping registration.")
             return None, None
 
         inv_dir.mkdir(parents=True, exist_ok=True)
 
         # Canonical filename: usi_{portal}_{portal_id}.json (new format)
-        if portal == "rp" and item_id:
-            filename = f"usi_rp_{item_id}.json"
-            sources = {"rp": {"id": str(item_id), "url": url}}
+        if portal in ["rp", "oto", "to"] and item_id:
+            filename = f"usi_{portal}_{item_id}.json"
+            sources = {portal: {"id": str(item_id), "url": url}}
             if vendor_id:
-                sources["rp"]["vendor_id"] = str(vendor_id)
-        elif portal == "oto" and item_id:
-            filename = f"usi_oto_{item_id}.json"
-            sources = {"oto": {"id": str(item_id), "url": url}}
-        elif portal == "to" and item_id:
-            filename = f"usi_to_{item_id}.json"
-            sources = {"to": {"id": str(item_id), "url": url}}
+                sources[portal]["vendor_id"] = str(vendor_id)
         else:
             filename = f"usi_{inv_slug}.json"
             sources = {}
-            if portal == "rp":
-                sources["rp"] = {"url": url}
-            elif portal == "oto":
-                sources["oto"] = {"url": url}
-            elif portal == "to":
-                sources["to"] = {"url": url}
+            if portal in ["rp", "oto", "to"]:
+                sources[portal] = {"url": url}
+                if vendor_id:
+                    sources[portal]["vendor_id"] = str(vendor_id)
 
-        usi_path = inv_dir / filename
-        
         if portal == "oto":
             logger.info(f"Creating Otodom skeleton for {inv_slug} with sources: {sources}")
 
@@ -179,20 +199,25 @@ class InvestmentSyncService:
         initial_raw = {"url": url, "name": name}
         if portal == "rp" and item_id: initial_raw["type"] = None # Placeholder, full raw will come later
 
+        system_id = f"{portal}_{item_id}" if item_id else inv_slug
         skeleton = {
+            "usi_inv_id": system_id,
             "investment_slug": inv_slug,
             "developer_slug": dev_slug,
             "name": name,
             "reviewed": False,
             "sources": sources,
             "specifications": {
-                "segment": _get_segment(portal, initial_raw)
+                "segment": None
             },
             "status": "Brak",
             "audit": {"created_at": datetime.now().isoformat()}
         }
 
         self.repo.create_investment_skeleton(dev_slug, inv_slug, portal, skeleton, item_id=item_id)
+        if hasattr(self, 'resolver') and self.resolver:
+            self.resolver.build_index()
+            
         try:
             import python_worker.investment_index as inv_index
             inv_index.upsert(self.data_dir, self.public_usi_dir, dev_slug, inv_slug)
@@ -200,17 +225,11 @@ class InvestmentSyncService:
             logger.debug(f"Index upsert skipped for {inv_slug}: {_ie}")
 
         log_to_processing_log(dev_slug, inv_slug, f"Registered from discovery ({portal})")
-        return dev_slug, inv_slug
+        self.dm.invalidate_identifiers_cache()
+        return dev_slug, inv_slug, skeleton["usi_inv_id"]
 
     def _canonical_slug_from_raw(self, portal: str, raw_details: dict, fallback: str) -> str:
-        """Resolves the canonical USI developer slug by reading it from portal raw data.
-
-        Priority:
-          1. find_developer_by_id(portal_id from raw)  — ID-first, authoritative
-          2. portal slug parsed from raw data           — slug as the portal defines it
-          3. fallback                                   — whatever was passed in
-        """
-
+        """Resolves the canonical USI developer slug by reading it from portal raw data."""
         portal_id = None
         portal_slug = None
 
@@ -239,8 +258,217 @@ class InvestmentSyncService:
         if not self.lib_config or not self.fetcher:
             logger.error("Scraper library not properly configured.")
             return None
+            
+        resources = self.resolver.get_investment_resources_by_slug(dev_slug, inv_slug)
+        target_dir = resources["base_dir"]
+        
         from usi_scrapers import api as scraper_api
-        return scraper_api.download_raw(self.lib_config, self.fetcher, portal, identifier, dev_slug, inv_slug)
+        return scraper_api.download_raw(self.lib_config, self.fetcher, portal, identifier, target_dir)
+        
+    def _fetch_and_transform_portal_data(self, portal, portal_name, raw_prefix, inv_dir, dev_slug, inv_slug, sources, use_local_raw):
+        """Fetches raw portal data (local or remote) and transforms it."""
+        from usi_scrapers import api as scraper_api
+        
+        raw_files = list(inv_dir.glob(f"raw_{raw_prefix}_*.json"))
+
+        if use_local_raw and raw_files:
+            canonical = inv_dir / f"raw_{raw_prefix}_{inv_slug}.json"
+            raw_path = canonical if canonical.exists() else sorted(raw_files)[-1]
+            with open(raw_path, "r") as f:
+                raw_details = json.load(f)
+            
+            # Transform using the FOLDER slug (dev_slug) to maintain consistency
+            unified_data = AdapterFactory.get_adapter(raw_prefix).transform(raw_details, inv_slug, dev_slug)
+            return unified_data, f"{portal_name} (local)", None
+            
+        elif use_local_raw:
+            logger.debug(f"[local-raw] {portal_name}: no raw file in {inv_dir}, skipping")
+            return None, None, None
+
+        else:
+            # RP uses numeric ID; Otodom and TO require a full URL
+            if portal == "rp":
+                identifier = sources[portal].get("id") or sources[portal].get("url")
+            else:
+                identifier = sources[portal].get("url") or sources[portal].get("id")
+                
+            if not identifier:
+                log_to_processing_log(dev_slug, inv_slug, f"Skipped {portal_name}: no identifier in sources")
+                return None, None, None
+                
+            try:
+                res = scraper_api.fetch_investment(self.lib_config, self.fetcher, portal, identifier)
+            except Exception as e:
+                error_msg = f"Exception during fetch: {e}"
+                logger.error(f"[{portal_name}] {inv_slug}: {error_msg}")
+                log_to_processing_log(dev_slug, inv_slug, f"Error fetching from {portal_name}: {error_msg}")
+                return None, None, f"{portal_name} ({error_msg})"
+
+            if res and "raw_details" in res:
+                raw_data = res["raw_details"]
+                
+                # Fast path: prioritize standardized developer_slug from the library
+                if res.get("developer_slug"):
+                    canonical_dev_slug = res["developer_slug"]
+                else:
+                    canonical_dev_slug = self._canonical_slug_from_raw(raw_prefix, raw_data, dev_slug)
+                
+                if self.tech_manager:
+                    # Save raw data using canonical slug (for library mapping)
+                    self.tech_manager.save_raw_data(raw_data, canonical_dev_slug, inv_slug, raw_prefix)
+                else:
+                    logger.error(f"Cannot save raw data for {inv_slug}: TechnicalDataManager is not available.")
+                    raise RuntimeError("TechnicalDataManager is required for saving raw portal data.")
+
+                # Transform unified data using the FOLDER slug (dev_slug)
+                unified_data = AdapterFactory.get_adapter(raw_prefix).transform(raw_data, inv_slug, dev_slug)
+                return unified_data, portal_name, None
+            else:
+                error_msg = res.get("error", "Unknown error") if isinstance(res, dict) else "No valid response"
+                logger.error(f"[{portal_name}] {inv_slug}: {error_msg}")
+                log_to_processing_log(dev_slug, inv_slug, f"Fetch failed — {portal_name}: {error_msg}")
+                return None, None, f"{portal_name} ({error_msg})"
+
+    def _sync_investment_images(self, new_unified, all_urls, img_dev_slug, inv_slug, skip_images, usi_data, resources):
+        """Synchronizes images for the investment."""
+        if skip_images:
+            # Pełne pominięcie jakichkolwiek operacji dyskowych na katalogu obrazów
+            new_unified["image_paths"] = usi_data.get("image_paths", [])
+            new_unified["images_count"] = usi_data.get("images_count", 0)
+            return
+
+        if all_urls and self.tech_manager:
+            logger.info(f"Synchronizing images for {inv_slug} ({len(all_urls)} URLs)")
+            
+            # FAST-PATH: Try to find files already downloaded based on previous state and canonical folder
+            try:
+                from usi_scrapers.utils.images import clean_filename
+                import os
+                
+                # Map urls to expected basenames
+                url_to_basename = {url: os.path.splitext(clean_filename(url))[0] for url in all_urls}
+                basename_to_urls = {}
+                for url, bname in url_to_basename.items():
+                    basename_to_urls.setdefault(bname, []).append(url)
+                    
+                expected_set = set(basename_to_urls.keys())
+                found_paths = {}  # maps url -> full path
+                
+                # 1. Check existing paths from the last state of the investment
+                existing_paths = usi_data.get("image_paths", [])
+                for path in existing_paths:
+                    bname = os.path.splitext(os.path.basename(path))[0]
+                    if bname in expected_set:
+                        for url in basename_to_urls[bname]:
+                            found_paths[url] = path
+                        expected_set.remove(bname)
+                        if not expected_set: break
+                        
+                # 2. Check the canonical images directory for this investment
+                if expected_set and resources.get("images_dir") and resources["images_dir"].exists():
+                    for file in os.listdir(resources["images_dir"]):
+                        bname = os.path.splitext(file)[0]
+                        if bname in expected_set:
+                            rel_path = os.path.relpath(os.path.join(resources["images_dir"], file), self.public_usi_dir)
+                            path_str = f"/Public/USI/{rel_path}"
+                            for url in basename_to_urls[bname]:
+                                found_paths[url] = path_str
+                            expected_set.remove(bname)
+                            if not expected_set: break
+                        
+                urls_to_download = []
+                for url in all_urls:
+                    if url not in found_paths:
+                        urls_to_download.append(url)
+                        
+            except Exception as e:
+                logger.error(f"Error during image fallback search: {e}")
+                urls_to_download = all_urls
+                found_paths = {}
+
+            saved_filenames = []
+            if urls_to_download:
+                saved_filenames = self.tech_manager.sync_images(urls_to_download, img_dev_slug, inv_slug)
+                        
+            unique_paths = []
+            for url in all_urls:
+                if url in found_paths:
+                    p = found_paths[url]
+                    if p not in unique_paths:
+                        unique_paths.append(p)
+            
+            for fname in saved_filenames:
+                if fname:
+                    p = f"/Public/USI/{img_dev_slug}/{inv_slug}/{fname}"
+                    if p not in unique_paths:
+                        unique_paths.append(p)
+            
+            new_unified["image_paths"] = unique_paths
+            new_unified["images_count"] = len(unique_paths)
+            logger.info(f"Image sync complete for {inv_slug}: {len(unique_paths)}/{len(all_urls)} paths resolved")
+            
+        elif all_urls and not self.tech_manager:
+            logger.warning(f"Image sync skipped for {inv_slug}: tech_manager not available (check SCRAPERAPI_KEY / config)")
+            log_to_processing_log(img_dev_slug, inv_slug, "Image sync skipped: scraper config unavailable")
+        else:
+            # No URLs from scraper — keep whatever is already on disk
+            img_dir = self.tech_manager.get_image_path(img_dev_slug, inv_slug) if self.tech_manager else \
+                      (self.public_usi_dir / img_dev_slug / inv_slug)
+            if img_dir.is_dir():
+                on_disk = sorted(p.name for p in img_dir.iterdir()
+                                 if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"})
+                if on_disk:
+                    new_unified["image_paths"] = [f"/Public/USI/{img_dev_slug}/{inv_slug}/{fname}" for fname in on_disk]
+                    new_unified["images_count"] = len(on_disk)
+
+    def _backfill_developer_mapping(self, dev_slug, new_unified):
+        """Backfills developer ID into portal_mapping if missing."""
+        dev_record = self.dm.get_developer(dev_slug)
+        if not dev_record:
+            return
+
+        needs_update = False
+        pm = dev_record.setdefault("portal_mapping", {"rp": None, "oto": None, "to": None})
+        new_src = new_unified.get("sources", {})
+        
+        # Check RP
+        rp_src = new_src.get("rp", {})
+        if rp_src.get("vendor_id"):
+            if not pm.get("rp"):
+                pm["rp"] = {"id": rp_src["vendor_id"]}
+                needs_update = True
+            elif pm["rp"].get("id") != rp_src["vendor_id"]:
+                if not pm["rp"].get("id"):
+                    pm["rp"]["id"] = rp_src["vendor_id"]
+                    needs_update = True
+                    
+        # Check Otodom
+        oto_src = new_src.get("oto", {})
+        if oto_src.get("agency_id"):
+            if not pm.get("oto"):
+                pm["oto"] = {"agency_id": oto_src["agency_id"], "agency_ids": [oto_src["agency_id"]]}
+                needs_update = True
+            else:
+                aids = pm["oto"].setdefault("agency_ids", [])
+                if oto_src["agency_id"] not in aids:
+                    aids.append(oto_src["agency_id"])
+                    pm["oto"]["agency_id"] = oto_src["agency_id"] # promote to main
+                    needs_update = True
+                    
+        # Check TO
+        to_src = new_src.get("to")
+        if to_src is not None:
+            if not pm.get("to"):
+                pm["to"] = {"agency_id": to_src.get("developer_id", "")}
+                needs_update = True
+            elif not pm["to"].get("agency_id") and to_src.get("developer_id"):
+                pm["to"]["agency_id"] = to_src["developer_id"]
+                needs_update = True
+                
+        if needs_update:
+            self.dm.create_developer_file(dev_record)
+            logger.info(f"Backfilled developer ID into portal_mapping for {dev_slug}")
+
     def update_investment(self, system_id, use_local_raw=False, skip_images=False, skip_index=False, skip_log=False):
         """
         Orchestrates the update of an investment:
@@ -248,12 +476,7 @@ class InvestmentSyncService:
         2. Transforms to unified USI schema
         3. Merges with existing data and ratings
         4. Synchronizes images
-
-        Returns True on success, False if no data was fetched/merged.
-        Raises RuntimeError with a human-readable message if all portals failed.
         """
-        from usi_scrapers import api as scraper_api
-
         resources = self.identity.get_investment_resources(system_id)
         if not resources:
             logger.warning(f"Investment resources not found skipping ID: {system_id}")
@@ -294,6 +517,7 @@ class InvestmentSyncService:
         to_unified = None
         fetched_sources = []
         failed_sources = []
+        
         # Initial guess for images is the current folder name
         img_dev_slug = dev_slug
         
@@ -310,77 +534,31 @@ class InvestmentSyncService:
                 if not skip_images:
                     logger.info(f"Image folder for {inv_slug} pinned to recorded path: {img_dev_slug}")
 
-        # Generic update loop using scraper_api
+        # Generic update loop using helper method
         for portal in ["rp", "oto", "to"]:
             if portal not in sources: continue
 
             portal_name = "RynekPierwotny" if portal == "rp" else ("Otodom" if portal == "oto" else "TabelaOfert")
             raw_prefix = "rp" if portal == "rp" else ("oto" if portal == "oto" else "to")
-            raw_files = list(inv_dir.glob(f"raw_{raw_prefix}_*.json"))
 
-            if use_local_raw and raw_files:
-                canonical = inv_dir / f"raw_{raw_prefix}_{inv_slug}.json"
-                raw_path = canonical if canonical.exists() else sorted(raw_files)[-1]
-                with open(raw_path, "r") as f:
-                    raw_details = json.load(f)
-                
-                # Transform using the FOLDER slug (dev_slug) to maintain consistency
-                rp_oto_to_unified = AdapterFactory.get_adapter(raw_prefix).transform(raw_details, inv_slug, dev_slug)
-                if portal == "rp": rp_unified = rp_oto_to_unified
-                elif portal == "oto": oto_unified = rp_oto_to_unified
-                elif portal == "to": to_unified = rp_oto_to_unified
-                fetched_sources.append(f"{portal_name} (local)")
-            elif use_local_raw:
-                logger.debug(f"[local-raw] {portal_name}: no raw file in {inv_dir}, skipping")
-                continue
-            else:
-                # RP uses numeric ID; Otodom and TO require a full URL
-                if portal == "rp":
-                    identifier = sources[portal].get("id") or sources[portal].get("url")
-                else:
-                    identifier = sources[portal].get("url") or sources[portal].get("id")
-                if not identifier:
-                    log_to_processing_log(dev_slug, inv_slug, f"Skipped {portal_name}: no identifier in sources")
-                    continue
-                try:
-                    res = scraper_api.fetch_investment(self.lib_config, self.fetcher, portal, identifier)
-                except Exception as e:
-                    error_msg = f"Exception during fetch: {e}"
-                    logger.error(f"[{portal_name}] {inv_slug}: {error_msg}")
-                    log_to_processing_log(dev_slug, inv_slug, f"Error fetching from {portal_name}: {error_msg}")
-                    failed_sources.append(f"{portal_name} ({error_msg})")
-                    continue
-
-                if res and "raw_details" in res:
-                    raw_data = res["raw_details"]
-                    canonical_dev_slug = self._canonical_slug_from_raw(raw_prefix, raw_data, dev_slug)
-                    
-                    if self.tech_manager:
-                        # Save raw data using canonical slug (for library mapping)
-                        self.tech_manager.save_raw_data(raw_data, canonical_dev_slug, inv_slug, raw_prefix)
-                    else:
-                        logger.error(f"Cannot save raw data for {inv_slug}: TechnicalDataManager is not available.")
-                        raise RuntimeError("TechnicalDataManager is required for saving raw portal data.")
-
-                    # Transform unified data using the FOLDER slug (dev_slug)
-                    rp_oto_to_unified = AdapterFactory.get_adapter(raw_prefix).transform(raw_data, inv_slug, dev_slug)
-                    if portal == "rp": rp_unified = rp_oto_to_unified
-                    elif portal == "oto": oto_unified = rp_oto_to_unified
-                    elif portal == "to": to_unified = rp_oto_to_unified
-                    fetched_sources.append(portal_name)
-                else:
-                    error_msg = res.get("error", "Unknown error") if isinstance(res, dict) else "No valid response"
-                    logger.error(f"[{portal_name}] {inv_slug}: {error_msg}")
-                    log_to_processing_log(dev_slug, inv_slug, f"Fetch failed — {portal_name}: {error_msg}")
-                    failed_sources.append(f"{portal_name} ({error_msg})")
+            unified_data, fetched_src, failed_src = self._fetch_and_transform_portal_data(
+                portal, portal_name, raw_prefix, inv_dir, dev_slug, inv_slug, sources, use_local_raw
+            )
+            
+            if unified_data:
+                if portal == "rp": rp_unified = unified_data
+                elif portal == "oto": oto_unified = unified_data
+                elif portal == "to": to_unified = unified_data
+            if fetched_src:
+                fetched_sources.append(fetched_src)
+            if failed_src:
+                failed_sources.append(failed_src)
 
 
         if rp_unified or oto_unified or to_unified:
             # Semantic layer: Ratings and Merging
-            # Try canonical name first, then portal-prefixed variants from bulk imports
             ratings_candidates = []
             for p in ("rp", "oto", "to"):
-                # Szukaj plików meta z ID lub slugiem (sortowanie odwrotne, by nowsze brać najpierw)
                 ratings_candidates.extend(sorted(inv_dir.glob(f"meta_{p}_*.json"), reverse=True))
             ratings_candidates.append(inv_dir / f"meta_{inv_slug}_ratings.json")
             ratings = {}
@@ -397,142 +575,11 @@ class InvestmentSyncService:
             new_unified = Merger.merge(rp_unified, oto_unified, to_unified, ratings, existing_data=usi_data, event=event)
 
             # Technical layer: Image synchronization via library
-            # img_dev_slug comes from portal raw data, not from slugify — canonical per the portal.
             all_urls = new_unified.get("image_urls", [])
-            
-            if skip_images:
-                # Pełne pominięcie jakichkolwiek operacji dyskowych na katalogu obrazów
-                new_unified["image_paths"] = usi_data.get("image_paths", [])
-                new_unified["images_count"] = usi_data.get("images_count", 0)
-                
-            elif all_urls and self.tech_manager:
-                logger.info(f"Synchronizing images for {inv_slug} ({len(all_urls)} URLs)")
-                
-                # FAST-PATH: Try to find files already downloaded based on previous state and canonical folder
-                try:
-                    from usi_scrapers.utils.images import clean_filename
-                    import os
-                    
-                    # Map urls to expected basenames
-                    url_to_basename = {url: os.path.splitext(clean_filename(url))[0] for url in all_urls}
-                    basename_to_urls = {}
-                    for url, bname in url_to_basename.items():
-                        basename_to_urls.setdefault(bname, []).append(url)
-                        
-                    expected_set = set(basename_to_urls.keys())
-                    found_paths = {}  # maps url -> full path
-                    
-                    # 1. Check existing paths from the last state of the investment
-                    existing_paths = usi_data.get("image_paths", [])
-                    for path in existing_paths:
-                        bname = os.path.splitext(os.path.basename(path))[0]
-                        if bname in expected_set:
-                            for url in basename_to_urls[bname]:
-                                found_paths[url] = path
-                            expected_set.remove(bname)
-                            if not expected_set: break
-                            
-                    # 2. Check the canonical images directory for this investment
-                    if expected_set and resources.get("images_dir") and resources["images_dir"].exists():
-                        for file in os.listdir(resources["images_dir"]):
-                            bname = os.path.splitext(file)[0]
-                            if bname in expected_set:
-                                rel_path = os.path.relpath(os.path.join(resources["images_dir"], file), self.public_usi_dir)
-                                path_str = f"/Public/USI/{rel_path}"
-                                for url in basename_to_urls[bname]:
-                                    found_paths[url] = path_str
-                                expected_set.remove(bname)
-                                if not expected_set: break
-                            
-                    urls_to_download = []
-                    for url in all_urls:
-                        if url not in found_paths:
-                            urls_to_download.append(url)
-                            
-                except Exception as e:
-                    logger.error(f"Error during image fallback search: {e}")
-                    urls_to_download = all_urls
-                    found_paths = {}
-
-                saved_filenames = []
-                if urls_to_download:
-                    saved_filenames = self.tech_manager.sync_images(urls_to_download, img_dev_slug, inv_slug)
-                            
-                unique_paths = []
-                for url in all_urls:
-                    if url in found_paths:
-                        p = found_paths[url]
-                        if p not in unique_paths:
-                            unique_paths.append(p)
-                
-                for fname in saved_filenames:
-                    if fname:
-                        p = f"/Public/USI/{img_dev_slug}/{inv_slug}/{fname}"
-                        if p not in unique_paths:
-                            unique_paths.append(p)
-                
-                new_unified["image_paths"] = unique_paths
-                new_unified["images_count"] = len(unique_paths)
-                logger.info(f"Image sync complete for {inv_slug}: {len(unique_paths)}/{len(all_urls)} paths resolved")
-            elif all_urls and not self.tech_manager:
-                logger.warning(f"Image sync skipped for {inv_slug}: tech_manager not available (check SCRAPERAPI_KEY / config)")
-                log_to_processing_log(dev_slug, inv_slug, "Image sync skipped: scraper config unavailable")
-            else:
-                # No URLs from scraper — keep whatever is already on disk
-                img_dir = self.tech_manager.get_image_path(img_dev_slug, inv_slug) if self.tech_manager else \
-                          (self.public_usi_dir / img_dev_slug / inv_slug)
-                if img_dir.is_dir():
-                    on_disk = sorted(p.name for p in img_dir.iterdir()
-                                     if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"})
-                    if on_disk:
-                        new_unified["image_paths"] = [f"/Public/USI/{img_dev_slug}/{inv_slug}/{fname}" for fname in on_disk]
-                        new_unified["images_count"] = len(on_disk)
+            self._sync_investment_images(new_unified, all_urls, img_dev_slug, inv_slug, skip_images, usi_data, resources)
 
             # Backfill developer ID into portal_mapping if missing
-            dev_record = self.dm.get_developer(dev_slug)
-            if dev_record:
-                needs_update = False
-                pm = dev_record.setdefault("portal_mapping", {"rp": None, "oto": None, "to": None})
-                new_src = new_unified.get("sources", {})
-                
-                # Check RP
-                rp_src = new_src.get("rp", {})
-                if rp_src.get("vendor_id"):
-                    if not pm.get("rp"):
-                        pm["rp"] = {"id": rp_src["vendor_id"]}
-                        needs_update = True
-                    elif pm["rp"].get("id") != rp_src["vendor_id"]:
-                        # Might be conflict, but we trust the fresh raw data if it was null
-                        if not pm["rp"].get("id"):
-                            pm["rp"]["id"] = rp_src["vendor_id"]
-                            needs_update = True
-                            
-                # Check Otodom
-                oto_src = new_src.get("oto", {})
-                if oto_src.get("agency_id"):
-                    if not pm.get("oto"):
-                        pm["oto"] = {"agency_id": oto_src["agency_id"], "agency_ids": [oto_src["agency_id"]]}
-                        needs_update = True
-                    else:
-                        aids = pm["oto"].setdefault("agency_ids", [])
-                        if oto_src["agency_id"] not in aids:
-                            aids.append(oto_src["agency_id"])
-                            pm["oto"]["agency_id"] = oto_src["agency_id"] # promote to main
-                            needs_update = True
-                            
-                # Check TO
-                to_src = new_src.get("to")
-                if to_src is not None:
-                    if not pm.get("to"):
-                        pm["to"] = {"agency_id": to_src.get("developer_id", "")}
-                        needs_update = True
-                    elif not pm["to"].get("agency_id") and to_src.get("developer_id"):
-                        pm["to"]["agency_id"] = to_src["developer_id"]
-                        needs_update = True
-                        
-                if needs_update:
-                    self.dm.create_developer_file(dev_record)
-                    logger.info(f"Backfilled developer ID into portal_mapping for {dev_slug}")
+            self._backfill_developer_mapping(dev_slug, new_unified)
 
             # Save to canonical new-format path; fall back to existing file path
             self.repo.save_investment_json(system_id, new_unified)
@@ -554,60 +601,41 @@ class InvestmentSyncService:
         if failed_sources:
             raise RuntimeError(f"Fetch failed for all portals: {'; '.join(failed_sources)}")
         return False
-
-    def process_batch(self, portal, investments, on_progress_callback=None):
-        """
-        Processes a batch of investments using the library's process_batch function.
-        Downloads data first, then registers and unifies only successful ones.
-        """
-        from usi_scrapers import api as scraper_api
-        from python_worker.slug_utils import slugify
+        
+    def _prepare_batch_identifiers(self, portal, investments):
+        """Prepares identifiers and metadata for a batch without registering skeletons yet."""
         from python_worker.url_parser import parse_url
-
-
-        # 1. Prepare identifiers and metadata without registering skeletons yet
+        
         to_process = []
-        identifiers = []
+        targets = []
 
         for item in investments:
-            # We don't strictly need slugs or names here anymore, as usi-scrapers v0.5.0+ 
-            # resolves and saves everything to the correct folders in-flight.
             ident = url = item.get("url")
-            inv_slug = item.get("inv_slug") or item.get("slug")
+            inv_slug = item.get("investment_slug") or item.get("inv_slug") or item.get("slug")
             if not inv_slug and url:
-                import re as _re
                 _parsed = parse_url(url)
                 _raw_slug = _parsed.get("investment_slug", "")
                 if _raw_slug:
                     inv_slug = _raw_slug
-                    inv_slug = inv_slug or None
             dev_name = item.get("developer_name") or item.get("developer")
             
             if ident:
-                # Try to resolve dev_slug if possible for faster post-processing, but don't block
                 dev_slug = None
+                # Backward compatibility for old CSVs, but prioritizing normalized vendor_id
                 vendor_id = item.get("vendor_id") or item.get("agency_id") or item.get("developer_id")
-                
-                # Robust extraction for Otodom sellerId if missing from item
-                if not vendor_id and url and "otodom.pl" in url:
-                    import re as _re
-                    _sid_match = _re.search(r'sellerId=(\d+)', url)
-                    if _sid_match:
-                        vendor_id = _sid_match.group(1)
-
-                if portal == "rp" and isinstance(item.get("vendor"), dict):
+                if not vendor_id and portal == "rp" and isinstance(item.get("vendor"), dict):
                     vendor_id = item["vendor"].get("id")
                 
                 # 1. Try authoritative ID lookup
                 if vendor_id:
-                    dev_record = dm.find_developer_by_id(portal, str(vendor_id))
+                    dev_record = self.dm.find_developer_by_id(portal, str(vendor_id))
                     if dev_record:
                         dev_slug = dev_record["developer_slug"]
                         dev_name = dev_record["name"]
 
                 # 2. Try Name lookup if still no slug
                 if not dev_slug and dev_name and dev_name.lower() not in ("nieznany deweloper", "unknown", "nieznany-deweloper"):
-                    matched_dev = dm.get_developer_by_name(dev_name)
+                    matched_dev = self.dm.get_developer_by_name(dev_name)
                     if matched_dev:
                         dev_slug = matched_dev["developer_slug"]
                 
@@ -629,7 +657,19 @@ class InvestmentSyncService:
                 if portal == "rp":
                     ident = item.get("id") or url
 
-                identifiers.append(ident)
+                if dev_slug and inv_slug:
+                    resources = self.resolver.get_investment_resources_by_slug(dev_slug, inv_slug)
+                    target_dir = resources["base_dir"]
+                    target_image_dir = resources["images_dir"]
+                else:
+                    target_dir = None
+                    target_image_dir = None
+
+                targets.append({
+                    "identifier": ident,
+                    "target_dir": target_dir,
+                    "target_image_dir": target_image_dir
+                })
                 to_process.append({
                     "ident": ident,
                     "dev_slug": dev_slug,
@@ -638,10 +678,23 @@ class InvestmentSyncService:
                     "item_id": item.get("id"),
                     "url": url,
                     "portal": portal,
-                    "dev_name": dev_name
+                    "dev_name": dev_name,
+                    "vendor_id": vendor_id
                 })
+        
+        return targets, to_process
 
-        if not identifiers:
+    def process_batch(self, portal, investments, on_progress_callback=None):
+        """
+        Processes a batch of investments using the library's process_batch function.
+        Downloads data first, then registers and unifies only successful ones.
+        """
+        from usi_scrapers import api as scraper_api
+        from python_worker.slug_utils import slugify
+        
+        targets, to_process = self._prepare_batch_identifiers(portal, investments)
+
+        if not targets:
             return False
 
         # 2. Call library process_batch
@@ -653,7 +706,7 @@ class InvestmentSyncService:
 
         # This will save raw_*.json files to disk for successful items
         batch_results = scraper_api.process_batch(
-            self.lib_config, self.fetcher, portal, identifiers, on_progress=on_progress_callback
+            self.lib_config, self.fetcher, portal, targets, on_progress=on_progress_callback
         )
 
         # 3. Finalize: Register and Update ONLY if raw data exists
@@ -665,9 +718,9 @@ class InvestmentSyncService:
                 # Fallbacks in case scraping failed completely
                 dev_slug = info["dev_slug"]
                 inv_slug = info["inv_slug"]
+                vendor_id = info["vendor_id"]
                 
                 # Use precise data returned from library if available
-                vendor_id = None
                 if data and isinstance(data, dict):
                     if data.get("developer_slug"):
                         dev_slug = data["developer_slug"]
@@ -676,10 +729,13 @@ class InvestmentSyncService:
                         inv_slug = data["investment_slug"]
                     if data.get("id"):
                         info["item_id"] = data["id"]
-                    if data.get("agency_id"):
-                        vendor_id = data["agency_id"]
-                    elif data.get("vendor_id"):
+                    
+                    # Normalized vendor_id from library
+                    if data.get("vendor_id"):
                         vendor_id = data["vendor_id"]
+                    # Backward compatibility fallback
+                    elif data.get("agency_id"):
+                        vendor_id = data["agency_id"]
 
                 if not dev_slug or not inv_slug:
                     logger.warning(f"Could not finalize batch item {info['ident']} - missing slugs (dev={dev_slug}, inv={inv_slug}).")
@@ -689,8 +745,20 @@ class InvestmentSyncService:
                 raw_files = list(inv_dir.glob(f"raw_{raw_prefix}_*.json"))
 
                 if not raw_files:
-                    logger.warning(f"Batch download failed for {inv_slug} (no raw data found in {dev_slug}/{inv_slug}) - skipping registration.")
-                    continue
+                    if data and isinstance(data, dict) and "error" not in data:
+                        logger.info(f"Saving raw data delayed for {dev_slug}/{inv_slug}.")
+                        from usi_scrapers.manager import TechnicalDataManager
+                        manager = TechnicalDataManager(self.lib_config)
+                        inv_dir.mkdir(parents=True, exist_ok=True)
+                        manager.save_raw_data(data, inv_dir, raw_prefix)
+                        
+                        target_image_dir = self.public_dir / dev_slug / inv_slug
+                        if "image_urls" in data:
+                            target_image_dir.mkdir(parents=True, exist_ok=True)
+                            manager.sync_images(data["image_urls"], target_image_dir)
+                    else:
+                        logger.warning(f"Batch download failed for {inv_slug} (no raw data found in {dev_slug}/{inv_slug}) - skipping registration.")
+                        continue
 
                 if portal == "oto":
                     logger.info(f"Finalizing Otodom registration: item_id={info['item_id']}, vendor_id={vendor_id}")
@@ -707,20 +775,19 @@ class InvestmentSyncService:
                     vendor_id=vendor_id,
                     force_dev_slug=dev_slug
                 )
-
                 
-                if res and res[0]: # res is (dev_slug, inv_slug)
+                if res and res[0]: # res is (dev_slug, inv_slug, system_id)
                     # Unify and Sync images
-                    system_id = f"{info['portal']}_{info['item_id']}" if info.get("item_id") else f"legacy_{inv_slug}"
+                    system_id = res[2] if len(res) > 2 else (f"{info['portal']}_{info['item_id']}" if info.get("item_id") else f"legacy_{inv_slug}")
                     if self.update_investment(system_id, use_local_raw=True):
                         success_count += 1
                 else:
                     logger.info(f"Investment {inv_slug} already exists or duplicate ID - skipping batch update.")
 
-                    
             except Exception as e:
                 logger.error(f"Post-batch processing failed for {info['inv_slug']}: {e}")
 
         logger.info(f"Batch processing complete: {success_count}/{len(to_process)} investments fully ingested.")
+        if success_count > 0:
+            self.dm.invalidate_identifiers_cache()
         return success_count
-

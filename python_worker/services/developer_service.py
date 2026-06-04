@@ -38,20 +38,29 @@ class DeveloperService:
         from usi_scrapers import api as scraper_api
         try:
             # 1. Download raw profile JSON
-            # usi-scrapers v0.5.9+ provides download_dev_raw(config, fetcher, portal, identifier, dev_slug)
-            raw_path = scraper_api.download_dev_raw(self.lib_config, self.lib_fetcher, portal, identifier, dev_slug)
-            if not raw_path:
+            target_dir = self.dev_dir / dev_slug
+            raw_slug = scraper_api.download_raw_dev(self.lib_config, self.lib_fetcher, portal, identifier, target_dir)
+            if not raw_slug:
                 return None
+            
+            raw_path = target_dir / f"raw_{portal}_{identifier}.json"
+            if not raw_path.exists():
+                # Fallback to look for the file if identifier is a URL etc
+                files = list(target_dir.glob(f"raw_{portal}_*.json"))
+                if not files:
+                    return None
+                raw_path = files[-1]
 
             # 2. Extract logo URL from raw and download it
             raw_data = json.loads(raw_path.read_text(encoding="utf-8"))
             logo_path = PORTAL_MAPPING.get(portal, {}).get("developer", {}).get("logo")
             logo_url = resolve_path(raw_data, logo_path)
 
-            if logo_url:
+                from usi_scrapers.utils.images import download_developer_logo
                 logger.info(f"Downloading logo for {dev_slug} from {logo_url}")
-                # download_dev_logo(config, fetcher, url, dev_slug) saves to Public/USIdev/{slug}/logo.{ext}
-                scraper_api.download_dev_logo(self.lib_config, self.lib_fetcher, logo_url, dev_slug)
+                portal_prefix = "rp" if portal == "rp" else ("oto" if portal == "oto" else "to")
+                portal_id = str(identifier).split("/")[-1].split("?")[0].strip("-ID")
+                download_developer_logo(logo_url, target_dir, portal_prefix, portal_id=portal_id)
 
             return raw_path
         except Exception as e:

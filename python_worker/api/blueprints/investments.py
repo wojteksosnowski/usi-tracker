@@ -41,7 +41,16 @@ def _inv_matches_dev(inv: dict, pm: dict) -> bool:
                 return True
     return False
 
-
+def _resolve_system_id(dev_slug, inv_slug, provided_id):
+    if provided_id:
+        return provided_id
+    from python_worker.config import USI_DATA_DIR
+    import python_worker.investment_index as inv_index
+    index = inv_index.load(USI_DATA_DIR) or []
+    entry = next((e for e in index if e.get("developer_slug") == dev_slug and e.get("investment_slug") == inv_slug), None)
+    if entry:
+        return entry.get("usi_inv_id") or entry.get("id")
+    return None
 investments_bp = Blueprint('investments', __name__)
 from python_worker.developer_manager import DeveloperManager
 from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
@@ -227,11 +236,8 @@ def investment_data(dev_slug, inv_slug):
     if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
         abort(400)
     system_id = request.args.get("id")
-    inv = investment_service.get_investment(
-        dev_slug=None if system_id else dev_slug,
-        inv_slug=None if system_id else inv_slug,
-        system_id=system_id
-    )
+    system_id = _resolve_system_id(dev_slug, inv_slug, system_id)
+    inv = investment_service.get_investment(system_id) if system_id else None
     if inv is None:
         abort(404)
     return jsonify(inv)
@@ -252,11 +258,8 @@ def save_deletion_list(dev_slug, inv_slug):
     if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
         abort(400)
     system_id = request.args.get("id")
-    inv = investment_service.get_investment(
-        dev_slug=None if system_id else dev_slug,
-        inv_slug=None if system_id else inv_slug,
-        system_id=system_id
-    )
+    system_id = _resolve_system_id(dev_slug, inv_slug, system_id)
+    inv = investment_service.get_investment(system_id) if system_id else None
     if not inv:
         abort(404)
     system_id = inv.get("usi_inv_id") or inv.get("id")
@@ -274,23 +277,15 @@ def reload_investment(dev_slug, inv_slug):
     if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
         abort(400)
     system_id = request.args.get("id")
-    inv = investment_service.get_investment(
-        dev_slug=None if system_id else dev_slug,
-        inv_slug=None if system_id else inv_slug,
-        system_id=system_id
-    )
+    system_id = _resolve_system_id(dev_slug, inv_slug, system_id)
+    inv = investment_service.get_investment(system_id) if system_id else None
     if not inv:
         abort(404)
     system_id = inv.get("usi_inv_id") or inv.get("id")
     success = investment_service.update_investment(system_id)
     if not success:
         return jsonify({"ok": False, "error": "Failed to update"}), 500
-    updated_system_id = request.args.get("id")
-    inv = investment_service.get_investment(
-        dev_slug=None if system_id else dev_slug,
-        inv_slug=None if system_id else inv_slug,
-        system_id=system_id
-    )
+    updated_inv = investment_service.get_investment(system_id)
     return jsonify({"ok": True, "investment": updated_inv})
 
 @investments_bp.route("/refresh/<dev_slug>/<inv_slug>", methods=["POST"])
@@ -298,11 +293,8 @@ def refresh_investment_route(dev_slug, inv_slug):
     if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
         abort(400)
     system_id = request.args.get("id")
-    inv = investment_service.get_investment(
-        dev_slug=None if system_id else dev_slug,
-        inv_slug=None if system_id else inv_slug,
-        system_id=system_id
-    )
+    system_id = _resolve_system_id(dev_slug, inv_slug, system_id)
+    inv = investment_service.get_investment(system_id) if system_id else None
     if not inv:
         abort(404)
     

@@ -1,3 +1,21 @@
+# Changelog
+
+## Wersja 0.9.10 — Kamień 02 (Wdrozenie zmian na podstawie wczesniejszej analizy) — 2026-06-04
+- **Natywne Transformatory (usi-scrapers)**: Wdrożono mechanizmy transformujące (parsowanie dat Otodom, rzutowanie float) bezpośrednio w `usi-scrapers`, odciążając adaptery w głównym repozytorium z manualnego parsowania stringów.
+- **Architektura I/O Isolation**: Całkowicie wyizolowano logikę ścieżek z biblioteki zewnętrznej. Funkcje takie jak zapisu JSON czy pobierania zdjęć przyjmują teraz gotowe instancje `Path`, wymuszając stosowanie systemowego `IdentityResolver` wewnątrz trackera.
+- **Naprawa Rejestracji z Discovery**: Wyeliminowano problemy z zapisem dla nowo odkrywanych inwestycji i zaktualizowano `register_investment`, gwarantując spójne podawanie `usi_inv_id`.
+- **Integracja "Thin-Adapters"**: Potwierdzono stabilność "chudych adapterów", które po zmianach polegają w 100% na `portal_data_mapping.json`, eliminując ręczne bloki try-except na rzecz reguł konfiguracji.
+
+### Wnioski ze zmian
+- Architektura ścisłego wstrzykiwania `Path` w `usi-scrapers` ostatecznie zabezpiecza system przed powstawaniem rozbieżności pomiędzy nazwami katalogów na dysku, a wewnętrznymi slugami API. Tracker w pełni zarządza miejscem zapisu.
+- Translacja i parsowanie niestandardowych typów danych (daty słowne, jednostki walut) to domena scrapera (biblioteki), a nie aplikacji biznesowej. Użycie natywnych transformatorów znacząco poprawia stabilność adapterów i jakość surowych danych.
+
+## Kamień 01 — Analiza usi-scrapers API — 2026-06-04
+* Przeprowadzono głęboki audyt mechanizmów wejścia/wyjścia z paczki `usi-scrapers` oraz jej silnika do transformowania surowych odpowiedzi z portali.
+* Zidentyfikowano problem grubych adapterów w głównym repozytorium (manualne formatowanie dat i parsowanie walut m.in. w `OtodomAdapter`), które powinny zostać przeniesione jako natywne funkcje do biblioteki scraperów.
+* Zdiagnozowano krytyczne naruszenie reguły **ID-only** – serwisy `investment_sync.py` wymieniają informacje poprzez slugi (wymuszając na bibliotece zewnętrzne sklejanie ścieżek), omijając w pełni stabilny mechanizm weryfikujący `IdentityResolver`.
+* Automatycznie sformułowano i opublikowano przy użyciu API GitHuba (jako Issue #2) kompleksowy raport refaktoryzacyjny do wdrożenia w repozytorium paczki scraperów.
+
 ## Aktualizacje — 2026-06-03
 - **Wdrożenie InvestmentRepository**: Całkowicie usunięto logikę I/O z serwisów biznesowych (`InvestmentEditorService`, `InvestmentSyncService`, `DiscoveryService`) wprowadzając centralne `InvestmentRepository`. Repozytorium w hermetyczny sposób posługuje się `InvestmentIdentityResolver` by ukryć fizyczne ścieżki i spełnić ostatecznie postulat architektury *ID-only*.
 - **Niezmienność Danych Surowych (Immutability)**: Usunięto awaryjne bloki zapisu ręcznego w warstwie repozytoriów. Odczyt i zapis źródłowych plików `raw_*.json` jest teraz kontrolowany wyłącznie przez bibliotekę `usi-scrapers`.

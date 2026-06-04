@@ -251,6 +251,9 @@ function DataBusProvider({ children }) {
               if (job.status === 'running' || job.status === 'queued') {
                 const finishedJob = { ...job, status: 'completed', message: 'Finished.' };
                 stickyJobs.set(job.id, { job: finishedJob, expires: now + STICKY_DURATION });
+                // Trigger refresh on job completion
+                refetch('investments');
+                refetch('developers');
               }
             }
           });
@@ -281,7 +284,7 @@ function DataBusProvider({ children }) {
         .catch(() => {});
     }, 3000);
     return () => clearInterval(poll);
-  }, [setVariable]);
+  }, [setVariable, refetch]);
 
   return (
     <DataBusDispatchContext.Provider value={dispatchValue}>
