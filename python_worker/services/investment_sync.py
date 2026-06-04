@@ -249,15 +249,24 @@ class InvestmentSyncService:
             logger.error("Scraper library not properly configured.")
             return None
             
-        resources = self.resolver.get_investment_resources(system_id)
-        if not resources:
-            logger.error(f"Cannot download raw JSON: Investment {system_id} not found.")
-            return None
-
-        target_dir = resources["base_dir"]
-        
         from usi_scrapers import api as scraper_api
-        return scraper_api.download_raw(self.lib_config, self.fetcher, portal, identifier, target_dir)
+        
+        try:
+            # 1. Fetch raw data
+            res = scraper_api.fetch_investment(self.lib_config, self.fetcher, portal, identifier)
+            if not res or "raw_details" not in res:
+                return False
+                
+            raw_data = res["raw_details"]
+            
+            # 2. Save using high-level API (resolves path internally via TechnicalDataManager)
+            # We use portal_id to ensure the library can find or create the correct folder
+            # without the tracker explicitly providing a filesystem path.
+            scraper_api.save_raw(self.lib_config, raw_data, portal, portal_id=identifier)
+            return True
+        except Exception as e:
+            logger.error(f"Download raw failed for {portal}/{identifier}: {e}")
+            return False
         
     def _fetch_and_transform_portal_data(self, system_id, portal, portal_name, raw_prefix, sources, use_local_raw):
         """Fetches raw portal data (local or remote) and transforms it."""
@@ -310,11 +319,8 @@ class InvestmentSyncService:
             if res and "raw_details" in res:
                 raw_data = res["raw_details"]
                 
-                if self.tech_manager:
-                    self.tech_manager.save_raw_data(raw_data, raw_prefix)
-                else:
-                    logger.error(f"Cannot save raw data for {system_id}: TechnicalDataManager is not available.")
-                    raise RuntimeError("TechnicalDataManager is required for saving raw portal data.")
+                # Use high-level API for saving raw data (ID-only aware)
+                scraper_api.save_raw(self.lib_config, raw_data, raw_prefix, dev_slug=dev_slug, inv_slug=inv_slug)
 
                 # Transform unified data using the FOLDER slug (dev_slug)
                 unified_data = AdapterFactory.get_adapter(raw_prefix).transform(raw_data, inv_slug, dev_slug)
@@ -749,15 +755,16 @@ class InvestmentSyncService:
                 if not raw_files:
                     if data and isinstance(data, dict) and "error" not in data:
                         logger.info(f"Saving raw data delayed for {dev_slug}/{inv_slug}.")
-                        from usi_scrapers.manager import TechnicalDataManager
-                        manager = TechnicalDataManager(self.lib_config)
-                        inv_dir.mkdir(parents=True, exist_ok=True)
-                        manager.save_raw_data(data, raw_prefix)
+                        # Use high-level API for saving raw data
+                        scraper_api.save_raw(self.lib_config, data, raw_prefix, dev_slug=dev_slug, inv_slug=inv_slug)
                         
-                        target_image_dir = self.public_usi_dir / dev_slug / inv_slug
-                        if "image_urls" in data:
-                            target_image_dir.mkdir(parents=True, exist_ok=True)
-                            manager.sync_images(data["image_urls"], target_image_dir)
+                        if "image_urls" in data and self.tech_manager:
+                            # Use library to resolve and sync images
+                            portal_id = data.get("id") or info.get("item_id")
+                            target_image_dir = self.tech_manager.get_image_path(portal, portal_id)
+                            if target_image_dir:
+                                target_image_dir.mkdir(parents=True, exist_ok=True)
+                                self.tech_manager.sync_images(data["image_urls"], target_image_dir)
                     else:
                         logger.warning(f"Batch download failed for {inv_slug} (no raw data found in {dev_slug}/{inv_slug}) - skipping registration.")
                         continue

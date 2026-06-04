@@ -334,7 +334,7 @@ def download_raw_route(dev_slug, inv_slug):
         for p in ["rp", "oto", "to"]:
             if p in sources:
                 identifier = sources[p].get("id") or sources[p].get("url")
-                if identifier and investment_service.download_raw_json(p, identifier, dev_slug, inv_slug):
+                if identifier and investment_service.download_raw_json(p, identifier, system_id):
                     success = True
         return jsonify({"ok": success})
     except Exception as e:

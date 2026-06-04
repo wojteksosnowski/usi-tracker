@@ -122,17 +122,6 @@ Utworz zadanie dla kazdego naruszenia. Sprawdz czy jest ono uzasadnione. Staraj 
 
 
 
-### Kamień 17 Zapis surowych danych
-Python
-# ❌ Tracker robi:
-from python_worker.repair_image_paths import _resolve_paths
-paths = _resolve_paths(raw_paths, image_urls, dev_slug, inv_slug, ...)
-
-# ✅ Api usi-scrapers już ma:
-from usi_scrapers.api import save_raw, save_raw_developer
-save_raw(config, data, portal_prefix="rp", portal_id="123")
-Tracker powinien: Wyłącznie wywoływać usi-scrapers API, nigdy nie pisać bezpośrednio do USIdata/.
-
 ### Kamień 18 
 
 # python_worker/here_maps.py

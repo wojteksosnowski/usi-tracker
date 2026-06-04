@@ -158,8 +158,8 @@ class DeveloperRepository:
         """Delegates raw developer JSON saving to the library manager."""
         if not self.tech_manager:
             raise RuntimeError("Strict immutability rule: raw files MUST be managed via TechnicalDataManager. Library not configured.")
-        from usi_scrapers.utils.io import save_dev_raw_json as lib_save_dev_raw
-        return lib_save_dev_raw(data, self.tech_manager.config.public_dir, dev_slug, portal_prefix, portal_id=portal_id)
+        from usi_scrapers import api as scraper_api
+        return scraper_api.save_raw_developer(self.tech_manager.config, data, dev_slug, portal_prefix, portal_id=portal_id)
 
     # -------------------------------------------------------------------------
     # Core CRUD — Level 2 files

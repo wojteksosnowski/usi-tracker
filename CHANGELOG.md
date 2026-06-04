@@ -1,5 +1,16 @@
 # Changelog
 
+## Wersja 0.9.28 — Kamień 17 (Zapis surowych danych) — 2026-06-04
+- **Delegacja zapisu Raw I/O**: Zastąpienie `TechnicalDataManager.save_raw_data` wysokopoziomowym API `scraper_api.save_raw` w `InvestmentSyncService`.
+- **Czysta rezolucja download_raw**: Usunięcie lokalnego wyznaczania `target_dir` w `download_raw_json` — biblioteka teraz samodzielnie zarządza ścieżkami na podstawie ID.
+- **Konsystencja DeveloperRepository**: Migracja `save_dev_raw_json` na `scraper_api.save_raw_developer`.
+- **Fix API download-raw**: Naprawa błędu `TypeError` w blueprintcie `investments.py` wynikającego z przekazywania nadmiarowych slugów.
+- **Regresja I/O**: Dodanie `tests/test_raw_saving.py` weryfikującego poprawność przekierowania zapisów do biblioteki.
+
+### Wnioski ze zmian
+- Architektura "Thin-Client" została wzmocniona: Tracker stał się całkowicie agnostyczny względem fizycznej struktury plików surowych.
+- Wykorzystanie `scraper_api.save_raw` zamiast bezpośrednich metod managera upraszcza kod i przygotowuje system pod przyszły split repozytoriów.
+
 ## Wersja 0.9.27 — Kamień 16 (Geocoding & HERE API Encapsulation) — 2026-06-04
 - **Utworzenie HereMapsService**: Skonsolidowano całą logikę obsługi HERE API (geokodowanie, POI, statyczne mapy) w nowej usłudze, eliminując rozproszenie tych funkcji w projekcie.
 - **Refaktoryzacja Blueprintu poi**: Zastąpiono bezpośrednie wywołania do API HERE przez `urllib` i `requests` czystymi wywołaniami do `HereMapsService`.
