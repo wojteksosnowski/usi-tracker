@@ -1,5 +1,15 @@
 # Changelog
 
+## Wersja 0.9.29 — Kamień 01 (Integracja TechnicalDataManager i Czyszczenie Serwisów) — 2026-06-04
+- **ID-Only Resolution**: `InvestmentIdentityResolver` został zintegrowany z `TechnicalDataManager`, całkowicie eliminując ręczne budowanie ścieżek na podstawie slugów.
+- **Wyczyszczenie Serwisów**: Usunięto logikę fallbacków w `InvestmentEditorService.save_ratings` i zaktualizowano oznaczanie rekordów.
+- **Refaktoryzacja SyncService**: Zmodyfikowano `register_investment` i synchronizację obrazów w `InvestmentSyncService`, aby używały poprawnie ścieżek z biblioteki.
+- **Aktualizacje Indeksu**: Wymuszono wywoływanie `upsert` w indeksie przy użyciu `inv_id`, co zapobiega dublowaniu wpisów z różnymi slugami.
+- **Testy**: Dodano czyste przypadki testowe w `test_investment_sync_clean.py` i naprawiono brakujące właściwości mocków `ScraperConfig`.
+
+### Wnioski ze zmian
+- Architektura oparta na tożsamościach ID, a nie na slugach, drastycznie zmniejsza złożoność logiki w serwisach aplikacyjnych. Przesunięcie całej odpowiedzialności za struktury plików do `TechnicalDataManager` usuwa luki bezpieczeństwa i zjawisko tzw. "dryfu ścieżek". Zmiany te są krytyczne w kontekście stabilności środowiska.
+
 ## Wersja 0.9.28 — Kamień 17 (Zapis surowych danych) — 2026-06-04
 - **Delegacja zapisu Raw I/O**: Zastąpienie `TechnicalDataManager.save_raw_data` wysokopoziomowym API `scraper_api.save_raw` w `InvestmentSyncService`.
 - **Czysta rezolucja download_raw**: Usunięcie lokalnego wyznaczania `target_dir` w `download_raw_json` — biblioteka teraz samodzielnie zarządza ścieżkami na podstawie ID.

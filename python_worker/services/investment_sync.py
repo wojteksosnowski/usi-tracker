@@ -156,7 +156,12 @@ class InvestmentSyncService:
         if inv_slug_from_url and not inv_slug:
              inv_slug = inv_slug_from_url
 
-        inv_dir = self.data_dir / dev_slug / inv_slug
+        # Resolve investment directory via TechnicalDataManager
+        if self.tech_manager and portal and item_id:
+            inv_dir = self.tech_manager.get_investment_path(portal, str(item_id))
+        else:
+            # Fallback if library not available or ID missing
+            inv_dir = self.data_dir / dev_slug / inv_slug
 
         # 1. Check if investment already exists (any file format)
         existing_file = _find_inv_file(inv_dir, inv_slug)
@@ -176,6 +181,9 @@ class InvestmentSyncService:
             logger.info(f"Investment with ID {item_id} ({portal}) already exists in system. Skipping registration.")
             return None, None
 
+        if not inv_dir:
+             raise RuntimeError(f"Could not determine investment directory for {portal}/{item_id}")
+             
         inv_dir.mkdir(parents=True, exist_ok=True)
 
         # Canonical filename: usi_{portal}_{portal_id}.json (new format)
@@ -220,7 +228,7 @@ class InvestmentSyncService:
             
         try:
             import python_worker.investment_index as inv_index
-            inv_index.upsert(self.data_dir, self.public_usi_dir, dev_slug, inv_slug)
+            inv_index.upsert(self.data_dir, self.public_usi_dir, inv_id=skeleton["usi_inv_id"])
         except Exception as _ie:
             logger.debug(f"Index upsert skipped for {inv_slug}: {_ie}")
 
@@ -390,7 +398,12 @@ class InvestmentSyncService:
 
             saved_filenames = []
             if urls_to_download:
-                target_image_dir = self.public_usi_dir / img_dev_slug / inv_slug
+                # Use resources to get canonical images_dir if possible
+                target_image_dir = resources.get("images_dir")
+                if not target_image_dir:
+                     # Fallback to slug-based for new investments being updated for the first time
+                     target_image_dir = self.public_usi_dir / img_dev_slug / inv_slug
+                     
                 saved_filenames = self.tech_manager.sync_images(urls_to_download, target_image_dir)
                         
             unique_paths = []
@@ -589,7 +602,7 @@ class InvestmentSyncService:
             if not skip_index:
                 try:
                     import python_worker.investment_index as inv_index
-                    inv_index.upsert(self.data_dir, self.public_usi_dir, dev_slug, inv_slug)
+                    inv_index.upsert(self.data_dir, self.public_usi_dir, inv_id=system_id)
                 except Exception as _ie:
                     logger.debug(f"Index upsert skipped for {inv_slug}: {_ie}")
 
