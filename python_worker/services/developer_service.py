@@ -56,6 +56,7 @@ class DeveloperService:
             logo_path = PORTAL_MAPPING.get(portal, {}).get("developer", {}).get("logo")
             logo_url = resolve_path(raw_data, logo_path)
 
+            if logo_url:
                 from usi_scrapers.utils.images import download_developer_logo
                 logger.info(f"Downloading logo for {dev_slug} from {logo_url}")
                 portal_prefix = "rp" if portal == "rp" else ("oto" if portal == "oto" else "to")

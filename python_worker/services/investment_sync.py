@@ -265,9 +265,18 @@ class InvestmentSyncService:
         from usi_scrapers import api as scraper_api
         return scraper_api.download_raw(self.lib_config, self.fetcher, portal, identifier, target_dir)
         
-    def _fetch_and_transform_portal_data(self, portal, portal_name, raw_prefix, inv_dir, dev_slug, inv_slug, sources, use_local_raw):
+    def _fetch_and_transform_portal_data(self, system_id, portal, portal_name, raw_prefix, sources, use_local_raw):
         """Fetches raw portal data (local or remote) and transforms it."""
         from usi_scrapers import api as scraper_api
+        
+        resources = self.identity.get_investment_resources(system_id)
+        if not resources:
+            return None, None, f"{portal_name} (No resources)"
+            
+        inv_dir = resources["base_dir"]
+        slug_parts = resources["metadata"]["slug"].split("/")
+        dev_slug = slug_parts[0]
+        inv_slug = slug_parts[1]
         
         raw_files = list(inv_dir.glob(f"raw_{raw_prefix}_*.json"))
 
@@ -300,7 +309,7 @@ class InvestmentSyncService:
                 res = scraper_api.fetch_investment(self.lib_config, self.fetcher, portal, identifier)
             except Exception as e:
                 error_msg = f"Exception during fetch: {e}"
-                logger.error(f"[{portal_name}] {inv_slug}: {error_msg}")
+                logger.error(f"[{portal_name}] {system_id}: {error_msg}")
                 log_to_processing_log(dev_slug, inv_slug, f"Error fetching from {portal_name}: {error_msg}")
                 return None, None, f"{portal_name} ({error_msg})"
 
@@ -310,7 +319,7 @@ class InvestmentSyncService:
                 if self.tech_manager:
                     self.tech_manager.save_raw_data(raw_data, raw_prefix)
                 else:
-                    logger.error(f"Cannot save raw data for {inv_slug}: TechnicalDataManager is not available.")
+                    logger.error(f"Cannot save raw data for {system_id}: TechnicalDataManager is not available.")
                     raise RuntimeError("TechnicalDataManager is required for saving raw portal data.")
 
                 # Transform unified data using the FOLDER slug (dev_slug)
@@ -318,7 +327,7 @@ class InvestmentSyncService:
                 return unified_data, portal_name, None
             else:
                 error_msg = res.get("error", "Unknown error") if isinstance(res, dict) else "No valid response"
-                logger.error(f"[{portal_name}] {inv_slug}: {error_msg}")
+                logger.error(f"[{portal_name}] {system_id}: {error_msg}")
                 log_to_processing_log(dev_slug, inv_slug, f"Fetch failed — {portal_name}: {error_msg}")
                 return None, None, f"{portal_name} ({error_msg})"
 
@@ -536,7 +545,7 @@ class InvestmentSyncService:
             raw_prefix = "rp" if portal == "rp" else ("oto" if portal == "oto" else "to")
 
             unified_data, fetched_src, failed_src = self._fetch_and_transform_portal_data(
-                portal, portal_name, raw_prefix, inv_dir, dev_slug, inv_slug, sources, use_local_raw
+                system_id, portal, portal_name, raw_prefix, sources, use_local_raw
             )
             
             if unified_data:

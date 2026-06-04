@@ -19,7 +19,7 @@ class DeveloperMergeManager:
     def append_dev_log(self, dev_slug: str, event: dict):
         return self.repo.append_dev_log(dev_slug, event)
 
-    def merge_by_id(self, source_id: str, target_id: str) -> bool:
+    def merge_by_id(self, target_id: str, source_id: str) -> bool:
         """Merge two developers by usi_dev_id."""
         target_dev = self.repo.get_developer_by_id(target_id)
         source_dev = self.repo.get_developer_by_id(source_id)
@@ -70,9 +70,9 @@ class DeveloperMergeManager:
                 "timestamp": datetime.now().isoformat()
             }
             suggested_dev["suggestions"].append(reciprocal)
-            self.create_developer_file(suggested_dev)
+            self.repo.create_developer_file(suggested_dev)
             
-        self.create_developer_file(target_dev)
+        self.repo.create_developer_file(target_dev)
         return True
 
     def dismiss_suggestion_by_id(self, target_id: str, suggested_id: str) -> bool:
@@ -131,7 +131,7 @@ class DeveloperMergeManager:
         dm_id = master["dev_master_id"]
 
         # Log event on target
-        self.append_dev_log(target_slug, {
+        self.repo.append_dev_log(target_slug, {
             "type": "merge_in",
             "source_slug": source_slug,
             "source_id": source_id,
@@ -139,7 +139,7 @@ class DeveloperMergeManager:
         })
 
         # Log event on source — DEV records are children of DM, include master_id
-        self.append_dev_log(source_slug, {
+        self.repo.append_dev_log(source_slug, {
             "type": "merged_into",
             "target_id": target_id,
             "target_slug": target_slug,
@@ -147,8 +147,8 @@ class DeveloperMergeManager:
             "master_id": dm_id,
         })
 
-        self.create_developer_file(target_dev)
-        self.create_developer_file(source_dev)
+        self.repo.create_developer_file(target_dev)
+        self.repo.create_developer_file(source_dev)
 
         # Remove any legacy USIdata dev file for source
         for lp in [self.repo.data_dir / source_slug / f"usi_dev_{source_slug}.json"]:
@@ -195,7 +195,7 @@ class DeveloperMergeManager:
         # If master is now empty, clean up master_id on target
         if not master.get("merged_from") and not master.get("dismissed"):
             target_dev.pop("master_id", None)
-            master_path = self._dev_master_path(master_id, target_slug)
+            master_path = self.repo._dev_master_path(master_id, target_slug)
             master_path.unlink(missing_ok=True)
 
         # Log event
@@ -206,8 +206,8 @@ class DeveloperMergeManager:
             "source_name": source_dev.get("name", source_slug),
         })
 
-        self.create_developer_file(target_dev)
-        self.create_developer_file(source_dev)
+        self.repo.create_developer_file(target_dev)
+        self.repo.create_developer_file(source_dev)
 
         logger.info(f"Unmerged {source_slug} ({source_id}) from {target_slug}")
         return True
@@ -270,7 +270,7 @@ class DeveloperMergeManager:
             "dismissed_id": suggested_id,
         })
 
-        self.create_developer_file(dev)
+        self.repo.create_developer_file(dev)
         return True
 
     # -------------------------------------------------------------------------

@@ -109,7 +109,8 @@ class InvestmentRepository:
         deletion_file = target_dir / "deletion_list.json"
         target_dir.mkdir(parents=True, exist_ok=True)
         with open(deletion_file, "w", encoding="utf-8") as f:
-            json.dump(deleted_items, f, indent=2, ensure_ascii=False)
+            from datetime import datetime
+            json.dump({"paths": deleted_items, "updated_at": datetime.now().isoformat()}, f, indent=2, ensure_ascii=False)
 
     def get_deleted_items(self, system_id: str) -> list[str]:
         """Gets the list of manually deleted property IDs."""
@@ -118,7 +119,10 @@ class InvestmentRepository:
             deletion_file = target_dir / "deletion_list.json"
             if deletion_file.exists():
                 with open(deletion_file, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        return data.get("paths", [])
+                    return data
         except FileNotFoundError:
             pass
         return []

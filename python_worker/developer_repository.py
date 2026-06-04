@@ -231,6 +231,12 @@ class DeveloperRepository:
         # NOTE: parent_id (hierarchy) is preserved in Level 2 as per schema.
         developer_data.pop("events", None)
         developer_data.pop("merged_from", None)
+        developer_data.pop("is_master", None)
+        developer_data.pop("is_child", None)
+        developer_data.pop("original_portal_mapping", None)
+        developer_data.pop("investments_count", None)
+        developer_data.pop("resources", None)
+        developer_data.pop("suggestions", None)
 
         usi_dev_id = developer_data["usi_dev_id"]
         file_path = subdir / f"usi_dev_{usi_dev_id}_{dev_slug}.json"
@@ -506,6 +512,16 @@ class DeveloperRepository:
             except Exception as e:
                 logger.warning(f"Error reading {json_file}: {e}")
 
+        # Legacy format inside USIdata/
+        for json_file in self.data_dir.glob("*/usi_dev_*.json"):
+            if re.match(r"usi_dev_[A-Z]+-\d+_", json_file.name):
+                continue
+            try:
+                with open(json_file, "r", encoding="utf-8") as f:
+                    _add(json.load(f))
+            except Exception as e:
+                logger.warning(f"Error reading {json_file}: {e}")
+
         return developers
 
     def get_total_pending_count(self, identifiers: dict) -> int:
@@ -539,7 +555,12 @@ class DeveloperRepository:
         if not name:
             return "unknown"
             
-        # Find by name in current index (case-insensitive)
+        # First check if it's already a valid slug
+        for dev in self.list_developers(only_merged=False):
+            if dev.get("developer_slug") == name:
+                return name
+        
+        # Fallback: Find by name in current index (case-insensitive)
         for dev in self.list_developers(only_merged=False):
             if dev.get("name") and dev["name"].lower() == name.lower():
                 return dev["developer_slug"]

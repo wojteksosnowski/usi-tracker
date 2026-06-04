@@ -237,7 +237,7 @@ def investment_data(dev_slug, inv_slug):
         abort(400)
     system_id = request.args.get("id")
     system_id = _resolve_system_id(dev_slug, inv_slug, system_id)
-    inv = investment_service.get_investment(system_id) if system_id else None
+    inv = investment_service.get_investment(system_id=system_id, dev_slug=dev_slug, inv_slug=inv_slug)
     if inv is None:
         abort(404)
     return jsonify(inv)
@@ -320,23 +320,13 @@ def refresh_investment_route(dev_slug, inv_slug):
 def download_raw_route(dev_slug, inv_slug):
     if not _valid_slug(dev_slug) or not _valid_slug(inv_slug):
         abort(400)
-    from python_worker.config import USI_DATA_DIR
-    from python_worker.api.utils import _find_inv_file
-    from pathlib import Path
     system_id = request.args.get("id")
-    res = investment_service.get_investment_resources(system_id) if system_id else None
-    if res and res.get("anchor"):
-        usi_file = res["anchor"]
-    else:
-        inv_dir = Path(USI_DATA_DIR) / dev_slug / inv_slug
-        usi_file = _find_inv_file(inv_dir, inv_slug)
-        
-    if not usi_file or not Path(usi_file).exists():
-        abort(404)
     try:
-        with open(usi_file, "r") as f:
-            data = json.load(f)
-            sources = data.get("sources", {})
+        data = investment_service.get_investment(system_id, dev_slug, inv_slug)
+        if not data:
+            abort(404)
+            
+        sources = data.get("sources", {})
         success = False
         for p in ["rp", "oto", "to"]:
             if p in sources:

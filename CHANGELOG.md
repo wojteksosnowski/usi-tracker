@@ -1,5 +1,27 @@
 # Changelog
 
+## Wersja 0.9.17 — Kamień 12 (Naprawa testów) — 2026-06-04
+- **Inwentaryzacja testów legacy**: Dokumentacja 35 scenariuszy testowych w `tests/LEGACY_TESTS.md` przed ich usunięciem.
+- **Reset środowiska testowego**: Usunięcie wszystkich przestarzałych plików `.py` i wyczyszczenie `__pycache__` w celu eliminacji długu technologicznego.
+- **Fundament nowej generacji**: Implementacja `tests/test_usi_scrapers_integration.py` oraz `tests/test_adapters_base.py` bazujących na nowym API.
+- **Rozszerzenie TechnicalDataManager**: Dodanie metod `get_investment_path`, `get_image_path` i `get_raw_filename` do biblioteki `usi-scrapers` w celu obsługi architektury ID-only.
+
+### Wnioski ze zmian
+- **Oczyszczenie długu testowego**: Pozbycie się testów bazujących na starej architekturze jest niezbędne, aby uniknąć fałszywych sygnałów o stabilności systemu podczas głębokiej refaktoryzacji.
+- **Konsolidacja I/O**: Rozszerzenie `TechnicalDataManager` o twarde rezolucje ścieżek na podstawie portal ID domyka pętlę izolacji I/O, pozwalając na całkowite usunięcie logiki sklejania ścieżek z trackera.
+
+## Wersja 0.9.16 — Kamień 04 (Naprawa slug i I/O - Krok 04.01) — 2026-06-04
+- **Refaktoryzacja InvestmentSyncService**: Zrefaktoryzowano metodę `_fetch_and_transform_portal_data`, aby przyjmowała `system_id` zamiast slugów, korzystając z `InvestmentIdentityResolver` do dynamicznego pozyskiwania ścieżek.
+- **Testy automatyczne**: Dodano test potwierdzający to zachowanie.
+- Zaktualizowano `TODO.md`: Oznaczono zadania Kroku 04.01 jako wykonane i dodano podsumowanie.
+
+## Wersja 0.9.15 — Kamień 04 (Planowanie: Naprawa slug i I/O) — 2026-06-04
+- Zaktualizowano `TODO.md`: Połączono zadania z kamienia 04 ("Naprawa slug") i 05 ("Naprawa zapisu") w jeden spójny kamień "Naprawa slug i I/O".
+
+## Wersja 0.9.14 — Kamień 03 (Raw Inquisitor - Krok 03.01) — 2026-06-04
+- **Raport użycia I/O**: Zidentyfikowano wszystkie funkcje wykonujące zapis na dysk w katalogach `python_worker/services/` i `python_worker/api/` i wygenerowano raport `raw_io_usage_report.md`.
+- **Testy automatyczne**: Dodano test weryfikujący wygenerowanie tego raportu.
+
 ## Wersja 0.9.13 — Kamień 02 (Slug Inquisitor) — 2026-06-04
 - **Raport użycia slugów**: Wygenerowano listę funkcji z argumentem `slug` przy pomocy parsera AST w `python_worker/services` oraz `python_worker/api/`.
 - **Analiza użycia**: Zidentyfikowano nieuprawnione wywołania sluga do wewnętrznych serwisów i zapisano w nowym pliku `slug_usage_report.md`.

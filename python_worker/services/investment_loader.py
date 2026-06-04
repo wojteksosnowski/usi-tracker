@@ -39,7 +39,7 @@ def find_inv_file(inv_dir: Path, inv_slug: str, system_id: str = None) -> Path |
             return legacy
     return None
 
-def load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None, public_usi_dir: Path | None = None, portal: str | None = None, system_id: str | None = None, usi_file: Path | None = None, fast_index: bool = False) -> dict | None:
+def load_investment(system_id: str | None = None, dev_slug: str | None = None, inv_slug: str | None = None, data_dir: Path | None = None, public_usi_dir: Path | None = None, portal: str | None = None, usi_file: Path | None = None, fast_index: bool = False) -> dict | None:
     """
     Unified loader for investment data from disk.
     Combines usi_*.json with photos scan and ratings.
@@ -52,11 +52,11 @@ def load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None, 
     resources = None
 
     if not usi_file:
-        if fast_index and inv_dir and inv_dir.exists():
+        if fast_index and inv_dir and inv_dir.exists() and inv_slug:
              usi_file = find_inv_file(inv_dir, inv_slug, system_id=system_id)
 
         if not usi_file:
-            if system_id and not system_id.startswith("legacy_"):
+            if system_id and not str(system_id).startswith("legacy_"):
                 from python_worker.services.investment_service import InvestmentService
                 svc = InvestmentService(data_dir=data_dir, public_usi_dir=public_usi_dir)
                 resources = svc.get_investment_resources(system_id)
@@ -68,7 +68,7 @@ def load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None, 
 
     if not usi_file:
         if not inv_dir: return None
-        if system_id:
+        if system_id and inv_slug:
             usi_file = find_inv_file(inv_dir, inv_slug, system_id=system_id)
         elif portal:
             candidates = sorted(inv_dir.glob(f"usi_{portal}_*.json"))
@@ -170,6 +170,14 @@ def load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None, 
                 master_usi_inv_id = master_data.get("master_usi_inv_id")
             except Exception: pass
 
+    ratings_data = usi.get("ratings", {})
+    if inv_dir:
+        ratings_file = inv_dir / "ratings.json"
+        if ratings_file.exists():
+            try:
+                ratings_data = json.loads(ratings_file.read_text())
+            except Exception: pass
+            
     base_data = {
         "slug": f"{dev_slug}/{inv_slug}",
         "developer_slug": dev_slug,
@@ -207,8 +215,8 @@ def load_investment(dev_slug: str, inv_slug: str, data_dir: Path | None = None, 
         "id": system_id or usi.get("master_id") or (f"{usi.get('portal')}_{usi.get('portal_id')}" if usi.get("portal") and usi.get("portal_id") else f"legacy_{dev_slug}/{inv_slug}"),
         "usi_inv_id": usi.get("usi_inv_id"),
         "usi_dev_id": usi.get("usi_dev_id"),
-        "ratings": usi.get("ratings", {}),
-        "comment": usi.get("ratings", {}).get("komentarz", ""),
+        "ratings": ratings_data,
+        "comment": ratings_data.get("komentarz", ""),
         "photos_to_delete": photos_to_delete,
         "folder_path": str(inv_dir),
         "last_updated_ts": usi_file.stat().st_mtime if usi_file else None,

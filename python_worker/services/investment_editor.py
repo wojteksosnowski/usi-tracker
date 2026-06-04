@@ -26,15 +26,7 @@ class InvestmentEditorService:
         inv_dir = resources["base_dir"]
         usi_file = resources["files"]["anchor"]
         
-        # Meta file for legacy compatibility
-        meta_slug = resources["metadata"]["slug"].split("/")[-1]
-        ratings_file = inv_dir / f"meta_{meta_slug}_ratings.json"
-        
-        existing_ratings = {}
-        if ratings_file.exists():
-            try:
-                existing_ratings = json.loads(ratings_file.read_text())
-            except: pass
+        existing_ratings = self.repo.get_ratings(system_id) or {}
 
         changes = []
         for cat in _CATS:
@@ -104,8 +96,8 @@ class InvestmentEditorService:
         except Exception as e:
             logger.error(f"Service ratings update error for {system_id}: {e}")
 
-        # Update legacy ratings file
-        ratings_file.write_text(json.dumps(existing_ratings, ensure_ascii=False, indent=2))
+        # Update legacy ratings file via abstraction
+        self.repo.save_ratings(system_id, existing_ratings)
 
         try:
             import python_worker.investment_index as inv_index
@@ -139,25 +131,7 @@ class InvestmentEditorService:
         except Exception as e:
             logger.error(f"Failed to mark as reviewed for {system_id}: {e}")
             return False
-            
-        usi_file = resources["files"]["anchor"]
-        slug_parts = resources["metadata"]["slug"].split("/")
 
-        try:
-            with open(usi_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-
-            data["reviewed"] = True
-            data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
-
-            with open(usi_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-
-            log_to_processing_log(slug_parts[0], slug_parts[1], f"Investment {system_id} marked as reviewed by analyst.")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to mark as reviewed for {system_id}: {e}")
-            return False
 
     def add_report(self, system_id, note):
         """Adds a problem report note to the investment record."""
@@ -190,32 +164,7 @@ class InvestmentEditorService:
         except Exception as e:
             logger.error(f"Failed to add report for {system_id}: {e}")
             return False
-            
-        usi_file = resources["files"]["anchor"]
-        slug_parts = resources["metadata"]["slug"].split("/")
 
-        try:
-            with open(usi_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-
-            reports = data.setdefault("issue_reports", [])
-            reports.insert(0, {
-                "note": note,
-                "at": datetime.now().isoformat()
-            })
-
-            audit = data.setdefault("audit", {})
-            audit["updated_at"] = datetime.now().isoformat()
-            audit["audit_needed"] = True
-
-            with open(usi_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-
-            log_to_processing_log(slug_parts[0], slug_parts[1], f"Issue reported for {system_id}: {note[:50]}...")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to add report for {system_id}: {e}")
-            return False
 
     def mark_deleted_photos(self, system_id, paths_or_inv, maybe_paths=None):
         resources = None
@@ -236,42 +185,12 @@ class InvestmentEditorService:
 
         if not resources or not resources["files"].get("anchor") or not resources["files"]["anchor"].exists():
             return False
-            
+
         try:
-            # We can read the deletion list from base_dir if we have resources
-            base_dir = resources["base_dir"]
-            deletion_file = base_dir / "deletion_list.json"
-            deleted = set()
-            if deletion_file.exists():
-                with open(deletion_file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    if isinstance(data, dict):
-                        deleted = set(data.get("paths", []))
-                    else:
-                        deleted = set(data)
+            # Get existing deleted items via repo
+            existing_deleted = self.repo.get_deleted_items(system_id)
+            deleted = set(existing_deleted)
                     
-            for path in paths:
-                deleted.add(path)
-                
-            base_dir.mkdir(parents=True, exist_ok=True)
-            with open(deletion_file, "w", encoding="utf-8") as f:
-                json.dump({"paths": list(deleted)}, f, indent=2, ensure_ascii=False)
-            
-            slug_parts = resources["metadata"]["slug"].split("/")
-            log_to_processing_log(slug_parts[0], slug_parts[1], f"Marked {len(paths)} photos as deleted via ID {system_id}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to mark deleted photos for {system_id}: {e}")
-            return False
-            
-        inv_dir = resources["base_dir"]
-        deletion_file = inv_dir / "deletion_list.json"
-        
-        try:
-            deleted = set()
-            if deletion_file.exists():
-                deleted = set(json.loads(deletion_file.read_text()))
-                
             for path in paths:
                 deleted.add(path)
                 
