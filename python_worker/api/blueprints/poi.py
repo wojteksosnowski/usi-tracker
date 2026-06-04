@@ -58,10 +58,17 @@ def get_poi(system_id):
     if not system_id:
         abort(400)
         
+    from python_worker.api.blueprints.investments import investment_service
+    inv_data = investment_service.repo.get_investment_json(system_id)
+    if not inv_data:
+        abort(404)
+        
+    if "poi" in inv_data:
+        return jsonify(inv_data["poi"])
+
     path = _poi_path(system_id)
     if not path or not path.exists():
         # Fallback for old name poi_{inv_slug}.json
-        from python_worker.api.blueprints.investments import investment_service
         inv = investment_service.get_investment(system_id)
         if inv and inv.get("investment_slug"):
             res = investment_service.get_investment_resources(system_id)
@@ -112,11 +119,11 @@ def fetch_poi(system_id):
         "wiki_articles": wiki_articles,
     }
 
-    path = _poi_path(system_id)
-    if not path:
+    inv_data = investment_service.repo.get_investment_json(system_id)
+    if not inv_data:
         abort(500)
         
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    inv_data["poi"] = payload
+    investment_service.repo.save_investment_json(system_id, inv_data)
 
     return jsonify(payload)

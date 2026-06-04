@@ -1,5 +1,13 @@
 # Changelog
 
+## Wersja 0.9.42 — Kamień 02 (Opanowanie wycieku stanu UI oraz integracja POI z USI JSON) — 2026-06-05
+- **Poprawa wycieku stanu indeksu zdjęć**: Naprawiono błędną zależność `inv.slug` na poprawną `inv.usi_inv_id` w widoku szczegółów. Poprawia to odświeżanie zdjęć po zmianie inwestycji.
+- **Integracja zapisu POI do JSON**: Zmodyfikowano `poi.py` by czytał i zapisywał POI (Places of Interest) jako węzeł w głównym pliku inwestycji (`usi_*.json`), upraszczając strukturę danych i eliminując niepotrzebne zapytania asynchroniczne.
+
+### Wnioski ze zmian
+- Migracja pobocznych danych jak POI do rdzennnego obiektu inwestycji (master JSON) zwiększa spójność danych i ogranicza liczbę niezbędnych odpytań i plików. 
+- Zawsze należy zachować czujność przy zależnościach hooków React, polegając na pewnych identyfikatorach systemowych (jak `usi_inv_id`), by uniknąć asynchronicznych wycieków stanu pomiędzy komponentami.
+
 ## Wersja 0.9.41 — Kamień 01 (Pierwszy blad UI) — 2026-06-05
 - **Poprawa błędu UI**: Rozwiązano problem `ReferenceError: investment is not defined` w widokach, naprawiając błędne użycie nazwy zmiennej w module odpowiedzialnym za punkty POI (`modules-ui.jsx`).
 

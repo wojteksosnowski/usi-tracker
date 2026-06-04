@@ -83,7 +83,7 @@
           .sort((a, b) => a.distance - b.distance);
         setVariable('nearbyInvestments', nearby);
       }
-    }, [inv.slug, bus.investments, setVariable]);
+    }, [inv.usi_inv_id, bus.investments, setVariable]);
 
     // Keyboard shortcuts
     React.useEffect(() => {
