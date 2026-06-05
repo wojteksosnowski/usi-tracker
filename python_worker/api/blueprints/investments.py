@@ -50,8 +50,11 @@ from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
 investment_service = InvestmentService()
 developer_manager = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
 
+from functools import lru_cache
 _missing_images_cache = set()
 _cdn_redirect_cache = {}
+_list_inv_cache = {} # Map full_path -> {"data": result, "timestamp": ts}
+_list_inv_lock = threading.Lock()
 
 @investments_bp.route("/image/<path:filepath>")
 def serve_image(filepath):
@@ -172,6 +175,16 @@ def serve_dev_logo(usi_dev_id):
 @investments_bp.route("/investments")
 def list_investments():
     import time
+    cache_key = request.full_path
+    
+    # Check if cache is still valid
+    with _list_inv_lock:
+        if cache_key in _list_inv_cache:
+            entry = _list_inv_cache[cache_key]
+            if (time.time() - entry["timestamp"]) < 30:
+                logger.info(f"Returning cached investments list for {cache_key}")
+                return jsonify(entry["data"])
+
     start_t = time.time()
     data_root = investment_service.data_dir
     if not data_root.exists():
@@ -268,7 +281,14 @@ def list_investments():
     filter_duration = (time.time() - filter_start) * 1000
     logger.info(f"list_investments: Found {len(filtered)}/{len(investments)} entries in {duration:.1f}ms (filtering: {filter_duration:.1f}ms)")
 
-    return jsonify({"data": filtered, "unreviewedCount": unreviewed_count})
+    result = {"data": filtered, "unreviewedCount": unreviewed_count}
+    with _list_inv_lock:
+        _list_inv_cache[cache_key] = {"data": result, "timestamp": time.time()}
+        # Simple cleanup if cache grows too large
+        if len(_list_inv_cache) > 100:
+            _list_inv_cache.clear()
+
+    return jsonify(result)
 
 @investments_bp.route("/investments/rebuild-index", methods=["POST"])
 def rebuild_index():
