@@ -42,6 +42,7 @@
             {hasPhotos ? (
                 <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
                    <img 
+                      key={_src}
                       src={_src}
                       style={{ maxWidth: '100%', maxHeight: '85vh', objectFit: 'contain', cursor: 'pointer', borderRadius: '4px' }}
                       alt={`Zdjęcie ${currentImageIdx + 1}`}

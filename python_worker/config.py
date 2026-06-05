@@ -4,12 +4,7 @@ import warnings
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Add usi-scrapers and usi-crawlers to path if not already there
-LIB_PATH = "/Volumes/Samsam/claude-py/usi-scrapers"
-CRAWLERS_PATH = "/Volumes/Samsam/claude-py/usi-crawlers"
-for p in [LIB_PATH, CRAWLERS_PATH]:
-    if p not in sys.path:
-        sys.path.insert(0, p)
+_BASE_DIR = Path(__file__).resolve().parent.parent  # usi-tracker/ root
 
 # Load .env file from python_worker/ directory (explicit path — CWD-independent)
 load_dotenv(Path(__file__).parent / ".env")
@@ -19,15 +14,12 @@ SCRAPERAPI_KEY = os.getenv("SCRAPERAPI_KEY")
 SCRAPERAPI_LIMIT = 1000
 USAGE_STATS_PATH = Path(__file__).parent / "data" / "usage.json"
 
-# Dropbox Root Path
-# Defaults to current directory if not set in .env
-if not os.getenv("DROPBOX_PATH") and not os.getenv("USI_DATA_DIR"):
-    warnings.warn(
-        "Neither DROPBOX_PATH nor USI_DATA_DIR env var set, defaulting to '.'. "
-        "Set them in .env for correct operation.",
-        stacklevel=2,
-    )
-_BASE_DIR = Path(__file__).resolve().parent.parent  # usi-tracker/ root
+# Add usi-scrapers and usi-crawlers to path if not already there
+LIB_PATH = str(_BASE_DIR.parent / "usi-scrapers")
+CRAWLERS_PATH = str(_BASE_DIR.parent / "usi-crawlers")
+for p in [LIB_PATH, CRAWLERS_PATH]:
+    if os.path.exists(p) and p not in sys.path:
+        sys.path.insert(0, p)
 DROPBOX_PATH = Path(os.getenv("DROPBOX_PATH", str(_BASE_DIR)))
 
 # Paths for Public/USIdata and Public/USI

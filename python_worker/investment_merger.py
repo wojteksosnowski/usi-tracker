@@ -260,20 +260,22 @@ class InvestmentMerger:
         })
 
         # Need to find the master file
-        # We can scan all inv_master files? No, master file path isn't strictly known from master_id easily without index.
-        # But master_id format is IM-0001. We can search the whole USIdata.
-        # However, we can also just find it because we can find the primary target.
-        # A simpler way is just to search for `inv_master_{master_id}.json`.
-        # Since it's O(N) over directories, it's fast enough.
-        master_file_path = None
+        # Master files are stored in the root of USIdata (self.data_dir)
+        master_file_path = self.data_dir / f"inv_master_{master_id}.json"
         t_inv_dir = None
-        for mf in self.data_dir.rglob(f"inv_master_{master_id}.json"):
-            master_file_path = mf
-            t_inv_dir = mf.parent
-            break
+
+        # Check if it actually exists there
+        if not master_file_path.exists():
+            # Fallback (though it shouldn't be here) - check if it's in the investment directory
+            # but we don't know which investment directory.
+            # In unmerge, we know the source investment.
+            master_file_path = None
+            logger.warning(f"Master file not found at expected root: {self.data_dir / f'inv_master_{master_id}.json'}")
 
         if master_file_path:
+            t_inv_dir = master_file_path.parent # This is just self.data_dir
             with open(master_file_path, "r", encoding="utf-8") as f:
+
                 master_data = json.load(f)
 
             master_data["merged_from"] = [m for m in master_data.get("merged_from", []) if m.get("usi_inv_id") != source_inv_id]

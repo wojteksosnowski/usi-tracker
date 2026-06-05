@@ -81,14 +81,14 @@ logging.getLogger("werkzeug").addFilter(IgnorePollingFilter())
 
 def run():
     # Start the Doktor daemon (silent similarity investigation)
-    from python_worker.daemons import init_doktor, init_crawler
-    doktor = init_doktor(USI_DATA_DIR, USI_DEV_DIR)
-    if doktor:
-        doktor.start()
+    # from python_worker.daemons import init_doktor, init_crawler
+    # doktor = init_doktor(USI_DATA_DIR, USI_DEV_DIR)
+    # if doktor:
+    #     doktor.start()
 
-    crawler = init_crawler(USI_DATA_DIR, USI_DEV_DIR)
-    if crawler:
-        crawler.start()
+    # crawler = init_crawler(USI_DATA_DIR, USI_DEV_DIR)
+    # if crawler:
+    #     crawler.start()
 
     print(f"USI Tracker UI → http://localhost:{UI_PORT}")
     app.run(host="127.0.0.1", port=UI_PORT, debug=False)

@@ -47,7 +47,7 @@
           aspectRatio: ratio, 
           borderRadius: hero ? 12 : 8,
         }}>
-        <img src={_src} alt="" loading="lazy"
+        <img src={_src} alt="" loading={hero ? undefined : "lazy"}
           className={`usi-gallery-photo-img ${marked ? 'marked' : ''}`} />
         {marked && <DeletionBadge />}
         <PhotoOverlay onOpen={onOpen} onToggleMark={onMark} marked={marked} visible={hover || marked} />
@@ -65,7 +65,10 @@
     const [idx, setIdx] = React.useState(0);
     const total = photos.length;
 
-    React.useEffect(() => { setIdx(0); }, [photos && photos[0]]);
+    // Reset to first photo whenever the photos list changes (e.g. navigating to another investment).
+    // Using .join() is a reliable identity key — photos[0] alone fails when both investments
+    // share the same first photo URL.
+    React.useEffect(() => { setIdx(0); }, [photos.join(',').slice(0, 200)]);
 
     React.useEffect(() => {
       const handler = (e) => {
@@ -128,7 +131,7 @@
     const [hero, ...rest] = inv.photos;
     return (
       <div data-component="Gallery" className="usi-gallery-container">
-        <PhotoTile src={hero} marked={marked.has(0)}
+        <PhotoTile key={`hero-${hero}`} src={hero} marked={marked.has(0)}
           onMark={() => onToggleMark(0)} onOpen={() => onLightbox(0)}
           ratio="16/9" hero />
         {rest.length > 0 && (

@@ -3,9 +3,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 class DeveloperResolver:
-    def __init__(self, developer_manager, fetcher=None, identity_resolver=None):
+    def __init__(self, developer_manager, sync_service=None, identity_resolver=None):
         self.dm = developer_manager
-        self.fetcher = fetcher
+        self.sync_service = sync_service
         self.identity = identity_resolver
 
     def resolve_developer_for_registration(self, portal, developer_name, url, vendor_id, force_dev_slug):
@@ -38,10 +38,10 @@ class DeveloperResolver:
 
         # Identification pre-scrapes (Otodom/TabelaOfert) via API
         is_unknown = not developer_name or developer_name.lower() in ("nieznany deweloper", "unknown", "nieznany-deweloper")
-        if not dev_slug and not developer_record and is_unknown and portal in ("oto", "to") and url:
+        if not dev_slug and not developer_record and is_unknown and portal in ("oto", "to") and url and self.sync_service:
             logger.info(f"Developer unknown for {url}, performing pre-scrape identification ({portal})...")
             try:
-                identified_name = scraper_api.identify_developer(self.fetcher, portal, url)
+                identified_name = scraper_api.identify_developer(self.sync_service.fetcher, portal, url)
                 if identified_name:
                     developer_name = identified_name
                     is_unknown = False

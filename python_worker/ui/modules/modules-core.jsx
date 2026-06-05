@@ -33,7 +33,10 @@
       setError(null);
 
       const isGet = !options.method || options.method.toUpperCase() === 'GET';
-      const useCache = isGet && !options.noCache;
+      // Never cache per-investment data — it changes on navigation and stale cache
+      // causes wrong hero photo and "investment is not defined" errors.
+      const noCacheUrl = url.match(/\/api\/investment\/[^/]+\/data/) || url.match(/\/api\/investment\/[^/]+$/);
+      const useCache = isGet && !options.noCache && !noCacheUrl;
 
       if (useCache && globalApiCache.has(url)) {
         setLoading(false);
@@ -61,9 +64,10 @@
         }
         return data;
       } catch (err) {
+        const isAbort = err.name === 'AbortError' || err.message?.includes('aborted');
         setError(err.message);
         // Use setVariable from the outer scope (safely captured when hook was initialized)
-        if (setVariable) {
+        if (setVariable && !isAbort) {
           setVariable('appStatus', { type: 'error', msg: err.message });
         }
         throw err;

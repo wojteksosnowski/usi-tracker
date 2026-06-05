@@ -197,7 +197,7 @@ function StandardCard({
       // Use local function directly for safety in core.jsx
       const src = typeof resolvePhotoUrl === 'function' ? resolvePhotoUrl(image) : null;
       if (src) {
-        finalImage = <img src={src} alt="" className="usi-card-img" onError={() => setImgError(true)} />;
+        finalImage = <img src={src} alt="" className="usi-card-img" loading="lazy" onError={() => setImgError(true)} />;
       }
     }
   }

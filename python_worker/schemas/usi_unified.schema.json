@@ -149,6 +149,20 @@
         "here_map_url_dark": { "type": "string", "format": "uri" }
       }
     },
+    "nearby_investments": {
+      "type": "array",
+      "description": "Pre-calculated list of nearby investments (within 5km).",
+      "items": {
+        "type": "object",
+        "required": ["usi_inv_id", "distance"],
+        "properties": {
+          "usi_inv_id": { "type": "string" },
+          "distance": { "type": "number", "description": "Distance in km." },
+          "name": { "type": "string" },
+          "developer": { "type": "string" }
+        }
+      }
+    },
     "audit": {
       "type": "object",
       "properties": {

@@ -5,7 +5,7 @@ from urllib.parse import urlparse, parse_qs
 # Try to delegate to the library's parser if available
 try:
     # Ensure library is in path (matches logic in config.py)
-    LIB_PATH = "/Volumes/Samsam/claude-py/usi-scrapers"
+    from python_worker.config import LIB_PATH
     if LIB_PATH not in sys.path:
         sys.path.append(LIB_PATH)
         

@@ -53,6 +53,9 @@ class TrackerDoktorDelegate:
         self.data_dir = data_dir
 
     def get_developers_for_analysis(self) -> list[dict]:
+        import time
+        start_t = time.time()
+        logger.info("Daemon: Starting full developer analysis scan...")
         devs = self.dm.list_developers()
         processed = []
         for d in devs:
@@ -112,6 +115,9 @@ class TrackerDoktorDelegate:
                 "parent_id": d.get("parent_id"),
                 "master_id": d.get("master_id")
             })
+        
+        duration = time.time() - start_t
+        logger.info(f"Daemon: Full developer analysis scan finished in {duration:.2f}s (processed {len(processed)} developers)")
         return processed
 
     def get_dismissed_cache(self) -> dict[str, set[str]]:

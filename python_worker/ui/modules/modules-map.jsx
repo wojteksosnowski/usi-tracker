@@ -109,6 +109,7 @@
   function MapModule({ instanceId, data: localData, height = 400, title = "Mapa Inwestycji", hereApiKey }) {
     const mapRef = React.useRef(null);
     const containerRef = React.useRef(null);
+    const clusteringLayerRef = React.useRef(null);
     const { bus, setVariable, scopedBus, scopedSetVariable } = useDataBus(instanceId);
     const [mapLoaded, setMapLoaded] = React.useState(!!window.H);
     const ctx = useModuleContext(localData);
@@ -147,8 +148,9 @@
       initHereMaps();
     }, []);
 
+    // Hook 1: Map Initialization
     React.useEffect(() => {
-      if (!mapLoaded || !containerRef.current) return;
+      if (!mapLoaded || !containerRef.current || mapRef.current) return;
       const H = window.H;
 
       const platform = new H.service.Platform({
@@ -156,11 +158,6 @@
       });
       const defaultLayers = platform.createDefaultLayers();
       
-      if (mapRef.current) {
-        mapRef.current.dispose();
-        containerRef.current.innerHTML = '';
-      }
-
       const map = new H.Map(
         containerRef.current,
         defaultLayers.vector.normal.map,
@@ -171,9 +168,32 @@
         }
       );
 
-      window.addEventListener('resize', () => map.getViewPort().resize());
+      const resizeHandler = () => map.getViewPort().resize();
+      window.addEventListener('resize', resizeHandler);
       const behavior = new H.mapevents.Behavior(new H.mapevents.MapEvents(map));
       const ui = H.ui.UI.createDefault(map, defaultLayers);
+
+      mapRef.current = map;
+      return () => { 
+        window.removeEventListener('resize', resizeHandler);
+        if (mapRef.current) {
+          mapRef.current.dispose(); 
+          mapRef.current = null;
+        }
+      };
+    }, [mapLoaded]);
+
+    // Hook 2: Data Update
+    React.useEffect(() => {
+      if (!mapRef.current || !window.H) return;
+      const map = mapRef.current;
+      const H = window.H;
+
+      // Clean up previous clustering layer
+      if (clusteringLayerRef.current) {
+        map.removeLayer(clusteringLayerRef.current);
+        clusteringLayerRef.current = null;
+      }
 
       const data = Array.isArray(localData) ? localData : (ctx.bus?.visibleInvestments || []);
       const dataPoints = data.map(inv => {
@@ -190,17 +210,16 @@
         });
         const clusteringLayer = new H.map.layer.ObjectLayer(clusteredDataProvider);
         map.addLayer(clusteringLayer);
+        clusteringLayerRef.current = clusteringLayer;
 
         clusteredDataProvider.addEventListener('tap', (e) => {
           const target = e.target;
           if (target instanceof H.map.Marker && target.getData) {
             const inv = target.getData();
             if (!inv.isCluster) {
-               console.log(`[MapModule:${instanceId}] selected: ${inv.slug}`);
                setVariable('currentInvestment', inv);
                if (scopedSetVariable) scopedSetVariable('selectedId', inv.slug || inv.name);
             } else {
-               // Dla klastrów używamy getBoundingBox z obiektu klastra (inv)
                if (inv && typeof inv.getBoundingBox === 'function') {
                  map.getViewModel().setLookAtData({bounds: inv.getBoundingBox()});
                }
@@ -211,14 +230,11 @@
         try {
           const boundingBox = H.geo.Rect.coverPoints(dataPoints.map(p => new H.geo.Point(p.lat, p.lng)));
           if (boundingBox) {
-             map.getViewModel().setLookAtData({bounds: boundingBox});
+             map.getViewModel().setLookAtData({bounds: boundingBox, animate: true});
           }
         } catch(e) {}
       }
-
-      mapRef.current = map;
-      return () => { if (mapRef.current) mapRef.current.dispose(); };
-    }, [mapLoaded, localData, ctx.bus?.visibleInvestments, setVariable]);
+    }, [localData, ctx.bus?.visibleInvestments, setVariable]);
 
     return (
       <BaseModule title={title} icon="map">

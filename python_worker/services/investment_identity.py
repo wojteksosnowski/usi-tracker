@@ -31,36 +31,22 @@ class InvestmentIdentityResolver:
         return rebuild(self.data_dir, self.public_usi_dir)
 
     def get_investment_resources(self, inv_id: str) -> dict | None:
-        from python_worker.investment_index import load as load_index
-        index = load_index(self.data_dir)
-        if not index:
-            # Fallback to scan if index missing
-            for p in self.data_dir.rglob("usi_*.json"):
-                if "usi_dev_" in p.name: continue
-                try:
-                    data = json.loads(p.read_text())
-                    if data.get("usi_inv_id") == inv_id:
-                        entry = {
-                            "usi_inv_id": inv_id,
-                            "developer_slug": p.parent.parent.name,
-                            "investment_slug": p.parent.name,
-                            "portal": data.get("portal"),
-                            "portal_id": data.get("portal_id"),
-                            "sources": data.get("sources")
-                        }
-                        return self._map_resources_from_entry(entry)
-                except: continue
-            return None
-
-        # Fast path via index
-        entry = next((e for e in index if e.get("usi_inv_id") == inv_id), None)
+        from python_worker.investment_index import get_entry_by_id
+        entry = get_entry_by_id(inv_id)
+        
+        if not entry:
+            # Fallback if hot index is not yet populated or ID is new
+            from python_worker.investment_index import load as load_index
+            index = load_index(self.data_dir)
+            entry = next((e for e in index if e.get("usi_inv_id") == inv_id), None)
+            
         if not entry:
             return None
 
         return self._map_resources_from_entry(entry)
 
     def _map_resources_from_entry(self, entry: dict) -> dict | None:
-        """Determines physical file locations strictly via TechnicalDataManager."""
+        """Determines physical file locations. Prioritizes cached folder_path from index."""
         portal = entry.get("portal")
         portal_id = entry.get("portal_id")
         
@@ -72,11 +58,25 @@ class InvestmentIdentityResolver:
                     portal_id = sources[p].get("id")
                     break
 
-        if not self.tech_manager or not portal or not portal_id:
-            return None
+        # OPTIMIZATION: Use cached folder_path if available in index entry
+        inv_dir = None
+        images_dir = None
+        folder_path = entry.get("folder_path")
+        
+        if folder_path:
+            # folder_path in index is relative to root (e.g., Public/USIdata/dev/inv)
+            # We need to ensure it's resolved relative to self.data_dir's parent
+            project_root = self.data_dir.parent.parent
+            candidate_dir = project_root / folder_path
+            if candidate_dir.exists():
+                inv_dir = candidate_dir
+                # Images are usually in Public/USI/dev/inv
+                images_dir = project_root / folder_path.replace("USIdata", "USI")
 
-        inv_dir = self.tech_manager.get_investment_path(portal, str(portal_id))
-        images_dir = self.tech_manager.get_image_path(portal, str(portal_id))
+        # Fallback to TechnicalDataManager if not found or not in index
+        if not inv_dir and self.tech_manager and portal and portal_id:
+            inv_dir = self.tech_manager.get_investment_path(portal, str(portal_id))
+            images_dir = self.tech_manager.get_image_path(portal, str(portal_id))
         
         if not inv_dir:
             return None

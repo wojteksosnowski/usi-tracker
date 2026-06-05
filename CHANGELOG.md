@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased] - 2026-06-05
+### Added
+- Pre-calculated nearby investments in `usi_*.json` to improve frontend performance.
+- Backend logic in `InvestmentSyncService` for spatial distance calculations.
+- Migration script `scripts/backfill_distances.py` for historical data.
+### Changed
+- Updated `usi_unified.schema.json` to include `nearby_investments`.
+- Refactored `view-detail.jsx` to remove expensive on-the-fly distance computations.
+
 ## Wersja 0.9.51 — Kamień 04 (Optymalizacja skanowania dysku dla obrazów) — 2026-06-05
 - **Wydajność API**: Wyeliminowano rutynowe, pełne skanowanie folderu inwestycji przy rozwiązywaniu obrazów w `image_resolver.py`.
 - **Zmiana logiki `_scan`**: Operacja `glob`/iterdir została zdegradowana do roli ścisłego fallback-u, uruchamiającego się wyłącznie, gdy zapisane w plikach konfiguracyjnych ścieżki do obrazów (`image_paths_raw`) są nieskuteczne lub nie istnieją.

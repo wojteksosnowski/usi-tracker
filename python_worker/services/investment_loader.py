@@ -4,7 +4,7 @@ import math
 from pathlib import Path
 from python_worker.config import USI_DATA_DIR, PUBLIC_USI_DIR
 
-from python_worker.services.amenity_scorer import compute_amenity_score, suggest_udogodnienia
+from python_worker.services.amenity_scorer import suggest_udogodnienia
 from python_worker.services.image_resolver import resolve_images
 
 logger = logging.getLogger(__name__)
@@ -16,6 +16,8 @@ def load_investment(system_id: str | None = None, usi_file: Path | None = None, 
     Combines usi_*.json with photos scan and ratings.
     Resolves resources exclusively by system_id or direct usi_file.
     """
+    import time
+    start_t = time.time()
     if data_dir is None: data_dir = Path(USI_DATA_DIR)
     if public_usi_dir is None: public_usi_dir = Path(PUBLIC_USI_DIR)
     data_dir = Path(data_dir) if isinstance(data_dir, str) else data_dir
@@ -33,9 +35,11 @@ def load_investment(system_id: str | None = None, usi_file: Path | None = None, 
         if str(system_id).startswith("legacy_"):
             logger.error(f"load_investment: Cannot load legacy ID {system_id}. Must use direct usi_file.")
             return None
-        from python_worker.services.investment_service import InvestmentService
-        svc = InvestmentService(data_dir=data_dir, public_usi_dir=public_usi_dir)
-        resources = svc.get_investment_resources(system_id)
+        
+        # OPTIMIZATION: Avoid heavy InvestmentService instantiation
+        from python_worker.services.investment_identity import InvestmentIdentityResolver
+        resolver = InvestmentIdentityResolver(data_dir=data_dir, public_usi_dir=public_usi_dir)
+        resources = resolver.get_investment_resources(system_id)
         if resources:
             usi_file = resources["files"].get("anchor")
             slug_parts = resources["metadata"]["slug"].split("/")
@@ -63,24 +67,19 @@ def load_investment(system_id: str | None = None, usi_file: Path | None = None, 
     except Exception:
         return None
 
-    deletion_file = inv_dir / "deletion_list.json"
-    photos_to_delete = 0
-    if not fast_index and deletion_file.exists():
-        try:
-            dl = json.loads(deletion_file.read_text())
-            photos_to_delete = len(dl.get("paths", []))
-        except Exception: pass
+    # Authoritative image resolution (06.01.10)
+    images = resolve_images(usi, fast_index=fast_index)
 
-    images = resolve_images(usi, inv_dir, public_usi_dir, resources, fast_index)
+    duration = (time.time() - start_t) * 1000
+    if not fast_index:
+        logger.info(f"load_investment: Loaded {system_id or usi_file.name} in {duration:.1f}ms")
+
+    photos_to_delete = usi.get("photos_to_delete", 0)
 
     am_data = usi.get("amenities", {})
-    labels = am_data.get("labels", [])
-    raw_codes = am_data.get("raw_codes", [])
-    
-    score_data = compute_amenity_score(labels, raw_codes)
-    display_amenities = labels
-    if not display_amenities and score_data["matched"]:
-        display_amenities = [m["label"] for m in score_data["matched"]]
+    display_amenities = am_data.get("labels", [])
+    if not display_amenities and usi.get("amenities_matched"):
+        display_amenities = [m["label"] for m in usi.get("amenities_matched")]
 
     source = "RP"
     sources = usi.get("sources", {})
@@ -116,10 +115,12 @@ def load_investment(system_id: str | None = None, usi_file: Path | None = None, 
     merged_from = []
     master_usi_inv_id = None
     if master_id:
-        master_file = inv_dir / f"inv_master_{master_id}.json"
-        if not master_file.exists() and data_dir:
-            found = list(data_dir.rglob(f"inv_master_{master_id}.json"))
-            if found: master_file = found[0]
+        # Master files are stored in the root of USIdata (data_dir)
+        master_file = data_dir / f"inv_master_{master_id}.json"
+        
+        # Fallback for legacy locations (in the investment folder)
+        if not master_file.exists():
+            master_file = inv_dir / f"inv_master_{master_id}.json"
         
         if master_file.exists():
             try:
@@ -129,12 +130,6 @@ def load_investment(system_id: str | None = None, usi_file: Path | None = None, 
             except Exception: pass
 
     ratings_data = usi.get("ratings", {})
-    if inv_dir:
-        ratings_file = inv_dir / "ratings.json"
-        if ratings_file.exists():
-            try:
-                ratings_data = json.loads(ratings_file.read_text())
-            except Exception: pass
             
     base_data = {
         "slug": f"{dev_slug}/{inv_slug}",
@@ -163,9 +158,9 @@ def load_investment(system_id: str | None = None, usi_file: Path | None = None, 
         "specifications": usi.get("specifications", {}),
         "status": usi.get("status", "Brak"),
         "amenities": display_amenities,
-        "amenities_score": score_data["score"],
-        "amenities_matched": score_data["matched"],
-        "suggested_udogodnienia": suggest_udogodnienia(score_data["score"]),
+        "amenities_score": usi.get("amenities_score", 0),
+        "amenities_matched": usi.get("amenities_matched", []),
+        "suggested_udogodnienia": usi.get("suggested_udogodnienia", []),
         "coords": [lat, lng],
         "photos": images,
         "image_urls": usi.get("image_urls", []),
@@ -176,7 +171,7 @@ def load_investment(system_id: str | None = None, usi_file: Path | None = None, 
         "ratings": ratings_data,
         "comment": ratings_data.get("komentarz", ""),
         "photos_to_delete": photos_to_delete,
-        "folder_path": str(inv_dir),
+        "folder_path": f"Public/USIdata/{dev_slug}/{inv_slug}",
         "last_updated_ts": usi_file.stat().st_mtime if usi_file else None,
         "website": "",
         "sources": sources,
@@ -184,6 +179,7 @@ def load_investment(system_id: str | None = None, usi_file: Path | None = None, 
         "master_usi_inv_id": master_usi_inv_id,
         "suggestions": usi.get("suggestions", []),
         "merged_from": merged_from,
+        "nearby_investments": usi.get("nearby_investments", []),
     }
 
     if resources:

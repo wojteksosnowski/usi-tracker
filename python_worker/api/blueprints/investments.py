@@ -1,13 +1,15 @@
 import json
 import logging
 from pathlib import Path
-from flask import Blueprint, jsonify, abort, request, send_file
+from flask import Blueprint, jsonify, abort, request, send_file, redirect
 from python_worker.services.investment_service import InvestmentService
 from python_worker.jobs import job_manager
 from python_worker.api.utils import _valid_slug, _valid_filename
 import python_worker.investment_index as inv_index
+import threading
 
 logger = logging.getLogger(__name__)
+_fallback_lock = threading.Lock()
 
 
 
@@ -48,13 +50,25 @@ from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
 investment_service = InvestmentService()
 developer_manager = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
 
+_missing_images_cache = set()
+_cdn_redirect_cache = {}
+
 @investments_bp.route("/image/<path:filepath>")
 def serve_image(filepath):
-    from python_worker.config import PUBLIC_USI_DIR
+    from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR
     from pathlib import Path
     from urllib.parse import unquote
+    import time
 
-    # 1. Decode path (Flask passes it as received, but we should ensure it's clean)
+    start_t = time.time()
+    if filepath in _missing_images_cache:
+        return abort(404)
+    
+    # 0. Check redirect cache
+    if filepath in _cdn_redirect_cache:
+        return redirect(_cdn_redirect_cache[filepath], code=302)
+
+    # 1. Decode path
     decoded_path = unquote(filepath)
     img_path = Path(PUBLIC_USI_DIR) / decoded_path
 
@@ -66,7 +80,80 @@ def serve_image(filepath):
     if raw_path.exists() and raw_path.is_file():
         return send_file(raw_path)
 
-    logger.warning(f"Image not found: {filepath} (tried {img_path})")
+    # 3. Fallback to original URL via JSON mapping (only on 404)
+    # filepath looks like: "developer-slug/investment-slug/filename.webp"
+    parts = Path(decoded_path).parts
+    if len(parts) >= 2:
+        dev_slug, inv_slug = parts[0], parts[1]
+        
+        with _fallback_lock:
+            # Check cache again inside lock to avoid redundant work
+            if filepath in _cdn_redirect_cache:
+                return redirect(_cdn_redirect_cache[filepath], code=302)
+            if filepath in _missing_images_cache:
+                return abort(404)
+
+            try:
+                # Fast path: Use hot index to find the ID and canonical directory
+                entry = inv_index.get_entry_by_slug(dev_slug, inv_slug)
+                
+                if not entry:
+                    # Fallback if hot index is not yet populated
+                    index = inv_index.load(USI_DATA_DIR)
+                    entry = inv_index.get_entry_by_slug(dev_slug, inv_slug)
+                
+                if entry:
+                    inv_id = entry.get("usi_inv_id")
+                    logger.info(f"Image 404 fallback: Found {inv_id} in hot index for {filepath}")
+                    
+                    # Resolve resources via InvestmentService (delegates to IdentityResolver)
+                    resources = investment_service.get_investment_resources(inv_id)
+                    if resources and resources["files"].get("anchor"):
+                        json_file = resources["files"]["anchor"]
+                        try:
+                            data = json.loads(json_file.read_text(encoding="utf-8"))
+                            image_paths = data.get("image_paths", [])
+                            photos = data.get("photos", [])
+                            
+                            # Search for matching filename in image_paths
+                            for i, ipath in enumerate(image_paths):
+                                if decoded_path in ipath or filepath in ipath:
+                                    if i < len(photos) and str(photos[i]).startswith("http"):
+                                        # Cache and redirect
+                                        _cdn_redirect_cache[filepath] = photos[i]
+                                        duration = (time.time() - start_t) * 1000
+                                        logger.info(f"Image redirect found via index in {json_file.name} ({duration:.1f}ms)")
+                                        return redirect(photos[i], code=302)
+                        except Exception as e:
+                            logger.warning(f"Error parsing anchor file {json_file}: {e}")
+                else:
+                    # Slow path fallback (legacy or newly registered not in index yet)
+                    inv_dir = Path(USI_DATA_DIR) / dev_slug / inv_slug
+                    if inv_dir.exists():
+                        logger.info(f"Image 404 fallback (slow): Searching in {inv_dir} for {filepath}")
+                        json_files = list(inv_dir.glob("usi_*.json"))
+                        for json_file in json_files:
+                            if "usi_dev_" in json_file.name: continue
+                            try:
+                                data = json.loads(json_file.read_text(encoding="utf-8"))
+                                image_paths = data.get("image_paths", [])
+                                photos = data.get("photos", [])
+                                for i, ipath in enumerate(image_paths):
+                                    if decoded_path in ipath or filepath in ipath:
+                                        if i < len(photos) and str(photos[i]).startswith("http"):
+                                            _cdn_redirect_cache[filepath] = photos[i]
+                                            return redirect(photos[i], code=302)
+                            except Exception: continue
+            except Exception as e:
+                logger.error(f"Fallback error for {filepath}: {e}")
+                pass
+
+    duration = (time.time() - start_t) * 1000
+    logger.warning(f"Image not found: {filepath} (tried {img_path}) - took {duration:.1f}ms")
+    _missing_images_cache.add(filepath)
+    if len(_missing_images_cache) > 10000:
+        _missing_images_cache.clear()
+        _cdn_redirect_cache.clear() # Clear redirects too if memory pressure
     abort(404)
 
 @investments_bp.route("/developer/<usi_dev_id>/logo")
@@ -93,6 +180,8 @@ def serve_dev_logo(usi_dev_id):
 
 @investments_bp.route("/investments")
 def list_investments():
+    import time
+    start_t = time.time()
     data_root = investment_service.data_dir
     if not data_root.exists():
         return jsonify([])
@@ -101,22 +190,27 @@ def list_investments():
     investments = entries
 
     if investments is None:
-        # Index missing — build it in background and fall back to full scan this time
-        logger.info("Investment index not found; triggering rebuild in background")
-        public_usi_dir = investment_service.public_usi_dir
-    
-        def _rebuild():
-            try:
-                inv_index.rebuild(data_root, public_usi_dir)
-            except Exception as e:
-                logger.error(f"Background index rebuild failed: {e}")
-    
-        import threading
-        threading.Thread(target=_rebuild, daemon=True).start()
-    
+        # Index missing — build it in background
+        logger.info("Investment index not found; checking rebuild status")
+
+        from python_worker.investment_index import _is_rebuilding
+        if not _is_rebuilding:
+            logger.info("Triggering background index rebuild (no rebuild currently in progress)")
+            public_usi_dir = investment_service.public_usi_dir
+
+            def _rebuild():
+                try:
+                    logger.info("Background rebuild thread starting...")
+                    inv_index.rebuild(data_root, public_usi_dir)
+                    logger.info("Background rebuild thread finished successfully.")
+                except Exception as e:
+                    logger.error(f"Background index rebuild failed: {e}")
+
+            import threading
+            threading.Thread(target=_rebuild, daemon=True).start()
+        else:
+            logger.warning("Index rebuild already in progress. Multiple concurrent rebuilds prevented.")
         investments = []
-        # Fallback omitted for brevity as it was legacy and index should exist
-    
     if investments is None:
         investments = []
 
@@ -137,18 +231,19 @@ def list_investments():
     unreviewed_count = 0
     main_cities = ['warszawa', 'kraków', 'wrocław', 'łódź', 'poznań', 'gdańsk', 'szczecin', 'bydgoszcz', 'lublin', 'białystok']
 
+    filter_start = time.time()
     for inv in investments:
         if inv.get("reviewed") is False:
             unreviewed_count += 1
-            
+
         # 1 card = 1 portal. DO NOT hide merged children.
-            
+
         if only_unreviewed and inv.get("reviewed") is not False:
             continue
-            
+
         if only_no_photos and inv.get("photos"):
             continue
-            
+
         if search:
             inv_name = (inv.get("name") or "").lower()
             inv_dev = (inv.get("developer") or "").lower()
@@ -156,30 +251,33 @@ def list_investments():
             inv_addr = (inv.get("address") or "").lower()
             if search not in inv_name and search not in inv_dev and search not in inv_dist and search not in inv_addr:
                 continue
-                
+
         if dev and inv.get("developer_slug") != dev and inv.get("developer") != dev:
             continue
-            
+
         if status and inv.get("status") != status:
             continue
-            
+
         if sources and inv.get("source") and inv.get("source", "").upper() not in sources:
             continue
-            
+
         inv_segment = inv.get("segment") or inv.get("specifications", {}).get("segment")
         if segments and inv_segment not in segments:
             continue
-            
+
         if cities:
             addr = (inv.get("address") or "").lower()
             found_city = next((c for c in main_cities if c in addr), None)
             if not found_city or found_city not in cities:
                 continue
-                
-        filtered.append(inv)
-        
-    return jsonify({"data": filtered, "unreviewedCount": unreviewed_count})
 
+        filtered.append(inv)
+
+    duration = (time.time() - start_t) * 1000
+    filter_duration = (time.time() - filter_start) * 1000
+    logger.info(f"list_investments: Found {len(filtered)}/{len(investments)} entries in {duration:.1f}ms (filtering: {filter_duration:.1f}ms)")
+
+    return jsonify({"data": filtered, "unreviewedCount": unreviewed_count})
 
 @investments_bp.route("/investments/rebuild-index", methods=["POST"])
 def rebuild_index():

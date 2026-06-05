@@ -21,6 +21,7 @@ class Merger:
             ("specifications.ceiling_height_max", ["specifications", "ceiling_height_max"]),
             ("specifications.delivery_date", ["specifications", "delivery_date"]),
             ("specifications.segment", ["specifications", "segment"]),
+            ("location.coords", ["location", "coords"]),
             ("images_count", ["images_count"]),
             ("status", ["status"]),
         ]

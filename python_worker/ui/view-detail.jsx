@@ -3,17 +3,6 @@
 (function() {
   const { usiRegister } = window;
 
-  function getDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371; // km
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  }
-
   function DetailRightPanel({ inv, onBack, onUpdateInv }) {
     const { React, useDataBus, useRatings, useMetadataConfig, HeroBand, ModeC, DetailsA, Lightbox, DataBoundary } = window;
     const { bus, setVariable } = useDataBus();
@@ -32,24 +21,44 @@
     const { ratings, handleRating, comment, handleComment, status, handleStatus, segment, handleSegment, saved } = useRatings(fullInv);
 
     React.useEffect(() => {
-        setFullInv(inv);
+        // Sync Guard (06.02.02): Reset fullInv immediately to prevent stale photos/metadata
+        if (fullInv.usi_inv_id !== inv.usi_inv_id) {
+            setFullInv(inv);
+        }
+        
         let active = true;
+        const controller = new AbortController(); // Abort Pattern (06.02.01)
+        
         if (inv.usi_inv_id) {
-            request(`/api/investment/${inv.usi_inv_id}/data`)
+            request(`/api/investment/${inv.usi_inv_id}/data`, { signal: controller.signal })
                 .then(data => {
                     if (active && data && !data.error) {
-                        setFullInv({
-                            ...data,
-                            // Use fetched photos if they exist, even if index had a thumbnail
-                            photos: (data.photos && data.photos.length > 0) ? data.photos : inv.photos,
-                            ratings: (data.ratings && Object.keys(data.ratings).length > 0) ? data.ratings : inv.ratings
+                        setFullInv(prev => {
+                            // Final safety check: ignore response if ID moved on
+                            if (data.usi_inv_id !== inv.usi_inv_id) return prev;
+
+                            return {
+                                ...data,
+                                // Keep index photos visible until full list arrives; prefer fetched if richer
+                                photos: (data.photos && data.photos.length > 0) ? data.photos : prev.photos,
+                                ratings: (data.ratings && Object.keys(data.ratings).length > 0) ? data.ratings : prev.ratings
+                            };
                         });
                     }
                 })
-                .catch(err => console.error("Failed to load full investment data", err));
+                .catch(err => {
+                    if (err.name === 'AbortError' || err.message?.includes('aborted')) {
+                        // Silent expected abort
+                        return;
+                    }
+                    console.error("Failed to load full investment data", err);
+                });
         }
-        return () => { active = false; };
-    }, [inv.usi_inv_id, request]);
+        return () => { 
+            active = false; 
+            controller.abort(); 
+        };
+    }, [inv.usi_inv_id]);
 
     const handleApprove = async () => {
         try {
@@ -66,24 +75,10 @@
 
     React.useEffect(() => {
       setVariable('currentInvestment', inv);
-      if (inv.coords && inv.coords[0] !== 0) {
-        const [lat, lng] = inv.coords;
-        const allInvestments = bus.investments || [];
-        const nearby = allInvestments
-          .filter(other => {
-            if (other.usi_inv_id === inv.usi_inv_id) return false;
-            if (!other.coords || other.coords[0] === 0) return false;
-            const dist = getDistance(lat, lng, other.coords[0], other.coords[1]);
-            return dist <= 5;
-          })
-          .map(other => ({ 
-            ...other, 
-            distance: getDistance(lat, lng, other.coords[0], other.coords[1]) 
-          }))
-          .sort((a, b) => a.distance - b.distance);
-        setVariable('nearbyInvestments', nearby);
-      }
-    }, [inv.usi_inv_id, bus.investments, setVariable]);
+      // Task 06.02.03: Sync nearby investments from either full data or index stub
+      const nearby = fullInv.nearby_investments || inv.nearby_investments || [];
+      setVariable('nearbyInvestments', nearby);
+    }, [inv.usi_inv_id, inv.nearby_investments, fullInv.nearby_investments]);
 
     // Keyboard shortcuts
     React.useEffect(() => {

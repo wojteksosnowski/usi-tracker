@@ -6,6 +6,10 @@ from pathlib import Path
 from python_worker.adapters import AdapterFactory, Merger
 from python_worker.logger_utils import log_to_processing_log
 from python_worker.developer_manager import DeveloperManager
+from python_worker.services.amenity_scorer import compute_amenity_score, suggest_udogodnienia
+from python_worker.services.image_resolver import resolve_images
+from python_worker.api.utils import _calculate_distance
+import python_worker.investment_index as inv_index
 
 logger = logging.getLogger(__name__)
 
@@ -34,24 +38,41 @@ class InvestmentSyncService:
         self.dm = developer_manager or DeveloperManager(self.data_dir)
         
         from python_worker.config import get_scraper_config
-        self.lib_config = get_scraper_config()
-        if self.lib_config:
-            from usi_scrapers.fetcher import Fetcher
-            from usi_scrapers.manager import TechnicalDataManager
-            self.fetcher = Fetcher(self.lib_config)
-            self.tech_manager = TechnicalDataManager(self.lib_config)
-        else:
-            self.fetcher = None
-            self.tech_manager = None
+        self._lib_config = get_scraper_config()
+        self._fetcher = None
+        self._tech_manager = None
+        self._image_sync = None
             
         from python_worker.services.investment_identity import InvestmentIdentityResolver
         self.resolver = InvestmentIdentityResolver(self.data_dir, self.public_usi_dir)
         
-        from python_worker.services.image_sync import ImageSyncService
-        self.image_sync = ImageSyncService(self.tech_manager, self.public_usi_dir)
-        
         from python_worker.services.developer_resolver import DeveloperResolver
-        self.developer_resolver = DeveloperResolver(self.dm, self.fetcher, self.identity)
+        self.developer_resolver = DeveloperResolver(self.dm, self, self.identity)
+
+    @property
+    def lib_config(self):
+        return self._lib_config
+
+    @property
+    def fetcher(self):
+        if self._fetcher is None and self.lib_config:
+            from usi_scrapers.fetcher import Fetcher
+            self._fetcher = Fetcher(self.lib_config)
+        return self._fetcher
+
+    @property
+    def tech_manager(self):
+        if self._tech_manager is None and self.lib_config:
+            from usi_scrapers.manager import TechnicalDataManager
+            self._tech_manager = TechnicalDataManager(self.lib_config)
+        return self._tech_manager
+
+    @property
+    def image_sync(self):
+        if self._image_sync is None:
+            from python_worker.services.image_sync import ImageSyncService
+            self._image_sync = ImageSyncService(self.tech_manager, self.public_usi_dir)
+        return self._image_sync
 
     def _check_investment_exists(self, portal, item_id):
         if not item_id:
@@ -379,6 +400,50 @@ class InvestmentSyncService:
             # Backfill developer ID into portal_mapping if missing
             self.developer_resolver.backfill_developer_mapping(system_id, new_unified)
 
+            # Compute amenities and metadata on save
+            am_data = new_unified.get("amenities", {})
+            labels = am_data.get("labels", [])
+            raw_codes = am_data.get("raw_codes", [])
+            score_data = compute_amenity_score(labels, raw_codes)
+            
+            new_unified["amenities_score"] = score_data["score"]
+            new_unified["amenities_matched"] = score_data["matched"]
+            new_unified["suggested_udogodnienia"] = suggest_udogodnienia(score_data["score"])
+            
+            # Use resolve_images to finalize photos list
+            if resources:
+                new_unified["photos"] = resolve_images(new_unified, inv_dir, self.public_usi_dir, resources, fast_index=False)
+            else:
+                new_unified["photos"] = resolve_images(new_unified, inv_dir, self.public_usi_dir, fast_index=False)
+
+            new_unified["images_count"] = len(new_unified["photos"])
+
+            # Task 06.01.02: Pre-calculate nearby investments if coords changed or missing
+            old_coords = usi_data.get("location", {}).get("coords")
+            new_coords = new_unified.get("location", {}).get("coords")
+
+            needs_recalc = False
+            if not usi_data.get("nearby_investments"):
+                needs_recalc = True
+            elif old_coords != new_coords:
+                needs_recalc = True
+
+            if needs_recalc:
+                new_unified["nearby_investments"] = self._calculate_nearby_investments(system_id, new_coords)
+            else:
+                new_unified["nearby_investments"] = usi_data.get("nearby_investments", [])
+
+            # Check deletion list
+            deletion_file = inv_dir / "deletion_list.json"
+            if deletion_file.exists():
+                try:
+                    dl = json.loads(deletion_file.read_text())
+                    new_unified["photos_to_delete"] = len(dl.get("paths", []))
+                except Exception:
+                    new_unified["photos_to_delete"] = 0
+            else:
+                new_unified["photos_to_delete"] = 0
+
             # Save to canonical new-format path; fall back to existing file path
             self.repo.save_investment_json(system_id, new_unified)
             if not skip_index:
@@ -399,6 +464,41 @@ class InvestmentSyncService:
         if failed_sources:
             raise RuntimeError(f"Fetch failed for all portals: {'; '.join(failed_sources)}")
         return False
+
+    def _calculate_nearby_investments(self, inv_id, coords, limit=12, max_dist_km=5.0):
+        """Calculates and returns a list of nearby investments from the global index."""
+        if not coords or coords[0] is None or coords[0] == 0:
+            return []
+            
+        lat1, lon1 = coords
+        all_invs = inv_index.get_index(self.data_dir)
+        
+        nearby = []
+        # Rough bounding box check (5km is approx 0.05 lat, 0.08 lon at 52N)
+        for other in all_invs:
+            if other.get("usi_inv_id") == inv_id:
+                continue
+            
+            other_coords = other.get("coords")
+            if not other_coords or other_coords[0] is None or other_coords[0] == 0:
+                continue
+            
+            lat2, lon2 = other_coords
+            if abs(lat2 - lat1) > 0.06 or abs(lon2 - lon1) > 0.1:
+                continue
+                
+            dist = _calculate_distance(lat1, lon1, lat2, lon2)
+            if dist <= max_dist_km:
+                nearby.append({
+                    "usi_inv_id": other.get("usi_inv_id"),
+                    "distance": round(dist, 2),
+                    "name": other.get("name"),
+                    "developer": other.get("developer"),
+                    "slug": other.get("slug")
+                })
+        
+        nearby.sort(key=lambda x: x["distance"])
+        return nearby[:limit]
         
     def _prepare_batch_identifiers(self, portal, investments):
         """Prepares identifiers and metadata for a batch without registering skeletons yet."""

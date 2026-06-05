@@ -54,8 +54,8 @@ class DeveloperIndexer:
 
     def get_existing_identifiers(self) -> dict:
         """
-        Scans USI_DATA_DIR for existing investments and returns a dict with sets of IDs.
-        Includes a 5-minute global cache to speed up repeated UI calls.
+        Retrieves existing investment identifiers using the investment index.
+        ARCHITECTURAL MANDATE: No disk scanning during standard data retrieval.
         """
         global _global_identifiers_cache, _global_identifiers_cache_time
         
@@ -69,59 +69,55 @@ class DeveloperIndexer:
         oto_slugs = set()
         to_ids = set()
 
-        logger.info(f"Scanning {self.repo.data_dir} for existing identifiers...")
+        logger.info(f"Loading identifiers from investment index...")
+        
+        from python_worker.investment_index import load as load_index
+        all_invs = load_index(self.repo.data_dir) or []
 
-        for json_file in self.repo.data_dir.rglob("usi_*.json"):
-            if json_file.name.startswith("usi_dev_"):
+        for inv in all_invs:
+            sources = inv.get("sources", {})
+            if not sources:
                 continue
-            try:
-                with open(json_file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                sources = data.get("sources", {})
-                if not sources:
-                    continue
 
-                rp_src = sources.get("rp", {})
-                if rp_src and rp_src.get("id"):
-                    val = str(rp_src["id"])
+            rp_src = sources.get("rp", {})
+            if rp_src and rp_src.get("id"):
+                val = str(rp_src["id"])
+                if val and val != "None":
+                    rp_ids.add(val)
+
+            oto_src = sources.get("oto", {})
+            if oto_src:
+                if oto_src.get("id"):
+                    val = str(oto_src["id"])
                     if val and val != "None":
-                        rp_ids.add(val)
+                        oto_ids.add(val)
+                url = oto_src.get("url")
+                if url:
+                    from .url_parser import parse_url
+                    parsed = parse_url(url)
+                    if parsed.get("investment_slug"):
+                        full_slug = parsed["investment_slug"]
+                        oto_slugs.add(full_slug)
+                        # Extract ID from slug if present (canonical Otodom pattern)
+                        if "-ID" in full_slug:
+                            hash_id = full_slug.split("-ID")[-1]
+                            oto_ids.add(hash_id)
+                    if parsed.get("agency_id"):
+                        oto_ids.add(parsed["agency_id"])
 
-                oto_src = sources.get("oto", {})
-                if oto_src:
-                    if oto_src.get("id"):
-                        val = str(oto_src["id"])
-                        if val and val != "None":
-                            oto_ids.add(val)
-                    url = oto_src.get("url")
-                    if url:
-                        from .url_parser import parse_url
-                        parsed = parse_url(url)
-                        if parsed.get("investment_slug"):
-                            full_slug = parsed["investment_slug"]
-                            oto_slugs.add(full_slug)
-                            # Extract ID from slug if present (canonical Otodom pattern)
-                            if "-ID" in full_slug:
-                                hash_id = full_slug.split("-ID")[-1]
-                                oto_ids.add(hash_id)
-                        if parsed.get("agency_id"):
-                            oto_ids.add(parsed["agency_id"])
+            to_src = sources.get("to", {})
+            if to_src:
+                if to_src.get("id"):
+                    val = str(to_src["id"])
+                    if val and val != "None":
+                        to_ids.add(val)
+                elif to_src.get("url"):
+                    from .url_parser import parse_url
+                    parsed = parse_url(to_src["url"])
+                    if parsed.get("to_id"):
+                        to_ids.add(str(parsed["to_id"]))
 
-                to_src = sources.get("to", {})
-                if to_src:
-                    if to_src.get("id"):
-                        val = str(to_src["id"])
-                        if val and val != "None":
-                            to_ids.add(val)
-                    elif to_src.get("url"):
-                        from .url_parser import parse_url
-                        parsed = parse_url(to_src["url"])
-                        if parsed.get("to_id"):
-                            to_ids.add(str(parsed["to_id"]))
-            except Exception as e:
-                logger.warning(f"Error reading {json_file}: {e}")
-
-        logger.info(f"Found {len(rp_ids)} RP IDs, {len(oto_ids)} Otodom IDs, and {len(to_ids)} TO IDs.")
+        logger.info(f"Found {len(rp_ids)} RP IDs, {len(oto_ids)} Otodom IDs, and {len(to_ids)} TO IDs via index.")
         result = {
             "rp_ids": rp_ids,
             "oto_ids": oto_ids,

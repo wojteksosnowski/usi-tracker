@@ -11,17 +11,18 @@ def test_load_investment_fails_on_legacy_id():
     result = load_investment(system_id="legacy_123")
     assert result is None
 
-@patch("python_worker.services.investment_service.InvestmentService")
-def test_load_investment_uses_system_id_to_resolve_resources(mock_investment_service, tmp_path):
-    mock_svc = MagicMock()
-    mock_investment_service.return_value = mock_svc
+@patch("python_worker.services.investment_identity.InvestmentIdentityResolver")
+def test_load_investment_uses_system_id_to_resolve_resources(mock_resolver_class, tmp_path):
+    mock_resolver = MagicMock()
+    mock_resolver_class.return_value = mock_resolver
     
     system_id = "rp_123"
     anchor_file = tmp_path / "dev/inv/usi_rp_123.json"
     anchor_file.parent.mkdir(parents=True, exist_ok=True)
     anchor_file.write_text('{"name": "Test Inv", "usi_inv_id": "rp_123"}')
     
-    mock_svc.get_investment_resources.return_value = {
+    mock_resolver.get_investment_resources.return_value = {
+        "id": system_id,
         "files": {"anchor": anchor_file},
         "metadata": {"slug": "dev/inv"},
         "base_dir": anchor_file.parent
@@ -32,4 +33,4 @@ def test_load_investment_uses_system_id_to_resolve_resources(mock_investment_ser
     assert result is not None
     assert result["name"] == "Test Inv"
     assert result["usi_inv_id"] == "rp_123"
-    mock_svc.get_investment_resources.assert_called_once_with(system_id)
+    mock_resolver.get_investment_resources.assert_called_once_with(system_id)
