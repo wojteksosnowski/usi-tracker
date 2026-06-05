@@ -45,31 +45,23 @@ class InvestmentSyncService:
         from python_worker.services.developer_resolver import DeveloperResolver
         self.developer_resolver = DeveloperResolver(self.dm, self.fetcher, self.identity)
 
-    def _check_investment_exists(self, portal, item_id, inv_slug, url):
-        existing_ids = self.dm.get_existing_identifiers()
-        id_exists = False
-        if portal == "rp" and item_id and str(item_id) in existing_ids.get("rp_ids", set()):
-            id_exists = True
-        elif portal == "oto" and item_id:
-            s_item_id = str(item_id)
-            if s_item_id in existing_ids.get("oto_ids", set()):
-                id_exists = True
-            else:
-                # Robust Otodom check: try to find 'the other' ID from URL or slug
-                hash_id = None
-                if "-ID" in str(inv_slug):
-                    hash_id = str(inv_slug).split("-ID")[-1]
-                elif url and "-ID" in str(url):
-                    hash_id = str(url).rstrip("/").split("-ID")[-1].split("?")[0]
-                
-                if hash_id and hash_id in existing_ids.get("oto_ids", set()):
-                    logger.info(f"Found existing Otodom record by hash ID {hash_id} for new ID {item_id}")
-                    id_exists = True
-
-        elif portal == "to" and item_id and str(item_id) in existing_ids.get("to_ids", set()):
-            id_exists = True
+    def _check_investment_exists(self, portal, item_id):
+        if not item_id:
+            return False
+        
+        from usi_scrapers.api import get_raw_data
+        portal_map = {
+            "rp": "rynekpierwotny.pl",
+            "oto": "otodom.pl",
+            "to": "tabelaofert.pl"
+        }
+        
+        full_portal = portal_map.get(portal)
+        if not full_portal:
+            return False
             
-        return id_exists
+        data = get_raw_data(self.lib_config, portal=full_portal, portal_id=str(item_id))
+        return data is not None
 
     def register_investment(self, portal, developer_name, inv_slug, name, item_id=None, url=None, allow_existing=False, vendor_id=None, force_dev_slug=None):
 
@@ -119,7 +111,7 @@ class InvestmentSyncService:
             raise ValueError(f"Investment already exists: {dev_slug}/{inv_slug}")
 
         # 2. Check for ID-based duplication across all investments
-        if self._check_investment_exists(portal, item_id, inv_slug, url):
+        if self._check_investment_exists(portal, item_id):
             logger.info(f"Investment with ID {item_id} ({portal}) already exists in system. Skipping registration.")
             return None, None
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## Wersja 0.9.48 — Kamień 01 (Refaktoryzacja weryfikacji inwestycji) — 2026-06-05
+- **Wzmocnienie ID-only**: Usunięto parametr `inv_slug` i stare mechanizmy weryfikacyjne, opierając `_check_investment_exists` natywnie o wywołanie `get_raw_data` z `usi-scrapers`.
+- **Aktualizacja testów**: Oczyszczono i zaktualizowano mocki i argumenty w pliku `scratch_test.py` oraz upewniono się, że pozostałe testy nie wymagają modyfikacji sygnatur.
+
+### Wnioski ze zmian
+- Eliminacja `inv_slug` z procesów weryfikacyjnych domyka kolejną dziurę architektoniczną pozwalając na w pełni deterministyczne sprawdzanie duplikatów oparte na oryginalnych identyfikatorach dostawców.
+
 ## Wersja 0.9.47 — Kamień 07 i 08 (Wydajność POI i Oczyszczenie ID) — 2026-06-05
 - **Optymalizacja stabilności**: Usunięto przestarzałą metodę iterującą za pomocą `glob` po całym dysku w poszukiwaniu brakujących obrazów POI, co wyeliminowało błędy TimeOut oraz blokowanie CPU (Kamień 07).
 - **Zabezpieczenie widoku**: Dodano `ModuleErrorBoundary` chroniący front-endową galerię przed wyjątkami.

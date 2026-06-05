@@ -6,6 +6,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VENV="$SCRIPT_DIR/venv"
 PORT=5000
 
+# Czyszczenie zablokowanego portu
+lsof -ti :$PORT | xargs kill -9 2>/dev/null || true
+
 # Utwórz / odśwież venv jeśli brakuje flask
 if [ ! -f "$VENV/bin/python3" ]; then
   echo "→ Tworzę środowisko wirtualne..."

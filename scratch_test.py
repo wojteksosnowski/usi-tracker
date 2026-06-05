@@ -17,10 +17,10 @@ class MockIdentity:
     pass
 
 svc = InvestmentSyncService(MockIdentity(), Path("/tmp"), Path("/tmp"), developer_manager=MockDM(), investment_repo=MockRepo())
-print("RP existing:", svc._check_investment_exists("rp", "123", "slug", "url"))
-print("RP missing:", svc._check_investment_exists("rp", "999", "slug", "url"))
-print("OTO existing ID:", svc._check_investment_exists("oto", "789", "slug", "url"))
-print("OTO missing ID, existing hash in slug:", svc._check_investment_exists("oto", "999", "nowe-osiedle-IDhash123", "url"))
-print("OTO missing ID, existing hash in url:", svc._check_investment_exists("oto", "999", "slug", "http://oto.pl/oferta-IDhash123"))
-print("OTO existing slug (should be False now!):", svc._check_investment_exists("oto", "999", "stare-osiedle", "url"))
-print("TO existing:", svc._check_investment_exists("to", "321", "slug", "url"))
+print("RP existing:", svc._check_investment_exists("rp", "123"))
+print("RP missing:", svc._check_investment_exists("rp", "999"))
+print("OTO existing ID:", svc._check_investment_exists("oto", "789"))
+print("OTO missing ID, existing hash in slug:", svc._check_investment_exists("oto", "999"))
+print("OTO missing ID, existing hash in url:", svc._check_investment_exists("oto", "999"))
+print("OTO existing slug (should be False now!):", svc._check_investment_exists("oto", "999"))
+print("TO existing:", svc._check_investment_exists("to", "321"))

@@ -191,11 +191,7 @@
         .catch(() => setState('error'));
     }, [inv?.usi_inv_id]);
 
-    React.useEffect(() => { 
-        if (!hasInitialPoi) {
-            load(false); 
-        }
-    }, [load, hasInitialPoi]);
+
 
     const grouped = React.useMemo(() => {
       if (!data?.here_places) return {};
