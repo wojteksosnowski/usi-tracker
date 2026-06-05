@@ -9,6 +9,13 @@
 - Updated `usi_unified.schema.json` to include `nearby_investments`.
 - Refactored `view-detail.jsx` to remove expensive on-the-fly distance computations.
 
+## Wersja 0.9.52 — Optymalizacja O(1) dla obrazów — 2026-06-05
+- **Wydajność API**: Zastąpiono powolne wyszukiwanie podciągów (substring matching) przez szybkie mapowanie słownikowe (dictionary lookup) w funkcji `serve_image`, co drastycznie skraca czas fallback-u dla brakujących obrazów (O(1) zamiast O(N)).
+- **Zarządzanie Pamięcią**: Wdrożono rygorystyczne czyszczenie cache (`_missing_images_cache` oraz `_cdn_redirect_cache`) po przekroczeniu limitu 5000 wpisów, co zabezpiecza serwer przed wyciekami pamięci przy długotrwałym działaniu.
+
+### Wnioski ze zmian
+- Dzięki prekompilacji list obrazów do słowników uniknięto zbędnych pętli w obszarach krytycznych dla wydajności (serwowanie zasobów). Regularne czyszczenie cache jest konieczne dla systemów działających w tle, by utrzymać stałe użycie pamięci bez spowolnienia odpowiedzi.
+
 ## Wersja 0.9.51 — Kamień 04 (Optymalizacja skanowania dysku dla obrazów) — 2026-06-05
 - **Wydajność API**: Wyeliminowano rutynowe, pełne skanowanie folderu inwestycji przy rozwiązywaniu obrazów w `image_resolver.py`.
 - **Zmiana logiki `_scan`**: Operacja `glob`/iterdir została zdegradowana do roli ścisłego fallback-u, uruchamiającego się wyłącznie, gdy zapisane w plikach konfiguracyjnych ścieżki do obrazów (`image_paths_raw`) są nieskuteczne lub nie istnieją.

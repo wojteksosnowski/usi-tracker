@@ -114,15 +114,8 @@ def serve_image(filepath):
                             image_paths = data.get("image_paths", [])
                             photos = data.get("photos", [])
                             
-                            # Use dict lookup with strict 500ms timeout
-                            path_to_photo = {}
-                            lookup_start = time.time()
-                            for ipath, photo in zip(image_paths, photos):
-                                path_to_photo[ipath] = photo
-                                # Emergency break if processing takes too long (e.g. 10k+ images)
-                                if (time.time() - lookup_start) > 0.5:
-                                    logger.warning(f"Image lookup timeout (0.5s) for {inv_id}")
-                                    break
+                            # ← UŻYWAJ DICT LOOKUP zamiast substring search
+                            path_to_photo = {img_path: photo for img_path, photo in zip(image_paths, photos)}
                             
                             if decoded_path in path_to_photo:
                                 photo_url = path_to_photo[decoded_path]
@@ -133,9 +126,8 @@ def serve_image(filepath):
                                     return redirect(photo_url, code=302)
                             
                             # Fallback: partial match only if direct lookup failed
-                            decoded_filename = Path(decoded_path).name
-                            for ipath, photo_url in path_to_photo.items():
-                                if decoded_filename == Path(ipath).name:
+                            for img_path, photo_url in path_to_photo.items():
+                                if decoded_path.endswith(Path(img_path).name):
                                     if str(photo_url).startswith("http"):
                                         _cdn_redirect_cache[filepath] = photo_url
                                         return redirect(photo_url, code=302)
