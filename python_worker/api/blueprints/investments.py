@@ -139,13 +139,19 @@ def serve_image(filepath):
     duration = (time.time() - start_t) * 1000
     logger.warning(f"Image not found: {filepath} - took {duration:.1f}ms")
     
-    # Periodic cleanup
+    # Okresowe czyszczenie - rozdzielone i niezależne warunki
     _missing_images_cache.add(filepath)
-    _cdn_redirect_cache_size = len(_cdn_redirect_cache)
-    if len(_missing_images_cache) > 5000 or _cdn_redirect_cache_size > 5000:
+    
+    # Cache brakujących zdjęć czyścimy, gdy osiągnie 5 000 pozycji
+    if len(_missing_images_cache) > 5000:
         _missing_images_cache.clear()
+        logger.info("Missing images cache cleared (reached 5000)")
+        
+    # Prawidłowe przekierowania CDN czyścimy bardzo rzadko (np. dopiero przy 100 000 wpisów)
+    # Zapobiegnie to pętli destrukcji cache (cache thrashing)
+    if len(_cdn_redirect_cache) > 100000:
         _cdn_redirect_cache.clear()
-        logger.info(f"Cache cleared (was: {len(_missing_images_cache)} missing, {_cdn_redirect_cache_size} redirects)")
+        logger.info("CDN redirect cache cleared (reached 100000)")
     
     abort(404)
 

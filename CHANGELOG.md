@@ -9,6 +9,10 @@
 - Updated `usi_unified.schema.json` to include `nearby_investments`.
 - Refactored `view-detail.jsx` to remove expensive on-the-fly distance computations.
 
+## Wersja 0.9.56 — Optymalizacja Mechanizmu Cache — 2026-06-05
+- **Rozdzielenie Czyszczenia Pamięci**: Całkowicie uniezależniono od siebie procesy czyszczenia cache brakujących obrazów (`_missing_images_cache`) oraz prawidłowych przekierowań CDN (`_cdn_redirect_cache`).
+- **Eliminacja Cache Thrashing**: Zwiększono limit dla `_cdn_redirect_cache` do 100 000 wpisów, zachowując limit 5 000 dla brakujących plików. Zapobiega to niepotrzebnemu czyszczeniu wartościowych danych przy dużej liczbie błędów 404, drastycznie zmniejszając obciążenie CPU i dysku podczas ponownych żądań o te same zasoby.
+
 ## Wersja 0.9.55 — Fix `detect_similar_invs.py` — 2026-06-05
 - **Naprawa Błędu Zmiennych**: Rozwiązano problem `NameError` wynikający z użycia niezdefiniowanych zmiennych `dev_slug` i `inv_slug` w skrypcie wykrywania podobnych inwestycji.
 - **Optymalizacja Indeksowania**: Zaktualizowano wywołanie `inv_index.upsert`, aby korzystało z systemowego identyfikatora `inv_id`, co jest zgodne z architekturą ID-only.
