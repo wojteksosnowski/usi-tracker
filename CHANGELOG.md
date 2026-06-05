@@ -1,5 +1,12 @@
 # Changelog
 
+## Wersja 0.9.50 — Kamień 03 (Refaktoryzacja mapowania portali) — 2026-06-05
+- **Konfiguracja strukturalna**: Wprowadzono słowniki konfiguracyjne (`PORTAL_NAMES`, `PORTAL_FULL_DOMAINS`, `PORTAL_VENDOR_ID_KEYS`) do zarządzania logiką w zależności od portalu (rp, oto, to).
+- **Czyszczenie instrukcji warunkowych**: Zrefaktoryzowano pętlę synchronizacji w `InvestmentSyncService`, zastępując bloki `if/elif` mechanizmami Dispatch Maps, co ujednolica i stabilizuje przepływ danych.
+
+### Wnioski ze zmian
+- Stosowanie mapowań słownikowych zamiast rozbudowanych i powtarzalnych instrukcji warunkowych drastycznie redukuje stopień skomplikowania kodu, zmniejsza ryzyko błędów przy ręcznej edycji i sprawia, że integracja ewentualnych przyszłych źródeł danych będzie opierać się o proste wpisy w rejestrze mapowań.
+
 ## Wersja 0.9.49 — Kamień 02 (Rejestracja inwestycji ID-only) — 2026-06-05
 - **Wzmocnienie ID-only**: Usunięto całkowicie parametr `inv_slug` z sygnatury i logiki metody `register_investment`, przenosząc pełny środek ciężkości na `item_id`.
 - **Integracja API**: Oczyszczono logikę endpointów oraz serwisu Discovery, optymalizując w nich zapytania na rzecz bazowania wyłącznie na identyfikatorach dostarczanych przez bibliotekę wewnętrzną.

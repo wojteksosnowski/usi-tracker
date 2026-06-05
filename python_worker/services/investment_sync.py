@@ -9,6 +9,14 @@ from python_worker.developer_manager import DeveloperManager
 
 logger = logging.getLogger(__name__)
 
+PORTAL_NAMES = {"rp": "RynekPierwotny", "oto": "Otodom", "to": "TabelaOfert"}
+PORTAL_FULL_DOMAINS = {"rp": "rynekpierwotny.pl", "oto": "otodom.pl", "to": "tabelaofert.pl"}
+PORTAL_VENDOR_ID_KEYS = {
+    "rp": lambda vid: {"id": str(vid)},
+    "to": lambda vid: {"agency_id": str(vid)},
+    "oto": lambda vid: {"agency_id": str(vid), "agency_ids": [str(vid)]}
+}
+
 def _primary_portal_id(sources: dict) -> tuple[str, str | None]:
     for portal in ("rp", "oto", "to"):
         pid = (sources.get(portal) or {}).get("id")
@@ -50,11 +58,7 @@ class InvestmentSyncService:
             return False
         
         from usi_scrapers.api import get_raw_data
-        portal_map = {
-            "rp": "rynekpierwotny.pl",
-            "oto": "otodom.pl",
-            "to": "tabelaofert.pl"
-        }
+        portal_map = PORTAL_FULL_DOMAINS
         
         full_portal = portal_map.get(portal)
         if not full_portal:
@@ -310,9 +314,7 @@ class InvestmentSyncService:
                 if raw_files:
                     sources[p] = {"id": "rebuild"}
 
-        rp_unified = None
-        oto_unified = None
-        to_unified = None
+        unified_data_map = {"rp": None, "oto": None, "to": None}
         fetched_sources = []
         failed_sources = []
         
@@ -336,24 +338,22 @@ class InvestmentSyncService:
         for portal in ["rp", "oto", "to"]:
             if portal not in sources: continue
 
-            portal_name = "RynekPierwotny" if portal == "rp" else ("Otodom" if portal == "oto" else "TabelaOfert")
-            raw_prefix = "rp" if portal == "rp" else ("oto" if portal == "oto" else "to")
+            portal_name = PORTAL_NAMES.get(portal, portal)
+            raw_prefix = portal
 
             unified_data, fetched_src, failed_src = self._fetch_and_transform_portal_data(
                 system_id, portal, portal_name, raw_prefix, sources, use_local_raw
             )
             
             if unified_data:
-                if portal == "rp": rp_unified = unified_data
-                elif portal == "oto": oto_unified = unified_data
-                elif portal == "to": to_unified = unified_data
+                unified_data_map[portal] = unified_data
             if fetched_src:
                 fetched_sources.append(fetched_src)
             if failed_src:
                 failed_sources.append(failed_src)
 
 
-        if rp_unified or oto_unified or to_unified:
+        if any(unified_data_map.values()):
             # Semantic layer: Ratings and Merging
             ratings_candidates = []
             for p in ("rp", "oto", "to"):
@@ -370,7 +370,7 @@ class InvestmentSyncService:
                         logger.error(f"Error reading ratings file: {e}")
 
             event = f"Sync: {', '.join(fetched_sources)}" if fetched_sources else "Manual Update"
-            new_unified = Merger.merge(rp_unified, oto_unified, to_unified, ratings, existing_data=usi_data, event=event)
+            new_unified = Merger.merge(unified_data_map["rp"], unified_data_map["oto"], unified_data_map["to"], ratings, existing_data=usi_data, event=event)
 
             # Technical layer: Image synchronization via library
             all_urls = new_unified.get("image_urls", [])
@@ -441,9 +441,8 @@ class InvestmentSyncService:
                 if not dev_slug and vendor_id:
                     dev_slug = f"{portal}-{vendor_id}"
                     initial_pm = {"rp": None, "oto": None, "to": None}
-                    if portal == "rp": initial_pm["rp"] = {"id": str(vendor_id)}
-                    elif portal == "to": initial_pm["to"] = {"agency_id": str(vendor_id)}
-                    elif portal == "oto": initial_pm["oto"] = {"agency_id": str(vendor_id), "agency_ids": [str(vendor_id)]}
+                    if portal in PORTAL_VENDOR_ID_KEYS:
+                        initial_pm[portal] = PORTAL_VENDOR_ID_KEYS[portal](vendor_id)
 
                     self.dm.create_developer_file({
                         "developer_slug": dev_slug,
@@ -504,7 +503,7 @@ class InvestmentSyncService:
         )
 
         success_count = 0
-        raw_prefix = "rp" if portal == "rp" else ("oto" if portal == "oto" else "to")
+        raw_prefix = portal
 
         for info, data in zip(to_process, batch_results):
             try:

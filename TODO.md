@@ -1,8 +1,5 @@
 # TODO
 
-## Kamień 03
-Plik `investment_sync.py` jest napisany glownie przy pomocy if/else. Wyglada to jak program początkującego programisty. Nie ma innej metody?
-
 ## Kamień 04
 Po co wyświetlanie inwestycje uzywa `resolve_images` i skanuje caly dysk w poszukiwaniu obrazow?!?! Przeciez obrazy sa tam gdzie prowadza sciezki?!!? Tylko gdy obrazo nie ma we wskazanym miejscu powinno dojsc do wyszukania z dysku!!!!!!!!
 
