@@ -9,6 +9,11 @@
 - Updated `usi_unified.schema.json` to include `nearby_investments`.
 - Refactored `view-detail.jsx` to remove expensive on-the-fly distance computations.
 
+## Wersja 0.9.55 — Fix `detect_similar_invs.py` — 2026-06-05
+- **Naprawa Błędu Zmiennych**: Rozwiązano problem `NameError` wynikający z użycia niezdefiniowanych zmiennych `dev_slug` i `inv_slug` w skrypcie wykrywania podobnych inwestycji.
+- **Optymalizacja Indeksowania**: Zaktualizowano wywołanie `inv_index.upsert`, aby korzystało z systemowego identyfikatora `inv_id`, co jest zgodne z architekturą ID-only.
+- **Korekta Formatowania**: Naprawiono niepoprawne wcięcia (indentation) w głównej pętli skryptu, poprawiając czytelność i stabilność kodu.
+
 ## Wersja 0.9.54 — Centralizacja Inicjalizacji Biblioteki — 2026-06-05
 - **Współdzielone Instancje**: Wprowadzono wzorzec singleton-like dla kluczowych obiektów biblioteki `usi-scrapers` (`ScraperConfig`, `TechnicalDataManager`, `Fetcher`). Są one teraz inicjowane raz w `config.py` i współdzielone między wszystkimi serwisami.
 - **Poprawa Stabilności Importów**: Rozwiązano problem z kolejnością importów w `python_worker/adapters/__init__.py`, zapewniając, że `sys.path` jest poprawnie skonfigurowany przed próbą załadowania biblioteki zewnętrznej.
