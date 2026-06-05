@@ -9,6 +9,14 @@
 - Updated `usi_unified.schema.json` to include `nearby_investments`.
 - Refactored `view-detail.jsx` to remove expensive on-the-fly distance computations.
 
+## Wersja 0.9.54 — Centralizacja Inicjalizacji Biblioteki — 2026-06-05
+- **Współdzielone Instancje**: Wprowadzono wzorzec singleton-like dla kluczowych obiektów biblioteki `usi-scrapers` (`ScraperConfig`, `TechnicalDataManager`, `Fetcher`). Są one teraz inicjowane raz w `config.py` i współdzielone między wszystkimi serwisami.
+- **Poprawa Stabilności Importów**: Rozwiązano problem z kolejnością importów w `python_worker/adapters/__init__.py`, zapewniając, że `sys.path` jest poprawnie skonfigurowany przed próbą załadowania biblioteki zewnętrznej.
+- **Optymalizacja Wydajności**: Redukcja narzutu na wielokrotne tworzenie obiektów managera i konfiguracji, co przekłada się na mniejsze zużycie pamięci i szybszy start usług.
+
+### Wnioski ze zmian
+- Centralizacja zasobów technicznych jest kluczowa dla architektury "Thin-Client". Dzięki współdzieleniu instancji `TechnicalDataManager`, system ma jeden, autorytatywny punkt styku z warstwą I/O, co eliminuje ryzyko niespójności konfiguracji między różnymi częściami aplikacji.
+
 ## Wersja 0.9.53 — Bezkompromisowe ID-ONLY — 2026-06-05
 - **Eliminacja Slugów w I/O**: Usunięto ostatnie bastiony identyfikacji po slugach w warstwie zapisu surowych danych. Funkcje `save_raw` i `save_raw_developer` korzystają teraz wyłącznie z `portal_id`, zgodnie z wymogami `usi-scrapers` v0.7.0+.
 - **Refaktoryzacja Facade**: Zastąpiono amatorskie `*args, **kwargs` w `DeveloperManager` jawnymi sygnaturami metod, co zwiększa stabilność i ułatwia debugowanie.

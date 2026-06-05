@@ -23,10 +23,8 @@ class DeveloperRepository:
             logger.warning(f"Note: Could not verify/create directories {self.dev_dir} or {self.dev_raw_dir} due to OS permissions. Proceeding anyway. Error: {e}")
         self.counters_path = Path(__file__).parent / "data" / "usi_counters.json"
 
-        from python_worker.config import get_scraper_config
-        from usi_scrapers.manager import TechnicalDataManager
-        config = get_scraper_config()
-        self.tech_manager = TechnicalDataManager(config) if config else None
+        from python_worker.config import get_shared_tech_manager
+        self.tech_manager = get_shared_tech_manager()
 
     def _dev_file_path(self, dev_slug: str, usi_dev_id: str = None) -> Path | None:
         """New-format path: USIdev/{slug}/usi_dev_{usi_dev_id}_{slug}.json

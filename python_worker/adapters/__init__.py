@@ -3,8 +3,8 @@ import json
 import logging
 from pathlib import Path
 from .merger import Merger
-from usi_scrapers import resolve_path, get_mapping
 from python_worker.config import SEGMENTS_CONFIG_PATH
+from usi_scrapers import resolve_path, get_mapping
 
 logger = logging.getLogger(__name__)
 

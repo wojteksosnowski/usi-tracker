@@ -72,6 +72,11 @@ IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
 VISIBLE_METADATA_FILE = Path(__file__).parent / "data" / "visible_metadata.json"
 SEGMENTS_CONFIG_PATH = Path(__file__).parent / "schemas" / "segments.json"
 
+# Cached library instances
+_cached_config = None
+_cached_tech_manager = None
+_cached_fetcher = None
+
 def get_scraper_config():
     """Returns a ScraperConfig object for use with the usi-scrapers library."""
     try:
@@ -97,3 +102,25 @@ def get_scraper_config():
     except ImportError:
         # Fallback if library not in path yet
         return None
+
+def get_shared_config():
+    global _cached_config
+    if _cached_config is None:
+        _cached_config = get_scraper_config()
+    return _cached_config
+
+def get_shared_tech_manager():
+    global _cached_tech_manager
+    config = get_shared_config()
+    if _cached_tech_manager is None and config:
+        from usi_scrapers.manager import TechnicalDataManager
+        _cached_tech_manager = TechnicalDataManager(config)
+    return _cached_tech_manager
+
+def get_shared_fetcher():
+    global _cached_fetcher
+    config = get_shared_config()
+    if _cached_fetcher is None and config:
+        from usi_scrapers.fetcher import Fetcher
+        _cached_fetcher = Fetcher(config)
+    return _cached_fetcher

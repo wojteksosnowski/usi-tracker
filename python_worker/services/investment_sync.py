@@ -37,8 +37,8 @@ class InvestmentSyncService:
         self.public_usi_dir = public_usi_dir
         self.dm = developer_manager or DeveloperManager(self.data_dir)
         
-        from python_worker.config import get_scraper_config
-        self._lib_config = get_scraper_config()
+        from python_worker.config import get_shared_config
+        self._lib_config = get_shared_config()
         self._fetcher = None
         self._tech_manager = None
         self._image_sync = None
@@ -55,17 +55,25 @@ class InvestmentSyncService:
 
     @property
     def fetcher(self):
-        if self._fetcher is None and self.lib_config:
-            from usi_scrapers.fetcher import Fetcher
-            self._fetcher = Fetcher(self.lib_config)
+        if self._fetcher is None:
+            from python_worker.config import get_shared_fetcher
+            self._fetcher = get_shared_fetcher()
         return self._fetcher
+
+    @fetcher.setter
+    def fetcher(self, value):
+        self._fetcher = value
 
     @property
     def tech_manager(self):
-        if self._tech_manager is None and self.lib_config:
-            from usi_scrapers.manager import TechnicalDataManager
-            self._tech_manager = TechnicalDataManager(self.lib_config)
+        if self._tech_manager is None:
+            from python_worker.config import get_shared_tech_manager
+            self._tech_manager = get_shared_tech_manager()
         return self._tech_manager
+
+    @tech_manager.setter
+    def tech_manager(self, value):
+        self._tech_manager = value
 
     @property
     def image_sync(self):
