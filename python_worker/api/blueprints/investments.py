@@ -114,8 +114,15 @@ def serve_image(filepath):
                             image_paths = data.get("image_paths", [])
                             photos = data.get("photos", [])
                             
-                            # Use dict lookup instead of substring search
-                            path_to_photo = {ipath: photo for ipath, photo in zip(image_paths, photos)}
+                            # Use dict lookup with strict 500ms timeout
+                            path_to_photo = {}
+                            lookup_start = time.time()
+                            for ipath, photo in zip(image_paths, photos):
+                                path_to_photo[ipath] = photo
+                                # Emergency break if processing takes too long (e.g. 10k+ images)
+                                if (time.time() - lookup_start) > 0.5:
+                                    logger.warning(f"Image lookup timeout (0.5s) for {inv_id}")
+                                    break
                             
                             if decoded_path in path_to_photo:
                                 photo_url = path_to_photo[decoded_path]
