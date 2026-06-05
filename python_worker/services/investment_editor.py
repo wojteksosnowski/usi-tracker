@@ -89,7 +89,8 @@ class InvestmentEditorService:
                     "changes": changes
                 })
                 # Log to processing log (requires slugs)
-                slug_parts = resources["metadata"]["slug"].split("/")
+                slug = resources["metadata"].get("slug") or ""
+                slug_parts = slug.split("/") if "/" in slug else ["unknown", "unknown"]
                 log_to_processing_log(slug_parts[0], slug_parts[1], f"Ratings updated via ID {system_id}. Changes: {len(changes)}")
             
             self.repo.save_investment_json(system_id, usi_data)
@@ -114,7 +115,8 @@ class InvestmentEditorService:
             logger.error(f"Cannot mark as reviewed: Investment {system_id} not found.")
             return False
             
-        slug_parts = resources["metadata"]["slug"].split("/")
+        slug = resources["metadata"].get("slug") or ""
+        slug_parts = slug.split("/") if "/" in slug else ["unknown", "unknown"]
         
         try:
             data = self.repo.get_investment_json(system_id)
@@ -140,7 +142,8 @@ class InvestmentEditorService:
             logger.error(f"Cannot add report: Investment {system_id} not found.")
             return False
             
-        slug_parts = resources["metadata"]["slug"].split("/")
+        slug = resources["metadata"].get("slug") or ""
+        slug_parts = slug.split("/") if "/" in slug else ["unknown", "unknown"]
 
         try:
             data = self.repo.get_investment_json(system_id)
@@ -184,7 +187,8 @@ class InvestmentEditorService:
                 
             self.repo.mark_as_deleted(system_id, list(deleted))
             
-            slug_parts = resources["metadata"]["slug"].split("/")
+            slug = resources["metadata"].get("slug") or ""
+            slug_parts = slug.split("/") if "/" in slug else ["unknown", "unknown"]
             log_to_processing_log(slug_parts[0], slug_parts[1], f"Marked {len(paths)} photos as deleted via ID {system_id}")
             return True
         except Exception as e:

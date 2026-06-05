@@ -82,7 +82,18 @@ class InvestmentIdentityResolver:
             return None
 
         anchor_file = inv_dir / f"usi_{portal}_{portal_id}.json"
+        if not anchor_file.exists():
+            # Robustness fallback (06.01.10): Find any usi_*.json in the resolved folder
+            candidates = list(inv_dir.glob("usi_*.json"))
+            if candidates:
+                anchor_file = sorted(candidates)[0]
+
         raw_file = inv_dir / f"raw_{portal}_{portal_id}.json"
+        if not raw_file.exists():
+             # Fallback for raw files too
+             raw_candidates = list(inv_dir.glob(f"raw_{portal}_*.json")) or list(inv_dir.glob("raw_*.json"))
+             if raw_candidates:
+                 raw_file = sorted(raw_candidates)[0]
         
         # Meta/ratings files are still partially slug-based in names, but located in ID-resolved folder
         inv_slug = entry.get("investment_slug")

@@ -42,10 +42,10 @@ def load_investment(system_id: str | None = None, usi_file: Path | None = None, 
         resources = resolver.get_investment_resources(system_id)
         if resources:
             usi_file = resources["files"].get("anchor")
-            slug_parts = resources["metadata"]["slug"].split("/")
-            if len(slug_parts) >= 2:
-                dev_slug = slug_parts[0]
-                inv_slug = slug_parts[1]
+            slug = resources["metadata"].get("slug") or ""
+            slug_parts = slug.split("/") if "/" in slug else [None, None]
+            dev_slug = slug_parts[0]
+            inv_slug = slug_parts[1]
             inv_dir = resources["base_dir"]
         else:
             logger.error(f"load_investment: Could not resolve resources for ID {system_id}.")
@@ -64,6 +64,13 @@ def load_investment(system_id: str | None = None, usi_file: Path | None = None, 
         usi = json.loads(usi_file.read_text())
         if resources and not usi.get("usi_inv_id"):
             usi["usi_inv_id"] = resources["id"]
+            
+        # Ensure portal and portal_id are available for the index
+        if not usi.get("portal") or not usi.get("portal_id"):
+            parts = usi_file.stem.split("_")
+            if len(parts) >= 3 and parts[0] == "usi":
+                if not usi.get("portal"): usi["portal"] = parts[1]
+                if not usi.get("portal_id"): usi["portal_id"] = parts[2]
     except Exception:
         return None
 
@@ -165,6 +172,8 @@ def load_investment(system_id: str | None = None, usi_file: Path | None = None, 
         "photos": images,
         "image_urls": usi.get("image_urls", []),
         "images_count": usi.get("images_count", len(images)),
+        "portal": usi.get("portal"),
+        "portal_id": usi.get("portal_id"),
         "id": system_id or usi.get("master_id") or (f"{usi.get('portal')}_{usi.get('portal_id')}" if usi.get("portal") and usi.get("portal_id") else f"legacy_{dev_slug}/{inv_slug}"),
         "usi_inv_id": usi.get("usi_inv_id"),
         "usi_dev_id": usi.get("usi_dev_id"),

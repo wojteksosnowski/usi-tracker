@@ -51,10 +51,11 @@ class InvestmentService:
         if not system_id:
             return None
 
+        # Resolve resources first to ensure we have a physical path
         resources = self.get_investment_resources(system_id)
         if not resources:
+            logger.warning(f"get_investment: Resources not found for ID {system_id}")
             return None
-        dev_slug, inv_slug = resources["metadata"]["slug"].split("/")
             
         from python_worker.api.utils import _load_investment
         return _load_investment(

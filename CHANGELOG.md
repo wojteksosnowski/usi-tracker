@@ -9,6 +9,12 @@
 - Updated `usi_unified.schema.json` to include `nearby_investments`.
 - Refactored `view-detail.jsx` to remove expensive on-the-fly distance computations.
 
+## Wersja 0.9.57 — Robustność ID i Sluga — 2026-06-05
+- **Naprawa Błędu Odświeżania**: Wyeliminowano przyczynę błędu "Unexpected token '<'" podczas odświeżania inwestycji (np. INV-29863). Przyczyną był crash serwera (500) przy próbie parsowania brakujących slugów.
+- **Odporny Loader**: Zaktualizowano `investment_loader.py`, aby automatycznie ekstrahował `portal` i `portal_id` z nazw plików, jeśli brakuje ich w zawartości JSON. Gwarantuje to poprawność indeksu nawet dla niepełnych rekordów.
+- **Bezpieczna Ekstrakcja Slugów**: Zastąpiono wszystkie kruche wywołania `.split("/")` bezpieczną logiką z fallbackami w serwisach `Sync`, `Loader`, `Editor` oraz `Resolver`. System nie wywala się już przy napotkaniu rekordów z nieprawidłowymi metadanymi slugów.
+- **Robust Identity Resolution**: Wprowadzono mechanizm fallback w `investment_identity.py`, który pozwala na znalezienie plików `usi_*.json` w folderze inwestycji nawet przy braku precyzyjnych informacji o portalu w indeksie.
+
 ## Wersja 0.9.56 — Optymalizacja Mechanizmu Cache — 2026-06-05
 - **Rozdzielenie Czyszczenia Pamięci**: Całkowicie uniezależniono od siebie procesy czyszczenia cache brakujących obrazów (`_missing_images_cache`) oraz prawidłowych przekierowań CDN (`_cdn_redirect_cache`).
 - **Eliminacja Cache Thrashing**: Zwiększono limit dla `_cdn_redirect_cache` do 100 000 wpisów, zachowując limit 5 000 dla brakujących plików. Zapobiega to niepotrzebnemu czyszczeniu wartościowych danych przy dużej liczbie błędów 404, drastycznie zmniejszając obciążenie CPU i dysku podczas ponownych żądań o te same zasoby.
