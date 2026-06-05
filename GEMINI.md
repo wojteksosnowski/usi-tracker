@@ -9,6 +9,8 @@ USI Tracker is a specialized system for monitoring real-estate investments in Po
   - **ID-only**: Universal rule - all identification must be derived from unique ID. Slug based identification is prohibitted.
   - **Ruthless**: Badź bezwgledny dla kodu, nie cackaj sie - tnij, usuwaj, pisz od nowa jezeli jest taka potrzeba. Kieruj sie zasada ID-only oraz obecnoscia API usi-scrapers.
   - **Identity Resolver (Resource Mapping)**: Centralized services (`InvestmentService.get_investment_resources`, `DeveloperManager.get_developer_resources`) that resolve physical file paths exclusively from USI IDs. All I/O operations must use these resolvers to avoid path drift caused by slug changes.
+  - **Hot Indexing**: High-performance O(1) memory lookup for investments and developers via dictionaries (slug-to-entry and ID-to-entry). 
+  - **Concurrency Guards**: Mandatory locks (`_index_lock`, `_rebuild_lock`) and state flags (`_is_rebuilding`) for index management to prevent race conditions and CPU spikes during filesystem scans.
   - **Thin-Client Scrapers**: ALL technical I/O, raw data fetching, and asset management (images) are delegated to the `usi-scrapers` library. The tracker acts as an orchestrator.
   - **Wedrowiec (Unified Crawler)**: A background daemon (`crawler.py`) that performs periodic "Visits" (discovery for known developers) and "Exploration" (systematic paging of portal catalogs to find new developers).
   - **TechnicalDataManager**: Centralized manager in `usi-scrapers` used for path resolution and technical data persistence.

@@ -80,14 +80,13 @@ def serve_image(filepath):
     if raw_path.exists() and raw_path.is_file():
         return send_file(raw_path)
 
-    # 3. Fallback to original URL via JSON mapping (only on 404)
-    # filepath looks like: "developer-slug/investment-slug/filename.webp"
+    # 3. Fallback — Use index to find original URL via JSON mapping
     parts = Path(decoded_path).parts
     if len(parts) >= 2:
         dev_slug, inv_slug = parts[0], parts[1]
         
         with _fallback_lock:
-            # Check cache again inside lock to avoid redundant work
+            # Check cache again inside lock
             if filepath in _cdn_redirect_cache:
                 return redirect(_cdn_redirect_cache[filepath], code=302)
             if filepath in _missing_images_cache:
@@ -99,14 +98,11 @@ def serve_image(filepath):
                 
                 if not entry:
                     # Fallback if hot index is not yet populated
-                    index = inv_index.load(USI_DATA_DIR)
+                    inv_index.load(USI_DATA_DIR)
                     entry = inv_index.get_entry_by_slug(dev_slug, inv_slug)
                 
                 if entry:
                     inv_id = entry.get("usi_inv_id")
-                    logger.info(f"Image 404 fallback: Found {inv_id} in hot index for {filepath}")
-                    
-                    # Resolve resources via InvestmentService (delegates to IdentityResolver)
                     resources = investment_service.get_investment_resources(inv_id)
                     if resources and resources["files"].get("anchor"):
                         json_file = resources["files"]["anchor"]
@@ -115,45 +111,40 @@ def serve_image(filepath):
                             image_paths = data.get("image_paths", [])
                             photos = data.get("photos", [])
                             
-                            # Search for matching filename in image_paths
-                            for i, ipath in enumerate(image_paths):
-                                if decoded_path in ipath or filepath in ipath:
-                                    if i < len(photos) and str(photos[i]).startswith("http"):
-                                        # Cache and redirect
-                                        _cdn_redirect_cache[filepath] = photos[i]
-                                        duration = (time.time() - start_t) * 1000
-                                        logger.info(f"Image redirect found via index in {json_file.name} ({duration:.1f}ms)")
-                                        return redirect(photos[i], code=302)
+                            # Use dict lookup instead of substring search
+                            path_to_photo = {ipath: photo for ipath, photo in zip(image_paths, photos)}
+                            
+                            if decoded_path in path_to_photo:
+                                photo_url = path_to_photo[decoded_path]
+                                if str(photo_url).startswith("http"):
+                                    _cdn_redirect_cache[filepath] = photo_url
+                                    duration = (time.time() - start_t) * 1000
+                                    logger.info(f"Image redirect found in {duration:.1f}ms")
+                                    return redirect(photo_url, code=302)
+                            
+                            # Fallback: partial match only if direct lookup failed
+                            decoded_filename = Path(decoded_path).name
+                            for ipath, photo_url in path_to_photo.items():
+                                if decoded_filename == Path(ipath).name:
+                                    if str(photo_url).startswith("http"):
+                                        _cdn_redirect_cache[filepath] = photo_url
+                                        return redirect(photo_url, code=302)
                         except Exception as e:
-                            logger.warning(f"Error parsing anchor file {json_file}: {e}")
-                else:
-                    # Slow path fallback (legacy or newly registered not in index yet)
-                    inv_dir = Path(USI_DATA_DIR) / dev_slug / inv_slug
-                    if inv_dir.exists():
-                        logger.info(f"Image 404 fallback (slow): Searching in {inv_dir} for {filepath}")
-                        json_files = list(inv_dir.glob("usi_*.json"))
-                        for json_file in json_files:
-                            if "usi_dev_" in json_file.name: continue
-                            try:
-                                data = json.loads(json_file.read_text(encoding="utf-8"))
-                                image_paths = data.get("image_paths", [])
-                                photos = data.get("photos", [])
-                                for i, ipath in enumerate(image_paths):
-                                    if decoded_path in ipath or filepath in ipath:
-                                        if i < len(photos) and str(photos[i]).startswith("http"):
-                                            _cdn_redirect_cache[filepath] = photos[i]
-                                            return redirect(photos[i], code=302)
-                            except Exception: continue
+                            logger.warning(f"Error parsing {json_file.name}: {e}")
             except Exception as e:
                 logger.error(f"Fallback error for {filepath}: {e}")
-                pass
 
     duration = (time.time() - start_t) * 1000
-    logger.warning(f"Image not found: {filepath} (tried {img_path}) - took {duration:.1f}ms")
+    logger.warning(f"Image not found: {filepath} - took {duration:.1f}ms")
+    
+    # Periodic cleanup
     _missing_images_cache.add(filepath)
-    if len(_missing_images_cache) > 10000:
+    _cdn_redirect_cache_size = len(_cdn_redirect_cache)
+    if len(_missing_images_cache) > 5000 or _cdn_redirect_cache_size > 5000:
         _missing_images_cache.clear()
-        _cdn_redirect_cache.clear() # Clear redirects too if memory pressure
+        _cdn_redirect_cache.clear()
+        logger.info(f"Cache cleared (was: {len(_missing_images_cache)} missing, {_cdn_redirect_cache_size} redirects)")
+    
     abort(404)
 
 @investments_bp.route("/developer/<usi_dev_id>/logo")
