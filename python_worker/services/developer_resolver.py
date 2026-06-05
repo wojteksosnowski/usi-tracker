@@ -85,9 +85,10 @@ class DeveloperResolver:
         resources = self.identity.get_investment_resources(system_id)
         if not resources: return
         
-        slug = resources["metadata"].get("slug") or ""
-        slug_parts = slug.split("/") if "/" in slug else ["unknown", "unknown"]
-        dev_slug = slug_parts[0]
+        m = resources["metadata"]
+        dev_slug = m.get("developer_slug")
+        
+        if not dev_slug: return
         
         dev_record = self.dm.get_developer(dev_slug)
         if not dev_record:

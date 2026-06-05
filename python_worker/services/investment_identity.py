@@ -113,6 +113,8 @@ class InvestmentIdentityResolver:
             "metadata": {
                 "portal": portal,
                 "portal_id": portal_id,
+                "developer_slug": entry.get("developer_slug"),
+                "investment_slug": inv_slug,
                 "slug": f"{entry.get('developer_slug')}/{inv_slug}"
             }
         }

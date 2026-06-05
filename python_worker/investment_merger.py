@@ -96,9 +96,9 @@ class InvestmentMerger:
             return False
 
         t_dev_slug = target_entry["developer_slug"]
-        t_inv_slug = target_entry["slug"].split("/")[-1]
+        t_inv_slug = target_entry["investment_slug"]
         s_dev_slug = source_entry["developer_slug"]
-        s_inv_slug = source_entry["slug"].split("/")[-1]
+        s_inv_slug = source_entry["investment_slug"]
 
         t_inv_dir = self.data_dir / t_dev_slug / t_inv_slug
         s_inv_dir = self.data_dir / s_dev_slug / s_inv_slug
@@ -236,7 +236,7 @@ class InvestmentMerger:
             return False
 
         s_dev_slug = source_entry["developer_slug"]
-        s_inv_slug = source_entry["slug"].split("/")[-1]
+        s_inv_slug = source_entry["investment_slug"]
         s_inv_dir = self.data_dir / s_dev_slug / s_inv_slug
         s_res = self.identity.get_investment_resources(source_inv_id)
         s_usi_file = s_res["files"].get("anchor") if s_res else None
@@ -316,7 +316,7 @@ class InvestmentMerger:
         target_entry = self._find_index_entry(target_inv_id)
         if target_entry:
             t_dev_slug = target_entry["developer_slug"]
-            t_inv_slug = target_entry["slug"].split("/")[-1]
+            t_inv_slug = target_entry["investment_slug"]
             t_inv_dir = self.data_dir / t_dev_slug / t_inv_slug
             t_res = self.identity.get_investment_resources(target_inv_id)
             t_usi_file = t_res["files"].get("anchor") if t_res else None

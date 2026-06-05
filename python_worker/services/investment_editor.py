@@ -89,9 +89,8 @@ class InvestmentEditorService:
                     "changes": changes
                 })
                 # Log to processing log (requires slugs)
-                slug = resources["metadata"].get("slug") or ""
-                slug_parts = slug.split("/") if "/" in slug else ["unknown", "unknown"]
-                log_to_processing_log(slug_parts[0], slug_parts[1], f"Ratings updated via ID {system_id}. Changes: {len(changes)}")
+                m = resources["metadata"]
+                log_to_processing_log(m.get("developer_slug", "unknown"), m.get("investment_slug", "unknown"), f"Ratings updated via ID {system_id}. Changes: {len(changes)}")
             
             self.repo.save_investment_json(system_id, usi_data)
         except Exception as e:
@@ -115,8 +114,7 @@ class InvestmentEditorService:
             logger.error(f"Cannot mark as reviewed: Investment {system_id} not found.")
             return False
             
-        slug = resources["metadata"].get("slug") or ""
-        slug_parts = slug.split("/") if "/" in slug else ["unknown", "unknown"]
+        m = resources["metadata"]
         
         try:
             data = self.repo.get_investment_json(system_id)
@@ -128,7 +126,7 @@ class InvestmentEditorService:
 
             self.repo.save_investment_json(system_id, data)
 
-            log_to_processing_log(slug_parts[0], slug_parts[1], f"Investment {system_id} marked as reviewed by analyst.")
+            log_to_processing_log(m.get("developer_slug", "unknown"), m.get("investment_slug", "unknown"), f"Investment {system_id} marked as reviewed by analyst.")
             return True
         except Exception as e:
             logger.error(f"Failed to mark as reviewed for {system_id}: {e}")
@@ -142,8 +140,7 @@ class InvestmentEditorService:
             logger.error(f"Cannot add report: Investment {system_id} not found.")
             return False
             
-        slug = resources["metadata"].get("slug") or ""
-        slug_parts = slug.split("/") if "/" in slug else ["unknown", "unknown"]
+        m = resources["metadata"]
 
         try:
             data = self.repo.get_investment_json(system_id)
@@ -162,7 +159,7 @@ class InvestmentEditorService:
 
             self.repo.save_investment_json(system_id, data)
 
-            log_to_processing_log(slug_parts[0], slug_parts[1], f"Issue reported for {system_id}: {note[:50]}...")
+            log_to_processing_log(m.get("developer_slug", "unknown"), m.get("investment_slug", "unknown"), f"Issue reported for {system_id}: {note[:50]}...")
             return True
         except Exception as e:
             logger.error(f"Failed to add report for {system_id}: {e}")
@@ -181,16 +178,17 @@ class InvestmentEditorService:
             # Get existing deleted items via repo
             existing_deleted = self.repo.get_deleted_items(system_id)
             deleted = set(existing_deleted)
-                    
+
             for path in paths:
                 deleted.add(path)
-                
+
             self.repo.mark_as_deleted(system_id, list(deleted))
-            
-            slug = resources["metadata"].get("slug") or ""
-            slug_parts = slug.split("/") if "/" in slug else ["unknown", "unknown"]
-            log_to_processing_log(slug_parts[0], slug_parts[1], f"Marked {len(paths)} photos as deleted via ID {system_id}")
+
+            m = resources["metadata"]
+            log_to_processing_log(m.get("developer_slug", "unknown"), m.get("investment_slug", "unknown"), f"Marked {len(paths)} photos as deleted via ID {system_id}")
             return True
         except Exception as e:
             logger.error(f"Failed to mark deleted photos for {system_id}: {e}")
+            return False
+
             return False

@@ -12,7 +12,7 @@
 ## Wersja 0.9.57 — Robustność ID i Sluga — 2026-06-05
 - **Naprawa Błędu Odświeżania**: Wyeliminowano przyczynę błędu "Unexpected token '<'" podczas odświeżania inwestycji (np. INV-29863). Przyczyną był crash serwera (500) przy próbie parsowania brakujących slugów.
 - **Odporny Loader**: Zaktualizowano `investment_loader.py`, aby automatycznie ekstrahował `portal` i `portal_id` z nazw plików, jeśli brakuje ich w zawartości JSON. Gwarantuje to poprawność indeksu nawet dla niepełnych rekordów.
-- **Bezpieczna Ekstrakcja Slugów**: Zastąpiono wszystkie kruche wywołania `.split("/")` bezpieczną logiką z fallbackami w serwisach `Sync`, `Loader`, `Editor` oraz `Resolver`. System nie wywala się już przy napotkaniu rekordów z nieprawidłowymi metadanymi slugów.
+- **Eliminacja Redundantnych Splitów**: Usunięto kruche i zbędne operacje `.split("/")` na slugach w całym systemie. Metadane `developer_slug` i `investment_slug` są teraz pobierane bezpośrednio z obiektów danych, co upraszcza kod i zwiększa jego stabilność.
 - **Robust Identity Resolution**: Wprowadzono mechanizm fallback w `investment_identity.py`, który pozwala na znalezienie plików `usi_*.json` w folderze inwestycji nawet przy braku precyzyjnych informacji o portalu w indeksie.
 
 ## Wersja 0.9.56 — Optymalizacja Mechanizmu Cache — 2026-06-05

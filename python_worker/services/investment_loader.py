@@ -42,10 +42,9 @@ def load_investment(system_id: str | None = None, usi_file: Path | None = None, 
         resources = resolver.get_investment_resources(system_id)
         if resources:
             usi_file = resources["files"].get("anchor")
-            slug = resources["metadata"].get("slug") or ""
-            slug_parts = slug.split("/") if "/" in slug else [None, None]
-            dev_slug = slug_parts[0]
-            inv_slug = slug_parts[1]
+            m = resources["metadata"]
+            dev_slug = m.get("developer_slug") or "unknown"
+            inv_slug = m.get("investment_slug") or "unknown"
             inv_dir = resources["base_dir"]
         else:
             logger.error(f"load_investment: Could not resolve resources for ID {system_id}.")

@@ -246,10 +246,9 @@ class InvestmentSyncService:
             return None, None, f"{portal_name} (No resources)"
             
         inv_dir = resources["base_dir"]
-        slug = resources["metadata"].get("slug") or ""
-        slug_parts = slug.split("/") if "/" in slug else [None, None]
-        dev_slug = slug_parts[0] or "unknown"
-        inv_slug = slug_parts[1] or inv_dir.name if len(slug_parts) >= 2 else inv_dir.name
+        m = resources["metadata"]
+        dev_slug = m.get("developer_slug") or "unknown"
+        inv_slug = m.get("investment_slug") or inv_dir.name
         
         raw_files = list(inv_dir.glob(f"raw_{raw_prefix}_*.json"))
 
@@ -317,11 +316,9 @@ class InvestmentSyncService:
         inv_dir = resources["base_dir"]
         actual_file = resources["files"].get("anchor")
         
-        # Robust slug extraction (06.01.10)
-        slug = resources["metadata"].get("slug") or ""
-        slug_parts = slug.split("/") if "/" in slug else [None, None]
-        dev_slug = slug_parts[0] or "unknown"
-        inv_slug = slug_parts[1] or inv_dir.name if len(slug_parts) >= 2 else inv_dir.name
+        m = resources["metadata"]
+        dev_slug = m.get("developer_slug") or "unknown"
+        inv_slug = m.get("investment_slug") or inv_dir.name
 
         if not actual_file and not use_local_raw:
             logger.warning(f"Investment file not found skipping: {inv_dir}/usi_*.json")
