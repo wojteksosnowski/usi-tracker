@@ -693,7 +693,6 @@ def register():
         result = investment_service.register_investment(
             portal=portal,
             developer_name=dev_name,
-            inv_slug=payload.get("inv_slug"),
             name=payload.get("name"),
             item_id=payload.get("id"),
             url=payload.get("url"),

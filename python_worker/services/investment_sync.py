@@ -63,28 +63,22 @@ class InvestmentSyncService:
         data = get_raw_data(self.lib_config, portal=full_portal, portal_id=str(item_id))
         return data is not None
 
-    def register_investment(self, portal, developer_name, inv_slug, name, item_id=None, url=None, allow_existing=False, vendor_id=None, force_dev_slug=None):
+    def register_investment(self, portal, developer_name, name, item_id=None, url=None, allow_existing=False, vendor_id=None, force_dev_slug=None):
 
         dev_slug, resolved_developer_name, inv_slug_from_url = self.developer_resolver.resolve_developer_for_registration(
             portal, developer_name, url, vendor_id, force_dev_slug
         )
-        if inv_slug_from_url and not force_dev_slug:
-             # Just use it if original lacked logic
-             pass
         
-        # Update dev_slug based on parsed URL if it existed
-        if inv_slug_from_url and not dev_slug: # Note: this was handled somewhat implicitly before
-             pass
+        inv_slug = inv_slug_from_url
         
-        # Better fallback: if inv_slug wasn't passed, but url provided it
-        if inv_slug_from_url and not inv_slug:
-             inv_slug = inv_slug_from_url
-
         # Resolve investment directory via TechnicalDataManager
         if self.tech_manager and portal and item_id:
             inv_dir = self.tech_manager.get_investment_path(portal, str(item_id))
+            inv_slug = inv_dir.name
         else:
-            # Fallback if library not available or ID missing
+            if not inv_slug:
+                from slugify import slugify
+                inv_slug = slugify(name) if name else (str(item_id) if item_id else "unknown")
             inv_dir = self.data_dir / dev_slug / inv_slug
 
         # 1. Check if investment already exists (any file format)
@@ -535,7 +529,6 @@ class InvestmentSyncService:
                 res = self.register_investment(
                     portal=info["portal"],
                     developer_name=info["dev_name"] or dev_slug.replace("-", " ").title(),
-                    inv_slug=inv_slug,
                     name=info["name"] or (data.get("title") if isinstance(data, dict) else None),
                     item_id=item_id,
                     url=info["url"],

@@ -41,7 +41,7 @@ def test_register_investment_uses_tech_manager_path(sync_service, mock_identity,
     
 
     # The register_investment method will use tech_manager to resolve paths.
-    sync_service.register_investment(portal, "Dev Name", inv_slug, "Inv Name", item_id=item_id)
+    sync_service.register_investment(portal, "Dev Name", "Inv Name", item_id=item_id)
         
     # Verify tech_manager was used in SyncService
 

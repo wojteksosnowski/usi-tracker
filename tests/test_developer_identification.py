@@ -24,7 +24,6 @@ def test_register_investment_calls_identify_developer(tmp_path):
         svc.register_investment(
             portal=portal,
             developer_name=None,
-            inv_slug="test-investment",
             name="Test Investment",
             url=url
         )
@@ -59,7 +58,6 @@ def test_register_investment_skips_identify_if_name_provided(tmp_path):
         svc.register_investment(
             portal="oto",
             developer_name="Existing Dev",
-            inv_slug="test-investment",
             name="Test Investment",
             url="https://www.otodom.pl/pl/oferta/test-investment-ID123"
         )

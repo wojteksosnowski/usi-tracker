@@ -1,19 +1,10 @@
 # TODO
 
-
-## Kamień 02
-
-Ta funkcja w `investment_sync.py` zawiera inv_slug w parametrach wejsciowych.
-```
-    def register_investment(self, portal, developer_name, inv_slug, name, item_id=None, url=None, allow_existing=False, vendor_id=None, force_dev_slug=None):
-```
-Po co ?!?!?! Nie monza prościej i zgodnie z ID-only?
-
 ## Kamień 03
 Plik `investment_sync.py` jest napisany glownie przy pomocy if/else. Wyglada to jak program początkującego programisty. Nie ma innej metody?
 
 ## Kamień 04
-Po co `resolve_images` skanuje caly dysk w poszukiwaniu obrazow?!?! Przeciez obrazy sa tam gdzie prowadza sciezki?!!? Tylko gdy obrazo nie ma we wskazanym miejscu powinno dojsc do wyszukania z dysku!!!!!!!!
+Po co wyświetlanie inwestycje uzywa `resolve_images` i skanuje caly dysk w poszukiwaniu obrazow?!?! Przeciez obrazy sa tam gdzie prowadza sciezki?!!? Tylko gdy obrazo nie ma we wskazanym miejscu powinno dojsc do wyszukania z dysku!!!!!!!!
 
 ## Kamień 05
 

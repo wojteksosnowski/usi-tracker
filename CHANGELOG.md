@@ -1,5 +1,12 @@
 # Changelog
 
+## Wersja 0.9.49 — Kamień 02 (Rejestracja inwestycji ID-only) — 2026-06-05
+- **Wzmocnienie ID-only**: Usunięto całkowicie parametr `inv_slug` z sygnatury i logiki metody `register_investment`, przenosząc pełny środek ciężkości na `item_id`.
+- **Integracja API**: Oczyszczono logikę endpointów oraz serwisu Discovery, optymalizując w nich zapytania na rzecz bazowania wyłącznie na identyfikatorach dostarczanych przez bibliotekę wewnętrzną.
+
+### Wnioski ze zmian
+- Rezygnacja ze sluga w logice rejestrowania nowych elementów znacząco poprawia przewidywalność zachowań systemu. Wcześniejsze poleganie na nim powodowało ciche tworzenie się rozbieżności, gdy platformy takie jak Otodom niejawnie podmieniały URL-e.
+
 ## Wersja 0.9.48 — Kamień 01 (Refaktoryzacja weryfikacji inwestycji) — 2026-06-05
 - **Wzmocnienie ID-only**: Usunięto parametr `inv_slug` i stare mechanizmy weryfikacyjne, opierając `_check_investment_exists` natywnie o wywołanie `get_raw_data` z `usi-scrapers`.
 - **Aktualizacja testów**: Oczyszczono i zaktualizowano mocki i argumenty w pliku `scratch_test.py` oraz upewniono się, że pozostałe testy nie wymagają modyfikacji sygnatur.

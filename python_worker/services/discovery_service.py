@@ -214,7 +214,6 @@ class DiscoveryService:
         return self.isvc.register_investment(
             portal=portal_key,
             developer_name=item.get("developer_name") or item.get("developer"), # Pass real name if available, else None
-            inv_slug=inv_slug,
             name=item["name"],
             item_id=item.get("id"),
             url=url,
