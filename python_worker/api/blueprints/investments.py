@@ -13,11 +13,21 @@ _fallback_lock = threading.Lock()
 
 
 
+PORTAL_MATCHERS = {
+    "rp": lambda pm_p, src_p: bool(str(pm_p.get("id", "")) and str(src_p.get("vendor_id", "")) and str(pm_p.get("id", "")) == str(src_p.get("vendor_id", ""))),
+    "oto": lambda pm_p, src_p: str(src_p.get("agency_id", "")) in {str(a) for a in (pm_p.get("agency_ids") or [pm_p.get("agency_id", "")]) if a},
+    "to": lambda pm_p, src_p: (
+        (pm_id := str(pm_p.get("id") or pm_p.get("slug", "") or pm_p.get("agency_id", ""))) == 
+        (src_id := str(src_p.get("developer_id") or ""))
+    ) or (not pm_id and not src_id)
+}
+
+
 def _inv_matches_dev(inv: dict, pm: dict) -> bool:
     """Return True only when a portal developer ID from sources exactly matches portal_mapping.
     No fallback guessing — missing ID means no match."""
     src = inv.get("sources") or {}
-    for portal in ("rp", "oto", "to"):
+    for portal, matcher in PORTAL_MATCHERS.items():
         if not pm.get(portal) or not src.get(portal):
             continue
         pm_p = pm[portal]
@@ -26,21 +36,8 @@ def _inv_matches_dev(inv: dict, pm: dict) -> bool:
         if pm_p.get("_inferred"):
             return True
             
-        if portal == "rp":
-            pm_id = str(pm_p.get("id", ""))
-            src_vid = str(src_p.get("vendor_id", ""))
-            if pm_id and src_vid and pm_id == src_vid:
-                return True
-        elif portal == "oto":
-            pm_aids = {str(a) for a in (pm_p.get("agency_ids") or [pm_p.get("agency_id", "")]) if a}
-            src_aid = str(src_p.get("agency_id", ""))
-            if pm_aids and src_aid and src_aid in pm_aids:
-                return True
-        elif portal == "to":
-            pm_id = str(pm_p.get("id") or pm_p.get("slug", "") or pm_p.get("agency_id", ""))
-            src_id = str(src_p.get("developer_id") or "")
-            if (pm_id and src_id and pm_id == src_id) or (not pm_id and not src_id):
-                return True
+        if matcher(pm_p, src_p):
+            return True
     return False
 
 
@@ -224,63 +221,37 @@ def list_investments():
         investments = []
 
     # Server-side filtering
-    search = request.args.get("search", "").lower()
-    dev = request.args.get("dev", "")
-    status = request.args.get("status", "")
-    only_unreviewed = request.args.get("onlyUnreviewed") == "true"
-    only_no_photos = request.args.get("onlyNoPhotos") == "true"
-    sources_arg = request.args.get("sources", "")
-    sources = set(sources_arg.upper().split(",")) if sources_arg else set()
-    segments_arg = request.args.get("segments", "")
-    segments = set(segments_arg.split(",")) if segments_arg else set()
-    cities_arg = request.args.get("cities", "")
-    cities = set(cities_arg.lower().split(",")) if cities_arg else set()
+    filters = []
 
-    filtered = []
-    unreviewed_count = 0
-    main_cities = ['warszawa', 'kraków', 'wrocław', 'łódź', 'poznań', 'gdańsk', 'szczecin', 'bydgoszcz', 'lublin', 'białystok']
-
-    filter_start = time.time()
-    for inv in investments:
-        if inv.get("reviewed") is False:
-            unreviewed_count += 1
-
-        # 1 card = 1 portal. DO NOT hide merged children.
-
-        if only_unreviewed and inv.get("reviewed") is not False:
-            continue
-
-        if only_no_photos and inv.get("photos"):
-            continue
-
-        if search:
-            inv_name = (inv.get("name") or "").lower()
-            inv_dev = (inv.get("developer") or "").lower()
-            inv_dist = (inv.get("district") or "").lower()
-            inv_addr = (inv.get("address") or "").lower()
-            if search not in inv_name and search not in inv_dev and search not in inv_dist and search not in inv_addr:
-                continue
-
-        if dev and inv.get("developer_slug") != dev and inv.get("developer") != dev:
-            continue
-
-        if status and inv.get("status") != status:
-            continue
-
-        if sources and inv.get("source") and inv.get("source", "").upper() not in sources:
-            continue
-
-        inv_segment = inv.get("segment") or inv.get("specifications", {}).get("segment")
-        if segments and inv_segment not in segments:
-            continue
-
-        if cities:
+    if request.args.get("onlyUnreviewed") == "true":
+        filters.append(lambda inv: inv.get("reviewed") is False)
+    if request.args.get("onlyNoPhotos") == "true":
+        filters.append(lambda inv: not inv.get("photos"))
+    if search := request.args.get("search", "").lower():
+        filters.append(lambda inv: any(search in (inv.get(k) or "").lower() for k in ["name", "developer", "district", "address"]))
+    if dev := request.args.get("dev"):
+        filters.append(lambda inv: dev in (inv.get("developer_slug"), inv.get("developer")))
+    if status := request.args.get("status"):
+        filters.append(lambda inv: inv.get("status") == status)
+    if sources_arg := request.args.get("sources"):
+        sources = set(sources_arg.upper().split(","))
+        filters.append(lambda inv: inv.get("source", "").upper() in sources)
+    if segments_arg := request.args.get("segments"):
+        segments = set(segments_arg.split(","))
+        filters.append(lambda inv: (inv.get("segment") or inv.get("specifications", {}).get("segment")) in segments)
+    if cities_arg := request.args.get("cities"):
+        cities = set(cities_arg.lower().split(","))
+        main_cities = ['warszawa', 'kraków', 'wrocław', 'łódź', 'poznań', 'gdańsk', 'szczecin', 'bydgoszcz', 'lublin', 'białystok']
+        def city_filter(inv):
             addr = (inv.get("address") or "").lower()
             found_city = next((c for c in main_cities if c in addr), None)
-            if not found_city or found_city not in cities:
-                continue
+            return found_city in cities
+        filters.append(city_filter)
 
-        filtered.append(inv)
+    unreviewed_count = sum(1 for inv in investments if inv.get("reviewed") is False)
+
+    filter_start = time.time()
+    filtered = [inv for inv in investments if all(f(inv) for f in filters)]
 
     duration = (time.time() - start_t) * 1000
     filter_duration = (time.time() - filter_start) * 1000

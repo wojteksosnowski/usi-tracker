@@ -15,6 +15,11 @@ logger = logging.getLogger(__name__)
 
 PORTAL_NAMES = {"rp": "RynekPierwotny", "oto": "Otodom", "to": "TabelaOfert"}
 PORTAL_FULL_DOMAINS = {"rp": "rynekpierwotny.pl", "oto": "otodom.pl", "to": "tabelaofert.pl"}
+IDENTIFIER_PRIORITIES = {
+    "rp": ["id", "url"],
+    "oto": ["url", "id"],
+    "to": ["url", "id"]
+}
 PORTAL_VENDOR_ID_KEYS = {
     "rp": lambda vid: {"id": str(vid)},
     "to": lambda vid: {"agency_id": str(vid)},
@@ -142,26 +147,24 @@ class InvestmentSyncService:
              
         inv_dir.mkdir(parents=True, exist_ok=True)
 
-        # Canonical filename: usi_{portal}_{portal_id}.json (new format)
-        if portal in ["rp", "oto", "to"] and item_id:
+        # Canonical filename and source construction
+        if portal in PORTAL_FULL_DOMAINS and item_id:
             filename = f"usi_{portal}_{item_id}.json"
             sources = {portal: {"id": str(item_id), "url": url}}
             if vendor_id:
-                sources[portal]["vendor_id"] = str(vendor_id)
+                sources[portal].update(PORTAL_VENDOR_ID_KEYS.get(portal, lambda v: {})(vendor_id))
         else:
             filename = f"usi_{inv_slug}.json"
             sources = {}
-            if portal in ["rp", "oto", "to"]:
+            if portal in PORTAL_FULL_DOMAINS:
                 sources[portal] = {"url": url}
                 if vendor_id:
-                    sources[portal]["vendor_id"] = str(vendor_id)
+                    sources[portal].update(PORTAL_VENDOR_ID_KEYS.get(portal, lambda v: {})(vendor_id))
 
-        if portal == "oto":
-            logger.info(f"Creating Otodom skeleton for {inv_slug} with sources: {sources}")
-
-        # Diagnostic signals for initial classification (if full raw not available)
+        # Diagnostic signals for initial classification
         initial_raw = {"url": url, "name": name}
-        if portal == "rp" and item_id: initial_raw["type"] = None # Placeholder, full raw will come later
+        if portal == "rp" and item_id:
+            initial_raw["type"] = None # Placeholder for classification
 
         system_id = f"{portal}_{item_id}" if item_id else inv_slug
         skeleton = {
@@ -262,11 +265,8 @@ class InvestmentSyncService:
             return None, None, None
 
         else:
-            # RP uses numeric ID; Otodom and TO require a full URL
-            if portal == "rp":
-                identifier = sources[portal].get("id") or sources[portal].get("url")
-            else:
-                identifier = sources[portal].get("url") or sources[portal].get("id")
+            fields = IDENTIFIER_PRIORITIES.get(portal, ["url", "id"])
+            identifier = next((sources[portal].get(f) for f in fields if sources[portal].get(f)), None)
                 
             if not identifier:
                 log_to_processing_log(dev_slug, inv_slug, f"Skipped {portal_name}: no identifier in sources")
@@ -512,7 +512,10 @@ class InvestmentSyncService:
         targets = []
 
         for item in investments:
-            ident = url = item.get("url")
+            fields = IDENTIFIER_PRIORITIES.get(portal, ["url", "id"])
+            ident = next((item.get(f) for f in fields if item.get(f)), None)
+            url = item.get("url")
+            
             inv_slug = item.get("investment_slug") or item.get("inv_slug") or item.get("slug")
             if not inv_slug and url:
                 _parsed = parse_url(url)
@@ -554,9 +557,6 @@ class InvestmentSyncService:
                         "portal_mapping": initial_pm
                     })
                     logger.info(f"Pre-created developer profile {dev_slug} for '{dev_name}' to bypass API resolution errors.")
-
-                if portal == "rp":
-                    ident = item.get("id") or url
 
                 # 4. Resolve physical paths via ID-only architecture
                 target_dir = None
