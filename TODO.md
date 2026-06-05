@@ -1,8 +1,5 @@
 # TODO
 
-## Kamień 04
-Po co wyświetlanie inwestycje uzywa `resolve_images` i skanuje caly dysk w poszukiwaniu obrazow?!?! Przeciez obrazy sa tam gdzie prowadza sciezki?!!? Tylko gdy obrazo nie ma we wskazanym miejscu powinno dojsc do wyszukania z dysku!!!!!!!!
-
 ## Kamień 05
 
 Przeanalizowałem cykl życia widoku i backendu. Kiedy wchodzisz w Widok A,

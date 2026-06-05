@@ -1,5 +1,12 @@
 # Changelog
 
+## Wersja 0.9.51 — Kamień 04 (Optymalizacja skanowania dysku dla obrazów) — 2026-06-05
+- **Wydajność API**: Wyeliminowano rutynowe, pełne skanowanie folderu inwestycji przy rozwiązywaniu obrazów w `image_resolver.py`.
+- **Zmiana logiki `_scan`**: Operacja `glob`/iterdir została zdegradowana do roli ścisłego fallback-u, uruchamiającego się wyłącznie, gdy zapisane w plikach konfiguracyjnych ścieżki do obrazów (`image_paths_raw`) są nieskuteczne lub nie istnieją.
+
+### Wnioski ze zmian
+- Dzięki przesunięciu kosztownego skanowania dysku I/O tylko dla przypadków brzegowych, uzyskano redukcję czasu odpowiedzi przy serwowaniu pojedynczych inwestycji przez endpoint API.
+
 ## Wersja 0.9.50 — Kamień 03 (Refaktoryzacja mapowania portali) — 2026-06-05
 - **Konfiguracja strukturalna**: Wprowadzono słowniki konfiguracyjne (`PORTAL_NAMES`, `PORTAL_FULL_DOMAINS`, `PORTAL_VENDOR_ID_KEYS`) do zarządzania logiką w zależności od portalu (rp, oto, to).
 - **Czyszczenie instrukcji warunkowych**: Zrefaktoryzowano pętlę synchronizacji w `InvestmentSyncService`, zastępując bloki `if/elif` mechanizmami Dispatch Maps, co ujednolica i stabilizuje przepływ danych.

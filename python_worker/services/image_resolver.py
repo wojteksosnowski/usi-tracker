@@ -44,13 +44,8 @@ def resolve_images(usi: dict, inv_dir: Path, public_usi_dir: Path, resources: di
                 if p.suffix.lower() in _IMG_EXT and not p.name.startswith('.')
             )
 
-        local_found = []
-        if img_dir:
-            local_found = _scan(img_dir)
-        
-        for img in local_found:
-            if img not in images:
-                images.append(img)
+        if not images and img_dir:
+            images.extend(_scan(img_dir))
 
         # The legacy global CDN filename glob scan has been removed.
         # It caused severe performance hangs (O(N) full drive scan per missing image url)
