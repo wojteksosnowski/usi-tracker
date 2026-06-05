@@ -25,8 +25,10 @@ class DeveloperManager:
     def get_developer_by_id(self, usi_dev_id: str): return self.repo.get_developer_by_id(usi_dev_id)
     def get_developer_resources(self, usi_dev_id: str): return self.repo.get_developer_resources(usi_dev_id)
     def list_developers(self, only_merged: bool = False): return self.repo.list_developers(only_merged, self.indexer.get_existing_identifiers())
-    def save_raw_json(self, *args, **kwargs): return self.repo.save_raw_json(*args, **kwargs)
-    def save_dev_raw_json(self, *args, **kwargs): return self.repo.save_dev_raw_json(*args, **kwargs)
+    def save_raw_json(self, data: dict, portal_id: str, portal_prefix: str): 
+        return self.repo.save_raw_json(data, portal_id, portal_prefix)
+    def save_dev_raw_json(self, data: dict, portal_prefix: str, portal_id: str): 
+        return self.repo.save_dev_raw_json(data, portal_prefix, portal_id)
     def create_developer_file(self, *args, **kwargs): return self.repo.create_developer_file(*args, **kwargs)
     def append_dev_log(self, *args, **kwargs): return self.repo.append_dev_log(*args, **kwargs)
     def log_event(self, *args, **kwargs): return self.repo.log_event(*args, **kwargs)

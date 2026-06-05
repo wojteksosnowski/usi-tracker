@@ -74,11 +74,10 @@ def test_fetch_and_transform_portal_data_uses_save_raw(sync_service, mock_identi
         assert name == portal_name
         assert error is None
         
-        # Verify save_raw call with slugs from identity resources
+        # Verify save_raw call with portal_id
         mock_save.assert_called_once_with(
             sync_service.lib_config, 
             mock_raw, 
             raw_prefix, 
-            dev_slug="dev-1", 
-            inv_slug="inv-1"
+            portal_id="12345"
         )

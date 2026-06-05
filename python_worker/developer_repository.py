@@ -132,12 +132,12 @@ class DeveloperRepository:
     # Identifiers scan (investment files)
     # -------------------------------------------------------------------------
 
-    def save_raw_json(self, data: dict, dev_slug: str, inv_slug: str, portal_prefix: str) -> Path:
+    def save_raw_json(self, data: dict, portal_id: str, portal_prefix: str) -> Path:
         """Delegates raw investment JSON saving to the library manager."""
         if not self.tech_manager:
             raise RuntimeError("Strict immutability rule: raw files MUST be managed via TechnicalDataManager. Library not configured.")
         from usi_scrapers import api as scraper_api
-        return scraper_api.save_raw(self.tech_manager.config, data, dev_slug, inv_slug, portal_prefix)
+        return scraper_api.save_raw(self.tech_manager.config, data, portal_prefix, portal_id=portal_id)
 
     def save_discovery_snapshot(self, system_id: str, items: list[dict]):
         """Saves discovery results to a JSON file in the developer's directory."""
@@ -164,12 +164,12 @@ class DeveloperRepository:
         with open(discovery_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
         return discovery_file
-    def save_dev_raw_json(self, data: dict, dev_slug: str, portal_prefix: str, portal_id: str = None) -> Path:
+    def save_dev_raw_json(self, data: dict, portal_prefix: str, portal_id: str) -> Path:
         """Delegates raw developer JSON saving to the library manager."""
         if not self.tech_manager:
             raise RuntimeError("Strict immutability rule: raw files MUST be managed via TechnicalDataManager. Library not configured.")
         from usi_scrapers import api as scraper_api
-        return scraper_api.save_raw_developer(self.tech_manager.config, data, dev_slug, portal_prefix, portal_id=portal_id)
+        return scraper_api.save_raw_developer(self.tech_manager.config, data, portal_prefix, portal_id=portal_id)
 
     # -------------------------------------------------------------------------
     # Core CRUD — Level 2 files

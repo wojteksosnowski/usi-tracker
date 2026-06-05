@@ -9,6 +9,14 @@
 - Updated `usi_unified.schema.json` to include `nearby_investments`.
 - Refactored `view-detail.jsx` to remove expensive on-the-fly distance computations.
 
+## Wersja 0.9.53 — Bezkompromisowe ID-ONLY — 2026-06-05
+- **Eliminacja Slugów w I/O**: Usunięto ostatnie bastiony identyfikacji po slugach w warstwie zapisu surowych danych. Funkcje `save_raw` i `save_raw_developer` korzystają teraz wyłącznie z `portal_id`, zgodnie z wymogami `usi-scrapers` v0.7.0+.
+- **Refaktoryzacja Facade**: Zastąpiono amatorskie `*args, **kwargs` w `DeveloperManager` jawnymi sygnaturami metod, co zwiększa stabilność i ułatwia debugowanie.
+- **Aktualizacja Testów**: Dostosowano asercje w `tests/test_raw_saving.py` do nowej architektury, eliminując fałszywe oczekiwania względem slugów.
+
+### Wnioski ze zmian
+- Architektura ID-only jest teraz egzekwowana na każdym poziomie delegacji do biblioteki. Usunięcie niejawnych parametrów (`**kwargs`) w fasadach zapobiega "cichemu" przekazywaniu nielegalnych slugów, które powodowały błędy typu `TypeError`.
+
 ## Wersja 0.9.52 — Optymalizacja O(1) dla obrazów — 2026-06-05
 - **Wydajność API**: Zastąpiono powolne wyszukiwanie podciągów (substring matching) przez szybkie mapowanie słownikowe (dictionary lookup) w funkcji `serve_image`, co drastycznie skraca czas fallback-u dla brakujących obrazów (O(1) zamiast O(N)).
 - **Zarządzanie Pamięcią**: Wdrożono rygorystyczne czyszczenie cache (`_missing_images_cache` oraz `_cdn_redirect_cache`) po przekroczeniu limitu 5000 wpisów, co zabezpiecza serwer przed wyciekami pamięci przy długotrwałym działaniu.

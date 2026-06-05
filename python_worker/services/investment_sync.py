@@ -281,7 +281,7 @@ class InvestmentSyncService:
                 raw_data = res["raw_details"]
                 
                 # Use high-level API for saving raw data (ID-only aware)
-                scraper_api.save_raw(self.lib_config, raw_data, raw_prefix, dev_slug=dev_slug, inv_slug=inv_slug)
+                scraper_api.save_raw(self.lib_config, raw_data, raw_prefix, portal_id=identifier)
 
                 # Transform unified data using the FOLDER slug (dev_slug)
                 unified_data = AdapterFactory.get_adapter(raw_prefix).transform(raw_data, inv_slug, dev_slug)
@@ -615,7 +615,7 @@ class InvestmentSyncService:
                 inv_dir = self.data_dir / dev_slug / inv_slug
                 if not list(inv_dir.glob(f"raw_{raw_prefix}_*.json")):
                     if data and isinstance(data, dict) and "error" not in data:
-                        scraper_api.save_raw(self.lib_config, data, raw_prefix, dev_slug=dev_slug, inv_slug=inv_slug)
+                        scraper_api.save_raw(self.lib_config, data, raw_prefix, portal_id=item_id)
                         if "image_urls" in data and self.tech_manager:
                             target_image_dir = self.tech_manager.get_image_path(portal, item_id)
                             if target_image_dir:
