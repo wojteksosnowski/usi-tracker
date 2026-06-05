@@ -26,7 +26,8 @@
 
 ## Wersja 0.9.54 — Centralizacja Inicjalizacji Biblioteki — 2026-06-05
 - **Współdzielone Instancje**: Wprowadzono wzorzec singleton-like dla kluczowych obiektów biblioteki `usi-scrapers` (`ScraperConfig`, `TechnicalDataManager`, `Fetcher`). Są one teraz inicjowane raz w `config.py` i współdzielone między wszystkimi serwisami.
-- **Poprawa Stabilności Importów**: Rozwiązano problem z kolejnością importów w `python_worker/adapters/__init__.py`, zapewniając, że `sys.path` jest poprawnie skonfigurowany przed próbą załadowania biblioteki zewnętrznej.
+- **Refaktoryzacja InvestmentSyncService**: Oczyszczono szkielet serwisu synchronizacji, opierając zarządzanie obiektami `Fetcher` i `TechnicalDataManager` w 100% o ujednolicony wzorzec współdzielony. Usunięto redundantne instancje tworzone przy każdym żądaniu.
+- **Poprawa Stabilności Importów**: Rozwiązano problemy z kolejnością inicjalizacji `sys.path`, zachowując bezpieczne importy lokalne dla biblioteki zewnętrznej, jednocześnie upraszczając logikę getterów i setterów.
 - **Optymalizacja Wydajności**: Redukcja narzutu na wielokrotne tworzenie obiektów managera i konfiguracji, co przekłada się na mniejsze zużycie pamięci i szybszy start usług.
 
 ### Wnioski ze zmian

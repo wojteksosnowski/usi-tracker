@@ -37,10 +37,11 @@ class InvestmentSyncService:
         self.public_usi_dir = public_usi_dir
         self.dm = developer_manager or DeveloperManager(self.data_dir)
         
-        from python_worker.config import get_shared_config
+        # 2. SPÓJNA INICJALIZACJA Z JEDNEGO ŹRÓDŁA (Podejście współdzielone/Singleton)
+        from python_worker.config import get_shared_config, get_shared_fetcher, get_shared_tech_manager
         self._lib_config = get_shared_config()
-        self._fetcher = None
-        self._tech_manager = None
+        self._fetcher = get_shared_fetcher()          # Inicjalizacja raz na żywotność serwera
+        self._tech_manager = get_shared_tech_manager()  # Inicjalizacja raz na żywotność serwera
         self._image_sync = None
             
         from python_worker.services.investment_identity import InvestmentIdentityResolver
@@ -49,15 +50,13 @@ class InvestmentSyncService:
         from python_worker.services.developer_resolver import DeveloperResolver
         self.developer_resolver = DeveloperResolver(self.dm, self, self.identity)
 
+    # 3. CZYSZCZENIE GETTERÓW/SETTERÓW (Są teraz prostsze i bezpieczne)
     @property
     def lib_config(self):
         return self._lib_config
 
     @property
     def fetcher(self):
-        if self._fetcher is None:
-            from python_worker.config import get_shared_fetcher
-            self._fetcher = get_shared_fetcher()
         return self._fetcher
 
     @fetcher.setter
@@ -66,9 +65,6 @@ class InvestmentSyncService:
 
     @property
     def tech_manager(self):
-        if self._tech_manager is None:
-            from python_worker.config import get_shared_tech_manager
-            self._tech_manager = get_shared_tech_manager()
         return self._tech_manager
 
     @tech_manager.setter
@@ -86,14 +82,13 @@ class InvestmentSyncService:
         if not item_id:
             return False
         
-        from usi_scrapers.api import get_raw_data
-        portal_map = PORTAL_FULL_DOMAINS
-        
-        full_portal = portal_map.get(portal)
+        full_portal = PORTAL_FULL_DOMAINS.get(portal)
         if not full_portal:
             return False
             
-        data = get_raw_data(self.lib_config, portal=full_portal, portal_id=str(item_id))
+        # Bezpośrednie, szybkie użycie czystego API (import wewnątrz by uniknąć problemów z sys.path)
+        from usi_scrapers import api as scraper_api
+        data = scraper_api.get_raw_data(self.lib_config, portal=full_portal, portal_id=str(item_id))
         return data is not None
 
     def register_investment(self, portal, developer_name, name, item_id=None, url=None, allow_existing=False, vendor_id=None, force_dev_slug=None):
@@ -596,21 +591,17 @@ class InvestmentSyncService:
         return targets, to_process
 
     def process_batch(self, portal, investments, on_progress_callback=None):
-        from usi_scrapers import api as scraper_api
-        from python_worker.config import get_scraper_config
-        from usi_scrapers.fetcher import Fetcher
-        
         targets, to_process = self._prepare_batch_identifiers(portal, investments)
         if not targets:
             return False
 
-        self.lib_config = get_scraper_config()
-        self.fetcher = Fetcher(self.lib_config)
+        # USUNIĘTO: Nadpisywanie konfiguracji i tworzenie nowego Fetchera na jedno żądanie!
+        # Teraz bezpiecznie używamy centralnego self.fetcher oraz globalnego scraper_api
+        from usi_scrapers import api as scraper_api
 
         batch_results = scraper_api.process_batch(
             self.lib_config, self.fetcher, portal, targets, on_progress=on_progress_callback
         )
-
         success_count = 0
         raw_prefix = portal
 
