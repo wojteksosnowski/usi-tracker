@@ -61,10 +61,10 @@ TABELA_OFERT_DISCOVERY_URLS = [
 
 # Delay settings for portals (seconds)
 FETCH_DELAYS = {
-    "otodom.pl": 3.0,
-    "rynekpierwotny.pl": 1.0,
-    "tabelaofert.pl": 1.0,
-    "default": 0.5
+    "otodom.pl": 5.0,
+    "rynekpierwotny.pl": 3.0,
+    "tabelaofert.pl": 4.0,   # Zwiększone z 1.0 - to tutaj parsował potężne JSONy/HTML
+    "default": 2.0
 }
 
 # Other constants

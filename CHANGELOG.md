@@ -1,5 +1,10 @@
 # Changelog
 
+## Wersja 0.9.63 — Optymalizacja obciążeń CPU (Fetch Delays) — 2026-06-06
+
+### Zmieniono
+- **`FETCH_DELAYS`** (`config.py`): Zwiększono interwały opóźnień dla scraperów (otodom: 5s, rp: 3s, to: 4s, default: 2s). Pozwala to na uniknięcie zjawiska blokowania GIL przez Garbage Collector przy parsowaniu dużych plików JSON i HTML.
+
 ## Wersja 0.9.62 — Leniwa inicjalizacja i blokada demonów — 2026-06-06
 
 ### Zmieniono
