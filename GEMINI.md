@@ -29,6 +29,7 @@ USI Tracker is a specialized system for monitoring real-estate investments in Po
 - **Lazy Initialization**: Initialize heavy resources (e.g., Scraper Fetcher, DB connections) only upon first access (lazy initialization) rather than at module import level, to speed up startup time and avoid premature resource allocation in UI-only sessions.
 - **Conservative Fetch Delays**: Use conservative `FETCH_DELAYS` (e.g., >= 2s) for portal scrapers. Parsowanie dużych payloadów JSON/HTML przy zbyt częstych żądaniach powoduje drastyczne obciążenie CPU wskutek konfliktu z GIL (Global Interpreter Lock) i częstym wywoływaniem GC.
 - **Disable Werkzeug Reloader**: Always set `use_reloader=False` in `app.run()` for production-like or background-heavy applications to prevent the spawning of duplicate processes/threads that cause CPU spikes and race conditions.
+- **Decouple UI from Crawlers**: UI server MUST NOT initialize or depend on crawler/daemon logic. All background tasks must be triggered explicitly via CLI or separate daemon processes. Mocking crawler status endpoints in the UI server is mandatory to prevent 404/500 errors in frontend polling loops without triggering backend execution.
 
 ## 🛠 Building and Running
 

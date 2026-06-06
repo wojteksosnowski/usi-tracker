@@ -1,5 +1,10 @@
 # Changelog
 
+## Wersja 0.9.65 — Całkowita izolacja crawlerów od UI — 2026-06-06
+
+### Zmieniono
+- **`ui_server.py`**: Fizycznie usunięto rejestrację `crawler_bp`, zastępując ją statycznymi mockami endpointów pollowania (`/api/crawler/*`, `/api/doktor/*`). Gwarantuje to, że żadna logika sieciowa/crawlerowa nie wykonuje się podczas pracy UI.
+
 ## Wersja 0.9.64 — Wyłączenie reloader'a Werkzeug — 2026-06-06
 
 ### Naprawiono
