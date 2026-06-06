@@ -98,35 +98,6 @@ def catch_missing_icons_mock(filename):
     response.headers["Cache-Control"] = "public, max-age=604800, immutable"
     return response
 
-import sys
-import traceback
-import threading
-import time
-
-def _cpu_killer_detector():
-    """
-    Wątek strażnika: Co 2 sekundy sprawdza i drukuje na konsoli dokładnie,
-    w którym miejscu (plik, linijka, metoda) utknęły wszystkie wątki Pythona.
-    """
-    while True:
-        time.sleep(2.0)
-        print("\n=== [CRAWLER_API_DEBUG] PROFILOWANIE WĄTKÓW (CPU SPIKE DETECTOR) ===")
-        for thread_id, stack in sys._current_frames().items():
-            # Znajdź wątek nadrzędny
-            th = threading._active.get(thread_id)
-            th_name = th.name if th else "Unknown"
-            
-            # Interesują nas tylko wątki pracujące (omijamy ten profilujący)
-            if th_name == threading.current_thread().name:
-                continue
-                
-            print(f"\n-> Wątek: '{th_name}' (ID: {thread_id})")
-            for filename, lineno, name, line in traceback.extract_stack(stack):
-                print(f"   Plik: {filename}, Linia {lineno}, w: {name}")
-                if line:
-                    print(f"     Kod: {line.strip()}")
-        print("===================================================================\n")
-
 def run():
     print(f"USI Tracker UI (PRODUCTION) → http://localhost:{UI_PORT}")
     app.run(host="127.0.0.1", port=UI_PORT, debug=False, threaded=True, use_reloader=False)
