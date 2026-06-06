@@ -201,12 +201,28 @@ function DataBusProvider({ children }) {
     };
   }, [isDebug]);
 
-  // Trigger backend refetch on filter change with debounce
-  const filtersStr = JSON.stringify(bus.filters, (k, v) => v instanceof Set ? Array.from(v).sort() : v);
+  // Trigger backend refetch on filter change with debounce.
+  // FIXME: Build a stable, deterministic string from filters WITHOUT creating new Set/Array
+  // references on every render — which was previously causing spurious re-fetches.
+  const f = bus.filters;
+  const filtersStr = [
+    f.search || '',
+    f.dev || '',
+    f.status || '',
+    f.onlyUnreviewed ? '1' : '0',
+    f.onlyNoPhotos ? '1' : '0',
+    f.sources instanceof Set ? Array.from(f.sources).sort().join(',') : '',
+    f.segments instanceof Set ? Array.from(f.segments).sort().join(',') : '',
+    f.cities instanceof Set ? Array.from(f.cities).sort().join(',') : ''
+  ].join('|');
+
+  const refetchRef = React.useRef(refetch);
+  React.useLayoutEffect(() => { refetchRef.current = refetch; });
+
   React.useEffect(() => {
-    const timer = setTimeout(() => refetch('investments'), 300);
+    const timer = setTimeout(() => refetchRef.current('investments'), 300);
     return () => clearTimeout(timer);
-  }, [filtersStr, refetch]);
+  }, [filtersStr]); // Only filtersStr — no `refetch` in deps to avoid restart on every render
 
   const { visibleInvestments, unreviewedCount } = React.useMemo(() => {
     return { visibleInvestments: bus.investments, unreviewedCount: bus.unreviewedCount || 0 };
@@ -226,15 +242,20 @@ function DataBusProvider({ children }) {
     getSnapshot
   }), [bus, visibleInvestments, subscribe, getSnapshot]);
 
+  // Initial data load — run once on mount.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => {
-    refetch('investments');
-    refetch('developers');
+    refetchRef.current('investments');
+    refetchRef.current('developers');
   }, []);
 
-  // Polling for active jobs with "Sticky" logic for finished tasks
+  // Polling for active jobs with "Sticky" logic for finished tasks.
+  // CRITICAL: `refetch` is intentionally accessed via `refetchRef` (not listed in deps)
+  // to prevent the interval from being torn down and re-created on every render.
+  // `setVariable` is stable (created with useCallback once), so it is safe in deps.
   React.useEffect(() => {
     const STICKY_DURATION = 5000;
-    const stickyJobs = new Map(); // jobId -> timestamp
+    const stickyJobs = new Map(); // jobId -> { job, expires }
 
     const poll = setInterval(() => {
       fetch('/api/jobs')
@@ -251,9 +272,9 @@ function DataBusProvider({ children }) {
               if (job.status === 'running' || job.status === 'queued') {
                 const finishedJob = { ...job, status: 'completed', message: 'Finished.' };
                 stickyJobs.set(job.id, { job: finishedJob, expires: now + STICKY_DURATION });
-                // Trigger refresh on job completion
-                refetch('investments');
-                refetch('developers');
+                // Trigger data refresh on job completion — via ref to avoid dep instability
+                refetchRef.current('investments');
+                refetchRef.current('developers');
               }
             }
           });
@@ -284,7 +305,7 @@ function DataBusProvider({ children }) {
         .catch(() => {});
     }, 3000);
     return () => clearInterval(poll);
-  }, [setVariable, refetch]);
+  }, [setVariable]); // `refetch` intentionally omitted — accessed via `refetchRef`
 
   return (
     <DataBusDispatchContext.Provider value={dispatchValue}>
