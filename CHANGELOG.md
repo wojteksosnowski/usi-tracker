@@ -1,5 +1,21 @@
 # Changelog
 
+## Wersja 0.9.58 — Eliminacja blokującego I/O z wątku HTTP — 2026-06-06
+
+### Naprawiono
+- **`/api/investment/<id>/data`**: Endpoint zwraca wyłącznie dane z dysku. Usunięto wszelką logikę synchronizacji sieciowej z cyklu żądania HTTP — żadna operacja sieciowa nie może już blokować wątku serwera Flask.
+- **`/api/image/<path>`**: Przepisano na `send_from_directory`. Brakujący plik zwraca natychmiast placeholder SVG (`image-placeholder.svg`, HTTP 200) zamiast `abort(404)`. Usunięto ręczne `os.path.isfile` + `send_file`.
+- **`NameError: send_from_directory`**: Dodano brakujący import do blueprintu `investments.py`.
+
+### Dodano
+- **Unbuffered stdout/stderr** (`main.py`): Klasa `_Unbuffered` wymuszająca `flush()` po każdym `write()` — eliminuje utratę logów gdy proces działa za pipem (`start-ui.sh`). Uzupełnienie dla istniejącego `ImmediateFileHandler`.
+- **`PYTHONUNBUFFERED=1`** ustawiany programowo przed inicjalizacją logerów.
+- **Placeholder obrazka**: `python_worker/ui/assets/image-placeholder.svg` — ciemne tło z ikoną ramki zdjęcia i tekstem "brak zdjęcia".
+
+### Zmieniono
+- **`load_investment`**: Domyślna wartość `fast_index` zmieniona z `False` na `True`. Ciężkie operacje fs uruchamiane wyłącznie jawnie (indeksowanie, zadania tła).
+- **`InvestmentService.get_investment`**: Jawne `fast_index=True` — niezależne od wartości domyślnej, intencja warstwy API czytelna wprost w kodzie.
+
 ## [Unreleased] - 2026-06-05
 ### Added
 - Pre-calculated nearby investments in `usi_*.json` to improve frontend performance.
@@ -8,6 +24,7 @@
 ### Changed
 - Updated `usi_unified.schema.json` to include `nearby_investments`.
 - Refactored `view-detail.jsx` to remove expensive on-the-fly distance computations.
+
 
 ## Wersja 0.9.57 — Robustność ID i Sluga — 2026-06-05
 - **Naprawa Błędu Odświeżania**: Wyeliminowano przyczynę błędu "Unexpected token '<'" podczas odświeżania inwestycji (np. INV-29863). Przyczyną był crash serwera (500) przy próbie parsowania brakujących slugów.
