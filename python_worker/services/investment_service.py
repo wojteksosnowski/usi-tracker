@@ -45,23 +45,21 @@ class InvestmentService:
     # Viewing Data
     # ---------------------------------------------------------
     def get_investment(self, system_id: str) -> dict | None:
-        """
-        Loads an investment by system_id.
-        """
+        """Loads an investment by system_id using non-blocking fast index path."""
         if not system_id:
             return None
 
-        # Resolve resources first to ensure we have a physical path
         resources = self.get_investment_resources(system_id)
         if not resources:
             logger.warning(f"get_investment: Resources not found for ID {system_id}")
             return None
-            
+
         from python_worker.api.utils import _load_investment
         return _load_investment(
             system_id=system_id,
             data_dir=self.data_dir,
-            public_usi_dir=self.public_usi_dir
+            public_usi_dir=self.public_usi_dir,
+            fast_index=True,
         )
 
 
