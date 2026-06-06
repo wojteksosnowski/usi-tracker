@@ -63,7 +63,7 @@ class InvestmentSyncService:
         self._image_sync = None
             
         self.resolver = InvestmentIdentityResolver(self.data_dir, self.public_usi_dir)
-        self.developer_resolver = DeveloperResolver(self.dm, self, self.identity)
+        self.developer_resolver = DeveloperResolver(self.dm, self.identity)
 
     @property
     def lib_config(self):
