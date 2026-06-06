@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "usi-tracker"
+version = "0.9.58"
+description = "Narzędzie do monitorowania inwestycji deweloperskich (RynekPierwotny, Otodom, TabelaOfert)"
+readme = "README.md"
+license = { text = "Proprietary" }
+requires-python = ">=3.13"
+authors = [
+    { name = "Wojtek Sosnowski", email = "wojteksosnowski@gmail.com" }
+]
+keywords = ["real-estate", "scraper", "tracker", "poland"]
+
+dependencies = [
+    "flask>=3.0",
+    "requests",
+    "curl_cffi",
+    "watchdog",
+    "python-dotenv",
+    "usi-scrapers==1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "requests-mock",
+]
+
+[project.scripts]
+usi-tracker = "python_worker.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["python_worker*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
