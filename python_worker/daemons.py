@@ -14,7 +14,7 @@ try:
     from usi_crawlers.wedrowiec import WedrowiecDaemon
     from usi_crawlers.doktor import DoktorDaemon, DoktorDelegate
     from usi_crawlers.algorithms.similarity import normalize_name
-    HAS_CRAWLERS = True
+    HAS_CRAWLERS = False  # Permanently disabled per performance lockdown
 except ImportError:
     HAS_CRAWLERS = False
 

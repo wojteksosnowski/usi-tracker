@@ -1,5 +1,5 @@
 """
-USI Tracker — lokalny interfejs webowy (Modułowy - Wersja z wyciętymi crawlerami).
+USI Tracker — lokalny interfejs webowy (Wersja produkcyjna — brak crawlerów).
 Uruchomienie:  python3 -m python_worker.main ui
 """
 import logging
@@ -22,47 +22,21 @@ UI_PORT = int(os.environ.get("USI_PORT", 5000))
 
 app = Flask(__name__, static_folder=None)
 
-# Rejestracja bezpiecznych Blueprintów
+# REJESTRACJA BLUEPRINTÓW — crawler_bp został permanentnie usunięty
 app.register_blueprint(jobs_bp, url_prefix='/api')
 app.register_blueprint(investments_bp, url_prefix='/api')
 app.register_blueprint(discovery_bp, url_prefix='/api')
 app.register_blueprint(reports_bp, url_prefix='/api')
 app.register_blueprint(poi_bp, url_prefix='/api')
 
-@app.route("/api/system/verify-library", methods=["GET", "POST"])
-def verify_library_mock():
-    """Całkowita blokada ukrytego testu integracyjnego scrapowania sieci."""
-    logger.info("[SECURITY_BYPASS] Blocked hidden network scraping verification from UI request.")
-    return jsonify({
-        "status": "ok",
-        "library_version": "1.1.3",
-        "scrapers_active": False,
-        "message": "Scrapers disabled to prevent CPU spikes"
-    })
-
-# ATAPY (MOCKI) ENDPOINTÓW CRAWLERA
-# Frontend cyklicznie odpytuje te adresy. Zamiast importować 'crawler_api.py',
-# zwracamy statyczny JSON bezpośrednio tutaj, całkowicie odcinając logikę daemonów.
+# Czyste, statyczne odpowiedzi informujące frontend o braku wsparcia dla demonów
 @app.route("/api/crawler/status", methods=["GET"])
-def crawler_status_mock():
-    return jsonify({"running": False, "paused": False, "disabled": True})
-
-@app.route("/api/crawler/pause", methods=["POST"])
-def crawler_pause_mock():
-    return jsonify({"ok": True})
-
-@app.route("/api/crawler/resume", methods=["POST"])
-def crawler_resume_mock():
-    return jsonify({"ok": True})
-
-@app.route("/api/crawler/exploration", methods=["GET"])
-def crawler_exploration_mock():
-    return jsonify({})
+def crawler_status_clean():
+    return jsonify({"running": False, "paused": False, "disabled": True, "msg": "Crawlers permanently removed"})
 
 @app.route("/api/doktor/status", methods=["GET"])
-def doktor_status_mock():
-    return jsonify({"running": False, "disabled": True})
-
+def doktor_status_clean():
+    return jsonify({"running": False, "disabled": True, "msg": "Doktor permanently removed"})
 
 @app.route("/api/config")
 def get_config():
@@ -113,11 +87,48 @@ class IgnorePollingFilter(logging.Filter):
 
 logging.getLogger("werkzeug").addFilter(IgnorePollingFilter())
 
+@app.route("/assets/icons/<path:filename>")
+def catch_missing_icons_mock(filename):
+    """
+    Przechwytuje braki w ikonach frontendu i natychmiast zwraca pustą strukturę SVG,
+    gwarantując status 200, eliminując narzut na obsługę wyjątków 404 i logowanie Werkzeuga.
+    """
+    empty_svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>'
+    response = app.response_class(empty_svg, mimetype='image/svg+xml')
+    response.headers["Cache-Control"] = "public, max-age=604800, immutable"
+    return response
+
+import sys
+import traceback
+import threading
+import time
+
+def _cpu_killer_detector():
+    """
+    Wątek strażnika: Co 2 sekundy sprawdza i drukuje na konsoli dokładnie,
+    w którym miejscu (plik, linijka, metoda) utknęły wszystkie wątki Pythona.
+    """
+    while True:
+        time.sleep(2.0)
+        print("\n=== [CRAWLER_API_DEBUG] PROFILOWANIE WĄTKÓW (CPU SPIKE DETECTOR) ===")
+        for thread_id, stack in sys._current_frames().items():
+            # Znajdź wątek nadrzędny
+            th = threading._active.get(thread_id)
+            th_name = th.name if th else "Unknown"
+            
+            # Interesują nas tylko wątki pracujące (omijamy ten profilujący)
+            if th_name == threading.current_thread().name:
+                continue
+                
+            print(f"\n-> Wątek: '{th_name}' (ID: {thread_id})")
+            for filename, lineno, name, line in traceback.extract_stack(stack):
+                print(f"   Plik: {filename}, Linia {lineno}, w: {name}")
+                if line:
+                    print(f"     Kod: {line.strip()}")
+        print("===================================================================\n")
+
 def run():
-    # USUNIĘTE: Jakiekolwiek wzmianki, importy czy inicjalizacje init_doktor / init_crawler
-    print(f"USI Tracker UI (CRAWLERS DISABLED) → http://localhost:{UI_PORT}")
-    
-    # debug=False oraz use_reloader=False gwarantują, że Flask nie powoła procesów-widm w tle
+    print(f"USI Tracker UI (PRODUCTION) → http://localhost:{UI_PORT}")
     app.run(host="127.0.0.1", port=UI_PORT, debug=False, threaded=True, use_reloader=False)
 
 if __name__ == "__main__":
