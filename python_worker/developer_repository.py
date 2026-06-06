@@ -280,21 +280,6 @@ class DeveloperRepository:
 
         return file_path
 
-    def _find_anchor_by_slug(self, dev_slug: str):
-        """
-        @deprecated: Use get_developer_by_id or index-based lookup.
-        Finds developer anchor file by slug via disk scan.
-        """
-        for candidate in [
-            self._dev_file_path(dev_slug),
-            self._dev_file_path_old_canonical(dev_slug),
-            self._dev_file_path_legacy(dev_slug),
-            self.data_dir / dev_slug / f"usi_dev_{dev_slug}.json",
-        ]:
-            if candidate and candidate.exists():
-                return candidate
-        return None
-
     def _find_anchor_by_id(self, usi_dev_id: str) -> Path | None:
         """ Leniwe i zoptymalizowane lokalizowanie pliku kotwicy dewelopera.
         
@@ -311,8 +296,8 @@ class DeveloperRepository:
             return None
 
         # Ścieżka bezpośrednia (Szybka ścieżka - O(1))
-        # Sprawdzamy, czy katalog o nazwie identyfikatora lub sluga istnieje bezpośrednio
-        direct_folder = self.data_dir / usi_dev_id
+        # Sprawdzamy, czy katalog o nazwie identyfikatora istnieje bezpośrednio w USIdev
+        direct_folder = self.dev_dir / usi_dev_id
         if direct_folder.is_dir():
             target_file = direct_folder / f"usi_dev_{usi_dev_id}.json"
             if target_file.exists():
@@ -333,67 +318,48 @@ class DeveloperRepository:
             if dev_index:
                 dev_data = dev_index.get_developer(usi_dev_id)
                 if dev_data and "slug" in dev_data:
-                    expected_file = self.data_dir / dev_data["slug"] / f"usi_dev_{usi_dev_id}.json"
+                    # Szukamy w USIdev/{slug}/usi_dev_{ID}_{slug}.json
+                    slug = dev_data["slug"]
+                    expected_file = self.dev_dir / slug / f"usi_dev_{usi_dev_id}_{slug}.json"
                     if expected_file.exists():
                         return expected_file
+                    
+                    # Fallback na stary format bez sluga w nazwie pliku
+                    old_file = self.dev_dir / slug / f"usi_dev_{usi_dev_id}.json"
+                    if old_file.exists():
+                        return old_file
         except Exception as err:
             logger.debug(f"Developer index shortcut unavailable: {err}")
 
-        # Bezpieczny, jednorzędowy fallback (Bezwzględny zakaz używania gwiazdek '*/' w glob)
+        # Bezpieczny fallback - skanowanie podkatalogów USIdev (bez rekurencji głębokiej)
         try:
-            for subdir in self.data_dir.iterdir():
+            for subdir in self.dev_dir.iterdir():
                 if subdir.is_dir():
-                    target_file = subdir / f"usi_dev_{usi_dev_id}.json"
-                    if target_file.exists():
-                        return target_file
+                    # Szukamy plików pasujących do wzorca usi_dev_{ID}_*.json
+                    for f in subdir.iterdir():
+                        if f.name.startswith(f"usi_dev_{usi_dev_id}") and f.name.endswith(".json"):
+                            return f
         except OSError as err:
             logger.error(f"[IO_ERROR] Critical failure during shallow directory iteration: {err}")
 
         return None
 
-    def get_developer(self, dev_slug_or_id: str, identifiers: dict = None) -> dict | None:
+    def get_developer(self, usi_dev_id: str, identifiers: dict = None) -> dict | None:
         """Loads developer data. Returns merged view: Level 2 + merged_from from Level 3.
-        Handles both USI IDs and slugs, prioritizing ID lookup."""
-        if not dev_slug_or_id:
+        MANDATE: ID-ONLY. Only accepts USI IDs (DEV-...)."""
+        if not usi_dev_id or not str(usi_dev_id).startswith("DEV-"):
             return None
             
-        # 1. If it looks like a USI ID, use the fast ID path
-        if str(dev_slug_or_id).startswith("DEV-"):
-            # PRÓBA PRZEZ INDEKS ZAMIAST REPOZYTORIUM (O(1))
-            from . import developer_index
-            index = developer_index.load(self.dev_dir)
-            if index:
-                entry = next((e for e in index if e.get("usi_dev_id") == dev_slug_or_id), None)
-                if entry:
-                    # Enrich and return directly, bypassing recursive lookups
-                    return self._enrich_with_master(entry, identifiers)
-
-            return self.get_developer_by_id(dev_slug_or_id)
-            
-        # 2. Try O(1) index lookup to find the ID by slug or name
+        # Try O(1) index lookup first
         from . import developer_index
         index = developer_index.load(self.dev_dir)
         if index:
-            # Match by slug
-            entry = next((e for e in index if e.get("developer_slug") == dev_slug_or_id), None)
-            # Match by name (case-insensitive)
-            if not entry:
-                entry = next((e for e in index if e.get("name") and e["name"].lower() == dev_slug_or_id.lower()), None)
-                
-            if entry and entry.get("usi_dev_id"):
-                return self.get_developer_by_id(entry["usi_dev_id"])
+            entry = next((e for e in index if e.get("usi_dev_id") == usi_dev_id), None)
+            if entry:
+                return self._enrich_with_master(entry, identifiers)
 
-        # 3. Fallback: Search disk for anchor by slug (legacy)
-        anchor = self._find_anchor_by_slug(dev_slug_or_id)
-        if not anchor:
-            return None
-            
-        try:
-            dev = json.loads(anchor.read_text(encoding="utf-8"))
-            return self._enrich_with_master(dev, identifiers)
-        except Exception as e:
-            logger.error(f"Error reading developer file {anchor}: {e}")
-            return None
+        # Fallback to direct disk lookup by ID
+        return self.get_developer_by_id(usi_dev_id)
 
     def get_developer_by_id(self, usi_dev_id: str) -> dict | None:
         """Find developer by usi_dev_id. Fast path uses ID embedded in new filename."""

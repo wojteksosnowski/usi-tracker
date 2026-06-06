@@ -74,8 +74,14 @@ def rebuild(data_dir: Path, dev_dir: Path) -> int:
                 return
 
             seen_ids.add(dev_id)
-            enriched = dm.repo._enrich_with_master(data)
-            entries.append(enriched)
+            
+            # POPRAWKA: Zamiast dm.repo._enrich_with_master(data), który nie istnieje,
+            # pobieramy w pełni sformatowany rekord dewelopera za pomocą oficjalnego API managera.
+            enriched = dm.get_developer_by_id(dev_id)
+            if enriched:
+                entries.append(enriched)
+            else:
+                entries.append(data) # Fallback do surowych danych, jeśli manager ich nie przetworzył
         except Exception as e:
             logger.warning(f"Error reading dev file for index {candidate_path}: {e}")
 

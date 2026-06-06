@@ -13,12 +13,61 @@ from python_worker.logger_utils import log_to_dev_log
 try:
     from usi_crawlers.wedrowiec import WedrowiecDaemon
     from usi_crawlers.doktor import DoktorDaemon, DoktorDelegate
-    from usi_crawlers.algorithms.similarity import normalize_name
-    HAS_CRAWLERS = False  # Permanently disabled per performance lockdown
+    from usi_crawlers.algorithms.similarity import normalize_name, calculate_similarities
+    HAS_CRAWLERS = True
 except ImportError:
     HAS_CRAWLERS = False
 
 logger = logging.getLogger(__name__)
+
+def run_manual_doktor_analysis(data_dir: Path, dev_dir: Path):
+    """Performs a one-off similarity analysis and saves results without a daemon."""
+    if not HAS_CRAWLERS:
+        logger.warning("run_manual_doktor_analysis: usi_crawlers not available.")
+        return
+
+    logger.info("Starting manual developer similarity analysis...")
+    start_t = time.time()
+    
+    try:
+        delegate = TrackerDoktorDelegate(data_dir, dev_dir)
+        devs = delegate.get_developers_for_analysis()
+        dismissed = delegate.get_dismissed_cache()
+        
+        # Run the algorithm
+        suggestions = calculate_similarities(devs, dismissed)
+        
+        # Deduplicate and group by source_id
+        unique_suggestions = {}
+        for s in suggestions:
+            key = (s["source_id"], s["target_id"])
+            if key not in unique_suggestions or s["score"] > unique_suggestions[key]["score"]:
+                unique_suggestions[key] = s
+        
+        grouped = {}
+        for s in unique_suggestions.values():
+            grouped.setdefault(s["source_id"], []).append({
+                "target_id": s["target_id"],
+                "target_slug": s["target_slug"],
+                "reason": s["reason"],
+                "score": s["score"]
+            })
+            
+        # Save results
+        count = 0
+        for dev_id, sugs in grouped.items():
+            delegate.save_suggestions(dev_id, sugs)
+            count += len(sugs)
+            
+        # Rebuild master index to reflect new suggestions
+        from python_worker.developer_index import rebuild_master_index
+        rebuild_master_index(dev_dir)
+        
+        duration = time.time() - start_t
+        logger.info(f"Manual similarity analysis finished in {duration:.2f}s. Generated {count} suggestions.")
+        
+    except Exception as e:
+        logger.error(f"Manual similarity analysis failed: {e}", exc_info=True)
 
 def _build_dismissed_cache(dev_dir: Path) -> dict[str, set[str]]:
     cache: dict[str, set[str]] = {}

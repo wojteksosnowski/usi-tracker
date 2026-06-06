@@ -414,15 +414,61 @@ def list_developers():
 @investments_bp.route("/developer/suggest", methods=["POST"])
 def trigger_suggestions():
     """Triggers the developer similarity algorithm globally (via Doktor)."""
-    from python_worker.daemons import get_doktor
-    doktor = get_doktor()
-    if doktor:
-        import threading
-        # Run it in a separate thread so it doesn't block the UI response
-        threading.Thread(target=doktor._refresh_index, name="manual-doktor-refresh", daemon=True).start()
-        return jsonify({"ok": True, "message": "Doktor is refreshing the index and investigating."})
+    try:
+        from python_worker.daemons import get_doktor
+        doktor = get_doktor()
+        
+        # Jeśli Doktor jest niedostępny, bezpiecznie sprawdzamy alternatywny fallback
+        # uruchomienia analizy deweloperów bezpośrednio z poziomu serwisu deweloperskiego
+        if not doktor:
+            from python_worker.daemons import HAS_CRAWLERS, run_manual_doktor_analysis
+            from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
+            
+            if HAS_CRAWLERS:
+                logger.info("Doktor daemon not found, triggering manual similarity analysis fallback.")
+                def _run_manual():
+                    run_manual_doktor_analysis(Path(USI_DATA_DIR), Path(USI_DEV_DIR))
+                
+                import threading
+                threading.Thread(target=_run_manual, name="manual-dev-similarity-fallback", daemon=True).start()
+                return jsonify({"ok": True, "message": "Uruchomiono analizę podobieństwa deweloperów w tle."})
+            else:
+                logger.warning("Doktor daemon and crawler library both unavailable. Falling back to simple index rebuild.")
+                from python_worker.developer_index import rebuild_master_index
+                
+                def _run_local_fallback():
+                    try:
+                        rebuild_master_index(Path(USI_DEV_DIR))
+                        logger.info("Local fallback developer index rebuild finished.")
+                    except Exception as ex:
+                        logger.error(f"Local fallback developer index rebuild failed: {ex}")
+                
+                import threading
+                threading.Thread(target=_run_local_fallback, name="manual-dev-refresh-fallback", daemon=True).start()
+                return jsonify({"ok": True, "message": "Uruchomiono lokalną przebudowę indeksu deweloperów w tle."})
 
-    return jsonify({"ok": False, "message": "usi_crawlers not available."}), 500
+        # Jeśli doktor istnieje, sprawdzamy bezpiecznie jego metody publiczne
+        # Zapobiegamy wywaleniu aplikacji poprzez rygorystyczny duck-typing i bezpieczny wątek
+        def _safe_doktor_execution():
+            try:
+                if hasattr(doktor, "investigate") and callable(doktor.investigate):
+                    doktor.investigate()
+                elif hasattr(doktor, "refresh") and callable(doktor.refresh):
+                    doktor.refresh()
+                elif hasattr(doktor, "_refresh_index") and callable(doktor._refresh_index):
+                    doktor._refresh_index()
+                else:
+                    logger.error("Doktor daemon does not expose any known refresh or investigate method!")
+            except Exception as thread_err:
+                logger.error(f"Error inside background Doktor thread execution: {thread_err}", exc_info=True)
+
+        import threading
+        threading.Thread(target=_safe_doktor_execution, name="manual-doktor-refresh", daemon=True).start()
+        return jsonify({"ok": True, "message": "Zadanie analizy podobieństwa deweloperów zostało przekazane do demona."})
+
+    except Exception as route_err:
+        logger.error(f"Krytyczny błąd w endpoint /developer/suggest: {route_err}", exc_info=True)
+        return jsonify({"ok": False, "error": str(route_err)}), 500
 
 from python_worker.services.developer_service import DeveloperService
 
@@ -458,15 +504,24 @@ def get_developer_detail(usi_dev_id):
 
     # Inicjalizacja indeksu inwestycji
     import python_worker.investment_index as inv_index
-    import python_worker.developer_index as dev_index
     all_invs = inv_index.load(USI_DATA_DIR) or []
     
-    # Grupowanie inwestycji po przypisanym ID (Zasada ID-only)
+    # Pobranie portal mapping aktualnego dewelopera do ewentualnego dopasowania fallback
+    dev_pm = dev.get("portal_mapping", {})
+    
+    # Grupowanie inwestycji po przypisanym ID z pancerzowanym fallbackiem portalowym
+    base_invs = []
     invs_by_dev_id = {}
+    
     for i in all_invs:
         did = i.get("usi_dev_id")
         if did:
             invs_by_dev_id.setdefault(did, []).append(i)
+            if did == target_id:
+                base_invs.append(i)
+        # Fallback: Jeśli inwestycja nie ma przypisanego usi_dev_id, ale pasuje portalowo do dewelopera
+        elif _inv_matches_dev(i, dev_pm):
+            base_invs.append(i)
             
     # --- POPRAWKA 1: Dynamiczne ładowanie historii zdarzeń z pliku JSONL ---
     events = []
@@ -518,7 +573,6 @@ def get_developer_detail(usi_dev_id):
         member["_invs"] = invs_by_dev_id.get(child_id, [])
         valid_members.append(member)
 
-    base_invs = invs_by_dev_id.get(target_id, [])
     base_portals = {p for p in ("rp", "oto", "to") if base_pm.get(p)}
 
     if not base_portals and not base_invs:
