@@ -1,5 +1,10 @@
 # Changelog
 
+## Wersja 0.9.64 — Wyłączenie reloader'a Werkzeug — 2026-06-06
+
+### Naprawiono
+- **Werkzeug Reloader** (`ui_server.py`): Wyłączono `use_reloader=False` w konfiguracji `app.run()`. Zapobiega to zjawisku "bliźniaczych procesów" w tle, które powodowały dublowanie wątków i drastyczne skoki CPU. Włączono `debug=True` dla lepszej diagnostyki podczas dewelopmentu.
+
 ## Wersja 0.9.63 — Optymalizacja obciążeń CPU (Fetch Delays) — 2026-06-06
 
 ### Zmieniono

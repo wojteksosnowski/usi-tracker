@@ -5,7 +5,7 @@ Uruchomienie:  python3 -m python_worker.main ui
 import logging
 import os
 from pathlib import Path
-from flask import Flask, send_from_directory, jsonify
+from flask import Flask, send_from_directory, jsonify, abort
 
 from python_worker.config import USI_DATA_DIR, USI_DEV_DIR, VISIBLE_METADATA_FILE
 from python_worker.api.common import get_ui_config, log_ui_error_to_file
@@ -63,7 +63,17 @@ def index():
 
 @app.route("/<path:filename>")
 def serve_static(filename):
-    return send_from_directory(UI_DIR, filename)
+    # Bezpieczna walidacja: upewnij się, że plik jest wewnątrz UI_DIR
+    safe_path = Path(UI_DIR) / filename
+    try:
+        resolved_path = safe_path.resolve()
+        if not str(resolved_path).startswith(str(Path(UI_DIR).resolve())):
+            logger.warning(f"Próba nieautoryzowanego dostępu: {filename}")
+            abort(403)
+        return send_from_directory(UI_DIR, filename)
+    except Exception as e:
+        logger.error(f"Błąd serwowania pliku {filename}: {e}")
+        abort(404)
 
 # ── Logging Filter ─────────────────────────────────────────────────────────────
 
@@ -91,7 +101,7 @@ def run():
     #     crawler.start()
 
     print(f"USI Tracker UI → http://localhost:{UI_PORT}")
-    app.run(host="127.0.0.1", port=UI_PORT, debug=False, threaded=True)
+    app.run(host="127.0.0.1", port=UI_PORT, debug=True, threaded=True, use_reloader=False)
 
 if __name__ == "__main__":
     run()
