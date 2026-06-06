@@ -46,6 +46,7 @@ from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
 investment_service = InvestmentService()
 developer_manager = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
 
+from functools import lru_cache
 _list_inv_cache = {} # Map full_path -> {"data": result, "timestamp": ts}
 _list_inv_lock = threading.Lock()
 
@@ -66,14 +67,17 @@ def serve_image(filepath):
     from pathlib import Path
     from urllib.parse import unquote
 
-    # 1. Dekodowanie ścieżki i zabezpieczenie przed podnoszeniem uprawnień (Directory Traversal)
+    # 1. Dekodowanie ścieżki (obsługa spacji i znaków specjalnych w URL)
     decoded_path = unquote(filepath)
-    if ".." in decoded_path:
+    
+    # 2. Zabezpieczenie przed Directory Traversal (wstrzykiwaniem ścieżek typu ../../)
+    if ".." in decoded_path or decoded_path.startswith("/"):
         abort(400)
 
+    # 3. Zbudowanie pełnej ścieżki do pliku na dysku
     img_path = Path(PUBLIC_USI_DIR) / decoded_path
 
-    # 2. Plik jest? To wysyłamy. Nie ma? 404 i koniec kropka.
+    # 4. Jest plik? Serwujemy. Nie ma? Natychmiastowe 404 bez dotykania indeksów.
     if img_path.exists() and img_path.is_file():
         return send_file(img_path)
         
