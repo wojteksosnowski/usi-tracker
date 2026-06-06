@@ -1,5 +1,10 @@
 # Changelog
 
+## Wersja 0.9.59 — Optymalizacja cache obrazów — 2026-06-06
+
+### Zmieniono
+- **`/api/image/<path:filename>`**: Dodano nagłówek `Cache-Control: public, max-age=604800, immutable` do odpowiedzi serwera. Dzięki temu przeglądarka buforuje zdjęcia inwestycji przez 7 dni, co eliminuje zbędne zapytania I/O i poprawia responsywność galerii.
+
 ## Wersja 0.9.58 — Eliminacja blokującego I/O z wątku HTTP — 2026-06-06
 
 ### Naprawiono

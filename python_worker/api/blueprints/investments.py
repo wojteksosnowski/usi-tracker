@@ -93,7 +93,9 @@ def serve_image(image_path: str):
             return send_file(_PLACEHOLDER_FILE), 200
         abort(404) # Plik nie istnieje
 
-    return send_from_directory(os.path.dirname(safe_path), os.path.basename(safe_path))
+    response = send_from_directory(os.path.dirname(safe_path), os.path.basename(safe_path))
+    response.headers["Cache-Control"] = "public, max-age=604800, immutable"
+    return response
 
 @investments_bp.route("/developer/<usi_dev_id>/logo")
 def serve_dev_logo(usi_dev_id):
