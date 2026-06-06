@@ -89,14 +89,16 @@ class HereMapsService:
         return f"{self._BASE_STATIC}/{path}?{query}"
 
     def fetch_places(self, lat: float, lon: float) -> list[dict]:
-        """Fetches points of interest around coordinates using HERE Places Browse API."""
+        """Fetches points of interest around coordinates using HERE Places Browse API in parallel."""
         if not self.api_key:
             return []
 
+        import concurrent.futures
         results = []
         seen_ids = set()
 
-        for cat_name, cat_id in self.HERE_CATEGORIES.items():
+        # Funkcja pomocnicza do pobierania pojedynczej kategorii w osobnym wątku
+        def fetch_category(cat_name, cat_id):
             params = urllib.parse.urlencode({
                 "at": f"{lat},{lon}",
                 "categories": cat_id,
@@ -107,9 +109,20 @@ class HereMapsService:
             })
             url = f"{self._BROWSE_URL}?{params}"
             try:
-                # Use standard urllib for consistency with legacy code or requests
-                with urllib.request.urlopen(url, timeout=10) as resp:
-                    data = json.loads(resp.read().decode())
+                with urllib.request.urlopen(url, timeout=5) as resp:
+                    return cat_name, json.loads(resp.read().decode())
+            except Exception as e:
+                logger.warning("HERE Places fetch failed for cat %s: %s", cat_name, e)
+                return cat_name, None
+
+        # Uruchomienie zapytań dla wszystkich kategorii równolegle
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(self.HERE_CATEGORIES)) as executor:
+            futures = [executor.submit(fetch_category, name, cid) for name, cid in self.HERE_CATEGORIES.items()]
+            
+            for future in concurrent.futures.as_completed(futures):
+                cat_name, data = future.result()
+                if not data:
+                    continue
                 
                 for item in data.get("items", []):
                     pid = item.get("id", "")
@@ -127,8 +140,6 @@ class HereMapsService:
                         "lat": (item.get("position") or {}).get("lat"),
                         "lon": (item.get("position") or {}).get("lng"),
                     })
-            except Exception as e:
-                logger.warning("HERE Places fetch failed for cat %s: %s", cat_name, e)
 
         results.sort(key=lambda x: x["distance"])
         return results

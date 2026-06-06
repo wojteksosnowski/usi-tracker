@@ -106,9 +106,16 @@ def fetch_poi(system_id):
 
     lat, lon = float(lat), float(lon)
 
+    import concurrent.futures
     here_svc = HereMapsService(HERE_API_KEY)
-    here_places = here_svc.fetch_places(lat, lon)
-    wiki_articles = _fetch_wiki_articles(lat, lon)
+
+    # Równoległe wykonanie zapytania HERE i Wikipedii
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        future_here = executor.submit(here_svc.fetch_places, lat, lon)
+        future_wiki = executor.submit(_fetch_wiki_articles, lat, lon)
+        
+        here_places = future_here.result()
+        wiki_articles = future_wiki.result()
 
     payload = {
         "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
