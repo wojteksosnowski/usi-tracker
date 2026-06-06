@@ -9,7 +9,6 @@ import python_worker.investment_index as inv_index
 import threading
 
 logger = logging.getLogger(__name__)
-_fallback_lock = threading.Lock()
 
 
 
@@ -72,102 +71,81 @@ def serve_image(filepath):
     import time
 
     start_t = time.time()
-    if filepath in _missing_images_cache:
-        return abort(404)
     
-    # 0. Check redirect cache
+    # 0. Szybkie sprawdzenie pamięci podręcznej (operacje atomowe/wątkowo bezpieczne)
     if filepath in _cdn_redirect_cache:
         return redirect(_cdn_redirect_cache[filepath], code=302)
+    
+    if filepath in _missing_images_cache:
+        return abort(404)
 
-    # 1. Decode path
+    # 1. Dekodowanie ścieżki
     decoded_path = unquote(filepath)
     img_path = Path(PUBLIC_USI_DIR) / decoded_path
 
     if img_path.exists() and img_path.is_file():
         return send_file(img_path)
 
-    # 2. Try raw if decoded failed
+    # 2. Próba odczytu surowej ścieżki
     raw_path = Path(PUBLIC_USI_DIR) / filepath
     if raw_path.exists() and raw_path.is_file():
         return send_file(raw_path)
 
-    # 3. Fallback — Use index to find original URL via JSON mapping
+    # 3. Fallback — użycie indeksu bez blokowania całego serwera
     parts = Path(decoded_path).parts
     if len(parts) >= 2:
         dev_slug, inv_slug = parts[0], parts[1]
         
-        lock_start = time.time()
-        logger.debug(f"Image {filepath} requires fallback path. Waiting for _fallback_lock...")
+        # Pobranie wpisu z pamięci podręcznej (bardzo szybkie, bez locka)
+        entry = inv_index.get_entry_by_slug(dev_slug, inv_slug)
         
-        with _fallback_lock:
-            lock_waited = (time.time() - lock_start) * 1000
-            if lock_waited > 50:
-                logger.warning(f"High lock contention: Waited {lock_waited:.1f}ms to acquire _fallback_lock for {filepath}")
-                
-            # Check cache again inside lock
-            if filepath in _cdn_redirect_cache:
-                return redirect(_cdn_redirect_cache[filepath], code=302)
-            if filepath in _missing_images_cache:
-                return abort(404)
-
-            try:
-                # Fast path: Use hot index to find the ID and canonical directory
-                entry = inv_index.get_entry_by_slug(dev_slug, inv_slug)
-                
-                if not entry:
-                    logger.warning(f"Slug match missing in hot index for {dev_slug}/{inv_slug}. Forcing full index check.")
-                    # Fallback if hot index is not yet populated
-                    inv_index.load(USI_DATA_DIR)
-                    entry = inv_index.get_entry_by_slug(dev_slug, inv_slug)
-                
-                if entry:
-                    inv_id = entry.get("usi_inv_id")
-                    resources = investment_service.get_investment_resources(inv_id)
-                    if resources and resources["files"].get("anchor"):
-                        json_file = resources["files"]["anchor"]
-                        try:
-                            data = json.loads(json_file.read_text(encoding="utf-8"))
-                            image_paths = data.get("image_paths", [])
-                            photos = data.get("photos", [])
-                            
-                            # ← UŻYWAJ DICT LOOKUP zamiast substring search
-                            path_to_photo = {img_path: photo for img_path, photo in zip(image_paths, photos)}
-                            
-                            if decoded_path in path_to_photo:
-                                photo_url = path_to_photo[decoded_path]
-                                if str(photo_url).startswith("http"):
-                                    _cdn_redirect_cache[filepath] = photo_url
-                                    duration = (time.time() - start_t) * 1000
-                                    logger.info(f"Image redirect found in {duration:.1f}ms")
-                                    return redirect(photo_url, code=302)
-                            
-                            # Fallback: partial match only if direct lookup failed
-                            for img_path, photo_url in path_to_photo.items():
-                                if decoded_path.endswith(Path(img_path).name):
-                                    if str(photo_url).startswith("http"):
-                                        _cdn_redirect_cache[filepath] = photo_url
-                                        return redirect(photo_url, code=302)
-                        except Exception as e:
-                            logger.warning(f"Error parsing {json_file.name}: {e}")
-            except Exception as e:
-                logger.error(f"Fallback error for {filepath}: {e}")
+        if not entry:
+            # Ładujemy indeks tylko wtedy, gdy faktycznie go nie ma w pamięci hot_index
+            inv_index.load(USI_DATA_DIR)
+            entry = inv_index.get_entry_by_slug(dev_slug, inv_slug)
+        
+        if entry:
+            inv_id = entry.get("usi_inv_id")
+            resources = investment_service.get_investment_resources(inv_id)
+            if resources and resources["files"].get("anchor"):
+                json_file = resources["files"]["anchor"]
+                try:
+                    # Operacje I/O i parsowanie robimy w pełni współbieżnie poza lockiem!
+                    data = json.loads(json_file.read_text(encoding="utf-8"))
+                    image_paths = data.get("image_paths", [])
+                    photos = data.get("photos", [])
+                    
+                    path_to_photo = {img_path: photo for img_path, photo in zip(image_paths, photos)}
+                    
+                    if decoded_path in path_to_photo:
+                        photo_url = path_to_photo[decoded_path]
+                        if str(photo_url).startswith("http"):
+                            _cdn_redirect_cache[filepath] = photo_url
+                            duration = (time.time() - start_t) * 1000
+                            logger.info(f"Image redirect found in {duration:.1f}ms")
+                            return redirect(photo_url, code=302)
+                    
+                    # Fallback na częściowe dopasowanie nazwy pliku
+                    for img_path, photo_url in path_to_photo.items():
+                        if decoded_path.endswith(Path(img_path).name):
+                            if str(photo_url).startswith("http"):
+                                _cdn_redirect_cache[filepath] = photo_url
+                                return redirect(photo_url, code=302)
+                except Exception as e:
+                    logger.warning(f"Error parsing {json_file.name}: {e}")
 
     duration = (time.time() - start_t) * 1000
     logger.warning(f"Image not found: {filepath} - took {duration:.1f}ms")
     
-    # Okresowe czyszczenie - rozdzielone i niezależne warunki
+    # Dodajemy do cache brakujących zdjęć, ale ograniczamy jego rozmiar do 100 pozycji,
+    # aby błędy 404 szybko wygasły i nie blokowały nowo pobranych zdjęć po odświeżeniu.
     _missing_images_cache.add(filepath)
-    
-    # Cache brakujących zdjęć czyścimy, gdy osiągnie 5 000 pozycji
-    if len(_missing_images_cache) > 5000:
+    if len(_missing_images_cache) > 100:
         _missing_images_cache.clear()
-        logger.info("Missing images cache cleared (reached 5000)")
+        logger.info("Missing images cache cleared to prevent image blacklisting artifact.")
         
-    # Prawidłowe przekierowania CDN czyścimy bardzo rzadko (np. dopiero przy 100 000 wpisów)
-    # Zapobiegnie to pętli destrukcji cache (cache thrashing)
     if len(_cdn_redirect_cache) > 100000:
         _cdn_redirect_cache.clear()
-        logger.info("CDN redirect cache cleared (reached 100000)")
     
     abort(404)
 

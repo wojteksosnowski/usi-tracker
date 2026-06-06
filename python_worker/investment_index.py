@@ -258,7 +258,7 @@ def upsert(data_dir: Path, public_usi_dir: Path, dev_slug: str = None, inv_slug:
     with _index_lock:
         _index_cache = entries
         _index_cache_mtime = path.stat().st_mtime
-        # --- POPRAWKA: Aktualizujemy szybki słownik wyszukiwania ---
+        # --- KLUCZOWA POPRAWKA: Wymuszamy aktualizację słownika szybkich wyszukiwań ---
         _update_hot_index(_index_cache)
         
     logger.info(f"Successfully upserted investment ID {inv_id} to index and rebuilt hot mapping.")
