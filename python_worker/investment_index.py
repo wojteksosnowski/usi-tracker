@@ -13,6 +13,19 @@ _index_cache_mtime = 0
 _index_lock = threading.Lock()
 _rebuild_lock = threading.Lock()
 _is_rebuilding = False
+_on_change_callbacks = []
+
+def on_change(callback):
+    """Register a callback to be called whenever the index is updated or rebuilt."""
+    _on_change_callbacks.append(callback)
+
+def _notify_change():
+    """Triggers all registered change callbacks."""
+    for cb in _on_change_callbacks:
+        try:
+            cb()
+        except Exception as e:
+            logger.error(f"Error in investment_index change callback: {e}")
 
 # Mapping: 
 # "slugs" -> { "dev_slug/inv_slug": entry }
@@ -187,6 +200,7 @@ def rebuild(data_dir: Path, public_usi_dir: Path) -> int:
             _index_cache_mtime = path.stat().st_mtime
             _update_hot_index(_index_cache)
         
+        _notify_change()
         return len(entries)
     except Exception as e:
         logger.exception(f"Index rebuild failed: {e}")
@@ -244,4 +258,9 @@ def upsert(data_dir: Path, public_usi_dir: Path, dev_slug: str = None, inv_slug:
     with _index_lock:
         _index_cache = entries
         _index_cache_mtime = path.stat().st_mtime
+        # --- POPRAWKA: Aktualizujemy szybki słownik wyszukiwania ---
+        _update_hot_index(_index_cache)
+        
+    logger.info(f"Successfully upserted investment ID {inv_id} to index and rebuilt hot mapping.")
+    _notify_change()
     return True

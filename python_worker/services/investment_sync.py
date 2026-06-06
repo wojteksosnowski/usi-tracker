@@ -224,12 +224,11 @@ class InvestmentSyncService:
             if not res or "raw_details" not in res:
                 return False
                 
-            raw_data = res["raw_details"]
-            
             # 2. Save using high-level API (resolves path internally via TechnicalDataManager)
             # We use portal_id to ensure the library can find or create the correct folder
             # without the tracker explicitly providing a filesystem path.
-            scraper_api.save_raw(self.lib_config, raw_data, portal, portal_id=identifier)
+            # Pass full 'res' (envelope) to allow internal slug extraction if new.
+            scraper_api.save_raw(self.lib_config, res, portal, portal_id=identifier)
             return True
         except Exception as e:
             logger.error(f"Download raw failed for {portal}/{identifier}: {e}")
@@ -281,11 +280,12 @@ class InvestmentSyncService:
                 return None, None, f"{portal_name} ({error_msg})"
 
             if res and "raw_details" in res:
-                raw_data = res["raw_details"]
-                
                 # Use high-level API for saving raw data (ID-only aware)
-                scraper_api.save_raw(self.lib_config, raw_data, raw_prefix, portal_id=identifier)
+                # Pass full response 'res' as envelope - library will extract slugs if needed for new investments,
+                # or resolve via ID for existing ones.
+                scraper_api.save_raw(self.lib_config, res, raw_prefix, portal_id=identifier)
 
+                raw_data = res["raw_details"]
                 # Transform unified data using the FOLDER slug (dev_slug)
                 unified_data = AdapterFactory.get_adapter(raw_prefix).transform(raw_data, inv_slug, dev_slug)
                 return unified_data, portal_name, None

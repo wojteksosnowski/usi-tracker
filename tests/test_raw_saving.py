@@ -40,14 +40,15 @@ def test_download_raw_json_uses_scraper_api(sync_service, tmp_path):
     with patch("usi_scrapers.api.fetch_investment") as mock_fetch, \
          patch("usi_scrapers.api.save_raw") as mock_save:
         
-        mock_fetch.return_value = {"raw_details": mock_raw}
+        envelope = {"raw_details": mock_raw}
+        mock_fetch.return_value = envelope
         
         result = sync_service.download_raw_json(portal, identifier, system_id)
         
         assert result is True
         mock_fetch.assert_called_once_with(sync_service.lib_config, sync_service.fetcher, portal, identifier)
-        # Verify that save_raw is called with config, data, portal and portal_id
-        mock_save.assert_called_once_with(sync_service.lib_config, mock_raw, portal, portal_id=identifier)
+        # Verify that save_raw is called with config, envelope, portal and portal_id
+        mock_save.assert_called_once_with(sync_service.lib_config, envelope, portal, portal_id=identifier)
 
 def test_fetch_and_transform_portal_data_uses_save_raw(sync_service, mock_identity):
     """Verifies that _fetch_and_transform_portal_data uses scraper_api.save_raw."""
@@ -63,7 +64,8 @@ def test_fetch_and_transform_portal_data_uses_save_raw(sync_service, mock_identi
          patch("usi_scrapers.api.save_raw") as mock_save, \
          patch("python_worker.adapters.AdapterFactory.get_adapter") as mock_adapter:
         
-        mock_fetch.return_value = {"raw_details": mock_raw}
+        envelope = {"raw_details": mock_raw}
+        mock_fetch.return_value = envelope
         mock_adapter.return_value.transform.return_value = {"unified": "data"}
         
         unified, name, error = sync_service._fetch_and_transform_portal_data(
@@ -74,10 +76,10 @@ def test_fetch_and_transform_portal_data_uses_save_raw(sync_service, mock_identi
         assert name == portal_name
         assert error is None
         
-        # Verify save_raw call with portal_id
+        # Verify save_raw call with portal_id and envelope
         mock_save.assert_called_once_with(
             sync_service.lib_config, 
-            mock_raw, 
+            envelope, 
             raw_prefix, 
             portal_id="12345"
         )

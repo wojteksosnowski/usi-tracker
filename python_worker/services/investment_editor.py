@@ -126,6 +126,12 @@ class InvestmentEditorService:
 
             self.repo.save_investment_json(system_id, data)
 
+            try:
+                import python_worker.investment_index as inv_index
+                inv_index.upsert(self.data_dir, self.public_usi_dir, inv_id=system_id)
+            except Exception as _ie:
+                logger.debug(f"Index upsert skipped after review for {system_id}: {_ie}")
+
             log_to_processing_log(m.get("developer_slug", "unknown"), m.get("investment_slug", "unknown"), f"Investment {system_id} marked as reviewed by analyst.")
             return True
         except Exception as e:
@@ -159,6 +165,12 @@ class InvestmentEditorService:
 
             self.repo.save_investment_json(system_id, data)
 
+            try:
+                import python_worker.investment_index as inv_index
+                inv_index.upsert(self.data_dir, self.public_usi_dir, inv_id=system_id)
+            except Exception as _ie:
+                logger.debug(f"Index upsert skipped after report for {system_id}: {_ie}")
+
             log_to_processing_log(m.get("developer_slug", "unknown"), m.get("investment_slug", "unknown"), f"Issue reported for {system_id}: {note[:50]}...")
             return True
         except Exception as e:
@@ -183,6 +195,12 @@ class InvestmentEditorService:
                 deleted.add(path)
 
             self.repo.mark_as_deleted(system_id, list(deleted))
+
+            try:
+                import python_worker.investment_index as inv_index
+                inv_index.upsert(self.data_dir, self.public_usi_dir, inv_id=system_id)
+            except Exception as _ie:
+                logger.debug(f"Index upsert skipped after deletion mark for {system_id}: {_ie}")
 
             m = resources["metadata"]
             log_to_processing_log(m.get("developer_slug", "unknown"), m.get("investment_slug", "unknown"), f"Marked {len(paths)} photos as deleted via ID {system_id}")

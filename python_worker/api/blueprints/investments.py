@@ -53,6 +53,17 @@ _cdn_redirect_cache = {}
 _list_inv_cache = {} # Map full_path -> {"data": result, "timestamp": ts}
 _list_inv_lock = threading.Lock()
 
+def invalidate_list_cache():
+    """Clears the server-side cache for investment lists."""
+    with _list_inv_lock:
+        count = len(_list_inv_cache)
+        _list_inv_cache.clear()
+        if count > 0:
+            logger.info(f"Investment list cache invalidated ({count} entries cleared)")
+
+# Register callback for index changes
+inv_index.on_change(invalidate_list_cache)
+
 @investments_bp.route("/image/<path:filepath>")
 def serve_image(filepath):
     from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR
@@ -85,7 +96,14 @@ def serve_image(filepath):
     if len(parts) >= 2:
         dev_slug, inv_slug = parts[0], parts[1]
         
+        lock_start = time.time()
+        logger.debug(f"Image {filepath} requires fallback path. Waiting for _fallback_lock...")
+        
         with _fallback_lock:
+            lock_waited = (time.time() - lock_start) * 1000
+            if lock_waited > 50:
+                logger.warning(f"High lock contention: Waited {lock_waited:.1f}ms to acquire _fallback_lock for {filepath}")
+                
             # Check cache again inside lock
             if filepath in _cdn_redirect_cache:
                 return redirect(_cdn_redirect_cache[filepath], code=302)
@@ -97,6 +115,7 @@ def serve_image(filepath):
                 entry = inv_index.get_entry_by_slug(dev_slug, inv_slug)
                 
                 if not entry:
+                    logger.warning(f"Slug match missing in hot index for {dev_slug}/{inv_slug}. Forcing full index check.")
                     # Fallback if hot index is not yet populated
                     inv_index.load(USI_DATA_DIR)
                     entry = inv_index.get_entry_by_slug(dev_slug, inv_slug)
@@ -318,6 +337,12 @@ def reload_investment(system_id):
     success = investment_service.update_investment(system_id)
     if not success:
         return jsonify({"ok": False, "error": "Failed to update"}), 500
+    
+    # --- POPRAWKA: Czyszczenie cache listy inwestycji ---
+    with _list_inv_lock:
+        _list_inv_cache.clear()
+        logger.info("Cleared investments list cache due to manual reload.")
+        
     updated_inv = investment_service.get_investment(system_id)
     return jsonify({"ok": True, "investment": updated_inv})
 
@@ -331,6 +356,10 @@ def refresh_investment_route(system_id):
         job_manager.update_progress(job_id, 10, f"Rozpoczęto odświeżanie: {i_name}")
         try:
             if investment_service.update_investment(system_id):
+                # --- POPRAWKA: Czyszczenie cache listy inwestycji po zakończeniu wątku ---
+                with _list_inv_lock:
+                    _list_inv_cache.clear()
+                logger.info(f"Cleared investments list cache after background refresh for {i_name}.")
                 job_manager.update_progress(job_id, 100, f"Ukończono odświeżanie: {i_name}")
             else:
                 job_manager.update_progress(job_id, 100, f"Brak danych do odświeżenia: {i_name}", status="failed")
