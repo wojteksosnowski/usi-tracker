@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -9,14 +10,20 @@ from python_worker.config import (
     USI_DATA_DIR, PUBLIC_USI_DIR
 )
 from usi_scrapers import api as scraper_api
-from usi_scrapers import resolve_path
+
+from slugify import slugify
 
 from python_worker.adapters import AdapterFactory, Merger
 from python_worker.logger_utils import log_to_processing_log
 from python_worker.developer_manager import DeveloperManager
+from python_worker.investment_repository import InvestmentRepository
+from python_worker.services.investment_identity import InvestmentIdentityResolver
+from python_worker.services.developer_resolver import DeveloperResolver
+from python_worker.services.image_sync import ImageSyncService
 from python_worker.services.amenity_scorer import compute_amenity_score, suggest_udogodnienia
 from python_worker.services.image_resolver import resolve_images
 from python_worker.api.utils import _calculate_distance
+from python_worker.url_parser import parse_url
 import python_worker.investment_index as inv_index
 
 logger = logging.getLogger(__name__)
@@ -43,7 +50,6 @@ def _primary_portal_id(sources: dict) -> tuple[str, str | None]:
 
 class InvestmentSyncService:
     def __init__(self, identity_resolver, data_dir: Path, public_usi_dir: Path, developer_manager=None, investment_repo=None):
-        from python_worker.investment_repository import InvestmentRepository
         self.repo = investment_repo or InvestmentRepository(identity_resolver, data_dir)
         self.identity = identity_resolver
         self.data_dir = data_dir
@@ -56,10 +62,7 @@ class InvestmentSyncService:
         self._tech_manager = get_shared_tech_manager()
         self._image_sync = None
             
-        from python_worker.services.investment_identity import InvestmentIdentityResolver
         self.resolver = InvestmentIdentityResolver(self.data_dir, self.public_usi_dir)
-        
-        from python_worker.services.developer_resolver import DeveloperResolver
         self.developer_resolver = DeveloperResolver(self.dm, self, self.identity)
 
     @property
@@ -85,20 +88,19 @@ class InvestmentSyncService:
     @property
     def image_sync(self):
         if self._image_sync is None:
-            from python_worker.services.image_sync import ImageSyncService
             self._image_sync = ImageSyncService(self.tech_manager, self.public_usi_dir)
         return self._image_sync
 
     def _check_investment_exists(self, portal, item_id):
         if not item_id:
             return False
-        
+
         full_portal = PORTAL_FULL_DOMAINS.get(portal)
         if not full_portal:
             return False
-            
-        data = scraper_api.get_raw_data(self.lib_config, portal=full_portal, portal_id=str(item_id))
-        return data is not None
+
+        # Lekkie sprawdzenie bez alokacji pamięci na pełny JSON
+        return scraper_api.has_local_raw(self.lib_config, portal=full_portal, portal_id=str(item_id))
 
     def register_investment(self, portal, developer_name, name, item_id=None, url=None, allow_existing=False, vendor_id=None, force_dev_slug=None):
 
@@ -114,7 +116,6 @@ class InvestmentSyncService:
             inv_slug = inv_dir.name
         else:
             if not inv_slug:
-                from slugify import slugify
                 inv_slug = slugify(name) if name else (str(item_id) if item_id else "unknown")
             inv_dir = self.data_dir / dev_slug / inv_slug
 
@@ -132,7 +133,6 @@ class InvestmentSyncService:
 
         if existing_file:
             if allow_existing:
-                import json
                 try:
                     data = json.loads(existing_file.read_text(encoding="utf-8"))
                     usi_inv_id = data.get("usi_inv_id")
@@ -190,7 +190,6 @@ class InvestmentSyncService:
             self.resolver.build_index()
             
         try:
-            import python_worker.investment_index as inv_index
             inv_index.upsert(self.data_dir, self.public_usi_dir, inv_id=skeleton["usi_inv_id"])
         except Exception as _ie:
             logger.debug(f"Index upsert skipped for {inv_slug}: {_ie}")
@@ -201,17 +200,16 @@ class InvestmentSyncService:
 
     def _canonical_slug_from_raw(self, portal: str, raw_details: dict, fallback: str) -> str:
         """Resolves the canonical USI developer slug by reading it from portal raw data."""
-        
-        # Use authoritative portal ID resolution from library mapping
-        portal_id = resolve_path(raw_details, portal, "vendor.id|ad.agency.id|developer_id")
+        full_portal = PORTAL_FULL_DOMAINS.get(portal, portal)
+        dev_meta = scraper_api.extract_developer_meta(raw_details, full_portal)
+
+        portal_id = dev_meta.get("id")
         if portal_id:
             dev_record = self.dm.find_developer_by_id(portal, str(portal_id))
             if dev_record:
                 return dev_record["developer_slug"]
 
-        # If no USI record found by ID, use the slug provided by the portal (metadata only)
-        portal_slug = resolve_path(raw_details, portal, "vendor.slug|ad.agency.slug|developer_slug")
-        
+        portal_slug = dev_meta.get("slug")
         return portal_slug or fallback
 
     def download_raw_json(self, portal: str, identifier: str, system_id: str):
@@ -238,40 +236,39 @@ class InvestmentSyncService:
         
     def _fetch_and_transform_portal_data(self, system_id, portal, portal_name, raw_prefix, sources, use_local_raw):
         """Fetches raw portal data (local or remote) and transforms it."""
-        
         resources = self.identity.get_investment_resources(system_id)
         if not resources:
             return None, None, f"{portal_name} (No resources)"
-            
+
         inv_dir = resources["base_dir"]
         m = resources["metadata"]
         dev_slug = m.get("developer_slug") or "unknown"
         inv_slug = m.get("investment_slug") or inv_dir.name
-        
-        raw_files = list(inv_dir.glob(f"raw_{raw_prefix}_*.json"))
 
-        if use_local_raw and raw_files:
-            canonical = inv_dir / f"raw_{raw_prefix}_{inv_slug}.json"
-            raw_path = canonical if canonical.exists() else sorted(raw_files)[-1]
-            with open(raw_path, "r") as f:
-                raw_details = json.load(f)
-            
-            # Transform using the FOLDER slug (dev_slug) to maintain consistency
+        fields = IDENTIFIER_PRIORITIES.get(portal, ["url", "id"])
+        identifier = next((sources[portal].get(f) for f in fields if sources[portal].get(f)), None)
+
+        full_portal = PORTAL_FULL_DOMAINS.get(portal, portal)
+
+        if use_local_raw:
+            if not identifier:
+                logger.debug(f"[local-raw] {portal_name}: brak identyfikatora w źródłach dla {system_id}, pomijanie")
+                return None, None, None
+
+            # Tracker nie zna konwencji nazewnictwa pliku — deleguje do biblioteki
+            raw_details = scraper_api.load_raw(self.lib_config, full_portal, str(identifier))
+            if not raw_details:
+                logger.debug(f"[local-raw] {portal_name}: scraper nie znalazł lokalnego pliku raw dla id {identifier}")
+                return None, None, None
+
             unified_data = AdapterFactory.get_adapter(raw_prefix).transform(raw_details, inv_slug, dev_slug)
             return unified_data, f"{portal_name} (local)", None
-            
-        elif use_local_raw:
-            logger.debug(f"[local-raw] {portal_name}: no raw file in {inv_dir}, skipping")
-            return None, None, None
 
         else:
-            fields = IDENTIFIER_PRIORITIES.get(portal, ["url", "id"])
-            identifier = next((sources[portal].get(f) for f in fields if sources[portal].get(f)), None)
-                
             if not identifier:
                 log_to_processing_log(dev_slug, inv_slug, f"Skipped {portal_name}: no identifier in sources")
                 return None, None, None
-                
+
             try:
                 res = scraper_api.fetch_investment(self.lib_config, self.fetcher, portal, identifier)
             except Exception as e:
@@ -281,13 +278,8 @@ class InvestmentSyncService:
                 return None, None, f"{portal_name} ({error_msg})"
 
             if res and "raw_details" in res:
-                # Use high-level API for saving raw data (ID-only aware)
-                # Pass full response 'res' as envelope - library will extract slugs if needed for new investments,
-                # or resolve via ID for existing ones.
                 scraper_api.save_raw(self.lib_config, res, raw_prefix, portal_id=identifier)
-
                 raw_data = res["raw_details"]
-                # Transform unified data using the FOLDER slug (dev_slug)
                 unified_data = AdapterFactory.get_adapter(raw_prefix).transform(raw_data, inv_slug, dev_slug)
                 return unified_data, portal_name, None
             else:
@@ -329,16 +321,15 @@ class InvestmentSyncService:
         if not sources and use_local_raw:
             # Skeletons might have portal field at root
             p_root = usi_data.get("portal")
-            if p_root:
-                sources[p_root] = {"id": usi_data.get("portal_id", "rebuild")}
-            
-            # Fallback: scan for any raw files
-            for p in ["rp", "oto", "to"]:
-                if p in sources: continue
-                # Search for any raw_{p}_*.json
-                raw_files = list(inv_dir.glob(f"raw_{p}_*.json"))
-                if raw_files:
-                    sources[p] = {"id": "rebuild"}
+            p_id_root = usi_data.get("portal_id")
+            if p_root and p_id_root:
+                sources[p_root] = {"id": str(p_id_root)}
+
+            # Jeśli nadal puste, parsujemy nazwę istniejącego pliku kotwicy: usi_{portal}_{id}.json
+            if not sources and actual_file and actual_file.exists():
+                parts = actual_file.stem.split("_")  # usi_{portal}_{id}
+                if len(parts) >= 3 and parts[0] == "usi":
+                    sources[parts[1]] = {"id": parts[2]}
 
         unified_data_map = {"rp": None, "oto": None, "to": None}
         fetched_sources = []
@@ -353,7 +344,6 @@ class InvestmentSyncService:
             existing_img_list = usi_data["image_paths"][0]
             
         if existing_img_list:
-            import re
             m = re.search(r'/Public/USI/([^/]+)/', str(existing_img_list))
             if m:
                 img_dev_slug = m.group(1)
@@ -453,7 +443,6 @@ class InvestmentSyncService:
             self.repo.save_investment_json(system_id, new_unified)
             if not skip_index:
                 try:
-                    import python_worker.investment_index as inv_index
                     inv_index.upsert(self.data_dir, self.public_usi_dir, inv_id=system_id)
                 except Exception as _ie:
                     logger.debug(f"Index upsert skipped for {inv_slug}: {_ie}")
@@ -507,7 +496,6 @@ class InvestmentSyncService:
         
     def _prepare_batch_identifiers(self, portal, investments):
         """Prepares identifiers and metadata for a batch without registering skeletons yet."""
-        from python_worker.url_parser import parse_url
         
         to_process = []
         targets = []
@@ -572,11 +560,7 @@ class InvestmentSyncService:
                     target_dir = self.data_dir / dev_slug / inv_slug
                     target_image_dir = self.public_usi_dir / dev_slug / inv_slug
 
-                targets.append({
-                    "identifier": ident,
-                    "target_dir": target_dir,
-                    "target_image_dir": target_image_dir
-                })
+                targets.append(str(ident))
                 to_process.append({
                     "ident": ident,
                     "dev_slug": dev_slug,
@@ -596,39 +580,28 @@ class InvestmentSyncService:
         if not targets:
             return False
 
-        # USUNIĘTO: Nadpisywanie konfiguracji i tworzenie nowego Fetchera na jedno żądanie!
-        # Teraz bezpiecznie używamy centralnego self.fetcher oraz globalnego scraper_api
-
+        # USI-Scrapers v1.0.0 process_batch handles internal throttling and I/O (save_raw, sync_images)
         batch_results = scraper_api.process_batch(
             self.lib_config, self.fetcher, portal, targets, on_progress=on_progress_callback
         )
         success_count = 0
-        raw_prefix = portal
 
         for info, data in zip(to_process, batch_results):
             try:
-                dev_slug, inv_slug, vendor_id, item_id = self._merge_batch_info(info, data)
-                if not dev_slug or not inv_slug:
-                    logger.warning(f"Missing slugs for {info['ident']} - skipping.")
+                if not data or "error" in data:
+                    logger.warning(f"Batch item failed: {info.get('ident')} - {data.get('error') if data else 'No data'}")
                     continue
 
-                inv_dir = self.data_dir / dev_slug / inv_slug
-                if not list(inv_dir.glob(f"raw_{raw_prefix}_*.json")):
-                    if data and isinstance(data, dict) and "error" not in data:
-                        scraper_api.save_raw(self.lib_config, data, raw_prefix, portal_id=item_id)
-                        if "image_urls" in data and self.tech_manager:
-                            target_image_dir = self.tech_manager.get_image_path(portal, item_id)
-                            if target_image_dir:
-                                target_image_dir.mkdir(parents=True, exist_ok=True)
-                                self.tech_manager.sync_images(data["image_urls"], target_image_dir)
-                    else:
-                        logger.warning(f"Batch download failed for {inv_slug} - skipping registration.")
-                        continue
+                dev_slug, inv_slug, vendor_id, item_id = self._merge_batch_info(info, data)
+                if not dev_slug or not inv_slug:
+                    logger.warning(f"Missing slugs for {info['ident']} - skipping registration.")
+                    continue
 
+                # Registration: library already saved raw files and images if successful
                 res = self.register_investment(
                     portal=info["portal"],
                     developer_name=info["dev_name"] or dev_slug.replace("-", " ").title(),
-                    name=info["name"] or (data.get("title") if isinstance(data, dict) else None),
+                    name=info["name"] or data.get("name"),
                     item_id=item_id,
                     url=info["url"],
                     allow_existing=True,
@@ -637,7 +610,9 @@ class InvestmentSyncService:
                 )
                 
                 if res:
-                    self.update_investment(res["system_id"], use_local_raw=True, skip_images=True, skip_index=True)
+                    # register_investment returns (dev_slug, inv_slug, usi_inv_id)
+                    _, _, usi_inv_id = res
+                    self.update_investment(usi_inv_id, use_local_raw=True, skip_images=True, skip_index=True)
                     success_count += 1
             except Exception as e:
                 logger.error(f"Error finalizing batch item {info.get('ident')}: {e}")

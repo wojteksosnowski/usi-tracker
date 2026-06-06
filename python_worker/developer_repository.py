@@ -6,6 +6,7 @@ import threading
 from pathlib import Path
 from datetime import datetime
 from python_worker.slug_utils import slugify
+from usi_scrapers import api as scraper_api
 
 _counter_lock = threading.Lock()
 logger = logging.getLogger(__name__)
@@ -134,7 +135,6 @@ class DeveloperRepository:
         """Delegates raw investment JSON saving to the library manager."""
         if not self.tech_manager:
             raise RuntimeError("Strict immutability rule: raw files MUST be managed via TechnicalDataManager. Library not configured.")
-        from usi_scrapers import api as scraper_api
         return scraper_api.save_raw(self.tech_manager.config, data, portal_prefix, portal_id=portal_id)
 
     def save_discovery_snapshot(self, system_id: str, items: list[dict]):
@@ -166,7 +166,6 @@ class DeveloperRepository:
         """Delegates raw developer JSON saving to the library manager."""
         if not self.tech_manager:
             raise RuntimeError("Strict immutability rule: raw files MUST be managed via TechnicalDataManager. Library not configured.")
-        from usi_scrapers import api as scraper_api
         return scraper_api.save_raw_developer(self.tech_manager.config, data, portal_prefix, portal_id=portal_id)
 
     # -------------------------------------------------------------------------
