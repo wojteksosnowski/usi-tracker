@@ -95,12 +95,11 @@ def fetch_poi(system_id):
     if not inv:
         return jsonify({"error": "Investment not found"}), 404
 
-    coords = (inv.get("location") or {}).get("coords")
+    coords = inv.get("coords")
     if coords and len(coords) == 2:
         lat, lon = coords[0], coords[1]
     else:
-        lat = inv.get("lat") or inv.get("latitude")
-        lon = inv.get("lng") or inv.get("lon") or inv.get("longitude")
+        lat, lon = None, None
 
     if not lat or not lon:
         return jsonify({"error": "No coordinates for this investment"}), 422
