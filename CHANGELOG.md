@@ -1,5 +1,22 @@
 # Changelog
 
+## Wersja 0.9.70 — Kamień 13 (Refaktoryzacja Strony Deweloperów) — 2026-06-07
+
+### Zmieniono
+- **Model Danych (Flattening)**: Spłaszczono strukturę Level 2 dewelopera. Pola `last_maintenance`, `maintenance_success` oraz `new_since_review` zostały wyjęte z zagnieżdżonego słownika `crawler` i umieszczone bezpośrednio w korzeniu JSON. Słownik `crawler` został całkowicie usunięty z plików źródłowych.
+- **Backend & API**: 
+    - Usunięto przestarzałe endpointy `/api/crawler/status` oraz `/api/doktor/status`.
+    - Dodano pasywny endpoint systemowy `/api/system/status`.
+    - `get_developer_detail` wstrzykuje teraz logi zdarzeń bezpośrednio z plików tekstowych `dev_log`.
+    - Endpoint logo (`serve_dev_logo`) przeszedł na architekturę **ID-only**, eliminując błędy ścieżek przy zmianach slugów.
+- **Interfejs Użytkownika**:
+    - Usunięto widgety aktywności demonów z Dashboardu i Widoku Pobierania.
+    - Zmodernizowano komponent `MaintenanceStatus`, wprowadzając wskaźnik kondycji danych oparty na `maintenance_overdue_score`.
+
+### Wnioski ze zmian
+- **Flattening over Nesting**: Spłaszczone schematy drastycznie redukują ryzyko błędów typu `null-pointer` na froncie i upraszczają mechanizmy indeksowania.
+- **Data Integrity over Activity Polling**: System przeszedł z monitorowania aktywności procesów w tle na ocenę kompletności i jakości danych (Health Score).
+
 ## Wersja 0.9.69 — Całkowita sterylizacja UI i CLI z logiki daemonów — 2026-06-06
 
 ### Usunięto

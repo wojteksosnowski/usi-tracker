@@ -175,9 +175,13 @@ class Merger:
                 all_codes.update(other_amen["raw_codes"])
             result["amenities"]["raw_codes"] = list(all_codes)
 
-            if other.get("images_count", 0) > result.get("images_count", 0):
-                result["images_count"] = other["images_count"]
-                result["image_paths"] = other.get("image_paths", [])
+            other_paths = other.get("image_paths", [])
+            # Interesują nas wyłącznie ścieżki lokalne (nie zaczynające się od http)
+            local_paths = [p for p in other_paths if not str(p).startswith(("http://", "https://"))]
+            
+            if local_paths and len(local_paths) > len(result.get("image_paths", [])):
+                result["image_paths"] = local_paths
+                result["images_count"] = len(local_paths)
 
         # Priority override: Meta ratings 'Segment' takes precedence
         if meta_ratings and meta_ratings.get("Segment"):

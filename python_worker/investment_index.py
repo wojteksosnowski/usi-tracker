@@ -173,9 +173,7 @@ def rebuild(data_dir: Path, public_usi_dir: Path) -> int:
                 # fast_index=True skips expensive photo scans and identity lookups
                 entry = _load_investment(data_dir=data_dir, public_usi_dir=public_usi_dir, system_id=uid, usi_file=usi_file, fast_index=True)
                 if entry:
-                    # OPTIMIZATION (06.01.08): Index only needs 1 thumbnail. Avoid bloating _index.json
-                    if entry.get("photos"):
-                        entry["photos"] = entry["photos"][:1]
+                    # Index now keeps full photo list for DetailView access from memory
                     entry.pop("image_urls", None)
                     entry.pop("nearby_investments", None)
                     
@@ -223,9 +221,7 @@ def upsert(data_dir: Path, public_usi_dir: Path, dev_slug: str = None, inv_slug:
     if not entry:
         return False
 
-    # OPTIMIZATION (06.01.08): Index only needs 1 thumbnail. Avoid bloating _index.json
-    if entry.get("photos"):
-        entry["photos"] = entry["photos"][:1]
+    # Index now keeps full photo list for DetailView access from memory
     entry.pop("image_urls", None)
     entry.pop("nearby_investments", None)
 

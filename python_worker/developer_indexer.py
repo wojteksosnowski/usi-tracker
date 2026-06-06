@@ -183,3 +183,41 @@ class DeveloperIndexer:
     # -------------------------------------------------------------------------
     # Generic event log
     # -------------------------------------------------------------------------
+
+_shared_index_instance = None
+_shared_index_mtime = 0
+
+def get_shared_developer_index():
+    """
+    Returns a RAM-cached version of the developer index for O(1) lookups.
+    Used by DeveloperRepository to avoid disk scans.
+    """
+    global _shared_index_instance, _shared_index_mtime
+    from python_worker.config import USI_DEV_DIR
+    from . import developer_index
+    
+    path = developer_index._index_path(USI_DEV_DIR)
+    mtime = 0
+    if path.exists():
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            pass
+    
+    if _shared_index_instance is None or _shared_index_mtime != mtime:
+        class RAMDeveloperIndex:
+            def __init__(self, dev_dir, mtime):
+                self.mtime = mtime
+                entries = developer_index.load(dev_dir) or []
+                self._id_map = {e.get("usi_dev_id"): e for e in entries if e.get("usi_dev_id")}
+                
+            def get_developer(self, usi_dev_id: str) -> dict | None:
+                return self._id_map.get(usi_dev_id)
+                
+            def list_developers(self):
+                return list(self._id_map.values())
+                
+        _shared_index_instance = RAMDeveloperIndex(USI_DEV_DIR, mtime)
+        _shared_index_mtime = mtime
+        
+    return _shared_index_instance

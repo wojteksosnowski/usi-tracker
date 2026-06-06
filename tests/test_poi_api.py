@@ -44,7 +44,7 @@ def test_fetch_poi_success(mock_wiki, mock_here, client, tmp_path):
     mock_here.return_value = mock_here_instance
     mock_wiki.return_value = [{"title": "Zabytkowa kamienica"}]
     
-    mock_inv = {"location": {"coords": [52.0, 21.0]}}
+    mock_inv = {"coords": [52.0, 21.0]}
     
     with patch("python_worker.api.blueprints.investments.investment_service.get_investment", return_value=mock_inv), \
          patch("python_worker.api.blueprints.investments.investment_service.repo.get_investment_json", return_value={"id": "mock"}), \

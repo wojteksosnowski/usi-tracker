@@ -9,7 +9,7 @@ from logging.handlers import QueueHandler, QueueListener
 import queue
 import atexit
 
-from .config import USI_DATA_DIR, USI_DEV_DIR, get_shared_config
+from .config import USI_DATA_DIR, USI_DEV_DIR, PUBLIC_USI_DIR, get_shared_config
 from .adapters import RPAdapter, OtodomAdapter, TOAdapter, Merger
 from usi_scrapers.fetcher import Fetcher
 from usi_scrapers import api as scraper_api
@@ -438,11 +438,10 @@ def main():
     elif args.command == "rebuild-devs":
         logger.info("Rebuilding usi_dev_*.json from raw files...")
         from .init_developers import rebuild_devs_from_raws
-        built, skipped = rebuild_devs_from_raws(force=args.force, dry_run=args.dry_run)
-        logger.info(f"rebuild-devs finished: {built} built, {skipped} skipped.")
+        built = rebuild_devs_from_raws(USI_DEV_DIR, USI_DATA_DIR)
+        logger.info(f"rebuild-devs finished: {built} built.")
 
     elif args.command == "rebuild-all":
-        from .config import USI_DATA_DIR
         logger.info("Rebuilding usi_*.json from local raw files for all investments...")
         from .services.investment_service import InvestmentService
         svc = InvestmentService()
@@ -478,7 +477,6 @@ def main():
 
     elif args.command == "suggest":
         from python_worker.daemons import TrackerDoktorDelegate
-        from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
         delegate = TrackerDoktorDelegate(USI_DATA_DIR, USI_DEV_DIR)
         try:
             from usi_crawlers.algorithms.similarity import calculate_similarities
@@ -509,20 +507,17 @@ def main():
 
     elif args.command == "suggest-invs":
         from .detect_similar_invs import detect_similar_invs
-        from .config import USI_DATA_DIR
         detect_similar_invs(Path(USI_DATA_DIR), args.dev, args.inv)
         logger.info("Suggestion algorithm finished.")
 
 
     elif args.command == "rebuild-index":
         from .investment_index import rebuild as rebuild_index
-        from .config import PUBLIC_USI_DIR, USI_DATA_DIR
         logger.info("Rebuilding investment index...")
         count = rebuild_index(USI_DATA_DIR, Path(PUBLIC_USI_DIR))
         logger.info(f"Done. {count} investments indexed.")
 
     elif args.command == "rebuild-dev-index":
-        from .config import USI_DATA_DIR
         from .developer_index import rebuild as rebuild_dev_index, rebuild_master_index
         logger.info("Rebuilding developer index...")
         

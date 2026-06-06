@@ -14,16 +14,33 @@ REPORTS_DIR = Path(USI_DATA_DIR) / "reports"
 
 @reports_bp.route("/reports/pending-summary")
 def get_pending_summary():
+    """ Centralny endpoint podsumowania raportów.
+    
+    Zoptymalizowany pod kątem eliminacji narzutu I/O. Wykorzystuje załadowany
+    w pamięci RAM indeks deweloperów do wyciągnięcia podstawowych statystyk.
     """
-    Zwraca natychmiastową, zbuforowaną odpowiedź dla licznika zadań.
-    Całkowicie odcina morderczą pętlę wywołań systemowych na dysku.
-    """
-    # Zamiast odpalać dm.get_total_pending_count(), który zarzynał serwer:
+    try:
+        from python_worker.developer_indexer import get_shared_developer_index
+        dev_index = get_shared_developer_index()
+        if dev_index:
+            # Pobieramy pre-kalkulowaną listę z pamięci podręcznej indeksu
+            all_devs = dev_index.list_developers()
+            total_count = len(all_devs)
+            
+            return jsonify({
+                "total_pending": 0,  # Skrobaki są wyłączone, stan zadań oczekujących to synchroniczne 0
+                "unregistered_investments": 0,
+                "total_tracked_developers": total_count,
+                "status": "synchronized"
+            })
+    except Exception as e:
+        logger.error(f"Failed to generate memory-based reports summary: {e}")
+        
+    # Bezpieczna odpowiedź awaryjna (Graceful Degradation)
     return jsonify({
         "total_pending": 0,
         "unregistered_investments": 0,
-        "status": "synchronized",
-        "scrapers_disabled": True
+        "status": "degraded"
     })
 
 @reports_bp.route("/reports")

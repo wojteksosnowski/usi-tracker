@@ -1,0 +1,275 @@
+[
+    {
+        "system_id": "INV-29838",
+        "source": "oto",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/ziolkowski-s-c/oranzeria-bartnika-iii/usi_oto_4fQKi.json"
+    },
+    {
+        "system_id": "INV-29873",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/zagiel-dom/orkana-residence-etap-3-lublin-czuby-polnocne/usi_rp_19330.json"
+    },
+    {
+        "system_id": "INV-30080",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": true,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/white-stone-development-sp-z-oo/zielone-zamienie-x-piaseczynski-zamienie/usi_rp_19501.json"
+    },
+    {
+        "system_id": "INV-30434",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": true,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/triton-development-sa/triton-kampinos-klatka-b-mazowieckie-nowodworski-lomna-las/usi_rp_16050.json"
+    },
+    {
+        "system_id": "INV-30594",
+        "source": "oto",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/t1-deweloper/apartamenty-saskalia/usi_oto_4c5LG.json"
+    },
+    {
+        "system_id": "INV-30594",
+        "source": "oto",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/t1-deweloper/apartamenty-saskalia/usi_oto_61987456.json"
+    },
+    {
+        "system_id": "INV-30599",
+        "source": "oto",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/t1-deweloper/stacja-goclawek/usi_oto_4c6sD.json"
+    },
+    {
+        "system_id": "INV-30608",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": true,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/swiss-tree-sp-z-o-o/aleja-drzew-ii-lodz-nowosolna/usi_rp_17938.json"
+    },
+    {
+        "system_id": "INV-30841",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": true,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/skanska-residential-development-poland-sp-z-oo/stilla-warszawa-rakow/usi_rp_16203.json"
+    },
+    {
+        "system_id": "INV-30850",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": true,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/sivanet-sp-z-oo/lechicka-65-poznan-piatkowo/usi_rp_17078.json"
+    },
+    {
+        "system_id": "INV-30917",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": true,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/sg-projekt-sp-z-oo/osiedle-konarzyce-lomzynski/usi_rp_18804.json"
+    },
+    {
+        "system_id": "INV-31102",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/ronson-development-sp-z-oo/miasto-moje-etap-6-warszawa-zeran/usi_rp_13798.json"
+    },
+    {
+        "system_id": "INV-31109",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": true,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/ronson-development-sp-z-oo/nowa-polnoc-etap-2-szczecin-stolczyn/usi_rp_16758.json"
+    },
+    {
+        "system_id": "INV-31163",
+        "source": "oto",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/rogowski-development/rezydencja-wilanowka/usi_oto_4fC4q.json"
+    },
+    {
+        "system_id": "INV-31164",
+        "source": "oto",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/rogowski-development/ruczaj-residence/usi_oto_4iORm.json"
+    },
+    {
+        "system_id": "INV-31166",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": true,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/rodzinne-resorty-sp-z-o-o/kaizen-karkonosze-karkonoski-wojcieszyce/usi_rp_18127.json"
+    },
+    {
+        "system_id": "INV-31317",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/robyg-grupa-deweloperska/stacja-jezyce-poznan-osiedle-jezyce/usi_rp_16501.json"
+    },
+    {
+        "system_id": "INV-31600",
+        "source": "oto",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/projekt-1/maslowiecka-18/usi_oto_4jDXr.json"
+    },
+    {
+        "system_id": "INV-31628",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/profit-development/osiedle-hemara-warszawa-brzeziny/usi_rp_15011.json"
+    },
+    {
+        "system_id": "INV-32030",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": true,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/pemm-development-sp-z-o-o/lazy-urocze-ii-piaseczynski-lazy/usi_rp_19067.json"
+    },
+    {
+        "system_id": "INV-32287",
+        "source": "oto",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/okam-capital/strefa-progress/usi_oto_4eiGy.json"
+    },
+    {
+        "system_id": "INV-32529",
+        "source": "oto",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/neo-villa/osiedle-borowiecka-niskoemisyjne-domy-energoo/usi_oto_4dRrQ.json"
+    },
+    {
+        "system_id": "INV-32531",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/neo-natolin-sp-z-oo/neo-natolin-etap-ii-warszawa-powsin/usi_rp_19053.json"
+    },
+    {
+        "system_id": "INV-33097",
+        "source": "oto",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/mar-invest/zielony-borkow/usi_oto_4df97.json"
+    },
+    {
+        "system_id": "INV-33135",
+        "source": "oto",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/maesta-development/owocow-lesnych-domy/usi_oto_4jGhB.json"
+    },
+    {
+        "system_id": "INV-33157",
+        "source": "oto",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/m1-invest/zygmuntowska-10/usi_oto_4gHtz.json"
+    },
+    {
+        "system_id": "INV-33804",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/imperial-capital-sp-z-oo-green-park-i-sp-k/green-park-apartament-pod-klucz-krakow-bronowice/usi_rp_17969.json"
+    },
+    {
+        "system_id": "INV-33835",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/ilawskie-przedsiebiorstwo-budowlane-ipb-sp-z-oo/harmonia-olsztyn/usi_rp_14052.json"
+    },
+    {
+        "system_id": "INV-33836",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/ilawskie-przedsiebiorstwo-budowlane-ipb-sp-z-oo/kaskada-park-elblag/usi_rp_17742.json"
+    },
+    {
+        "system_id": "INV-34201",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/grupa-victoria-dom/miasteczko-nova-fala-gdynia-cisowa/usi_rp_18409.json"
+    },
+    {
+        "system_id": "INV-34259",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/grupa-moderator/park-leszczynskiego-bydgoszcz/usi_rp_9320.json"
+    },
+    {
+        "system_id": "INV-35311",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/dekpol-deweloper-sp-z-oo/neo-jasien-gdansk-jasien/usi_rp_14412.json"
+    },
+    {
+        "system_id": "INV-35379",
+        "source": "oto",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/dantex/wolala/usi_oto_4etFI.json"
+    },
+    {
+        "system_id": "INV-35449",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/condo-pl/radisson-marina-gdanski-wislinka/usi_rp_16711.json"
+    },
+    {
+        "system_id": "INV-35824",
+        "source": "oto",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/blackstone-investments/podlesna-homes/usi_oto_4jp8J.json"
+    },
+    {
+        "system_id": "INV-36198",
+        "source": "oto",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/artis-development-sp-z-o-o/villa-la-plage/usi_oto_4iaI8.json"
+    },
+    {
+        "system_id": "INV-36317",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/archicom-sa/stacja-wola-warszawa-odolany/usi_rp_17092.json"
+    },
+    {
+        "system_id": "INV-36571",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/agrobex-sp-z-oo/ulica-staszica-szamotuly/usi_rp_14585.json"
+    },
+    {
+        "system_id": "INV-36581",
+        "source": "rp",
+        "has_leak": false,
+        "has_local_images": false,
+        "file_path": "/Volumes/Samsam/claude-py/usi-tracker/Public/USIdata/agencja-inwestycyjna-sp-z-oo/zielona-przystan-poznan-naramowice/usi_rp_15322.json"
+    }
+]

@@ -14,6 +14,11 @@ def resolve_images(usi: dict, inv_dir: Path, public_usi_dir: Path, resources: di
     resolved = []
     if raw:
         for p in raw:
+            # SZYBKI BEZPIECZNIK: Jeśli ścieżka jest adresem URL, pomiń ją bezwzględnie
+            if str(p).startswith(("http://", "https://")):
+                logger.warning( f"Wykryto wyciek surowego URL w image_paths: {p}. Pomijanie.")
+                continue
+
             # 1. Extract path part relative to Public/USI/
             if "Public/USI/" in p:
                 path_part = p.split('Public/USI/')[-1].lstrip('/')

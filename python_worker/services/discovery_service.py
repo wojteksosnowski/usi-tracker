@@ -140,6 +140,17 @@ class DiscoveryService:
             dev_dir = dev.get("directory")
             if not dev_dir: return 0
             
+            return self.get_unregistered_count_from_dir(Path(dev_dir), identifiers)
+        except Exception as e:
+            logger.debug(f"Error getting unregistered count for {system_id}: {e}")
+            return 0
+
+    def get_unregistered_count_from_dir(self, dev_dir: Path, identifiers: dict = None) -> int:
+        """
+        Ultra-wydajne liczenie nieobsłużonych inwestycji bezpośrednio z katalogu.
+        Omija lookupy dewelopera, co pozwala na masowe przetwarzanie tysięcy rekordów.
+        """
+        try:
             discovery_file = dev_dir / "discovery.json"
             if not discovery_file.exists():
                 return 0
@@ -148,8 +159,13 @@ class DiscoveryService:
             with open(discovery_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
             
+            if not isinstance(data, dict):
+                return 0
+
             # Recalculate 'registered' status against current DB to be accurate
             if identifiers is None:
+                from python_worker.developer_manager import DeveloperManager
+                dm = DeveloperManager(self.data_dir)
                 identifiers = dm.get_existing_identifiers()
             
             rp_ids = identifiers.get("rp_ids", set())
@@ -172,7 +188,7 @@ class DiscoveryService:
                     count += 1
             return count
         except Exception as e:
-            logger.debug(f"Error getting unregistered count for {system_id}: {e}")
+            logger.error(f"Error in get_unregistered_count_from_dir: {e}")
             return 0
 
     def _save_discovery_snapshot(self, system_id, items):

@@ -105,4 +105,3 @@ Wprowadzenie mapowania słownikowego dla przyspieszenia wyszukiwania.
 - [x] Wyeliminowano pętle O(N) po 7000+ elementach przy każdym żądaniu obrazka lub detali.
 
 **Podsumowanie:** Drastycznie przyspieszono kojarzenie slugów z ID, co ostatecznie rozwiązało problem zawieszania się serwera podczas szybkiego przeglądania UI.
-

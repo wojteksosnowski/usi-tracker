@@ -74,7 +74,7 @@ def rebuild(data_dir: Path, dev_dir: Path) -> int:
                 return
 
             seen_ids.add(dev_id)
-            enriched = dm._enrich_with_master(data)
+            enriched = dm.repo._enrich_with_master(data)
             entries.append(enriched)
         except Exception as e:
             logger.warning(f"Error reading dev file for index {candidate_path}: {e}")

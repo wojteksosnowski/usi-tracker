@@ -138,8 +138,7 @@ class DeveloperService:
                     score += 500.0
         
         # 3. Time-based overdue
-        crawler = dev_data.get("crawler", {})
-        last_maint_str = crawler.get("last_maintenance")
+        last_maint_str = dev_data.get("last_maintenance")
         if not last_maint_str:
             score += 100.0
         else:
@@ -154,7 +153,7 @@ class DeveloperService:
         return score
 
     def record_maintenance(self, dev_slug: str, success: bool):
-        """Updates the 'crawler' section in developer file after maintenance."""
+        """Updates maintenance fields in developer file."""
         dev_file = None
         # Find file
         subdir = self.dev_dir / dev_slug
@@ -168,14 +167,12 @@ class DeveloperService:
 
         try:
             data = json.loads(dev_file.read_text(encoding="utf-8"))
-            crawler = data.setdefault("crawler", {})
-            crawler["last_maintenance"] = _iso(_now_utc())
-            crawler["maintenance_success"] = success
-            data["crawler"] = crawler
+            data["last_maintenance"] = _iso(_now_utc())
+            data["maintenance_success"] = success
             self.dm.create_developer_file(data)
             
             from python_worker.logger_utils import log_to_dev_log
             status = "sukces" if success else "błąd"
-            log_to_dev_log(dev_slug, f"Wędrowiec — konserwacja zakończona ({status}).")
+            log_to_dev_log(dev_slug, f"Konserwacja danych zakończona ({status}).")
         except Exception as e:
             logger.error(f"record_maintenance({dev_slug}) failed: {e}")

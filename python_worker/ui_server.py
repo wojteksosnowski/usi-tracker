@@ -29,14 +29,10 @@ app.register_blueprint(discovery_bp, url_prefix='/api')
 app.register_blueprint(reports_bp, url_prefix='/api')
 app.register_blueprint(poi_bp, url_prefix='/api')
 
-# Czyste, statyczne odpowiedzi informujące frontend o braku wsparcia dla demonów
-@app.route("/api/crawler/status", methods=["GET"])
-def crawler_status_clean():
-    return jsonify({"running": False, "paused": False, "disabled": True, "msg": "Crawlers permanently removed"})
-
-@app.route("/api/doktor/status", methods=["GET"])
-def doktor_status_clean():
-    return jsonify({"running": False, "disabled": True, "msg": "Doktor permanently removed"})
+# Czyste, statyczne odpowiedzi informujące frontend o pasywnym stanie systemu
+@app.route("/api/system/status", methods=["GET"])
+def system_status():
+    return jsonify({"status": "ok", "mode": "passive", "daemons": "disabled"})
 
 @app.route("/api/config")
 def get_config():
@@ -81,19 +77,29 @@ class IgnorePollingFilter(logging.Filter):
         return not any(x in msg for x in [
             "GET /api/jobs", 
             "GET /api/crawler/status", 
-            "POST /api/ui-error",
-            "GET /api/doktor/status"
+            "GET /api/doktor/status",
+            "GET /api/system/status",
+            "POST /api/ui-error"
         ])
 
 logging.getLogger("werkzeug").addFilter(IgnorePollingFilter())
 
 @app.route("/assets/icons/<path:filename>")
-def catch_missing_icons_mock(filename):
+def serve_or_mock_icon(filename):
     """
-    Przechwytuje braki w ikonach frontendu i natychmiast zwraca pustą strukturę SVG,
-    gwarantując status 200, eliminując narzut na obsługę wyjątków 404 i logowanie Werkzeuga.
+    Sprawdza czy ikona istnieje fizycznie na dysku.
+    Jeśli tak - serwuje ją. Jeśli nie - zwraca pusty SVG (status 200) zapobiegając błędom 404.
     """
-    empty_svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>'
+    target_file = UI_DIR / "assets" / "icons" / filename
+    if target_file.is_file():
+        return send_from_directory(UI_DIR / "assets" / "icons", filename)
+
+    # Bezpieczny fallback dla brakujących ikon
+    empty_svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" '
+        'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+        'stroke-linecap="round" stroke-linejoin="round"></svg>'
+    )
     response = app.response_class(empty_svg, mimetype='image/svg+xml')
     response.headers["Cache-Control"] = "public, max-age=604800, immutable"
     return response

@@ -18,7 +18,7 @@ def test_canonical_slug_rp_with_id_match(sync_service):
     }
     sync_service.dm.find_developer_by_id.return_value = {"developer_slug": "usi-canonical-slug"}
     
-    with patch("usi_scrapers.resolve_path", side_effect=lambda data, portal, path: "1234" if "id" in path else "rp-slug"):
+    with patch("usi_scrapers.resolve_path", side_effect=lambda data, path: "1234" if "id" in path else "rp-slug"):
         result = sync_service._canonical_slug_from_raw("rp", raw_details, "fallback")
         
         assert result == "usi-canonical-slug"
@@ -31,7 +31,7 @@ def test_canonical_slug_oto_no_id_match(sync_service):
     }
     sync_service.dm.find_developer_by_id.return_value = None
     
-    with patch("usi_scrapers.resolve_path", side_effect=lambda data, portal, path: "555" if "id" in path else "oto-slug"):
+    with patch("usi_scrapers.resolve_path", side_effect=lambda data, path: "555" if "id" in path else "oto-slug"):
         result = sync_service._canonical_slug_from_raw("oto", raw_details, "fallback")
         
         assert result == "oto-slug"

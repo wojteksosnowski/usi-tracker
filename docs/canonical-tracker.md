@@ -480,6 +480,11 @@ Każdy plik Level 2 **musi** posiadać pole `raw_file` wskazujące na plik źró
 }
 ```
 
+**Pola audytu danych (zastępują dawną zagnieżdżoną strukturę `crawler`):**
+- `last_maintenance` → ISO 8601 timestamp ostatniej weryfikacji.
+- `maintenance_success` → flaga powodzenia ostatniego audytu.
+- `new_since_review` → licznik nowych elementów wykrytych po ostatnim przeglądzie.
+
 **Pola Level 3 — NIE przechowywane w Level 2:**
 - `merged_from` → w `dev_master_*.json`
 - `events` → w `dev_log_*.txt`

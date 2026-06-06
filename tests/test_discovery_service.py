@@ -5,7 +5,7 @@ from python_worker.services.discovery_service import DiscoveryService
 
 @pytest.fixture
 def discovery_service(tmp_path):
-    with patch("python_worker.services.discovery_service.get_scraper_config") as mock_config:
+    with patch("python_worker.services.discovery_service.get_shared_config") as mock_config:
         mock_config.return_value = MagicMock()
         service = DiscoveryService(data_dir=tmp_path / "USIdata")
         service.isvc = MagicMock()

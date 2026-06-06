@@ -23,8 +23,7 @@ def test_create_investment_skeleton_uses_tech_manager(tmp_path):
     target_dir = tmp_path / "ResolvedPath" / "rp" / "12345"
     mock_tech_manager.get_investment_path.return_value = target_dir
     
-    with patch("python_worker.investment_repository.get_scraper_config", return_value=mock_config), \
-         patch("usi_scrapers.manager.TechnicalDataManager", return_value=mock_tech_manager):
+    with patch("python_worker.investment_repository.get_shared_tech_manager", return_value=mock_tech_manager):
         
         # Execute
         target_file = repo.create_investment_skeleton(system_id, portal, portal_id, skeleton_data)
@@ -57,8 +56,8 @@ def test_create_investment_skeleton_fallback_when_config_missing(tmp_path):
         "investment_slug": "inv-slug"
     }
     
-    # Mock config as None
-    with patch("python_worker.investment_repository.get_scraper_config", return_value=None):
+    # Mock tech manager as None
+    with patch("python_worker.investment_repository.get_shared_tech_manager", return_value=None):
         # Execute
         target_file = repo.create_investment_skeleton(system_id, portal, portal_id, skeleton_data)
         

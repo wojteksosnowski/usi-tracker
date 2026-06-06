@@ -12,31 +12,10 @@ window.usiRegister('ViewDownload', function ViewDownload() {
   const [loading, setLoading] = React.useState(false);
   const [results, setResults] = React.useState([]);
   const [errorMsg, setErrorMsg] = React.useState(null);
-  const [crawlerStatus, setCrawlerStatus] = React.useState(null);
-  const [explorationStatus, setExplorationStatus] = React.useState(null);
 
   // Stats
   const totalFound = results.length;
   const newCount = results.filter(r => r.is_new && !r.registered).length;
-
-  const loadCrawlerStatus = React.useCallback(async () => {
-    try {
-      const [status, exploration] = await Promise.all([
-        request('/api/crawler/status'),
-        request('/api/crawler/exploration')
-      ]);
-      setCrawlerStatus(status);
-      setExplorationStatus(exploration);
-    } catch (e) {
-      console.error("Failed to load crawler status", e);
-    }
-  }, [request]);
-
-  React.useEffect(() => {
-    loadCrawlerStatus();
-    const interval = setInterval(loadCrawlerStatus, 5000);
-    return () => clearInterval(interval);
-  }, [loadCrawlerStatus]);
 
   const handleGlobalScan = React.useCallback(async (pages = null) => {
     setLoading(true);
@@ -141,12 +120,6 @@ window.usiRegister('ViewDownload', function ViewDownload() {
     }
   };
 
-  const toggleCrawler = async () => {
-    const isPaused = crawlerStatus?.paused;
-    await request(`/api/crawler/${isPaused ? 'resume' : 'pause'}`, { method: 'POST' });
-    loadCrawlerStatus();
-  };
-
   return (
     <div data-component="ViewDownload" className="usi-p-24 usi-flex-col usi-gap-24">
       
@@ -183,61 +156,6 @@ window.usiRegister('ViewDownload', function ViewDownload() {
         )}
         
         {errorMsg && <div className="usi-pill error usi-m-t-16">{errorMsg}</div>}
-      </section>
-
-      {/* 2. Wędrowiec (Crawler Dashboard) */}
-      <section className="usi-card usi-p-24">
-        <div className="usi-flex-row usi-gap-16" style={{ alignItems: 'center', marginBottom: 20 }}>
-          <div className="usi-flex-1">
-            <h2 className="usi-h2" style={{ marginBottom: 4 }}>Wędrowiec</h2>
-            <p className="usi-body usi-text-secondary">Automatyczny monitoring i eksploracja katalogów portali.</p>
-          </div>
-          <button className={`usi-btn ${crawlerStatus?.paused ? 'outline' : 'danger'}`} onClick={toggleCrawler}>
-             <Icon name={crawlerStatus?.paused ? 'play' : 'pause'} size={14} />
-             {crawlerStatus?.paused ? 'Wznów pracę' : 'Wstrzymaj'}
-          </button>
-        </div>
-
-        <div className="usi-grid usi-gap-16" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
-          
-          {/* Status operacyjny */}
-          <div className="usi-surface-2 usi-p-16 usi-round-12">
-            <h3 className="usi-tiny usi-weight-700 usi-text-secondary usi-uppercase usi-m-b-12">Status operacyjny</h3>
-            <div className="usi-flex-row usi-gap-12" style={{ alignItems: 'center' }}>
-              <div className={`usi-dot ${crawlerStatus?.running && !crawlerStatus?.paused ? 'active' : ''}`} />
-              <div className="usi-weight-600">
-                {crawlerStatus?.paused ? 'Wstrzymany' : (crawlerStatus?.running ? 'Aktywny' : 'Wyłączony')}
-              </div>
-            </div>
-            <div className="usi-m-t-16">
-               <div className="usi-tiny usi-text-secondary">Ostatnia/Bieżąca wizyta:</div>
-               <div className="usi-body usi-weight-500">{crawlerStatus?.current_dev || 'Oczekiwanie...'}</div>
-            </div>
-          </div>
-
-          {/* Eksploracja katalogów */}
-          <div className="usi-surface-2 usi-p-16 usi-round-12">
-            <h3 className="usi-tiny usi-weight-700 usi-text-secondary usi-uppercase usi-m-b-12">Eksploracja katalogów</h3>
-            <div className="usi-flex-col usi-gap-8">
-              {['rp', 'otodom', 'tabelaofert'].map(p => {
-                const stat = explorationStatus?.[p] || {};
-                const progress = stat.total_pages ? Math.round((stat.current_page / stat.total_pages) * 100) : 0;
-                return (
-                  <div key={p} className="usi-flex-col usi-gap-4">
-                    <div className="usi-flex-row" style={{ justifyContent: 'space-between' }}>
-                      <span className="usi-tiny usi-weight-600 usi-uppercase">{p === 'oto' ? 'otodom' : p}</span>
-                      <span className="usi-tiny usi-text-secondary">{stat.current_page || 0} / {stat.total_pages || '?'}</span>
-                    </div>
-                    <div className="usi-progress-bar-bg" style={{ height: 4, background: 'var(--usi-surface-3)', borderRadius: 2 }}>
-                       <div className="usi-progress-bar-fill" style={{ height: '100%', width: `${progress}%`, background: 'var(--usi-accent)', borderRadius: 2 }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-        </div>
       </section>
 
       <style>{`

@@ -234,6 +234,20 @@ class DeveloperRepository:
             else:
                 developer_data["usi_dev_id"] = self.generate_usi_id("DEV")
 
+        # --- MIGRACJA: Spłaszczanie danych z 'crawler' (Level 2) ---
+        # Przenosimy dane z zagnieżdżonego słownika do korzenia rekordu.
+        crawler = developer_data.get("crawler") or existing_data.get("crawler")
+        if isinstance(crawler, dict):
+            if "last_maintenance" in crawler and "last_maintenance" not in developer_data:
+                developer_data["last_maintenance"] = crawler["last_maintenance"]
+            if "new_since_review" in crawler and "new_since_review" not in developer_data:
+                developer_data["new_since_review"] = crawler["new_since_review"]
+            if "maintenance_success" in crawler and "maintenance_success" not in developer_data:
+                developer_data["maintenance_success"] = crawler["maintenance_success"]
+        
+        # Usuwamy sekcję crawler — jest już niekompatybilna z nowym modelem pasywnym
+        developer_data.pop("crawler", None)
+
         # Strip Level 3 fields — they live in dev_master_*.json
         # NOTE: parent_id (hierarchy) is preserved in Level 2 as per schema.
         developer_data.pop("events", None)
@@ -281,38 +295,60 @@ class DeveloperRepository:
                 return candidate
         return None
 
-    def _find_anchor_by_id(self, usi_dev_id: str):
+    def _find_anchor_by_id(self, usi_dev_id: str) -> Path | None:
+        """ Leniwe i zoptymalizowane lokalizowanie pliku kotwicy dewelopera.
+        
+        Sprowadza operację dyskową z katastrofalnego O(N) skanowania całego 
+        drzewa katalogów za pomocą glob() do natychmiastowego sprawdzenia O(1).
+        
+        Args:
+            usi_dev_id (str): Unikalny identyfikator dewelopera USI.
+            
+        Returns:
+            Path | None: Ścieżka do pliku JSON dewelopera lub None w przypadku braku.
+        """
         if not usi_dev_id:
             return None
-        # Fast path: new format
-        for dev_file in self.dev_dir.glob(f"*/usi_dev_{usi_dev_id}_*.json"):
+
+        # Ścieżka bezpośrednia (Szybka ścieżka - O(1))
+        # Sprawdzamy, czy katalog o nazwie identyfikatora lub sluga istnieje bezpośrednio
+        direct_folder = self.data_dir / usi_dev_id
+        if direct_folder.is_dir():
+            target_file = direct_folder / f"usi_dev_{usi_dev_id}.json"
+            if target_file.exists():
+                return target_file
+            
+            # Jeśli nazwa pliku ma dodatkowe sufiksy, iterujemy TYLKO po tym jednym podkatalogu
             try:
-                data = json.loads(dev_file.read_text(encoding="utf-8"))
-                if data.get("usi_dev_id") == usi_dev_id:
-                    return dev_file
-            except Exception:
-                continue
-        # Fallback format
-        for pattern in ("*/usi_dev_*.json", "usi_dev_*.json"):
-            for dev_file in self.dev_dir.glob(pattern):
-                if re.match(r"usi_dev_[A-Z]+-\d+_", dev_file.name):
-                    continue
-                try:
-                    data = json.loads(dev_file.read_text(encoding="utf-8"))
-                    if data.get("usi_dev_id") == usi_dev_id:
-                        return dev_file
-                except Exception:
-                    continue
-        # Legacy format
-        for dev_file in self.data_dir.glob("*/usi_dev_*.json"):
-            if re.match(r"usi_dev_[A-Z]+-\d+_", dev_file.name):
-                continue
-            try:
-                data = json.loads(dev_file.read_text(encoding="utf-8"))
-                if data.get("usi_dev_id") == usi_dev_id:
-                    return dev_file
-            except Exception:
-                continue
+                for f in direct_folder.iterdir():
+                    if f.name.startswith(f"usi_dev_{usi_dev_id}") and f.name.endswith(".json"):
+                        return f
+            except OSError as err:
+                logger.error(f"[IO_ERROR] Failed to quick-scan directory {direct_folder}: {err}")
+
+        # Pamięciowa ścieżka zapasowa (Wykorzystanie Developer Indexer - RAM O(1))
+        try:
+            from python_worker.developer_indexer import get_shared_developer_index
+            dev_index = get_shared_developer_index()
+            if dev_index:
+                dev_data = dev_index.get_developer(usi_dev_id)
+                if dev_data and "slug" in dev_data:
+                    expected_file = self.data_dir / dev_data["slug"] / f"usi_dev_{usi_dev_id}.json"
+                    if expected_file.exists():
+                        return expected_file
+        except Exception as err:
+            logger.debug(f"Developer index shortcut unavailable: {err}")
+
+        # Bezpieczny, jednorzędowy fallback (Bezwzględny zakaz używania gwiazdek '*/' w glob)
+        try:
+            for subdir in self.data_dir.iterdir():
+                if subdir.is_dir():
+                    target_file = subdir / f"usi_dev_{usi_dev_id}.json"
+                    if target_file.exists():
+                        return target_file
+        except OSError as err:
+            logger.error(f"[IO_ERROR] Critical failure during shallow directory iteration: {err}")
+
         return None
 
     def get_developer(self, dev_slug_or_id: str, identifiers: dict = None) -> dict | None:
@@ -323,6 +359,15 @@ class DeveloperRepository:
             
         # 1. If it looks like a USI ID, use the fast ID path
         if str(dev_slug_or_id).startswith("DEV-"):
+            # PRÓBA PRZEZ INDEKS ZAMIAST REPOZYTORIUM (O(1))
+            from . import developer_index
+            index = developer_index.load(self.dev_dir)
+            if index:
+                entry = next((e for e in index if e.get("usi_dev_id") == dev_slug_or_id), None)
+                if entry:
+                    # Enrich and return directly, bypassing recursive lookups
+                    return self._enrich_with_master(entry, identifiers)
+
             return self.get_developer_by_id(dev_slug_or_id)
             
         # 2. Try O(1) index lookup to find the ID by slug or name
@@ -538,15 +583,34 @@ class DeveloperRepository:
     def get_total_pending_count(self, identifiers: dict) -> int:
         """Returns sum of unregistered investments for all active developers."""
         from .services.discovery_service import DiscoveryService
-        ds = DiscoveryService(self.data_dir)
+        from . import developer_index
+        
+        # Pobieramy deweloperów z indeksu - to jest błyskawiczne (RAM)
+        indexed = developer_index.load(self.dev_dir)
+        if not indexed:
+            return 0
 
+        ds = DiscoveryService(self.data_dir)
         total = 0
         seen_slugs = set()
-        for dev in self.list_developers():
-            slug = dev["developer_slug"]
-            if slug not in seen_slugs:
-                total += ds.get_unregistered_count(slug, identifiers)
-                seen_slugs.add(slug)
+        
+        for dev in indexed:
+            # Omijamy dzieci (merged_from)
+            if dev.get("parent_id") or dev.get("is_child"):
+                continue
+                
+            slug = dev.get("developer_slug")
+            if not slug or slug in seen_slugs:
+                continue
+            seen_slugs.add(slug)
+            
+            # KRYTYCZNA OPTYMALIZACJA: Przekazujemy ścieżkę do DiscoveryService,
+            # zamiast pozwalać mu wywoływać get_developer_by_id tysiące razy.
+            # Próbujemy znaleźć katalog dewelopera (powinien być w USIdata/slug)
+            dev_dir = self.data_dir / slug
+            if dev_dir.is_dir():
+                total += ds.get_unregistered_count_from_dir(dev_dir, identifiers)
+                
         return total
 
     # -------------------------------------------------------------------------
@@ -631,14 +695,28 @@ class DeveloperRepository:
         dev["last_updated"] = max(all_mtimes) if all_mtimes else None
         
         # 3. Crawler & Discovery stats
-        dev["new_since_review"] = dev.get("crawler", {}).get("new_since_review", 0)
+        dev["new_since_review"] = dev.get("new_since_review", 0)
         
+        # 4. Maintenance Score (Pre-compute for index)
+        try:
+            from python_worker.services.developer_service import DeveloperService
+            dev_svc = DeveloperService(self.data_dir, self.dev_dir)
+            dev["maintenance_overdue_score"] = dev_svc.get_maintenance_overdue_score(dev)
+        except Exception:
+            dev["maintenance_overdue_score"] = 0
+
         try:
             from python_worker.services.discovery_service import DiscoveryService
             ds = DiscoveryService(self.data_dir)
             if identifiers is None:
                 identifiers = {}
-            dev["unregistered_count"] = ds.get_unregistered_count(base_slug, identifiers)
+            # OPTIMIZATION: If we already have the directory in dev object, use fast count
+            # Actually dev object from index doesn't have directory, but we have slug
+            dev_dir = self.data_dir / base_slug
+            if dev_dir.is_dir():
+                dev["unregistered_count"] = ds.get_unregistered_count_from_dir(dev_dir, identifiers)
+            else:
+                dev["unregistered_count"] = ds.get_unregistered_count(base_slug, identifiers)
         except Exception as e:
             logger.warning(f"Failed to get unregistered_count for {base_slug}: {e}")
             dev["unregistered_count"] = 0

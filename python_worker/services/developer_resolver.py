@@ -1,4 +1,6 @@
 import logging
+from usi_scrapers import api as scraper_api
+from python_worker.url_parser import parse_url
 
 logger = logging.getLogger(__name__)
 
@@ -9,9 +11,6 @@ class DeveloperResolver:
         self.identity = identity_resolver
 
     def resolve_developer_for_registration(self, portal, developer_name, url, vendor_id, force_dev_slug):
-        from usi_scrapers import api as scraper_api
-        from python_worker.url_parser import parse_url
-
         developer_record = None
         dev_slug = force_dev_slug
         inv_slug_from_url = None

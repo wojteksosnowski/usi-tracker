@@ -30,8 +30,7 @@ def test_get_investment_resources_strictly_id_based(tmp_path):
     
     # Patch index loading and TechnicalDataManager
     with patch("python_worker.investment_index.load", return_value=[mock_entry]), \
-         patch("python_worker.services.investment_identity.get_scraper_config", return_value=MagicMock()), \
-         patch("usi_scrapers.manager.TechnicalDataManager", return_value=mock_tech_manager):
+         patch("python_worker.services.investment_identity.get_shared_tech_manager", return_value=mock_tech_manager):
         
         # Execute
         res = resolver.get_investment_resources(inv_id)

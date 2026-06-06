@@ -66,9 +66,11 @@ function DeveloperDetail({
 
   React.useEffect(() => {
     load();
-    // Reset crawler badge when user opens developer detail
-    fetch(`/api/crawler/badge-reset/${usi_dev_id}`, { method: 'POST' }).catch(() => {});
-  }, [load, usi_dev_id]);
+    if (developer && developer.new_since_review > 0) {
+        request(`/api/developer/badge-reset/${usi_dev_id}`, { method: 'POST' })
+          .then(() => refetch('developers'));
+    }
+  }, [load, usi_dev_id, developer?.new_since_review]);
 
   const handleSuggest = () => {
     setSuggesting(true);
@@ -254,16 +256,16 @@ function DeveloperDetail({
           </section>
 
           <aside className="developer-sidebar">
-            <DeveloperSuggestions 
-                suggestions={localSuggestions} 
-                onMerge={handleMerge} 
-                onDismiss={handleDismiss} 
+            <DeveloperSuggestions
+                suggestions={localSuggestions}
+                onMerge={handleMerge}
+                onDismiss={handleDismiss}
                 onSuggest={handleSuggest}
                 loading={suggesting}
             />
             <MergedMembersPanel dev={developer} members={localMerged} arrivingSlug={arrivingSlug} onUnmerge={handleUnmerge} />
             <DeveloperStats dev={developer} onCityClick={setFilterCity} activeCity={filterCity} />
-            <WedrowiecStatus dev={developer} />
+            <MaintenanceStatus dev={developer} /> {/* Oczyszczone z terminologii crawlerów */}
             <DevEventsLog dev={developer} />
             <DeveloperMetadata dev={developer} />
             <DeveloperPortals dev={developer} />
@@ -338,14 +340,12 @@ function DeveloperHeroBand({ dev }) {
   return (
     <div data-component="DeveloperHeroBand" className="developer-hero-band" style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 24, alignItems: 'center' }}>
       <div className="developer-hero-content">
-        <div data-component="Developer-Avatar" className="developer-avatar" style={{ overflow: 'hidden', background: 'white' }}>
+        <div data-component="Developer-Avatar" className="developer-avatar" style={{ overflow: 'hidden', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <img 
             src={logoUrl} 
-            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-            alt=""
+            alt={`Logo ${dev.name}`}
           />
-          <div style={{ display: 'none', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', fontSize: '32px' }}>🏢</div>
         </div>
         <div className="usi-flex-1">
           <div data-component="Developer-TitleRow" className="developer-title-row">
@@ -602,11 +602,13 @@ function MergedMembersPanel({ dev, members, arrivingSlug, onUnmerge }) {
   );
 }
 
-function WedrowiecStatus({ dev }) {
-  const crawler = dev?.crawler || {};
-  const lastVisit = crawler.last_visit;
-  const nextVisit = crawler.next_visit;
-  const found = crawler.last_new_count ?? null;
+function MaintenanceStatus({ dev }) {
+  const lastMaint = dev?.last_maintenance;
+  const overdueScore = dev?.maintenance_overdue_score || 0;
+
+  const statusLabel = overdueScore > 1000 ? "Krytyczne braki" : 
+                      overdueScore > 500  ? "Wymaga uwagi" : 
+                      "Zintegrowany";
 
   const fmt = iso => iso
     ? new Date(iso).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -614,17 +616,23 @@ function WedrowiecStatus({ dev }) {
 
   return (
     <div className="usi-card" style={{ padding: '12px 16px' }}>
-      <div className="usi-label" style={{ marginBottom: 6 }}>Wędrowiec</div>
-      {!lastVisit ? (
+      <div className="usi-label" style={{ marginBottom: 6, color: 'var(--usi-ink-4)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        Kondycja Danych (Health)
+      </div>
+      {!lastMaint ? (
         <div className="usi-tiny usi-text-secondary">
-          Brak wizyt
-          {nextVisit && <> · planowana {fmt(nextVisit)}</>}
+          Brak historii utrzymania danych.
+          <div style={{ marginTop: 4 }}>Status: <b style={{ color: 'var(--usi-red)' }}>{statusLabel}</b></div>
         </div>
       ) : (
-        <div className="usi-tiny" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <span>Ostatnia wizyta: <b>{fmt(lastVisit)}</b></span>
-          <span>Znaleziono: <b>{found === 0 ? 'brak nowych' : `${found} nowych`}</b></span>
-          <span className="usi-text-secondary">Powrót: {fmt(nextVisit)}</span>
+        <div className="usi-tiny" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span>Ostatnia weryfikacja: <b>{fmt(lastMaint)}</b></span>
+          <span>
+             Wskaźnik kondycji:{' '}
+            <b style={{ color: overdueScore > 500 ? 'var(--usi-amber)' : 'var(--usi-green)' }}>
+              {statusLabel} (Score: {overdueScore.toFixed(0)})
+            </b>
+          </span>
         </div>
       )}
     </div>

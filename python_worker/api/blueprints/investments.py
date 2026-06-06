@@ -12,7 +12,7 @@ from python_worker.services.investment_service import InvestmentService
 from python_worker.jobs import job_manager
 from python_worker.api.utils import _valid_slug, _valid_filename
 import python_worker.investment_index as inv_index
-from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR, USI_DEV_DIR, get_shared_config, get_shared_fetcher
+from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR, USI_DEV_DIR, get_shared_config, get_shared_fetcher, get_shared_tech_manager
 from usi_scrapers import api as scraper_api
 
 logger = logging.getLogger(__name__)
@@ -74,50 +74,72 @@ inv_index.on_change(invalidate_list_cache)
 
 
 
-@investments_bp.route("/image/<path:image_path>")
-def serve_image(image_path: str):
-    # 1. Sanity check: absolutnie zero base64 w URL.
-    # Jeśli frontend generuje takie ścieżki, wymaga to zmiany w image_resolver.py.
-    
-    # 2. Bezpieczne łączenie ścieżek (zapobiega path traversal)
-    base_dir = os.path.abspath(PUBLIC_USI_DIR)
-    safe_path = safe_join(base_dir, image_path)
-    
-    if not safe_path or not safe_path.startswith(base_dir):
-        abort(403) # Próba wyjścia poza katalog
-        
-    if not os.path.exists(safe_path):
-        # Jeśli plik fizycznie nie istnieje, po cichu zwracamy placeholder (status 200)
-        # Zapobiega to spamowaniu logów wyjątkami 500 przy brakujących zdjęciach
-        if _PLACEHOLDER_FILE.is_file():
-            return send_file(_PLACEHOLDER_FILE), 200
-        abort(404) # Plik nie istnieje
+@investments_bp.route("/image/<path:filepath>")
+def get_image(filepath):
+    """
+    Pancerna wersja obsługująca URL-encoded znaki (%20, %7B, itp.).
+    Eliminuje pętle rglob/skanowanie dysku przy nieprawidłowo zmapowanych ścieżkach.
+    """
+    if not filepath:
+        abort(400)
 
-    response = send_from_directory(os.path.dirname(safe_path), os.path.basename(safe_path))
-    response.headers["Cache-Control"] = "public, max-age=604800, immutable"
-    return response
+    # KRYTYCZNA POPRAWKA: Odkodowanie znaków procenta (%20 -> spacja, %7B -> {)
+    # Przed tą poprawką os.path.exists() zwracało False i odpalało morderczy dla CPU fallback skanowania dysku.
+    decoded_filepath = unquote(filepath)
+
+    # Bezpieczne łączenie odkodowanej ścieżki do katalogu PUBLIC_USI_DIR (tam są zdjęcia)
+    target_path = safe_join(str(PUBLIC_USI_DIR), decoded_filepath)
+    
+    # Sprawdzamy fizyczną ścieżkę - operacja O(1), zero narzutu CPU
+    if target_path and os.path.exists(target_path):
+        response = send_file(target_path, conditional=False)
+        response.headers["Cache-Control"] = "public, max-age=86400, immutable"
+        return response
+
+    # BEZLITOSNA BLOKADA: Jeśli plik nie istnieje, NATYCHMIAST zwracamy placeholder.
+    # Zakaz jakiegokolwiek rglob(), glob() czy szukania plików na dysku Dropboxa!
+    if _PLACEHOLDER_FILE.exists():
+        response = send_file(_PLACEHOLDER_FILE, mimetype="image/svg+xml")
+        response.headers["Cache-Control"] = "public, max-age=86400, immutable"
+        return response
+
+    abort(404)
 
 @investments_bp.route("/developer/<usi_dev_id>/logo")
 def serve_dev_logo(usi_dev_id):
-    from python_worker.config import USI_DEV_DIR
+    """
+    Serwuje plik logo dewelopera z dysku.
+    W przypadku braku pliku zwraca standardowy wektorowy placeholder UI,
+    eliminując błędy 404 i narzut sieciowy.
+    """
+    from flask import current_app, send_file
     from pathlib import Path
     
+    # Próba pobrania katalogu zasobów dewelopera
     res = developer_manager.get_developer_resources(usi_dev_id)
-    if not res or not res.get("directory"):
-        abort(404)
-        
-    dev_dir = res["directory"]
-    
-    if not dev_dir.exists():
-        abort(404)
-        
-    # Search for logo.*
-    for ext in ['png', 'jpg', 'jpeg', 'webp', 'svg']:
-        logo_path = dev_dir / f"logo.{ext}"
-        if logo_path.exists():
-            return send_file(logo_path)
+    if res and res.get("base_dir"):
+        dev_dir = Path(res["base_dir"])
             
-    abort(404)
+        if dev_dir.exists():
+            # Sprawdzenie obecności fizycznego pliku graficznego
+            for ext in ['png', 'jpg', 'jpeg', 'webp', 'svg']:
+                logo_path = dev_dir / f"logo.{ext}"
+                if logo_path.exists():
+                    return send_file(logo_path)
+                    
+    # Pancerne rozwiązanie: Wbudowany, elegancki placeholder SVG zamiast wywalania 500 lub 404
+    fallback_svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">'
+        '<rect width="100" height="100" fill="#f1f5f9" rx="12"/>'
+        '<path d="M30 75V25H55V35H70V75H30Z" fill="none" stroke="#94a3b8" stroke-width="4" stroke-linejoin="round"/>'
+        '<path d="M38 35H47M38 47H47M38 59H47M60 47H64M60 59H64" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>'
+        '</svg>'
+    )
+    
+    # POPRAWKA: Użycie current_app zamiast investments_bp
+    response = current_app.response_class(fallback_svg, mimetype='image/svg+xml')
+    response.headers["Cache-Control"] = "public, max-age=86400, immutable"
+    return response
 
 @investments_bp.route("/investments")
 def list_investments():
@@ -230,17 +252,51 @@ def rebuild_index():
     return jsonify({"job_id": job_id})
 
 @investments_bp.route("/investment/<system_id>/data")
-def investment_data(system_id):
+def get_investment_data(system_id):
+    """
+    Zwraca pełne, zunifikowane dane inwestycji bezpośrednio z pamięci podręcznej indeksu.
+    Gwarantuje zgodność struktury danych z frontendem, likwiduje pętle żądań i CPU spike.
+    """
+    if not system_id:
+        abort(400)
+
+    # KRYTYCZNA POPRAWKA: Pobieramy dane bezpośrednio z pamięci RAM (inv_index).
+    # Indeks zawiera w 100% zunifikowane dane, poprawne tablice 'photos' ze wszystkimi 7 zdjęciami.
     try:
-        inv = investment_service.get_investment(system_id)
+        # Uwaga: get_entry_by_id przyjmuje tylko system_id, korzystając z globalnego gorącego indeksu.
+        raw_entry = inv_index.get_entry_by_id(system_id)
+        if raw_entry:
+            # Tworzymy kopię, aby nie modyfikować globalnego cache'u w pamięci RAM
+            entry = raw_entry.copy()
+            
+            # Gwarantujemy istnienie struktury wymaganej przez frontend, aby zatrzymać rerender loop
+            if "specifications" not in entry:
+                entry["specifications"] = {}
+            
+            photos = entry.get("photos", [])
+            if not photos:
+                entry["photos"] = []
+                
+            logger.info(f"get_investment_data: Returning {len(photos)} photos for {system_id} from index memory")
+            
+            response = jsonify(entry)
+            # Wymuszamy brak cache'u dla danych, aby frontend zawsze widział pełną galerię po przebudowie indeksu
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            return response
     except Exception as e:
-        logger.error(f"investment_data: Failed to load {system_id}: {e}", exc_info=True)
-        return jsonify({"error": f"Failed to load: {e}"}), 500
+        logger.error(f"[PERF_ALERT] Failed to fetch investment {system_id} from index memory: {e}")
 
-    if inv is None:
-        abort(404)
+    # Awaryjny fallback na wypadek, gdyby nowa inwestycja nie była jeszcze w indeksie
+    tech_manager = get_shared_tech_manager()
+    if tech_manager:
+        try:
+            res = tech_manager.get_investment_technical_data(system_id)
+            if res:
+                return jsonify(res)
+        except Exception as e:
+            logger.error(f"Tech manager failed for fallback: {e}")
 
-    return jsonify(inv), 200
+    abort(404)
 
 @investments_bp.route("/investment/<system_id>/ratings", methods=["POST"])
 def save_ratings(system_id):
@@ -332,33 +388,6 @@ def get_stats():
     return jsonify({"count": count})
 
 
-@investments_bp.route("/system/verify-library")
-def verify_library():
-    """Checks the health of the usi-scrapers library connection (v0.3.0)."""
-    try:
-        config = get_shared_config()
-        if not config:
-            return jsonify({"ok": False, "error": "Scraper config not available"})
-
-        fetcher = get_shared_fetcher()
-        if not fetcher:
-             return jsonify({"ok": False, "error": "Fetcher not available"})
-
-        # In usi-scrapers v0.3.0 health_check returns standardized {ok: bool, ...}
-        result = scraper_api.health_check(config, fetcher)
-
-        # Ensure 'status' key exists for frontend compatibility if result is True
-        if result.get("ok"):
-            result["status"] = "ok"
-
-        return jsonify(result)
-    except (AttributeError, ImportError) as e:
-        logger.warning(f"Library health check failed: {e}")
-        return jsonify({"ok": False, "error": f"Scraper API mismatch: {e}"}), 501
-    except Exception as e:
-        logger.exception("verify_library failed")
-        return jsonify({"ok": False, "error": str(e)}), 500
-
 # ── Developer API ──────────────────────────────────────────────────────────────
 
 @investments_bp.route("/developers")
@@ -392,8 +421,23 @@ def trigger_suggestions():
         # Run it in a separate thread so it doesn't block the UI response
         threading.Thread(target=doktor._refresh_index, name="manual-doktor-refresh", daemon=True).start()
         return jsonify({"ok": True, "message": "Doktor is refreshing the index and investigating."})
-    
+
     return jsonify({"ok": False, "message": "usi_crawlers not available."}), 500
+
+from python_worker.services.developer_service import DeveloperService
+
+@investments_bp.route("/developer/badge-reset/<usi_dev_id>", methods=["POST"])
+def badge_reset(usi_dev_id):
+    """
+    Zeruje licznik nowych inwestycji odkrytych od ostatniego przeglądu dewelopera.
+    """
+    dev_data = developer_manager.get_developer_by_id(usi_dev_id)
+    if not dev_data:
+        abort(404)
+
+    dev_data["new_since_review"] = 0
+    developer_manager.create_developer_file(dev_data)
+    return jsonify({"ok": True})
 
 @investments_bp.route("/developer/<usi_dev_id>")
 def get_developer_detail(usi_dev_id):
@@ -402,28 +446,62 @@ def get_developer_detail(usi_dev_id):
     from python_worker.developer_manager import DeveloperManager
     from python_worker.config import USI_DATA_DIR
     from pathlib import Path
+    import json
     
     dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
     dev = dm.get_developer_by_id(usi_dev_id)
     
-    if not dev: abort(404)
+    if not dev: 
+        abort(404)
 
     target_id = dev.get("usi_dev_id")
 
-    # PRELOAD INDEX ONCE
+    # Inicjalizacja indeksu inwestycji
     import python_worker.investment_index as inv_index
     import python_worker.developer_index as dev_index
     all_invs = inv_index.load(USI_DATA_DIR) or []
     
-    # Group investments by their assigned usi_dev_id (ID-only rule)
+    # Grupowanie inwestycji po przypisanym ID (Zasada ID-only)
     invs_by_dev_id = {}
     for i in all_invs:
         did = i.get("usi_dev_id")
         if did:
             invs_by_dev_id.setdefault(did, []).append(i)
+            
+    # --- POPRAWKA 1: Dynamiczne ładowanie historii zdarzeń z pliku JSONL ---
+    events = []
+    res_info = dm.get_developer_resources(usi_dev_id)
+    if res_info and "files" in res_info and res_info["files"].get("logs"):
+        log_files = res_info["files"]["logs"]
+        if log_files:
+            log_path = Path(log_files[0])
+            if log_path.exists():
+                try:
+                    with open(log_path, "r", encoding="utf-8") as lf:
+                        for line in lf:
+                            if line.strip():
+                                events.append(json.loads(line.strip()))
+                except Exception as le:
+                    logger.warning(f"Nie udało się odczytać dziennika zdarzeń dla {usi_dev_id}: {le}")
+    dev["events"] = sorted(events, key=lambda x: x.get("at", ""), reverse=True)
+
+    # --- TRANSFORMACJA POZBYCIA SIĘ CRAWLERÓW NA RZECZ MAINTENANCE ---
+    dev_service = DeveloperService(Path(USI_DATA_DIR), Path(USI_DATA_DIR).parent / "USIdev")
+    crawler = dev.setdefault("crawler", {})
     
-    from python_worker.developer_manager import DeveloperManager
-    # 1. Collect all valid members and original portal mappings
+    # Obliczamy priorytet overdue na bazie aktualnego stanu (brak logo, brak plików raw)
+    maintenance_score = dev_service.get_maintenance_overdue_score(dev)
+    
+    # Mapujemy stare pola oczekiwane przez frontend na dane z zunifikowanego rekordu (root Level 2)
+    crawler["last_visit"] = dev.get("last_maintenance", None)
+    crawler["last_new_count"] = dev.get("new_since_review", 0)
+    # Zamiast daty następnej wizyty bota, podajemy czy profil wymaga uwagi
+    crawler["next_visit"] = "Wymaga uwagi" if maintenance_score > 500 else "Zintegrowany"
+    
+    # Przypisujemy wyliczony score do obiektu głównego dla celów analitycznych
+    dev["maintenance_overdue_score"] = maintenance_score
+
+    # Zbiorcza alokacja członków i unifikacja źródeł
     base_pm = (dev.get("original_portal_mapping") or dev.get("portal_mapping") or {}).copy()
     valid_members = []
     
@@ -440,11 +518,9 @@ def get_developer_detail(usi_dev_id):
         member["_invs"] = invs_by_dev_id.get(child_id, [])
         valid_members.append(member)
 
-    # 2. Collect base investments
     base_invs = invs_by_dev_id.get(target_id, [])
     base_portals = {p for p in ("rp", "oto", "to") if base_pm.get(p)}
 
-    # 4. Finalize Base Record UI response
     if not base_portals and not base_invs:
         dev["base_record"] = None
     else:
@@ -460,7 +536,6 @@ def get_developer_detail(usi_dev_id):
             ]
         }
 
-    # 5. Finalize Members UI response
     final_members = []
     investments = list(base_invs)
     existing_inv_ids = {i.get("usi_inv_id") for i in base_invs if i.get("usi_inv_id")}
@@ -476,32 +551,24 @@ def get_developer_detail(usi_dev_id):
         m["portal_mapping"] = m["_pm"]
         m["original_portal_mapping"] = m["_pm"] 
         
-        # Aggregate portal mappings for the main record
         for p, pdata in m["_pm"].items():
             if not aggregated_pm.get(p) and pdata:
                 aggregated_pm[p] = pdata
         
-        # Collect for global investments list (deduplicated)
         for inv in m["_invs"]:
             iid = inv.get("usi_inv_id")
             if iid and iid not in existing_inv_ids:
                 investments.append(inv)
                 existing_inv_ids.add(iid)
         
-        # Clean up temp keys
         m.pop("_pm", None); m.pop("_dev", None); m.pop("_invs", None)
         final_members.append(m)
 
     dev["merged_from"] = final_members
     merged_ids = {m.get("usi_dev_id") for m in final_members if m.get("usi_dev_id")}
 
-    dev["portal_mapping"] = aggregated_pm
-    dev["investments_count"] = len(investments)
-    dev["investments"] = investments 
-
-    # Suggestions logic follows...
+    # Budowanie sekcji sugestii powiązań
     valid_suggestions = []
-
     for s in dev.get("suggestions", []):
         s_id = s.get("usi_dev_id")
         if s_id in merged_ids:
@@ -513,9 +580,9 @@ def get_developer_detail(usi_dev_id):
             s["portal_mapping"] = s_dev.get("portal_mapping", {})
             s["website"] = s_dev.get("website")
             
-            s_portals = {p for p in ("rp", "oto", "to") if (s_dev.get("portal_mapping") or {}).get(p)}
-            s_invs_raw = invs_by_dev_id.get(s_dev.get("usi_dev_id"), [])
-            s_invs = [i for i in s_invs_raw if not s_portals or _inv_matches_dev(i, s_dev.get("portal_mapping") or {})]
+            # POPRAWKA 3: Zamiast restrykcyjnego i błędnego filtrowania _inv_matches_dev,
+            # pobieramy rzeczywisty stan posiadania przypisany w indeksie inwestycji.
+            s_invs = invs_by_dev_id.get(s_dev.get("usi_dev_id"), [])
             
             s["investments_count"] = len(s_invs)
             valid_suggestions.append(s)
