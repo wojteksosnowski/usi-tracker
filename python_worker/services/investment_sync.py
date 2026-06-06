@@ -198,42 +198,15 @@ class InvestmentSyncService:
         self.dm.invalidate_identifiers_cache()
         return dev_slug, inv_slug, skeleton["usi_inv_id"]
 
-    def _canonical_slug_from_raw(self, portal: str, raw_details: dict, fallback: str) -> str:
-        """Resolves the canonical USI developer slug by reading it from portal raw data."""
-        full_portal = PORTAL_FULL_DOMAINS.get(portal, portal)
-        dev_meta = scraper_api.extract_developer_meta(raw_details, full_portal)
-
-        portal_id = dev_meta.get("id")
-        if portal_id:
-            dev_record = self.dm.find_developer_by_id(portal, str(portal_id))
-            if dev_record:
-                return dev_record["developer_slug"]
-
-        portal_slug = dev_meta.get("slug")
-        return portal_slug or fallback
-
     def download_raw_json(self, portal: str, identifier: str, system_id: str):
-        if not self.lib_config or not self.fetcher:
-            logger.error("Scraper library not properly configured.")
-            return None
-            
-        
+        """Delegates raw investment download to the usi-scrapers library."""
         try:
-            # 1. Fetch raw data
-            res = scraper_api.fetch_investment(self.lib_config, self.fetcher, portal, identifier)
-            if not res or "raw_details" not in res:
-                return False
-                
-            # 2. Save using high-level API (resolves path internally via TechnicalDataManager)
-            # We use portal_id to ensure the library can find or create the correct folder
-            # without the tracker explicitly providing a filesystem path.
-            # Pass full 'res' (envelope) to allow internal slug extraction if new.
-            scraper_api.save_raw(self.lib_config, res, portal, portal_id=identifier)
-            return True
+            return scraper_api.download_raw(self.lib_config, self.fetcher, portal, identifier)
         except Exception as e:
             logger.error(f"Download raw failed for {portal}/{identifier}: {e}")
             return False
-        
+
+
     def _fetch_and_transform_portal_data(self, system_id, portal, portal_name, raw_prefix, sources, use_local_raw):
         """Fetches raw portal data (local or remote) and transforms it."""
         resources = self.identity.get_investment_resources(system_id)
@@ -245,48 +218,43 @@ class InvestmentSyncService:
         dev_slug = m.get("developer_slug") or "unknown"
         inv_slug = m.get("investment_slug") or inv_dir.name
 
+        # 1. Sprawdź dostępność ID lub URL
         fields = IDENTIFIER_PRIORITIES.get(portal, ["url", "id"])
         identifier = next((sources[portal].get(f) for f in fields if sources[portal].get(f)), None)
+        
+        if not identifier:
+            return None, None, None
 
-        full_portal = PORTAL_FULL_DOMAINS.get(portal, portal)
-
-        if use_local_raw:
-            if not identifier:
-                logger.debug(f"[local-raw] {portal_name}: brak identyfikatora w źródłach dla {system_id}, pomijanie")
-                return None, None, None
-
-            # Tracker nie zna konwencji nazewnictwa pliku — deleguje do biblioteki
-            raw_details = scraper_api.load_raw(self.lib_config, full_portal, str(identifier))
-            if not raw_details:
-                logger.debug(f"[local-raw] {portal_name}: scraper nie znalazł lokalnego pliku raw dla id {identifier}")
-                return None, None, None
-
-            unified_data = AdapterFactory.get_adapter(raw_prefix).transform(raw_details, inv_slug, dev_slug)
-            return unified_data, f"{portal_name} (local)", None
-
-        else:
-            if not identifier:
-                log_to_processing_log(dev_slug, inv_slug, f"Skipped {portal_name}: no identifier in sources")
-                return None, None, None
-
-            try:
-                res = scraper_api.fetch_investment(self.lib_config, self.fetcher, portal, identifier)
-            except Exception as e:
-                error_msg = f"Exception during fetch: {e}"
-                logger.error(f"[{portal_name}] {system_id}: {error_msg}")
-                log_to_processing_log(dev_slug, inv_slug, f"Error fetching from {portal_name}: {error_msg}")
-                return None, None, f"{portal_name} ({error_msg})"
-
-            if res and "raw_details" in res:
-                scraper_api.save_raw(self.lib_config, res, raw_prefix, portal_id=identifier)
-                raw_data = res["raw_details"]
-                unified_data = AdapterFactory.get_adapter(raw_prefix).transform(raw_data, inv_slug, dev_slug)
-                return unified_data, portal_name, None
+        # 2. Wybierz odpowiednią metodę API
+        try:
+            full_portal = PORTAL_FULL_DOMAINS.get(portal, portal)
+            if use_local_raw:
+                 # Sprawdź lokalnie
+                 raw_details = scraper_api.load_raw(self.lib_config, full_portal, str(identifier))
+                 if not raw_details: return None, None, None
+                 raw_data = raw_details
             else:
-                error_msg = res.get("error", "Unknown error") if isinstance(res, dict) else "No valid response"
-                logger.error(f"[{portal_name}] {system_id}: {error_msg}")
-                log_to_processing_log(dev_slug, inv_slug, f"Fetch failed — {portal_name}: {error_msg}")
-                return None, None, f"{portal_name} ({error_msg})"
+                # Użyj poprawnego API z biblioteki
+                if str(identifier).startswith("http"):
+                    res = scraper_api.ingest_investment_by_url(self.lib_config, self.fetcher, portal, identifier)
+                else:
+                    res = scraper_api.refresh_investment_by_id(self.lib_config, self.fetcher, portal, identifier)
+                
+                # Weryfikacja wyniku
+                if res and "error" not in res:
+                    # Automatycznie zapisuje, więc nie musisz wywoływać save_raw ręcznie
+                    raw_data = res
+                else:
+                    error_msg = res.get("error", "Unknown error")
+                    return None, None, f"{portal_name} ({error_msg})"
+                    
+            # 3. Transformacja
+            unified_data = AdapterFactory.get_adapter(raw_prefix).transform(raw_data, inv_slug, dev_slug)
+            return unified_data, portal_name, None
+            
+        except Exception as e:
+            logger.error(f"Sync error: {e}")
+            return None, None, f"{portal_name} ({str(e)})"
 
     def update_investment(self, system_id, use_local_raw=False, skip_images=False, skip_index=False, skip_log=False):
         """

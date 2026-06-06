@@ -5,4 +5,4 @@ python-dotenv
 pytest
 requests-mock
 flask>=3.0
-usi-scrapers==0.9.8  # Zaktualizowano dla fallback API obrazków
+usi-scrapers==1.0.0  # Zaktualizowano dla nowych API endpoints (v1.0.0)

@@ -5,7 +5,8 @@ import threading
 import time
 from pathlib import Path
 from urllib.parse import unquote
-from flask import Blueprint, jsonify, abort, request, send_file, send_from_directory, redirect
+from flask import Blueprint, jsonify, abort, request, send_file, redirect, send_from_directory
+from werkzeug.utils import safe_join
 
 from python_worker.services.investment_service import InvestmentService
 from python_worker.jobs import job_manager
@@ -15,6 +16,10 @@ from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR, USI_DEV_DIR, get_
 from usi_scrapers import api as scraper_api
 
 logger = logging.getLogger(__name__)
+
+# Przeniesione z wnętrza funkcji stałe globalne (Zgodność z PEP 8)
+_PLACEHOLDER_DIR = Path(__file__).parent.parent.parent / "ui" / "assets"
+_PLACEHOLDER_FILE = _PLACEHOLDER_DIR / "image-placeholder.svg"
 
 
 
@@ -67,20 +72,28 @@ def invalidate_list_cache():
 # Register callback for index changes
 inv_index.on_change(invalidate_list_cache)
 
-_PLACEHOLDER_DIR = str(Path(__file__).parent.parent.parent / "ui" / "assets")
-_PLACEHOLDER_FILE = "image-placeholder.svg"
 
-@investments_bp.route("/image/<path:filepath>")
-def serve_image(filepath):
-    decoded = unquote(filepath)
 
-    if ".." in decoded or decoded.startswith("/"):
-        abort(400)
+@investments_bp.route("/image/<path:image_path>")
+def serve_image(image_path: str):
+    # 1. Sanity check: absolutnie zero base64 w URL.
+    # Jeśli frontend generuje takie ścieżki, wymaga to zmiany w image_resolver.py.
+    
+    # 2. Bezpieczne łączenie ścieżek (zapobiega path traversal)
+    base_dir = os.path.abspath(PUBLIC_USI_DIR)
+    safe_path = safe_join(base_dir, image_path)
+    
+    if not safe_path or not safe_path.startswith(base_dir):
+        abort(403) # Próba wyjścia poza katalog
+        
+    if not os.path.exists(safe_path):
+        # Jeśli plik fizycznie nie istnieje, po cichu zwracamy placeholder (status 200)
+        # Zapobiega to spamowaniu logów wyjątkami 500 przy brakujących zdjęciach
+        if _PLACEHOLDER_FILE.is_file():
+            return send_file(_PLACEHOLDER_FILE), 200
+        abort(404) # Plik nie istnieje
 
-    try:
-        return send_from_directory(PUBLIC_USI_DIR, decoded)
-    except Exception:
-        return send_from_directory(_PLACEHOLDER_DIR, _PLACEHOLDER_FILE), 200
+    return send_from_directory(os.path.dirname(safe_path), os.path.basename(safe_path))
 
 @investments_bp.route("/developer/<usi_dev_id>/logo")
 def serve_dev_logo(usi_dev_id):

@@ -1,6 +1,8 @@
 import os
 import logging
 from pathlib import Path
+from usi_scrapers.utils import images as scraper_images
+from python_worker.config import get_shared_config
 
 from python_worker.logger_utils import log_to_processing_log
 
@@ -10,6 +12,7 @@ class ImageSyncService:
     def __init__(self, tech_manager, public_usi_dir: Path):
         self.tech_manager = tech_manager
         self.public_usi_dir = public_usi_dir
+        self.lib_config = get_shared_config()
 
     def sync_investment_images(self, system_id, new_unified, all_urls, skip_images, usi_data, resources):
         """Synchronizes images for the investment."""
@@ -21,7 +24,7 @@ class ImageSyncService:
 
         target_image_dir = resources.get("images_dir")
 
-        if all_urls and self.tech_manager:
+        if all_urls:
             logger.info(f"Synchronizing images for {system_id} ({len(all_urls)} URLs)")
             
             # FAST-PATH: Try to find files already downloaded based on previous state and canonical folder
@@ -74,7 +77,7 @@ class ImageSyncService:
                 if not target_image_dir:
                      logger.warning(f"Could not determine image directory for {system_id}")
                 else:
-                     saved_filenames = self.tech_manager.sync_images(urls_to_download, target_image_dir)
+                     saved_filenames = scraper_images.save_images(urls_to_download, target_image_dir, self.lib_config)
                         
             unique_paths = []
             for url in all_urls:
@@ -95,9 +98,6 @@ class ImageSyncService:
             new_unified["images_count"] = len(unique_paths)
             logger.info(f"Image sync complete for {system_id}: {len(unique_paths)}/{len(all_urls)} paths resolved")
             
-        elif all_urls and not self.tech_manager:
-            logger.warning(f"Image sync skipped for {system_id}: tech_manager not available (check SCRAPERAPI_KEY / config)")
-            log_to_processing_log(system_id, "unknown", "Image sync skipped: scraper config unavailable")
         else:
             # No URLs from scraper — keep whatever is already on disk
             img_dir = target_image_dir

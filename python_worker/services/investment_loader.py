@@ -74,7 +74,7 @@ def load_investment(system_id: str | None = None, usi_file: Path | None = None, 
         return None
 
     # Authoritative image resolution (06.01.10)
-    images = resolve_images(usi, fast_index=fast_index)
+    images = resolve_images(usi, inv_dir=inv_dir, public_usi_dir=public_usi_dir, fast_index=fast_index)
 
     duration = (time.time() - start_t) * 1000
     if not fast_index:
