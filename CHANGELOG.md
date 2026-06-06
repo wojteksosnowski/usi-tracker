@@ -1,5 +1,10 @@
 # Changelog
 
+## Wersja 0.9.61 — Asynchroniczne logowanie — 2026-06-06
+
+### Zmieniono
+- **System logowania** (`main.py`): Wdrożono `QueueHandler` oraz `QueueListener` do asynchronicznego zapisu logów. Operacje zapisu na dysk (FileHandler) odbywają się teraz w osobnym wątku, co eliminuje ryzyko blokowania wątku głównego przy powolnych operacjach I/O (np. Dropbox).
+
 ## Wersja 0.9.60 — Odporna analiza deweloperów — 2026-06-06
 
 ### Naprawiono

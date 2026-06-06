@@ -32,6 +32,43 @@ import logging
 import json
 from pathlib import Path
 from datetime import datetime
+from logging.handlers import QueueHandler, QueueListener
+import queue
+import atexit
+
+# Set up logging for the whole application
+_LOG_FILE = Path(__file__).parent.parent / "logs" / "worker.log"
+_LOG_FILE.parent.mkdir(exist_ok=True)
+_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+_root = logging.getLogger()
+_root.setLevel(logging.INFO)
+
+# Czysty, standardowy FileHandler z buforowaniem (wątek tła zajmie się flushowaniem)
+_file_handler = logging.FileHandler(_LOG_FILE, encoding="utf-8")
+_file_handler.setFormatter(_formatter)
+
+_stream_handler = logging.StreamHandler()
+_stream_handler.setFormatter(_formatter)
+
+# Implementacja asynchronicznej kolejki logów
+_log_queue = queue.Queue(-1)
+_queue_handler = QueueHandler(_log_queue)
+_root.addHandler(_queue_handler)
+
+# Listener przetwarza logi w osobnym wątku, nie blokując głównej pętli CPU
+_listener = QueueListener(_log_queue, _stream_handler, _file_handler, respect_handler_level=True)
+_listener.start()
+
+# Rejestracja zatrzymania listenere przy wyjściu z aplikacji
+atexit.register(_listener.stop)
+
+logger = logging.getLogger("USIWorker")
+
+
+# Global config and fetcher for library operations
+lib_config = get_shared_config()
+lib_fetcher = Fetcher(lib_config) if lib_config else None
 
 from .config import USI_DATA_DIR, USI_DEV_DIR, get_shared_config
 from .adapters import RPAdapter, OtodomAdapter, TOAdapter, Merger
@@ -40,42 +77,6 @@ from usi_scrapers import api as scraper_api
 from .logger_utils import log_to_processing_log
 from .developer_manager import DeveloperManager
 from .services.investment_service import InvestmentService
-
-
-# Set up logging for the whole application
-_LOG_FILE = Path(__file__).parent.parent / "logs" / "worker.log"
-_LOG_FILE.parent.mkdir(exist_ok=True)
-_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-_root = logging.getLogger()
-_root.setLevel(logging.INFO)
-
-
-class ImmediateFileHandler(logging.FileHandler):
-    """FileHandler wymuszający flush() po każdym emit().
-
-    Domyślny FileHandler buforuje zapisy — przy CPU 100% / blokowaniu
-    wątku głównego bufor nigdy nie trafia na dysk przed śmiercią procesu.
-    Ta podklasa eliminuje ten problem: każdy logger.*() jest atomowo
-    zapisany na dysk, zanim sterowanie wróci do kodu aplikacji.
-    """
-
-    def emit(self, record: logging.LogRecord) -> None:  # type: ignore[override]
-        super().emit(record)
-        self.flush()
-
-
-# StreamHandler domyślnie flushuje po każdym emit() — bez zmian.
-# ImmediateFileHandler — wymuszony flush po każdym rekordzie.
-for _h in [logging.StreamHandler(), ImmediateFileHandler(_LOG_FILE)]:
-    _h.setFormatter(_formatter)
-    _root.addHandler(_h)
-
-logger = logging.getLogger("USIWorker")
-
-
-# Global config and fetcher for library operations
-lib_config = get_shared_config()
-lib_fetcher = Fetcher(lib_config) if lib_config else None
 
 def update_developer_profile(dev_slug: str):
     """
