@@ -1,5 +1,33 @@
 import argparse
 import sys
+import os
+
+# Wymuś natychmiastowy zapis logów — krytyczne gdy proces działa za pipem
+# (start-ui.sh), gdzie Python buforuje stdout/stderr w blokach 8 KB.
+os.environ["PYTHONUNBUFFERED"] = "1"
+
+
+class _Unbuffered:
+    """Wymusza flush() po każdym write() na stdout/stderr."""
+    __slots__ = ("_stream",)
+
+    def __init__(self, stream):
+        self._stream = stream
+
+    def write(self, data):
+        self._stream.write(data)
+        self._stream.flush()
+
+    def writelines(self, lines):
+        self._stream.writelines(lines)
+        self._stream.flush()
+
+    def __getattr__(self, attr):
+        return getattr(self._stream, attr)
+
+
+sys.stdout = _Unbuffered(sys.stdout)
+sys.stderr = _Unbuffered(sys.stderr)
 import logging
 import json
 from pathlib import Path

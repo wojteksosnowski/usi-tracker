@@ -11,7 +11,8 @@ from python_worker.services.investment_service import InvestmentService
 from python_worker.jobs import job_manager
 from python_worker.api.utils import _valid_slug, _valid_filename
 import python_worker.investment_index as inv_index
-from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR, USI_DEV_DIR
+from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR, USI_DEV_DIR, get_shared_config, get_shared_fetcher
+from usi_scrapers import api as scraper_api
 
 logger = logging.getLogger(__name__)
 
@@ -218,10 +219,16 @@ def rebuild_index():
 
 @investments_bp.route("/investment/<system_id>/data")
 def investment_data(system_id):
-    inv = investment_service.get_investment(system_id)
+    try:
+        inv = investment_service.get_investment(system_id)
+    except Exception as e:
+        logger.error(f"investment_data: Failed to load {system_id}: {e}", exc_info=True)
+        return jsonify({"error": f"Failed to load: {e}"}), 500
+
     if inv is None:
         abort(404)
-    return jsonify(inv)
+
+    return jsonify(inv), 200
 
 @investments_bp.route("/investment/<system_id>/ratings", methods=["POST"])
 def save_ratings(system_id):
@@ -305,22 +312,18 @@ def download_raw_route(system_id):
         logger.error(f"API Error in {request.path}: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
-@investments_bp.route("/fetch-status")
-def fetch_status():
-    from python_worker.config import USI_DATA_DIR
-    from pathlib import Path
+@investments_bp.route("/stats")
+def get_stats():
     data_root = Path(USI_DATA_DIR)
     count = sum(1 for dev in data_root.iterdir() if dev.is_dir()
                 for inv in dev.iterdir() if inv.is_dir() and list(inv.glob("usi_*.json"))) if data_root.exists() else 0
     return jsonify({"count": count})
 
+
 @investments_bp.route("/system/verify-library")
 def verify_library():
     """Checks the health of the usi-scrapers library connection (v0.3.0)."""
     try:
-        from usi_scrapers import api as scraper_api
-        from python_worker.config import get_shared_config, get_shared_fetcher
-
         config = get_shared_config()
         if not config:
             return jsonify({"ok": False, "error": "Scraper config not available"})
