@@ -5,7 +5,7 @@ import threading
 import time
 from pathlib import Path
 from urllib.parse import unquote
-from flask import Blueprint, jsonify, abort, request, send_file, redirect
+from flask import Blueprint, jsonify, abort, request, send_file, send_from_directory, redirect
 
 from python_worker.services.investment_service import InvestmentService
 from python_worker.jobs import job_manager
