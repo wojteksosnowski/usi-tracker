@@ -1,5 +1,10 @@
 # Changelog
 
+## Wersja 0.9.68 — Usunięcie I/O z endpointu raportów — 2026-06-06
+
+### Zmieniono
+- **`get_pending_summary`** (`reports.py`): Zastąpiono morderczą pętlę skanowania dysku na sztywną odpowiedź JSON z wyzerowanymi wartościami, ponieważ crawlery i scrapery są wyłączone. Eliminuje to potężne obciążenie CPU i całkowity paraliż endpointu `reports/pending-summary`.
+
 ## Wersja 0.9.67 — Blokada ukrytego endpointu weryfikacji — 2026-06-06
 
 ### Naprawiono
