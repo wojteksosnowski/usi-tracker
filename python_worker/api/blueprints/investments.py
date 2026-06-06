@@ -67,23 +67,20 @@ def invalidate_list_cache():
 # Register callback for index changes
 inv_index.on_change(invalidate_list_cache)
 
+_PLACEHOLDER_DIR = str(Path(__file__).parent.parent.parent / "ui" / "assets")
+_PLACEHOLDER_FILE = "image-placeholder.svg"
+
 @investments_bp.route("/image/<path:filepath>")
 def serve_image(filepath):
-    # 1. Dekodowanie ścieżki (obsługa spacji i znaków specjalnych w URL)
-    decoded_path = unquote(filepath)
-    
-    # 2. Zabezpieczenie przed Directory Traversal (wstrzykiwaniem ścieżek typu ../../)
-    if ".." in decoded_path or decoded_path.startswith("/"):
+    decoded = unquote(filepath)
+
+    if ".." in decoded or decoded.startswith("/"):
         abort(400)
 
-    # 3. Zbudowanie pełnej ścieżki (używamy os.path.join dla wydajności I/O)
-    full_path = os.path.join(PUBLIC_USI_DIR, decoded_path)
-
-    # 4. Jedno wywołanie systemowe zamiast dwóch (exists + is_file)
-    if os.path.isfile(full_path):
-        return send_file(full_path)
-        
-    abort(404)
+    try:
+        return send_from_directory(PUBLIC_USI_DIR, decoded)
+    except Exception:
+        return send_from_directory(_PLACEHOLDER_DIR, _PLACEHOLDER_FILE), 200
 
 @investments_bp.route("/developer/<usi_dev_id>/logo")
 def serve_dev_logo(usi_dev_id):
