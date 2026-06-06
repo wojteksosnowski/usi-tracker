@@ -1,32 +1,37 @@
 import logging
+import re
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# Dopuszczalne znaki: litery, cyfry, myślniki, podkreślniki, kropki. Żadnych ścieżek!
+SAFE_FILENAME_PATTERN = re.compile(r'^[a-zA-Z0-9_\-\.]+\.[a-zA-Z0-9]+$')
+
 def resolve_images(usi: dict, inv_dir: Path, public_usi_dir: Path, resources: dict = None, fast_index: bool = False) -> list[str]:
-    """Resolves images to clean relative paths, ignoring invalid or base64 data and non-existent files."""
+    """Resolves images to clean relative paths using a strict filename whitelist."""
     raw = usi.get("image_paths") or [p.strip() for p in usi.get("ratings", {}).get("imgList", "").split(",") if p.strip()]
     
     resolved = []
     if raw:
         for p in raw:
-            # 1. Clean path: extract relative part
+            # 1. Extract path part relative to Public/USI/
             if "Public/USI/" in p:
-                path_part = p.split('Public/USI/')[-1]
+                path_part = p.split('Public/USI/')[-1].lstrip('/')
             else:
-                path_part = p
-            path_part = path_part.lstrip('/')
+                path_part = p.lstrip('/')
             
-            # 2. Heuristic check to discard malformed/base64 strings
-            # A valid relative image path should contain at least one '/' and one '.' (extension)
-            if "/" not in path_part or "." not in path_part or len(path_part) > 255:
-                logger.debug(f"Skipping malformed image path: {path_part}")
+            # 2. Extract filename for regex validation
+            filename = path_part.split('/')[-1]
+            
+            # 3. Walidacja wzorcem
+            if not SAFE_FILENAME_PATTERN.match(filename):
+                logger.debug(f"Odrzucono niebezpieczną nazwę pliku: {filename}")
                 continue
                 
-            # 3. Check existence
+            # 4. Sprawdzenie istnienia przy użyciu pełnej ścieżki relatywnej
             full_path = public_usi_dir / path_part
             if not full_path.exists():
-                logger.debug(f"Image file not found on disk, skipping: {full_path}")
+                logger.debug(f"Image file not found on disk: {full_path}")
                 continue
                 
             resolved.append(f"/api/image/{path_part}")
