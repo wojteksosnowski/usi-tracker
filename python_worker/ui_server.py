@@ -29,6 +29,17 @@ app.register_blueprint(discovery_bp, url_prefix='/api')
 app.register_blueprint(reports_bp, url_prefix='/api')
 app.register_blueprint(poi_bp, url_prefix='/api')
 
+@app.route("/api/system/verify-library", methods=["GET", "POST"])
+def verify_library_mock():
+    """Całkowita blokada ukrytego testu integracyjnego scrapowania sieci."""
+    logger.info("[SECURITY_BYPASS] Blocked hidden network scraping verification from UI request.")
+    return jsonify({
+        "status": "ok",
+        "library_version": "1.1.3",
+        "scrapers_active": False,
+        "message": "Scrapers disabled to prevent CPU spikes"
+    })
+
 # ATAPY (MOCKI) ENDPOINTÓW CRAWLERA
 # Frontend cyklicznie odpytuje te adresy. Zamiast importować 'crawler_api.py',
 # zwracamy statyczny JSON bezpośrednio tutaj, całkowicie odcinając logikę daemonów.

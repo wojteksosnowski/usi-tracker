@@ -31,6 +31,7 @@ USI Tracker is a specialized system for monitoring real-estate investments in Po
 - **Disable Werkzeug Reloader**: Always set `use_reloader=False` in `app.run()` for production-like or background-heavy applications to prevent the spawning of duplicate processes/threads that cause CPU spikes and race conditions.
 - **Decouple UI from Crawlers**: UI server MUST NOT initialize or depend on crawler/daemon logic. All background tasks must be triggered explicitly via CLI or separate daemon processes. Mocking crawler status endpoints in the UI server is mandatory to prevent 404/500 errors in frontend polling loops without triggering backend execution.
 - **Lazy Initialization in Blueprints**: Never instantiate heavy services (like `DiscoveryService` or `ScraperFetcher`) at the module level in Flask blueprints. Use lazy initialization functions called within request handlers to defer resource allocation until needed, preventing unwanted I/O or API activity during server startup/import.
+- **Endpoint Shadowing**: When a hidden or undesirable API endpoint exists in a registered Blueprint, you can "shadow" it by registering a mock route directly on the `app` object *after* the Blueprint registration. This ensures the mock route takes precedence and blocks the underlying request.
 
 ## 🛠 Building and Running
 

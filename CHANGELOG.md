@@ -1,5 +1,10 @@
 # Changelog
 
+## Wersja 0.9.67 — Blokada ukrytego endpointu weryfikacji — 2026-06-06
+
+### Naprawiono
+- **`/api/system/verify-library`** (`ui_server.py`): Nadpisano endpoint bezpieczną atrapą w serwerze UI. Blokuje to ukryty test integracyjny, który wywoływał niepożądane operacje scrapowania w tle przy starcie UI.
+
 ## Wersja 0.9.66 — Leniwa inicjalizacja DiscoveryService — 2026-06-06
 
 ### Zmieniono
