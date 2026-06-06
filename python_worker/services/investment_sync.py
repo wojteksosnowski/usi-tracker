@@ -3,6 +3,14 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+# External libraries (ensuring config is imported first to patch sys.path)
+from python_worker.config import (
+    get_shared_config, get_shared_fetcher, get_shared_tech_manager,
+    USI_DATA_DIR, PUBLIC_USI_DIR
+)
+from usi_scrapers import api as scraper_api
+from usi_scrapers import resolve_path
+
 from python_worker.adapters import AdapterFactory, Merger
 from python_worker.logger_utils import log_to_processing_log
 from python_worker.developer_manager import DeveloperManager
@@ -42,11 +50,10 @@ class InvestmentSyncService:
         self.public_usi_dir = public_usi_dir
         self.dm = developer_manager or DeveloperManager(self.data_dir)
         
-        # 2. SPÓJNA INICJALIZACJA Z JEDNEGO ŹRÓDŁA (Podejście współdzielone/Singleton)
-        from python_worker.config import get_shared_config, get_shared_fetcher, get_shared_tech_manager
+        # Centralized and consistent dependency initialization
         self._lib_config = get_shared_config()
-        self._fetcher = get_shared_fetcher()          # Inicjalizacja raz na żywotność serwera
-        self._tech_manager = get_shared_tech_manager()  # Inicjalizacja raz na żywotność serwera
+        self._fetcher = get_shared_fetcher()
+        self._tech_manager = get_shared_tech_manager()
         self._image_sync = None
             
         from python_worker.services.investment_identity import InvestmentIdentityResolver
@@ -55,7 +62,6 @@ class InvestmentSyncService:
         from python_worker.services.developer_resolver import DeveloperResolver
         self.developer_resolver = DeveloperResolver(self.dm, self, self.identity)
 
-    # 3. CZYSZCZENIE GETTERÓW/SETTERÓW (Są teraz prostsze i bezpieczne)
     @property
     def lib_config(self):
         return self._lib_config
@@ -91,8 +97,6 @@ class InvestmentSyncService:
         if not full_portal:
             return False
             
-        # Bezpośrednie, szybkie użycie czystego API (import wewnątrz by uniknąć problemów z sys.path)
-        from usi_scrapers import api as scraper_api
         data = scraper_api.get_raw_data(self.lib_config, portal=full_portal, portal_id=str(item_id))
         return data is not None
 
@@ -197,7 +201,6 @@ class InvestmentSyncService:
 
     def _canonical_slug_from_raw(self, portal: str, raw_details: dict, fallback: str) -> str:
         """Resolves the canonical USI developer slug by reading it from portal raw data."""
-        from usi_scrapers import resolve_path
         
         # Use authoritative portal ID resolution from library mapping
         portal_id = resolve_path(raw_details, portal, "vendor.id|ad.agency.id|developer_id")
@@ -216,7 +219,6 @@ class InvestmentSyncService:
             logger.error("Scraper library not properly configured.")
             return None
             
-        from usi_scrapers import api as scraper_api
         
         try:
             # 1. Fetch raw data
@@ -236,7 +238,6 @@ class InvestmentSyncService:
         
     def _fetch_and_transform_portal_data(self, system_id, portal, portal_name, raw_prefix, sources, use_local_raw):
         """Fetches raw portal data (local or remote) and transforms it."""
-        from usi_scrapers import api as scraper_api
         
         resources = self.identity.get_investment_resources(system_id)
         if not resources:
@@ -597,7 +598,6 @@ class InvestmentSyncService:
 
         # USUNIĘTO: Nadpisywanie konfiguracji i tworzenie nowego Fetchera na jedno żądanie!
         # Teraz bezpiecznie używamy centralnego self.fetcher oraz globalnego scraper_api
-        from usi_scrapers import api as scraper_api
 
         batch_results = scraper_api.process_batch(
             self.lib_config, self.fetcher, portal, targets, on_progress=on_progress_callback

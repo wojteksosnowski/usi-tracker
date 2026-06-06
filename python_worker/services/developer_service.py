@@ -3,9 +3,10 @@ import logging
 from pathlib import Path
 from datetime import datetime, timezone
 
-from python_worker.config import get_scraper_config
+from python_worker.config import get_shared_config, get_shared_fetcher
 from python_worker.developer_manager import DeveloperManager
 from python_worker.adapters import PORTAL_MAPPING
+from usi_scrapers import api as scraper_api
 from usi_scrapers import resolve_path
 
 logger = logging.getLogger(__name__)
@@ -22,12 +23,9 @@ class DeveloperService:
         self.dev_dir = dev_dir
         self.dm = DeveloperManager(data_dir, dev_dir)
         
-        # Scraper library setup
-        self.lib_config = get_scraper_config()
-        self.lib_fetcher = None
-        if self.lib_config:
-            from usi_scrapers.fetcher import Fetcher
-            self.lib_fetcher = Fetcher(self.lib_config)
+        # Consistent dependency initialization
+        self.lib_config = get_shared_config()
+        self.lib_fetcher = get_shared_fetcher()
 
     def download_dev_profile_raw(self, portal: str, identifier: str, dev_slug: str) -> Path | None:
         """Downloads raw developer profile and its logo via usi-scrapers."""
@@ -35,7 +33,6 @@ class DeveloperService:
             logger.error("Scraper library not properly configured.")
             return None
 
-        from usi_scrapers import api as scraper_api
         try:
             # 1. Download raw profile JSON
             target_dir = self.dev_dir / dev_slug

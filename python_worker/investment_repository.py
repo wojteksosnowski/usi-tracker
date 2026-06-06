@@ -2,7 +2,7 @@ import json
 import logging
 from pathlib import Path
 from datetime import datetime
-from python_worker.config import get_scraper_config
+from python_worker.config import get_shared_tech_manager
 
 logger = logging.getLogger("USIWorker.InvestmentRepo")
 
@@ -47,17 +47,14 @@ class InvestmentRepository:
         Creates a new investment directory and its initial usi_*.json file.
         This uses the ID-only architecture, resolving paths via TechnicalDataManager.
         """
-        from usi_scrapers.manager import TechnicalDataManager
-        
-        config = get_scraper_config()
-        if not config:
+        tech_manager = get_shared_tech_manager()
+        if not tech_manager:
             # Fallback if config is missing, though it shouldn't be in production
             logger.warning("Scraper config missing during skeleton creation. Using legacy path structure as emergency fallback.")
             dev_slug = skeleton_data.get("developer_slug", "unknown")
             inv_slug = skeleton_data.get("investment_slug", system_id)
             inv_dir = self.data_dir / dev_slug / inv_slug
         else:
-            tech_manager = TechnicalDataManager(config)
             inv_dir = tech_manager.get_investment_path(portal, portal_id)
 
         inv_dir.mkdir(parents=True, exist_ok=True)

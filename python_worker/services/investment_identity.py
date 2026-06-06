@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from python_worker.config import get_scraper_config
+from python_worker.config import get_shared_tech_manager
 
 class InvestmentIdentityResolver:
     """
@@ -19,10 +19,7 @@ class InvestmentIdentityResolver:
     @property
     def tech_manager(self):
         if self._tech_manager is None:
-            from usi_scrapers.manager import TechnicalDataManager
-            config = get_scraper_config()
-            if config:
-                self._tech_manager = TechnicalDataManager(config)
+            self._tech_manager = get_shared_tech_manager()
         return self._tech_manager
 
     def build_index(self):

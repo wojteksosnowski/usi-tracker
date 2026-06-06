@@ -319,14 +319,16 @@ def verify_library():
     """Checks the health of the usi-scrapers library connection (v0.3.0)."""
     try:
         from usi_scrapers import api as scraper_api
-        from python_worker.config import get_scraper_config
-        from usi_scrapers.fetcher import Fetcher
+        from python_worker.config import get_shared_config, get_shared_fetcher
 
-        config = get_scraper_config()
+        config = get_shared_config()
         if not config:
             return jsonify({"ok": False, "error": "Scraper config not available"})
 
-        fetcher = Fetcher(config)
+        fetcher = get_shared_fetcher()
+        if not fetcher:
+             return jsonify({"ok": False, "error": "Fetcher not available"})
+
         # In usi-scrapers v0.3.0 health_check returns standardized {ok: bool, ...}
         result = scraper_api.health_check(config, fetcher)
 

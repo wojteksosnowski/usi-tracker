@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 
-from .config import USI_DATA_DIR, USI_DEV_DIR, get_scraper_config
+from .config import USI_DATA_DIR, USI_DEV_DIR, get_shared_config
 from .adapters import RPAdapter, OtodomAdapter, TOAdapter, Merger
 from usi_scrapers.fetcher import Fetcher
 from usi_scrapers import api as scraper_api
@@ -26,7 +26,7 @@ for _h in [logging.StreamHandler(), logging.FileHandler(_LOG_FILE)]:
 logger = logging.getLogger("USIWorker")
 
 # Global config and fetcher for library operations
-lib_config = get_scraper_config()
+lib_config = get_shared_config()
 lib_fetcher = Fetcher(lib_config) if lib_config else None
 
 def update_developer_profile(dev_slug: str):

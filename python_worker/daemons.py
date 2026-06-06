@@ -2,7 +2,7 @@ import logging
 from pathlib import Path
 import json
 
-from python_worker.config import USI_DATA_DIR, USI_DEV_DIR, get_scraper_config
+from python_worker.config import USI_DATA_DIR, USI_DEV_DIR, get_shared_config
 from python_worker.developer_manager import DeveloperManager
 from python_worker.services.developer_service import DeveloperService
 from python_worker.services.discovery_service import DiscoveryService
@@ -166,7 +166,7 @@ def init_crawler(data_dir: Path, dev_dir: Path):
             "developer_manager": DeveloperManager(data_dir, dev_dir),
             "developer_service": DeveloperService(data_dir, dev_dir),
             "discovery_service": DiscoveryService(data_dir),
-            "get_scraper_config": get_scraper_config,
+            "get_scraper_config": get_shared_config,
             "parse_url": parse_url,
             "log_to_dev_log": log_to_dev_log
         }
