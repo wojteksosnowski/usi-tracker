@@ -77,11 +77,8 @@
     const [mode, setMode] = React.useState('grid');
     const devDiscoverRef = React.useRef(null);
     const [devDiscoverActive, setDevDiscoverActive] = React.useState(false);
-    const [crawlerPaused, setCrawlerPaused] = React.useState(false);
 
     React.useEffect(() => {
-      fetch('/api/crawler/status').then(r => r.json()).then(s => setCrawlerPaused(s.paused || false)).catch(() => {});
-      
       // Verify library health on startup
       fetch('/api/system/verify-library')
         .then(r => r.json())
@@ -92,12 +89,6 @@
            setVariable('systemHealth', { ok: false, error: 'Network error' });
         });
     }, [setVariable]);
-
-    const toggleCrawler = () => {
-      const url = crawlerPaused ? '/api/crawler/resume' : '/api/crawler/pause';
-      setCrawlerPaused(v => !v);
-      fetch(url, { method: 'POST' }).catch(() => setCrawlerPaused(v => !v));
-    };
 
     const handleRegisterDiscover = React.useCallback((fn, active) => {
       devDiscoverRef.current = fn;
@@ -406,14 +397,7 @@
                   </select>
                 </div>
               ) : view === 'developers' ? (
-                <button
-                  className={`usi-btn sm ghost`}
-                  onClick={toggleCrawler}
-                  title={crawlerPaused ? "Wznów crawlera" : "Wstrzymaj crawlera"}
-                >
-                  <Icon name={crawlerPaused ? 'star' : 'zap'} size={12} />
-                  {crawlerPaused ? 'Crawler wyłączony' : 'Crawler aktywny'}
-                </button>
+                null
               ) : view === 'detail' && selectedInv ? (
                 <div className="usi-flex-row usi-gap-16">
                   {window.SourceLinks && <window.SourceLinks inv={selectedInv} />}

@@ -14,9 +14,9 @@ function DashboardGrid({ accent, dark, hereApiKey }) {
   const [doktorStatus, setDoktorStatus] = React.useState(null);
 
   React.useEffect(() => {
-    request('/api/crawler/status').then(setCrawlerStatus).catch(() => {});
-    request('/api/doktor/status').then(setDoktorStatus).catch(() => {});
-  }, [request]);
+    setCrawlerStatus({ running: false, paused: false, disabled: true });
+    setDoktorStatus({ running: false, disabled: true });
+  }, []);
 
   // 1:1 map — measure wrapper width, pass it as height
   const mapWrapRef = React.useRef(null);
