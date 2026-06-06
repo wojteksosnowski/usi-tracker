@@ -9,7 +9,7 @@ from python_worker.services.image_resolver import resolve_images
 
 logger = logging.getLogger(__name__)
 
-def load_investment(system_id: str | None = None, usi_file: Path | None = None, data_dir: Path | None = None, public_usi_dir: Path | None = None, fast_index: bool = False, **kwargs) -> dict | None:
+def load_investment(system_id: str | None = None, usi_file: Path | None = None, data_dir: Path | None = None, public_usi_dir: Path | None = None, fast_index: bool = True, **kwargs) -> dict | None:
 
     """
     Unified loader for investment data from disk.
