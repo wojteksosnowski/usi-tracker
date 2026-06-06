@@ -20,6 +20,20 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+from typing import Optional, Any
+
+def safe_round(value: Any, digits: int = 2) -> Optional[float]:
+    """
+    Bezpieczna funkcja zaokrąglająca. 
+    Zapobiega awarii typu: type NoneType doesn't define __round__ method.
+    """
+    if value is None:
+        return None
+    try:
+        return round(float(value), digits)
+    except (ValueError, TypeError):
+        return None
+
 def run_manual_doktor_analysis(data_dir: Path, dev_dir: Path):
     """Performs a one-off similarity analysis and saves results without a daemon."""
     if not HAS_CRAWLERS:
@@ -185,7 +199,13 @@ class TrackerDoktorDelegate:
                             if lat == 0 and lon == 0:
                                 continue
 
-                            bkey = f"{round(lat, 2):.2f}_{round(lon, 2):.2f}"
+                            s_lat = safe_round(lat, 2)
+                            s_lon = safe_round(lon, 2)
+                            
+                            if s_lat is None or s_lon is None:
+                                continue
+
+                            bkey = f"{s_lat:.2f}_{s_lon:.2f}"
                             if bkey not in buckets:
                                 buckets[bkey] = []
                             buckets[bkey].append({

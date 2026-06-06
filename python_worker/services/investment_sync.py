@@ -25,8 +25,21 @@ from python_worker.services.image_resolver import resolve_images
 from python_worker.api.utils import _calculate_distance
 from python_worker.url_parser import parse_url
 import python_worker.investment_index as inv_index
+from typing import Optional, Any
 
 logger = logging.getLogger(__name__)
+
+def safe_round(value: Any, digits: int = 2) -> Optional[float]:
+    """
+    Bezpieczna funkcja zaokrąglająca. 
+    Zapobiega awarii typu: type NoneType doesn't define __round__ method.
+    """
+    if value is None:
+        return None
+    try:
+        return round(float(value), digits)
+    except (ValueError, TypeError):
+        return None
 
 PORTAL_NAMES = {"rp": "RynekPierwotny", "oto": "Otodom", "to": "TabelaOfert"}
 PORTAL_FULL_DOMAINS = {"rp": "rynekpierwotny.pl", "oto": "otodom.pl", "to": "tabelaofert.pl"}
@@ -480,7 +493,7 @@ class InvestmentSyncService:
             if dist <= max_dist_km:
                 nearby.append({
                     "usi_inv_id": other.get("usi_inv_id"),
-                    "distance": round(dist, 2),
+                    "distance": safe_round(dist, 2),
                     "name": other.get("name"),
                     "developer": other.get("developer"),
                     "slug": other.get("slug")

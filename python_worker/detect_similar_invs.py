@@ -9,6 +9,20 @@ import python_worker.investment_index as inv_index
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
+from typing import Optional, Any
+
+def safe_round(value: Any, digits: int = 2) -> Optional[float]:
+    """
+    Bezpieczna funkcja zaokrąglająca. 
+    Zapobiega awarii typu: type NoneType doesn't define __round__ method.
+    """
+    if value is None:
+        return None
+    try:
+        return round(float(value), digits)
+    except (ValueError, TypeError):
+        return None
+
 def detect_similar_invs(data_dir: Path, target_dev_slug: str = None, target_inv_id: str = None, target_inv_slug: str = None):
     """
     Detects similar investments based on location bounds, delivery date, and units count.
@@ -131,7 +145,12 @@ def detect_similar_invs(data_dir: Path, target_dev_slug: str = None, target_inv_
                 score += 0.2
                 reasons.append("Zbliżony deweloper")
             
-            if round(c1[0], 3) == round(c2[0], 3) and round(c1[1], 3) == round(c2[1], 3):
+            s_lat1 = safe_round(c1[0], 3)
+            s_lon1 = safe_round(c1[1], 3)
+            s_lat2 = safe_round(c2[0], 3)
+            s_lon2 = safe_round(c2[1], 3)
+
+            if s_lat1 is not None and s_lat1 == s_lat2 and s_lon1 is not None and s_lon1 == s_lon2:
                 score += 0.4
                 reasons.append("Bardzo bliska geolokalizacja")
             elif lat_diff < 0.005 and lon_diff < 0.005:
@@ -166,7 +185,7 @@ def detect_similar_invs(data_dir: Path, target_dev_slug: str = None, target_inv_
                     "investment_slug": inv2.get("investment_slug"),
                     "name": inv2.get("name"),
                     "reason": ", ".join(reasons),
-                    "score": round(score, 2)
+                    "score": safe_round(score, 2)
                 })
         
         if new_suggestions:
