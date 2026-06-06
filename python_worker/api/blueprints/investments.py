@@ -1,12 +1,17 @@
 import json
 import logging
+import os
+import threading
+import time
 from pathlib import Path
+from urllib.parse import unquote
 from flask import Blueprint, jsonify, abort, request, send_file, redirect
+
 from python_worker.services.investment_service import InvestmentService
 from python_worker.jobs import job_manager
 from python_worker.api.utils import _valid_slug, _valid_filename
 import python_worker.investment_index as inv_index
-import threading
+from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR, USI_DEV_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +68,6 @@ inv_index.on_change(invalidate_list_cache)
 
 @investments_bp.route("/image/<path:filepath>")
 def serve_image(filepath):
-    from python_worker.config import PUBLIC_USI_DIR
-    from pathlib import Path
-    from urllib.parse import unquote
-
     # 1. Dekodowanie ścieżki (obsługa spacji i znaków specjalnych w URL)
     decoded_path = unquote(filepath)
     
@@ -74,12 +75,12 @@ def serve_image(filepath):
     if ".." in decoded_path or decoded_path.startswith("/"):
         abort(400)
 
-    # 3. Zbudowanie pełnej ścieżki do pliku na dysku
-    img_path = Path(PUBLIC_USI_DIR) / decoded_path
+    # 3. Zbudowanie pełnej ścieżki (używamy os.path.join dla wydajności I/O)
+    full_path = os.path.join(PUBLIC_USI_DIR, decoded_path)
 
-    # 4. Jest plik? Serwujemy. Nie ma? Natychmiastowe 404 bez dotykania indeksów.
-    if img_path.exists() and img_path.is_file():
-        return send_file(img_path)
+    # 4. Jedno wywołanie systemowe zamiast dwóch (exists + is_file)
+    if os.path.isfile(full_path):
+        return send_file(full_path)
         
     abort(404)
 

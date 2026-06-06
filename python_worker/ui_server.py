@@ -91,7 +91,7 @@ def run():
     #     crawler.start()
 
     print(f"USI Tracker UI → http://localhost:{UI_PORT}")
-    app.run(host="127.0.0.1", port=UI_PORT, debug=False)
+    app.run(host="127.0.0.1", port=UI_PORT, debug=False, threaded=True)
 
 if __name__ == "__main__":
     run()
