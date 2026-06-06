@@ -1,5 +1,10 @@
 # Changelog
 
+## Wersja 0.9.60 — Odporna analiza deweloperów — 2026-06-06
+
+### Naprawiono
+- **`get_developers_for_analysis` (`daemons.py`)**: Zastąpiono metodę bezpieczniejszą implementacją, która izoluje błędy I/O, zapobiega cyklom w strukturze plików poprzez wykrywanie powtarzających się ścieżek (visited_dirs) i dodaje mechanizm ograniczający obciążenie CPU przy awariach systemu plików (time.sleep(0.1)). Zmieniono `resolve(strict=True)` na `resolve(strict=False)` w celu poprawnej obsługi symlinków.
+
 ## Wersja 0.9.59 — Optymalizacja cache obrazów — 2026-06-06
 
 ### Zmieniono

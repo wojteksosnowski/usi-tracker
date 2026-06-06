@@ -55,7 +55,12 @@ class TrackerDoktorDelegate:
 
     def get_developers_for_analysis(self) -> list[dict]:
         start_t = time.time()
-        devs = self.dm.list_developers()
+        try:
+            devs = self.dm.list_developers()
+        except Exception as e:
+            logger.critical(f"[FATAL] Failed to list developers from manager: {e}")
+            return []
+
         logger.info(
             f"[CRITICAL_TRACE] Daemon: Starting full developer analysis scan. "
             f"Total developers to process: {len(devs)}"
@@ -63,84 +68,86 @@ class TrackerDoktorDelegate:
         processed = []
 
         for d in devs:
-            slug = d["developer_slug"]
+            slug = d.get("developer_slug")
+            if not slug:
+                continue
+                
             norm = normalize_name(d["name"]) if HAS_CRAWLERS else d["name"]
             buckets = {}
             cities = set()
 
             dev_path = self.data_dir / slug
 
-            # --- LOGOWANIE OPERACJI I/O NA DYSKU ---
             logger.info(f"[CRITICAL_TRACE] Entering developer path for filesystem scan: {dev_path}")
-            # ----------------------------------------
 
-            if dev_path.exists():
-                # Zabezpieczenie przed cyklami w systemie plików (symlinki)
-                visited_dirs: set[Path] = set()
+            if not dev_path.exists():
+                continue
 
-                for inv_dir in dev_path.iterdir():
-                    # Cycle detection — resolve do realnej ścieżki
-                    try:
-                        real_path = inv_dir.resolve(strict=True)
-                        if real_path in visited_dirs:
-                            logger.warning(
-                                f"[CYCLE_DETECTED] Loop or duplicate detected: "
-                                f"{inv_dir} -> {real_path}. Skipping."
-                            )
-                            continue
-                        visited_dirs.add(real_path)
-                    except Exception as e:
-                        logger.error(f"[IO_ERROR] Cannot resolve path {inv_dir}: {e}")
+            # Zabezpieczenie przed nieskończonym parsowaniem wadliwych struktur
+            visited_dirs: set[Path] = set()
+            
+            try:
+                sub_dirs = list(dev_path.iterdir())
+            except Exception as e:
+                logger.error(f"[IO_ERROR] Critical failure listing directory {dev_path}: {e}")
+                # Dodaj minimalne opóźnienie, aby zapobiec zarzynaniu CPU w pętli nadrzędnej
+                time.sleep(0.1)
+                continue
+
+            for inv_dir in sub_dirs:
+                try:
+                    real_path = inv_dir.resolve(strict=False) # Zmiana na strict=False zapobiega rzucaniu wyjątków przy braku pliku docelowego symlinka
+                    if real_path in visited_dirs:
+                        logger.warning(f"[CYCLE_DETECTED] Loop or duplicate detected: {inv_dir}. Skipping.")
                         continue
+                    visited_dirs.add(real_path)
+                except Exception as e:
+                    logger.error(f"[IO_ERROR] Cannot resolve path bounds {inv_dir}: {e}")
+                    continue
 
-                    if not inv_dir.is_dir():
-                        continue
+                if not inv_dir.is_dir() or inv_dir.name.startswith("."):
+                    continue
 
-                    logger.info(
-                        f"[CRITICAL_TRACE] Scanning investment directory: "
-                        f"{inv_dir.name!r} under dev: {slug!r}"
-                    )
-
-                    # Find any anchor file in the investment directory
+                # Ograniczenie rglob/glob do czystego iterowania po konkretnym wzorcu
+                try:
                     usi_files = [f for f in inv_dir.glob("usi_*.json") if "usi_dev_" not in f.name]
-                    if not usi_files:
-                        continue
-                    usi_file = usi_files[0]
-                    if usi_file.exists():
-                        try:
-                            with open(usi_file, "r", encoding="utf-8") as fh:
-                                data = json.load(fh)
-                                coords = data.get("location", {}).get("coords")
-                                city = data.get("location", {}).get("city")
-                                if city:
-                                    cities.add(city.strip().lower())
+                except Exception as e:
+                    logger.error(f"[IO_ERROR] Failed to glob files in {inv_dir}: {e}")
+                    continue
 
-                                specs = data.get("specifications", {})
-                                year = specs.get("delivery_year")
-                                quarter = specs.get("delivery_quarter")
+                if not usi_files:
+                    continue
+                
+                usi_file = usi_files[0]
+                try:
+                    with open(usi_file, "r", encoding="utf-8") as fh:
+                        data = json.load(fh)
+                        coords = data.get("location", {}).get("coords")
+                        city = data.get("location", {}).get("city")
+                        if city:
+                            cities.add(city.strip().lower())
 
-                                if coords and len(coords) == 2:
-                                    lat, lon = coords
-                                    # SKIP Null Island [0, 0] to prevent suggestion flooding
-                                    if lat == 0 and lon == 0:
-                                        continue
+                        specs = data.get("specifications", {})
+                        year = specs.get("delivery_year")
+                        quarter = specs.get("delivery_quarter")
 
-                                    bkey = f"{round(lat, 2):.2f}_{round(lon, 2):.2f}"
-                                    if bkey not in buckets:
-                                        buckets[bkey] = []
-                                    buckets[bkey].append({
-                                        "lat": lat, "lon": lon,
-                                        "year": int(year) if year else None,
-                                        "quarter": int(quarter) if quarter else None
-                                    })
-                        except Exception as ex:
-                            logger.error(
-                                f"[IO_ERROR] Failed to read or parse anchor file "
-                                f"in {inv_dir}: {ex}"
-                            )
-                            continue
+                        if coords and len(coords) == 2:
+                            lat, lon = coords
+                            if lat == 0 and lon == 0:
+                                continue
 
-            # Prevent generic collisions on empty or very short names
+                            bkey = f"{round(lat, 2):.2f}_{round(lon, 2):.2f}"
+                            if bkey not in buckets:
+                                buckets[bkey] = []
+                            buckets[bkey].append({
+                                "lat": lat, "lon": lon,
+                                "year": int(year) if year else None,
+                                "quarter": int(quarter) if quarter else None
+                            })
+                except Exception as ex:
+                    logger.error(f"[IO_ERROR] Failed to read or parse anchor file in {inv_dir}: {ex}")
+                    continue
+
             if norm and len(norm) < 3:
                 norm = None
 
