@@ -20,10 +20,30 @@ _LOG_FILE.parent.mkdir(exist_ok=True)
 _formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 _root = logging.getLogger()
 _root.setLevel(logging.INFO)
-for _h in [logging.StreamHandler(), logging.FileHandler(_LOG_FILE)]:
+
+
+class ImmediateFileHandler(logging.FileHandler):
+    """FileHandler wymuszający flush() po każdym emit().
+
+    Domyślny FileHandler buforuje zapisy — przy CPU 100% / blokowaniu
+    wątku głównego bufor nigdy nie trafia na dysk przed śmiercią procesu.
+    Ta podklasa eliminuje ten problem: każdy logger.*() jest atomowo
+    zapisany na dysk, zanim sterowanie wróci do kodu aplikacji.
+    """
+
+    def emit(self, record: logging.LogRecord) -> None:  # type: ignore[override]
+        super().emit(record)
+        self.flush()
+
+
+# StreamHandler domyślnie flushuje po każdym emit() — bez zmian.
+# ImmediateFileHandler — wymuszony flush po każdym rekordzie.
+for _h in [logging.StreamHandler(), ImmediateFileHandler(_LOG_FILE)]:
     _h.setFormatter(_formatter)
     _root.addHandler(_h)
+
 logger = logging.getLogger("USIWorker")
+
 
 # Global config and fetcher for library operations
 lib_config = get_shared_config()

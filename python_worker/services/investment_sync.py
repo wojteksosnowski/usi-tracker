@@ -463,24 +463,51 @@ class InvestmentSyncService:
         """Calculates and returns a list of nearby investments from the global index."""
         if not coords or coords[0] is None or coords[0] == 0:
             return []
-            
+
         lat1, lon1 = coords
         all_invs = inv_index.get_index(self.data_dir)
-        
+
         nearby = []
-        # Rough bounding box check (5km is approx 0.05 lat, 0.08 lon at 52N)
+
+        # --- BEZWZGLĘDNE LOGOWANIE TELEMETRII I BEZPIECZNIK ---
+        total_elements = len(all_invs)
+        logger.info(
+            f"[CRITICAL_TRACE] Starting nearby calculations for ID: {inv_id}. "
+            f"Total index entries to scan: {total_elements}"
+        )
+
+        iteration_counter = 0
+        MAX_ALLOWED_ITERATIONS = 100_000  # Granica bezpieczeństwa
+        # -------------------------------------------------------
+
         for other in all_invs:
+            iteration_counter += 1
+
+            # Logowanie kontrolne co 1000 iteracji z natychmiastowym flush
+            if iteration_counter % 1000 == 0:
+                logger.info(
+                    f"[CRITICAL_TRACE] Nearby loop active. "
+                    f"Iteration: {iteration_counter}/{total_elements} for inv_id: {inv_id}"
+                )
+
+            if iteration_counter > MAX_ALLOWED_ITERATIONS:
+                logger.critical(
+                    f"[LOOP_DETECTED] HARD BREAKER TRIGGERED in _calculate_nearby_investments "
+                    f"for inv_id: {inv_id}! Aborting after {iteration_counter} iterations."
+                )
+                break
+
             if other.get("usi_inv_id") == inv_id:
                 continue
-            
+
             other_coords = other.get("coords")
             if not other_coords or other_coords[0] is None or other_coords[0] == 0:
                 continue
-            
+
             lat2, lon2 = other_coords
             if abs(lat2 - lat1) > 0.06 or abs(lon2 - lon1) > 0.1:
                 continue
-                
+
             dist = _calculate_distance(lat1, lon1, lat2, lon2)
             if dist <= max_dist_km:
                 nearby.append({
@@ -490,7 +517,11 @@ class InvestmentSyncService:
                     "developer": other.get("developer"),
                     "slug": other.get("slug")
                 })
-        
+
+        logger.info(
+            f"[CRITICAL_TRACE] Finished nearby calculations for ID: {inv_id}. "
+            f"Processed {iteration_counter}/{total_elements} entries. Found: {len(nearby)} nearby."
+        )
         nearby.sort(key=lambda x: x["distance"])
         return nearby[:limit]
         
@@ -586,10 +617,28 @@ class InvestmentSyncService:
         )
         success_count = 0
 
+        # --- TELEMETRIA PACZKI ---
+        total_batch_items = len(to_process)
+        logger.info(
+            f"[CRITICAL_TRACE] Entering batch finalization loop. "
+            f"Processing {total_batch_items} items for portal: {portal!r}."
+        )
+        current_item_index = 0
+        # -------------------------
+
         for info, data in zip(to_process, batch_results):
+            current_item_index += 1
+            logger.info(
+                f"[CRITICAL_TRACE] Batch item progress: {current_item_index}/{total_batch_items} "
+                f"-> identifier: {info.get('ident')!r}"
+            )
+
             try:
                 if not data or "error" in data:
-                    logger.warning(f"Batch item failed: {info.get('ident')} - {data.get('error') if data else 'No data'}")
+                    logger.warning(
+                        f"Batch item failed: {info.get('ident')} "
+                        f"- {data.get('error') if data else 'No data'}"
+                    )
                     continue
 
                 dev_slug, inv_slug, vendor_id, item_id = self._merge_batch_info(info, data)
@@ -608,15 +657,23 @@ class InvestmentSyncService:
                     vendor_id=vendor_id,
                     force_dev_slug=dev_slug
                 )
-                
+
                 if res:
                     # register_investment returns (dev_slug, inv_slug, usi_inv_id)
                     _, _, usi_inv_id = res
                     self.update_investment(usi_inv_id, use_local_raw=True, skip_images=True, skip_index=True)
                     success_count += 1
             except Exception as e:
-                logger.error(f"Error finalizing batch item {info.get('ident')}: {e}")
+                logger.error(
+                    f"[BATCH_ERROR] Error finalizing batch item {info.get('ident')}: {e}",
+                    exc_info=True
+                )
 
+        logger.info(
+            f"[CRITICAL_TRACE] Exited batch finalization loop. "
+            f"Processed {current_item_index}/{total_batch_items} items. "
+            f"Successfully finalized: {success_count}."
+        )
         return success_count > 0
 
     def _merge_batch_info(self, info, data):
