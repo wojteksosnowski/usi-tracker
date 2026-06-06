@@ -26,6 +26,7 @@ USI Tracker is a specialized system for monitoring real-estate investments in Po
 - **Cache-Control for Images**: Images served via `/api/image/` MUST include `Cache-Control: public, max-age=604800, immutable` headers. This optimizes frontend gallery performance by reducing redundant server I/O calls for already cached assets.
 - **Robust Filesystem Scanning**: Filesystem operations (like `iterdir()`, `glob()`) MUST be wrapped in robust error handling, use `visited_dirs` set for cycle detection in symlinks, and employ `strict=False` in `resolve()` to handle dangling symlinks without crashing. Use backoff/sleep to mitigate CPU thrashing on repeated I/O errors.
 - **Asynchronous Logging**: Use `QueueHandler` and `QueueListener` for logging to prevent I/O blocking (especially on network drives) from stalling the main application thread.
+- **Lazy Initialization**: Initialize heavy resources (e.g., Scraper Fetcher, DB connections) only upon first access (lazy initialization) rather than at module import level, to speed up startup time and avoid premature resource allocation in UI-only sessions.
 
 ## 🛠 Building and Running
 

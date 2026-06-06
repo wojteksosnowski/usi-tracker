@@ -1,5 +1,11 @@
 # Changelog
 
+## Wersja 0.9.62 — Leniwa inicjalizacja i blokada demonów — 2026-06-06
+
+### Zmieniono
+- **Leniwa inicjalizacja** (`main.py`): Zmieniono inicjalizację `lib_fetcher` na mechanizm `get_lib_fetcher()`. Obiekt inicjalizuje się dopiero przy pierwszym użyciu, co skraca czas startu aplikacji i zapobiega niepotrzebnemu łączeniu się z API przed faktyczną potrzebą.
+- **Blokada demonów w UI** (`ui_server.py`): Upewniono się, że demony (`init_doktor`, `init_crawler`) są wyłączone w trybie UI, zapobiegając automatycznemu obciążaniu systemu w tle przez procesy, które powinny być uruchamiane jawnie.
+
 ## Wersja 0.9.61 — Asynchroniczne logowanie — 2026-06-06
 
 ### Zmieniono

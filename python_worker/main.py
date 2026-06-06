@@ -1,6 +1,21 @@
 import argparse
 import sys
 import os
+import logging
+import json
+from pathlib import Path
+from datetime import datetime
+from logging.handlers import QueueHandler, QueueListener
+import queue
+import atexit
+
+from .config import USI_DATA_DIR, USI_DEV_DIR, get_shared_config
+from .adapters import RPAdapter, OtodomAdapter, TOAdapter, Merger
+from usi_scrapers.fetcher import Fetcher
+from usi_scrapers import api as scraper_api
+from .logger_utils import log_to_processing_log
+from .developer_manager import DeveloperManager
+from .services.investment_service import InvestmentService
 
 # Wymuś natychmiastowy zapis logów — krytyczne gdy proces działa za pipem
 # (start-ui.sh), gdzie Python buforuje stdout/stderr w blokach 8 KB.
@@ -28,13 +43,6 @@ class _Unbuffered:
 
 sys.stdout = _Unbuffered(sys.stdout)
 sys.stderr = _Unbuffered(sys.stderr)
-import logging
-import json
-from pathlib import Path
-from datetime import datetime
-from logging.handlers import QueueHandler, QueueListener
-import queue
-import atexit
 
 # Set up logging for the whole application
 _LOG_FILE = Path(__file__).parent.parent / "logs" / "worker.log"
@@ -67,16 +75,16 @@ logger = logging.getLogger("USIWorker")
 
 
 # Global config and fetcher for library operations
-lib_config = get_shared_config()
-lib_fetcher = Fetcher(lib_config) if lib_config else None
+lib_config = None
+lib_fetcher = None
 
-from .config import USI_DATA_DIR, USI_DEV_DIR, get_shared_config
-from .adapters import RPAdapter, OtodomAdapter, TOAdapter, Merger
-from usi_scrapers.fetcher import Fetcher
-from usi_scrapers import api as scraper_api
-from .logger_utils import log_to_processing_log
-from .developer_manager import DeveloperManager
-from .services.investment_service import InvestmentService
+def get_lib_fetcher():
+    global lib_config, lib_fetcher
+    if lib_fetcher is None:
+        lib_config = get_shared_config()
+        if lib_config:
+            lib_fetcher = Fetcher(lib_config)
+    return lib_fetcher
 
 def update_developer_profile(dev_slug: str):
     """
