@@ -1,5 +1,12 @@
 # Changelog
 
+## Wersja 0.9.69 — Całkowita sterylizacja UI i CLI z logiki daemonów — 2026-06-06
+
+### Usunięto
+- **Interfejs Użytkownika (UI)**: Fizycznie usunięto karty statusu Wędrowca i Doktora z głównego widoku `view-dashboard.jsx` oraz kontrolki sterujące z `app.jsx`. Wyeliminowano tym samym zbędne zapytania sieciowe generujące martwy ruch.
+- **Strażnik CPU**: Usunięto tymczasowy skrypt profilujący `_cpu_killer_detector` z `ui_server.py`, po potwierdzeniu ostatecznej stabilności środowiska.
+- **Dezaktywacja tła**: Wymuszono na sztywno zmienną `HAS_CRAWLERS = False` w module `daemons.py` oraz zablokowano wykonywanie zdezaktualizowanych komend z interfejsu wiersza poleceń (`main.py` -> `suggest`, `daemon-wedrowiec`, `daemon-doktor`). Serwer nie jest w stanie w żaden sposób aktywować procesów scrapujących.
+
 ## Wersja 0.9.68 — Usunięcie I/O z endpointu raportów — 2026-06-06
 
 ### Zmieniono
