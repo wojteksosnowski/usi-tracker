@@ -1,15 +1,21 @@
 import logging
 from flask import Blueprint, jsonify, request, abort
-from python_worker.services.discovery_service import DiscoveryService
 from python_worker.jobs import job_manager
-from python_worker.api.utils import _valid_slug
 
 logger = logging.getLogger(__name__)
 
 _VALID_PORTALS = {"rp", "oto", "to"}
 
 discovery_bp = Blueprint('discovery', __name__)
-discovery_service = DiscoveryService()
+
+# Usunięto: discovery_service = DiscoveryService() z poziomu globalnego
+
+def _get_discovery_service():
+    """Leniwa inicjalizacja serwisu. 
+    Obiekt powstanie TYLKO wtedy, gdy użytkownik jawnie kliknie przycisk w UI.
+    """
+    from python_worker.services.discovery_service import DiscoveryService
+    return DiscoveryService()
 
 @discovery_bp.route("/developer/<system_id>/discover", methods=["POST"])
 def discover_dev_new(system_id):
@@ -17,7 +23,8 @@ def discover_dev_new(system_id):
         abort(400)
 
     def _run_with_event(job_id, s_id, job_manager=None):
-        result = discovery_service.discover_for_developer(s_id, job_id=job_id, job_manager=job_manager)
+        svc = _get_discovery_service()
+        result = svc.discover_for_developer(s_id, job_id=job_id, job_manager=job_manager)
         try:
             from python_worker.api.blueprints.investments import developer_manager
             dm = developer_manager
@@ -51,7 +58,8 @@ def discovery_job(portal):
     
     def _run_discovery_job(job_id, p, ident, lim, pgs):
         job_manager.update_progress(job_id, 10, f"Skanowanie portalu {p}...")
-        results = discovery_service.discovery_by_portal(p, ident, limit=lim, pages=pgs)
+        svc = _get_discovery_service()
+        results = svc.discovery_by_portal(p, ident, limit=lim, pages=pgs)
         job_manager.update_progress(job_id, 100, f"Znaleziono {len(results)} inwestycji na {p}.")
         return results
 
@@ -64,7 +72,8 @@ def discovery(portal):
         return jsonify({"error": f"Unknown portal: {portal}"}), 400
     identifier = request.args.get("id", "").strip()
     try:
-        results = discovery_service.discovery_by_portal(portal, identifier)
+        svc = _get_discovery_service()
+        results = svc.discovery_by_portal(portal, identifier)
         return jsonify(results)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400

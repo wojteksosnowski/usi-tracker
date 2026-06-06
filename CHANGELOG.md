@@ -1,5 +1,10 @@
 # Changelog
 
+## Wersja 0.9.66 — Leniwa inicjalizacja DiscoveryService — 2026-06-06
+
+### Zmieniono
+- **`discovery.py`**: Zlikwidowano globalną instancję `DiscoveryService`, która powodowała inicjalizację warstwy scrapującej przy imporcie blueprintu. Wprowadzono wzorzec leniwej inicjalizacji (`_get_discovery_service`), dzięki czemu serwis powstaje dopiero w momencie żądania API.
+
 ## Wersja 0.9.65 — Całkowita izolacja crawlerów od UI — 2026-06-06
 
 ### Zmieniono
