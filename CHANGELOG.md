@@ -1,5 +1,12 @@
 # Changelog
 
+## Wersja 0.9.73 — Pełna Delegacja Ekstrakcji do Usi-Scrapers — 2026-06-07
+
+### Zmieniono
+- **Refaktoryzacja `init_developers.py`**: Usunięto redundantne, lokalne mapowania pól. Funkcja `_build_dev_from_raws` deleguje teraz ekstrakcję metadanych dewelopera bezpośrednio do publicznego API `usi_scrapers.extract_developer_meta`.
+- **Rygor ID-Only**: Wzmocniono mechanizm ustalania tożsamości dewelopera podczas budowania rekordów Level 2 z plików surowych, opierając się wyłącznie na identyfikatorach technicznych.
+- **Zasady Spójności**: Zapewniono automatyczne czyszczenie i standaryzację nazw przy każdorazowej przebudowie bazy z plików `raw_*.json`.
+
 ## Wersja 0.9.72 — Asynchroniczne Odświeżanie Deweloperów — 2026-06-07
 
 ### Dodano

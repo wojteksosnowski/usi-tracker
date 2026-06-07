@@ -5,8 +5,7 @@ import re
 from pathlib import Path
 from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
 from python_worker.developer_manager import DeveloperManager
-from python_worker.adapters import PORTAL_MAPPING
-from usi_scrapers import resolve_path
+from usi_scrapers import api as scraper_api
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -127,13 +126,15 @@ def init_developers_from_konkurenci(
 
 def _build_dev_from_raws(dev_subdir: Path, dev_slug: str, dev_name: str, dm: DeveloperManager) -> bool:
     """Builds per-portal usi_dev_*.json files from whichever raw files exist in the subdir."""
+    from usi_scrapers import api as scraper_api
+
     raw_files = list(dev_subdir.glob("raw_*.json"))
     if not raw_files:
         return False
 
     built = False
     for raw_file in raw_files:
-        # Expected filename: raw_{portal}_{id}.json or raw_{portal}_{slug}.json
+        # Oczekiwany wzorzec nazwy pliku: raw_{portal}_{id}.json
         parts = raw_file.stem.split("_")
         if len(parts) < 3:
             continue
@@ -147,32 +148,25 @@ def _build_dev_from_raws(dev_subdir: Path, dev_slug: str, dev_name: str, dm: Dev
                 continue
             raw_data = json.loads(raw_text)
             
-            # Extract portal-specific ID from raw data using portal mapping
-            pm_config = PORTAL_MAPPING.get(portal, {}).get("developer", {})
+            # KRYTYCZNA POPRAWKA: Bezwzględna delegacja ekstrakcji do bazy mapowań usi-scrapers
+            meta = scraper_api.extract_developer_meta(raw_data, portal)
+            portal_id = meta.get("id")
             
-            # 1. Try resolve_path (standard library logic)
-            portal_id = resolve_path(raw_data, pm_config.get("id"))
-            
-            # 2. Fallback for mock files and common patterns
-            if not portal_id:
-                portal_id = raw_data.get("id") or raw_data.get("agency_id") or raw_data.get("vendor_id")
-            
-            # 3. Fallback: Extract from filename (raw_{portal}_{id}.json)
+            # Pancerne zabezpieczenie: awaryjny fallback na ID z nazwy pliku (dla starych makiet)
             if not portal_id:
                 if len(parts) >= 3 and parts[2] != dev_slug:
                     portal_id = parts[2]
             
-            # Build portal_mapping for this specific file
-            pm = { "rp": None, "oto": None, "to": None }
+            # Budowa struktury portal_mapping dla pojedynczego pliku Level 2
+            pm = {"rp": None, "oto": None, "to": None}
             
-            # Ensure we store the technical ID correctly
             if portal == "oto":
-                pm["oto"] = { "agency_id": str(portal_id) if portal_id else None, "slug": dev_slug }
+                pm["oto"] = {"agency_id": str(portal_id) if portal_id else None, "slug": dev_slug}
             else:
-                pm[portal] = { "id": str(portal_id) if portal_id else None, "slug": dev_slug }
+                pm[portal] = {"id": str(portal_id) if portal_id else None, "slug": dev_slug}
             
-            # Ensure name is not null
-            name = dev_name or resolve_path(raw_data, pm_config.get("name")) or raw_data.get("name") or dev_slug
+            # Ustalenie nazwy z zachowaniem hierarchii ważności źródeł
+            name = dev_name or meta.get("name") or raw_data.get("name") or dev_slug
             
             dev_data = {
                 "developer_slug": dev_slug,
