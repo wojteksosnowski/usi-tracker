@@ -74,10 +74,14 @@ function DeveloperDetail({
 
   const handleSuggest = () => {
     setSuggesting(true);
-    request('/api/developer/suggest', { method: 'POST' })
+    // KRYTYCZNA POPRAWKA FRONTENDU: Uderzamy w endpoint izolowany dla tego konkretnego ID
+    request(`/api/developer/${usi_dev_id}/suggest`, { method: 'POST' })
       .then(() => {
-        load(true);
+        load(true); // Ponowne załadowanie danych profilu (wymusi live-engine)
         refetch('developers');
+      })
+      .catch(err => {
+        console.error("Błąd żądania sugestii:", err);
       })
       .finally(() => setSuggesting(false));
   };

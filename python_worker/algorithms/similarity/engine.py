@@ -76,8 +76,12 @@ class DeveloperMatcher:
                 is_clone = (score >= 0.95)
                 
             if is_clone and candidate.get("suggestions"):
-                # Mapujemy co ten bliźniak sądzi o innych: {candidate_id: score}
-                clones_suggestions_map[c_id] = {s["usi_dev_id"]: s["score"] for s in candidate["suggestions"] if "usi_dev_id" in s}
+                # Przechwytujemy tylko te klony, które mają numeryczny score
+                clones_suggestions_map[c_id] = {
+                    s["usi_dev_id"]: s["score"] 
+                    for s in candidate["suggestions"] 
+                    if "usi_dev_id" in s and "score" in s
+                }
 
         # GŁÓWNA PĘTLA PORÓWNAWCZA
         for candidate in all_developers:
@@ -85,17 +89,17 @@ class DeveloperMatcher:
             if self._is_excluded(target_dev, candidate, dismissed_cache):
                 continue
 
-            # OPTYMALIZACJA 1: Przeszukanie lustrzane w pamięci RAM.
-            # Jeśli kandydat (B) ma już w swojej tablicy sugestię dotyczącą targetu (A),
-            # pobieramy ten wynik natychmiast bez uruchamiania ciężkich strategii.
+            # PANCERNA POPRAWKA: Przeszukanie lustrzane działa WYŁĄCZNIE, 
+            # gdy w cache RAM/pliku kandydat posiada jawnie wyliczone i zapisane pole 'score'.
+            # Brak tego pola oznacza stary format – wymuszamy wtedy pełne przeliczenie CPU.
             mirror_sug = next((s for s in candidate.get("suggestions", []) if s.get("usi_dev_id") == target_id), None)
-            if mirror_sug:
+            if mirror_sug and "score" in mirror_sug:
                 suggestions.append({
                     "source_id": target_id,
                     "target_id": cand_id,
                     "target_slug": candidate.get("developer_slug") or "unknown",
                     "reason": f"[Lustro RAM] {mirror_sug.get('reason')}",
-                    "score": mirror_sug.get("score", 0.0)
+                    "score": float(mirror_sug["score"])
                 })
                 continue
 
@@ -128,7 +132,9 @@ class DeveloperMatcher:
                 suggestions.append({
                     "source_id": target_id,
                     "target_id": cand_id,
+                    "usi_dev_id": cand_id,  # DUBLOWANIE KLUCZA DLA ABSOLUTNEJ SPÓJNOŚCI API/UI
                     "target_slug": candidate.get("developer_slug") or "unknown",
+                    "developer_slug": candidate.get("developer_slug") or "unknown",
                     "reason": best_reason,
                     "score": round(best_score, 4)
                 })
@@ -160,13 +166,16 @@ def calculate_similarities(devs: List[Dict[str, Any]], dismissed_cache: Dict[str
         
         # Aktualizujemy obiekt w pamięci podręcznej RAM dla kolejnych deweloperów w pętli batcha!
         # To kluczowe, aby następne iteracje widziały co wyliczył dev1.
+        # KRYTYCZNA POPRAWKA: Zapisujemy w RAM tylko te sugestie, które spełniają próg (score >= 0.75).
+        # Brak filtrowania w tym miejscu powodował zalewanie pamięci tysiącami śmieciowych par o score > 0.0.
         dev1["suggestions"] = [
             {
                 "usi_dev_id": s["target_id"],
+                "target_id": s["target_id"], # Pancerne powielenie klucza ID
                 "developer_slug": s["target_slug"],
                 "score": s["score"],
                 "reason": s["reason"]
-            } for s in suggestions
+            } for s in suggestions if s["score"] >= 0.75
         ]
 
     return all_suggestions

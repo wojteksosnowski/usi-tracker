@@ -488,12 +488,12 @@ def badge_reset(usi_dev_id):
 @investments_bp.route("/developer/<usi_dev_id>")
 def get_developer_detail(usi_dev_id):
     import time
-    t0 = time.time()
-    from python_worker.developer_manager import DeveloperManager
-    from python_worker.config import USI_DATA_DIR
     from pathlib import Path
     import json
-    
+    from python_worker.developer_manager import DeveloperManager
+    from python_worker.config import USI_DATA_DIR
+    from python_worker.algorithms.similarity.engine import DeveloperMatcher
+
     dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
     dev = dm.get_developer_by_id(usi_dev_id)
     
@@ -505,11 +505,8 @@ def get_developer_detail(usi_dev_id):
     # Inicjalizacja indeksu inwestycji
     import python_worker.investment_index as inv_index
     all_invs = inv_index.load(USI_DATA_DIR) or []
-    
-    # Pobranie portal mapping aktualnego dewelopera do ewentualnego dopasowania fallback
     dev_pm = dev.get("portal_mapping", {})
     
-    # Grupowanie inwestycji po przypisanym ID z pancerzowanym fallbackiem portalowym
     base_invs = []
     invs_by_dev_id = {}
     
@@ -517,13 +514,12 @@ def get_developer_detail(usi_dev_id):
         did = i.get("usi_dev_id")
         if did:
             invs_by_dev_id.setdefault(did, []).append(i)
-            if did == target_id:
+            if str(did) == str(target_id):
                 base_invs.append(i)
-        # Fallback: Jeśli inwestycja nie ma przypisanego usi_dev_id, ale pasuje portalowo do dewelopera
         elif _inv_matches_dev(i, dev_pm):
             base_invs.append(i)
             
-    # --- POPRAWKA 1: Dynamiczne ładowanie historii zdarzeń z pliku JSONL ---
+    # Ładowanie historii zdarzeń
     events = []
     res_info = dm.get_developer_resources(usi_dev_id)
     if res_info and "files" in res_info and res_info["files"].get("logs"):
@@ -540,31 +536,24 @@ def get_developer_detail(usi_dev_id):
                     logger.warning(f"Nie udało się odczytać dziennika zdarzeń dla {usi_dev_id}: {le}")
     dev["events"] = sorted(events, key=lambda x: x.get("at", ""), reverse=True)
 
-    # --- TRANSFORMACJA POZBYCIA SIĘ CRAWLERÓW NA RZECZ MAINTENANCE ---
+    # Transformacja na rzecz maintenance
     dev_service = DeveloperService(Path(USI_DATA_DIR), Path(USI_DATA_DIR).parent / "USIdev")
     crawler = dev.setdefault("crawler", {})
-    
-    # Obliczamy priorytet overdue na bazie aktualnego stanu (brak logo, brak plików raw)
     maintenance_score = dev_service.get_maintenance_overdue_score(dev)
     
-    # Mapujemy stare pola oczekiwane przez frontend na dane z zunifikowanego rekordu (root Level 2)
     crawler["last_visit"] = dev.get("last_maintenance", None)
     crawler["last_new_count"] = dev.get("new_since_review", 0)
-    # Zamiast daty następnej wizyty bota, podajemy czy profil wymaga uwagi
     crawler["next_visit"] = "Wymaga uwagi" if maintenance_score > 500 else "Zintegrowany"
-    
-    # Przypisujemy wyliczony score do obiektu głównego dla celów analitycznych
     dev["maintenance_overdue_score"] = maintenance_score
 
-    # Zbiorcza alokacja członków i unifikacja źródeł
+    # Skład rekordu
     base_pm = (dev.get("original_portal_mapping") or dev.get("portal_mapping") or {}).copy()
     valid_members = []
     
     for member in dev.get("merged_from", []):
         child_id = member.get("usi_dev_id")
         child_dev = dm.get_developer_by_id(child_id) if child_id else None
-        
-        if not child_dev or child_dev.get("usi_dev_id") == dev.get("usi_dev_id"):
+        if not child_dev or str(child_dev.get("usi_dev_id")) == str(dev.get("usi_dev_id")):
             continue
             
         member["slug"] = child_dev.get("developer_slug")
@@ -593,7 +582,6 @@ def get_developer_detail(usi_dev_id):
     final_members = []
     investments = list(base_invs)
     existing_inv_ids = {i.get("usi_inv_id") for i in base_invs if i.get("usi_inv_id")}
-    
     aggregated_pm = base_pm.copy()
     
     for m in valid_members:
@@ -619,34 +607,110 @@ def get_developer_detail(usi_dev_id):
         final_members.append(m)
 
     dev["merged_from"] = final_members
-    merged_ids = {m.get("usi_dev_id") for m in final_members if m.get("usi_dev_id")}
+    merged_ids = {str(m.get("usi_dev_id")) for m in final_members if m.get("usi_dev_id")}
 
-    # Budowanie sekcji sugestii powiązań
+    # --- BEZLITOSNY LIVE-ENGINE INJECTION (Ominięcie zepsutego cache dyskowego) ---
+    # Ładujemy wszystkich deweloperów bezpośrednio z ich fizycznych plików dyskowych, 
+    # aby mieć 100% pewności, że stan pamięci RAM jest idealny i świeży.
+    try:
+        from python_worker.daemons import TrackerDoktorDelegate
+        delegate = TrackerDoktorDelegate(Path(USI_DATA_DIR), Path(USI_DEV_DIR))
+        fresh_all_developers = delegate.get_developers_for_analysis()
+        dismissed = delegate.get_dismissed_cache()
+        
+        matcher = DeveloperMatcher()
+        # Generujemy sugestie w czasie rzeczywistym przy żądaniu HTTP!
+        live_suggestions = matcher.find_suggestions_for_developer(dev, fresh_all_developers, dismissed)
+    except Exception as engine_err:
+        logger.error(f"Krytyczny błąd generowania live-sugestii w API: {engine_err}", exc_info=True)
+        live_suggestions = []
+
     valid_suggestions = []
-    for s in dev.get("suggestions", []):
-        s_id = s.get("usi_dev_id")
-        if s_id in merged_ids:
+    for s in live_suggestions:
+        s_id = str(s.get("target_id") or s.get("usi_dev_id"))
+        if s_id in merged_ids or s_id == str(target_id):
             continue
 
         s_dev = dm.get_developer_by_id(s_id)
         if s_dev:
-            s["name"] = s_dev.get("name", s_id)
-            s["portal_mapping"] = s_dev.get("portal_mapping", {})
-            s["website"] = s_dev.get("website")
-            
-            # POPRAWKA 3: Zamiast restrykcyjnego i błędnego filtrowania _inv_matches_dev,
-            # pobieramy rzeczywisty stan posiadania przypisany w indeksie inwestycji.
-            s_invs = invs_by_dev_id.get(s_dev.get("usi_dev_id"), [])
-            
-            s["investments_count"] = len(s_invs)
-            valid_suggestions.append(s)
+            # Rygorystyczne mapowanie pod frontend Reacta
+            valid_suggestions.append({
+                "usi_dev_id": s_id,
+                "target_id": s_id,
+                "developer_slug": s_dev.get("developer_slug", "unknown"),
+                "name": s_dev.get("name", s_id),
+                "reason": s.get("reason", "Podobieństwo systemowe"),
+                "score": s.get("score", 1.0),
+                "portal_mapping": s_dev.get("portal_mapping", {}),
+                "website": s_dev.get("website"),
+                "investments_count": len(invs_by_dev_id.get(s_id, []))
+            })
 
     dev["suggestions"] = valid_suggestions
     dev["investments"] = investments
     dev["investments_count"] = len(investments)
     dev["portal_mapping"] = aggregated_pm
     
-    return jsonify(dev)
+    # Wymuszamy brak jakiegokolwiek cache'owania HTTP dla tego widoku
+    response = jsonify(dev)
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return response
+
+@investments_bp.route("/developer/<usi_dev_id>/suggest", methods=["POST"])
+def trigger_isolated_developer_suggestions(usi_dev_id):
+    """
+    Uruchamia analizę podobieństwa wyłącznie dla jednego dewelopera.
+    Gwarantuje wykonanie dokładnie 1 operacji zapisu dyskowego (izolacja I/O).
+    """
+    try:
+        from python_worker.algorithms.similarity.engine import DeveloperMatcher
+        from python_worker.daemons import TrackerDoktorDelegate
+        
+        # 1. Pobierz profil dewelopera z dysku
+        target_dev = developer_manager.get_developer_by_id(usi_dev_id)
+        if not target_dev:
+            abort(404)
+            
+        # 2. Załaduj bazę z gotowego indeksu w pamięci RAM (Zero Disk I/O narzutu)
+        delegate = TrackerDoktorDelegate(Path(USI_DATA_DIR), Path(USI_DEV_DIR))
+        all_developers = delegate.get_developers_for_analysis()
+        dismissed = delegate.get_dismissed_cache()
+        
+        # 3. Wylicz powiązania tylko i wyłącznie dla tego jednego dewelopera
+        matcher = DeveloperMatcher()
+        suggestions = matcher.find_suggestions_for_developer(target_dev, all_developers, dismissed)
+        
+        # 4. Rygorystyczny filtr progowy - odcinamy szum o niskim score
+        MIN_SCORE = 0.75
+        filtered_suggestions = [
+            {
+                "usi_dev_id": s["target_id"],
+                "developer_slug": s["target_slug"],
+                "reason": s["reason"],
+                "score": s["score"]
+            }
+            for s in suggestions if s["score"] >= MIN_SCORE
+        ]
+        
+        # 5. Zapis izolowany - modyfikujemy tylko wywołany rekord
+        target_dev["suggestions"] = filtered_suggestions
+        developer_manager.create_developer_file(target_dev)
+        
+        # WYMUSZENIE: Aktualizujemy obiekt w globalnej pamięci podręcznej indeksu (RAM),
+        # aby inne kontrolery i widoki detaliczne natychmiast zobaczyły nowe, poprawne dane.
+        try:
+            import python_worker.developer_index as dev_index
+            # Invalidate global hot index cache to reflect the disk change
+            dev_index.invalidate_cache_for_id(usi_dev_id)
+        except (ImportError, AttributeError):
+            pass
+
+        logger.info(f"[IO_SUCCESS] Izolowany skan dla {usi_dev_id}. Zapisano 1 plik, wykryto {len(filtered_suggestions)} sugestii.")
+        return jsonify({"ok": True, "count": len(filtered_suggestions)})
+        
+    except Exception as e:
+        logger.error(f"Isolated suggest crash: {e}", exc_info=True)
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 @investments_bp.route("/developer/<usi_dev_id>/merge", methods=["POST"])
 def merge_developer(usi_dev_id):
