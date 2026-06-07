@@ -479,7 +479,7 @@ def main():
         from python_worker.daemons import TrackerDoktorDelegate
         delegate = TrackerDoktorDelegate(USI_DATA_DIR, USI_DEV_DIR)
         try:
-            from usi_crawlers.algorithms.similarity import calculate_similarities
+            from python_worker.algorithms.similarity.engine import calculate_similarities
             devs = delegate.get_developers_for_analysis()
             dismissed = delegate.get_dismissed_cache()
             suggestions = calculate_similarities(devs, dismissed)
@@ -502,8 +502,8 @@ def main():
             for dev_id, sugs in grouped.items():
                 delegate.save_suggestions(dev_id, sugs)
             logger.info(f"Suggestion algorithm finished. Found {len(unique_suggestions)} unique pairs.")
-        except ImportError as e:
-            logger.error(f"usi_crawlers import failed: {e}")
+        except Exception as e:
+            logger.error(f"Similarity algorithm failed: {e}")
 
     elif args.command == "suggest-invs":
         from .detect_similar_invs import detect_similar_invs

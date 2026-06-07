@@ -264,21 +264,16 @@ def run_matcher(data_dir: Path, output_path: Path, min_confidence: str = "low") 
     return len(filtered)
 
 
-def filter_new_investments(discovered_items: list[dict], portal: str) -> list[dict]:
+def filter_new_investments(discovered_items: list, portal: str, existing_identifiers: dict) -> list:
     """
-    Adds 'is_new' and 'registered' flags to discovered items by comparing with existing USIdata.
-    portal: 'rp' or 'otodom'
+    Dodaje flagi 'is_new' oraz 'registered' do odkrytych przedmiotów.
+    existing_identifiers: Słownik zawierający zestawy (sets) rp_ids, oto_ids, oto_slugs, to_ids
+                          pobrany wcześniej z DeveloperManager.
     """
-    from .developer_manager import DeveloperManager
-    from .config import USI_DATA_DIR
-
-    dm = DeveloperManager(USI_DATA_DIR)
-    identifiers = dm.get_existing_identifiers()
-
-    rp_ids = identifiers["rp_ids"]
-    oto_ids = identifiers["oto_ids"]
-    oto_slugs = identifiers["oto_slugs"]
-    to_ids = identifiers.get("to_ids", set())
+    rp_ids = existing_identifiers.get("rp_ids", set())
+    oto_ids = existing_identifiers.get("oto_ids", set())
+    oto_slugs = existing_identifiers.get("oto_slugs", set())
+    to_ids = existing_identifiers.get("to_ids", set())
 
     for item in discovered_items:
         is_new = True
@@ -286,32 +281,25 @@ def filter_new_investments(discovered_items: list[dict], portal: str) -> list[di
             item_id = str(item.get("id"))
             if item_id and item_id != "None" and item_id in rp_ids:
                 is_new = False
-        elif portal == "otodom" or portal == "oto":
+        elif portal in ("otodom", "oto"):
             item_id = str(item.get("id"))
             item_hash = item.get("hash_id")
             item_slug = item.get("slug")
             
-            # 1. Check numeric ID
             id_match = item_id and item_id != "None" and item_id in oto_ids
-            
-            # 2. Check hash ID from discovery result
             hash_match_field = item_hash and item_hash in oto_ids
-            
-            # 3. Check full slug
             slug_match = item_slug and item_slug in oto_slugs
             
-            # 4. Extract Hash ID from slug as per Coda spec and check (fallback)
             hash_match_regex = False
             if item_slug and not hash_match_field:
                 h_match = re.search(r"ID([a-zA-Z0-9]+)$", item_slug)
-                if h_match:
-                    if h_match.group(1) in oto_ids:
-                        hash_match_regex = True
+                if h_match and h_match.group(1) in oto_ids:
+                    hash_match_regex = True
 
             if id_match or hash_match_field or slug_match or hash_match_regex:
                 is_new = False
             else:
-                logger.info(f"Otodom item NEW: id={item_id}, hash={item_hash}. (Tried matching against {len(oto_ids)} oto_ids)")
+                logger.info(f"Otodom item NEW: id={item_id}, hash={item_hash}.")
         elif portal in ("to", "tabelaofert"):
             item_id = str(item.get("id"))
             if item_id and item_id != "None" and item_id in to_ids:

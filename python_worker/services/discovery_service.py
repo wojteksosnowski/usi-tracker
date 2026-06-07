@@ -75,7 +75,7 @@ class DiscoveryService:
                     results.extend(scraper_api.list_investments(self.config, self.fetcher, portal, str(idx)))
                 
                 portal_key = "rp" if portal == "rp" else ("otodom" if portal == "oto" else "to")
-                filtered = filter_new_investments(results, portal_key)
+                filtered = filter_new_investments(results, portal_key, dm.get_existing_identifiers())
                 all_discovered.extend(filtered)
                 
                 new_found = [item for item in filtered if item.get("is_new")]
@@ -265,7 +265,9 @@ class DiscoveryService:
 
             logger.info(f"Scraper library returned {len(results)} items for {portal}")
             
-            filtered = filter_new_investments(results, portal_key)
+            from python_worker.developer_manager import DeveloperManager
+            dm = DeveloperManager(self.data_dir)
+            filtered = filter_new_investments(results, portal_key, dm.get_existing_identifiers())
             logger.info(f"Filtered results: {len(filtered)} items")
             return filtered
         except Exception as e:

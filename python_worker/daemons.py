@@ -13,10 +13,12 @@ from python_worker.logger_utils import log_to_dev_log
 try:
     from usi_crawlers.wedrowiec import WedrowiecDaemon
     from usi_crawlers.doktor import DoktorDaemon, DoktorDelegate
-    from usi_crawlers.algorithms.similarity import normalize_name, calculate_similarities
     HAS_CRAWLERS = True
 except ImportError:
     HAS_CRAWLERS = False
+
+# Local similarity algorithms
+from python_worker.algorithms.similarity.engine import calculate_similarities, normalize_name
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +38,6 @@ def safe_round(value: Any, digits: int = 2) -> Optional[float]:
 
 def run_manual_doktor_analysis(data_dir: Path, dev_dir: Path):
     """Performs a one-off similarity analysis and saves results without a daemon."""
-    if not HAS_CRAWLERS:
-        logger.warning("run_manual_doktor_analysis: usi_crawlers not available.")
-        return
-
     logger.info("Starting manual developer similarity analysis...")
     start_t = time.time()
     
@@ -117,126 +115,32 @@ class TrackerDoktorDelegate:
         self.data_dir = data_dir
 
     def get_developers_for_analysis(self) -> list[dict]:
+        """
+        Pobiera dane wszystkich deweloperów bezpośrednio z indeksu (O(1) Disk I/O).
+        Indeks zawiera już wszystkie dane potrzebne do algorytmów podobieństwa:
+        - nazwy, slugi, relacje (parent/master)
+        - podsumowanie inwestycji (slugi + koordynaty)
+        """
+        from python_worker import developer_index
         start_t = time.time()
+        
         try:
-            devs = self.dm.list_developers()
-        except Exception as e:
-            logger.critical(f"[FATAL] Failed to list developers from manager: {e}")
-            return []
+            # Pobieramy zunifikowane dane z 'hot indexu'
+            devs = developer_index.load(self.dev_dir)
+            if not devs:
+                logger.warning("get_developers_for_analysis: Index empty or missing. Rebuilding...")
+                developer_index.rebuild(self.data_dir, self.dev_dir)
+                devs = developer_index.load(self.dev_dir) or []
 
-        logger.info(
-            f"[CRITICAL_TRACE] Daemon: Starting full developer analysis scan. "
-            f"Total developers to process: {len(devs)}"
-        )
-        processed = []
-
-        for d in devs:
-            slug = d.get("developer_slug")
-            if not slug:
-                continue
-                
-            norm = normalize_name(d["name"]) if HAS_CRAWLERS else d["name"]
-            buckets = {}
-            cities = set()
-
-            dev_path = self.data_dir / slug
-
-            logger.info(f"[CRITICAL_TRACE] Entering developer path for filesystem scan: {dev_path}")
-
-            if not dev_path.exists():
-                continue
-
-            # Zabezpieczenie przed nieskończonym parsowaniem wadliwych struktur
-            visited_dirs: set[Path] = set()
+            logger.info(
+                f"[PERF] Similarity analysis scan: Loaded {len(devs)} developers from index "
+                f"in {time.time() - start_t:.3f}s (Zero Disk I/O)"
+            )
+            return devs
             
-            try:
-                sub_dirs = list(dev_path.iterdir())
-            except Exception as e:
-                logger.error(f"[IO_ERROR] Critical failure listing directory {dev_path}: {e}")
-                # Dodaj minimalne opóźnienie, aby zapobiec zarzynaniu CPU w pętli nadrzędnej
-                time.sleep(0.1)
-                continue
-
-            for inv_dir in sub_dirs:
-                try:
-                    real_path = inv_dir.resolve(strict=False) # Zmiana na strict=False zapobiega rzucaniu wyjątków przy braku pliku docelowego symlinka
-                    if real_path in visited_dirs:
-                        logger.warning(f"[CYCLE_DETECTED] Loop or duplicate detected: {inv_dir}. Skipping.")
-                        continue
-                    visited_dirs.add(real_path)
-                except Exception as e:
-                    logger.error(f"[IO_ERROR] Cannot resolve path bounds {inv_dir}: {e}")
-                    continue
-
-                if not inv_dir.is_dir() or inv_dir.name.startswith("."):
-                    continue
-
-                # Ograniczenie rglob/glob do czystego iterowania po konkretnym wzorcu
-                try:
-                    usi_files = [f for f in inv_dir.glob("usi_*.json") if "usi_dev_" not in f.name]
-                except Exception as e:
-                    logger.error(f"[IO_ERROR] Failed to glob files in {inv_dir}: {e}")
-                    continue
-
-                if not usi_files:
-                    continue
-                
-                usi_file = usi_files[0]
-                try:
-                    with open(usi_file, "r", encoding="utf-8") as fh:
-                        data = json.load(fh)
-                        coords = data.get("location", {}).get("coords")
-                        city = data.get("location", {}).get("city")
-                        if city:
-                            cities.add(city.strip().lower())
-
-                        specs = data.get("specifications", {})
-                        year = specs.get("delivery_year")
-                        quarter = specs.get("delivery_quarter")
-
-                        if coords and len(coords) == 2:
-                            lat, lon = coords
-                            if lat == 0 and lon == 0:
-                                continue
-
-                            s_lat = safe_round(lat, 2)
-                            s_lon = safe_round(lon, 2)
-                            
-                            if s_lat is None or s_lon is None:
-                                continue
-
-                            bkey = f"{s_lat:.2f}_{s_lon:.2f}"
-                            if bkey not in buckets:
-                                buckets[bkey] = []
-                            buckets[bkey].append({
-                                "lat": lat, "lon": lon,
-                                "year": int(year) if year else None,
-                                "quarter": int(quarter) if quarter else None
-                            })
-                except Exception as ex:
-                    logger.error(f"[IO_ERROR] Failed to read or parse anchor file in {inv_dir}: {ex}")
-                    continue
-
-            if norm and len(norm) < 3:
-                norm = None
-
-            processed.append({
-                "id": d["usi_dev_id"],
-                "slug": slug,
-                "name": d["name"],
-                "norm": norm,
-                "buckets": buckets,
-                "cities": cities,
-                "parent_id": d.get("parent_id"),
-                "master_id": d.get("master_id")
-            })
-
-        duration = time.time() - start_t
-        logger.info(
-            f"[CRITICAL_TRACE] Daemon: Full developer analysis scan finished in "
-            f"{duration:.2f}s (processed {len(processed)} developers)"
-        )
-        return processed
+        except Exception as e:
+            logger.error(f"Failed to load developers for analysis: {e}", exc_info=True)
+            return []
 
     def get_dismissed_cache(self) -> dict[str, set[str]]:
         return _build_dismissed_cache(self.dev_dir)
@@ -245,22 +149,33 @@ class TrackerDoktorDelegate:
         fresh_dev = self.dm.get_developer_by_id(dev_id)
         if fresh_dev:
             # Map input suggestions to our storage format
-            new_suggestions = {}
+            new_suggestions_map = {}
             for s in suggestions:
-                new_suggestions[s["target_id"]] = {
+                new_suggestions_map[s["target_id"]] = {
                     "usi_dev_id": s["target_id"],
                     "developer_slug": s["target_slug"],
                     "reason": s["reason"],
                     "score": s["score"]
                 }
-            
+
             # Merge with existing (preserve existing, update with new if better)
             existing = fresh_dev.get("suggestions", [])
-            merged = {s["usi_dev_id"]: s for s in existing}
-            merged.update(new_suggestions)
+            existing_map = {s["usi_dev_id"]: s for s in existing}
             
-            fresh_dev["suggestions"] = list(merged.values())
-            self.dm.create_developer_file(fresh_dev)
+            # DIRTY CHECK: Only proceed with save if we actually have NEW or BETTER suggestions
+            has_changes = False
+            for target_id, new_s in new_suggestions_map.items():
+                if target_id not in existing_map:
+                    has_changes = True
+                    existing_map[target_id] = new_s
+                elif new_s["score"] > existing_map[target_id].get("score", 0):
+                    has_changes = True
+                    existing_map[target_id] = new_s
+
+            if has_changes:
+                fresh_dev["suggestions"] = list(existing_map.values())
+                self.dm.create_developer_file(fresh_dev)
+                logger.info(f"[IO_SAVE] Updated suggestions for {dev_id} (found new or improved matches).")
 
 _doktor_instance = None
 _crawler_instance = None

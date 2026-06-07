@@ -618,6 +618,7 @@ class DeveloperRepository:
         all_mtimes = []
         total_count = 0
         existing_inv_ids = set()
+        investment_summary = []
 
         def _process_id(did: str):
             nonlocal total_count
@@ -630,8 +631,14 @@ class DeveloperRepository:
                 elif not ci_id:
                     total_count += 1
                 
+                # Investment summary for index-based similarity matching
+                investment_summary.append({
+                    "slug": i.get("slug"),
+                    "coordinates": i.get("coordinates") or i.get("coords")
+                })
+
                 # Dynamically infer portal from investment
-                src = i.get("source", "").lower()
+                src = (i.get("source") or i.get("portal") or "").lower()
                 if src in ("rp", "oto", "to"):
                     if not aggregated_pm.get(src):
                         aggregated_pm[src] = {"_inferred": True}
@@ -658,6 +665,7 @@ class DeveloperRepository:
         
         dev["portal_mapping"] = aggregated_pm
         dev["investments_count"] = total_count
+        dev["investments"] = investment_summary
         dev["last_updated"] = max(all_mtimes) if all_mtimes else None
         
         # 3. Crawler & Discovery stats
