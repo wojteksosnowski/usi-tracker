@@ -5,9 +5,7 @@ from datetime import datetime, timezone
 
 from python_worker.config import get_shared_config, get_shared_fetcher
 from python_worker.developer_manager import DeveloperManager
-from python_worker.adapters import PORTAL_MAPPING
 from usi_scrapers import api as scraper_api
-from usi_scrapers import resolve_path
 
 logger = logging.getLogger(__name__)
 
@@ -23,121 +21,112 @@ class DeveloperService:
         self.dev_dir = dev_dir
         self.dm = DeveloperManager(data_dir, dev_dir)
         
-        # Consistent dependency initialization
+        # Inicjalizacja współdzielonej konfiguracji z usi-scrapers
         self.lib_config = get_shared_config()
         self.lib_fetcher = get_shared_fetcher()
 
     def download_dev_profile_raw(self, portal: str, identifier: str, dev_slug: str) -> Path | None:
-        """Downloads raw developer profile and its logo via usi-scrapers."""
+        """
+        Pobiera surowy profil dewelopera oraz jego logo delegując zadanie do usi-scrapers.
+        Zgodnie z ID-only identyfikacja opiera się wyłącznie o portal_id.
+        """
         if not self.lib_config or not self.lib_fetcher:
             logger.error("Scraper library not properly configured.")
             return None
 
         try:
-            # 1. Download raw profile JSON
-            target_dir = self.dev_dir / dev_slug
-            raw_slug = scraper_api.download_raw_dev(self.lib_config, self.lib_fetcher, portal, identifier, target_dir)
-            if not raw_slug:
-                return None
+            portal_prefix = scraper_api.resolve_prefix(portal)
             
-            raw_path = target_dir / f"raw_{portal}_{identifier}.json"
-            if not raw_path.exists():
-                # Fallback to look for the file if identifier is a URL etc
-                files = list(target_dir.glob(f"raw_{portal}_*.json"))
-                if not files:
-                    return None
-                raw_path = files[-1]
+            # Bezwzględny rygor ID-only dla rp i oto (muszą być numeryczne)
+            if portal_prefix in ("rp", "oto") and not str(identifier).isdigit():
+                logger.error(f"Identifier for portal {portal_prefix} must be numeric, got: {identifier}")
+                return None
 
-            # 2. Extract logo URL from raw and download it
-            raw_data = json.loads(raw_path.read_text(encoding="utf-8"))
-            logo_path = PORTAL_MAPPING.get(portal, {}).get("developer", {}).get("logo")
-            logo_url = resolve_path(raw_data, logo_path)
+            # Wywołanie Publicznego API usi-scrapers z poprawną liczbą argumentów
+            res = scraper_api.download_raw_dev(self.lib_config, self.lib_fetcher, portal_prefix, str(identifier))
+            if not res or res.get("status") != "success":
+                msg = res.get("message", "Unknown error") if res else "No response"
+                logger.error(f"usi-scrapers failed to download dev profile for {portal_prefix}/{identifier}: {msg}")
+                return None
 
-            if logo_url:
-                from usi_scrapers.utils.images import download_developer_logo
-                logger.info(f"Downloading logo for {dev_slug} from {logo_url}")
-                portal_prefix = "rp" if portal == "rp" else ("oto" if portal == "oto" else "to")
-                portal_id = str(identifier).split("/")[-1].split("?")[0].strip("-ID")
-                download_developer_logo(logo_url, target_dir, portal_prefix, portal_id=portal_id)
-
-            return raw_path
+            # Zwrócenie ścieżki do pliku zweryfikowanej zgodnie z CANONICAL.md
+            resolved_slug = res.get("dev_slug") or dev_slug
+            target_path = self.dev_dir / resolved_slug / f"raw_{portal_prefix}_{identifier}.json"
+            
+            if target_path.exists():
+                return target_path
+            return None
+            
         except Exception as e:
             logger.error(f"Failed to download developer profile for {portal}/{dev_slug}: {e}")
             return None
 
-    def update_developer_profile(self, dev_slug: str) -> bool:
+    def update_developer_profile(self, usi_dev_id: str) -> bool:
         """
-        Refreshes raw developer profile JSONs from all configured portals and rebuilds metadata.
+        Odświeża surowe zrzuty profili ze wszystkich zmapowanych portali i przebudowuje Level 2.
         """
-        dev_data = self.dm.get_developer(dev_slug)
+        dev_data = self.dm.get_developer_by_id(usi_dev_id)
         if not dev_data:
-            logger.warning(f"Developer metadata not found for {dev_slug}, cannot update.")
+            logger.warning(f"Developer metadata not found for {usi_dev_id}, cannot update.")
             return False
 
+        dev_slug = dev_data.get("developer_slug")
         mapping = dev_data.get("portal_mapping", {})
         updated = False
 
         # RynekPierwotny
-        rp_map = mapping.get("rp") or {}
-        rp_id = rp_map.get("id") or rp_map.get("slug")
-        if rp_id:
-            logger.info(f"Updating RP profile for {dev_slug} (ID: {rp_id})")
-            if self.download_dev_profile_raw("rp", rp_id, dev_slug):
-                updated = True
+        if rp_map := mapping.get("rp"):
+            if rp_id := rp_map.get("id"):
+                logger.info(f"Updating RP profile for {dev_slug} (ID: {rp_id})")
+                if self.download_dev_profile_raw("rp", str(rp_id), dev_slug):
+                    updated = True
 
         # Otodom
-        oto_map = mapping.get("oto") or {}
-        oto_url = oto_map.get("url")
-        if oto_url:
-            logger.info(f"Updating Otodom profile for {dev_slug} (URL: {oto_url})")
-            if self.download_dev_profile_raw("oto", oto_url, dev_slug):
-                updated = True
+        if oto_map := mapping.get("oto"):
+            if oto_id := oto_map.get("id") or oto_map.get("agency_id"):
+                logger.info(f"Updating Otodom profile for {dev_slug} (ID: {oto_id})")
+                if self.download_dev_profile_raw("oto", str(oto_id), dev_slug):
+                    updated = True
 
         # TabelaOfert
-        to_map = mapping.get("to") or {}
-        to_slug = to_map.get("slug")
-        if to_slug:
-            to_id = to_map.get("id") or to_slug
-            logger.info(f"Updating TO profile for {dev_slug} (ID/Slug: {to_id})")
-            if self.download_dev_profile_raw("to", to_id, dev_slug):
-                updated = True
+        if to_map := mapping.get("to"):
+            if to_id := to_map.get("id"):
+                logger.info(f"Updating TO profile for {dev_slug} (ID: {to_id})")
+                if self.download_dev_profile_raw("to", str(to_id), dev_slug):
+                    updated = True
 
-        # After downloading raws, rebuild Level 2 usi_dev_*.json
-        from python_worker.init_developers import _build_dev_from_raws
-        dev_subdir = self.dev_dir / dev_slug
-        if dev_subdir.exists():
-            _build_dev_from_raws(dev_subdir, dev_slug, dev_data.get("name"), self.dm)
+        # Kompilacja warstwy Level 2 (usi_dev_*.json) na bazie nowych plików raw
+        if updated:
+            from python_worker.init_developers import _build_dev_from_raws
+            dev_subdir = self.dev_dir / dev_slug
+            if dev_subdir.exists():
+                _build_dev_from_raws(dev_subdir, dev_slug, dev_data.get("name"), self.dm)
             
         return updated
 
     def get_maintenance_overdue_score(self, dev_data: dict) -> float:
         """
-        Returns a priority score for maintenance.
-        Higher score = higher priority.
+        Wylicza priorytet konserwacji opierając się ściśle o wzorce nazw z CANONICAL.md.
         """
         score = 0.0
         now = _now_utc()
         
-        # 1. Missing logo? High priority.
         if not dev_data.get("logo"):
             score += 1000.0
             
-        # 2. Missing raw files for defined portals?
         pm = dev_data.get("portal_mapping", {})
         dev_slug = dev_data.get("developer_slug")
         dev_subdir = self.dev_dir / dev_slug
         
         for portal in ("rp", "oto", "to"):
-            if pm.get(portal):
-                raw_file = dev_subdir / f"raw_{portal}_{dev_slug}.json"
-                # For TO, it might be raw_to_{id}.json
-                if portal == "to" and pm["to"].get("id"):
-                    raw_file = dev_subdir / f"raw_to_{pm['to']['id']}.json"
-                
-                if not raw_file.exists():
-                    score += 500.0
+            if portal_info := pm.get(portal):
+                # Ekstrakcja portal_id zamiast używania deweloperskiego sluga w nazwie pliku
+                portal_id = portal_info.get("id") or portal_info.get("agency_id")
+                if portal_id:
+                    raw_file = dev_subdir / f"raw_{portal}_{portal_id}.json"
+                    if not raw_file.exists():
+                        score += 500.0
         
-        # 3. Time-based overdue
         last_maint_str = dev_data.get("last_maintenance")
         if not last_maint_str:
             score += 100.0
@@ -153,9 +142,8 @@ class DeveloperService:
         return score
 
     def record_maintenance(self, dev_slug: str, success: bool):
-        """Updates maintenance fields in developer file."""
+        """Zapisuje ślad rewizyjny konserwacji dewelopera na dysku."""
         dev_file = None
-        # Find file
         subdir = self.dev_dir / dev_slug
         if subdir.is_dir():
             hits = sorted(subdir.glob(f"usi_dev_*_{dev_slug}.json"))

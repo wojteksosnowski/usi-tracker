@@ -1,5 +1,18 @@
 # Changelog
 
+## Wersja 0.9.72 — Asynchroniczne Odświeżanie Deweloperów — 2026-06-07
+
+### Dodano
+- **Endpoint API**: Wprowadzono `/api/developer/<usi_dev_id>/refresh` (POST) do asynchronicznej aktualizacji profili deweloperów ze wszystkich sparowanych platform. Wykorzystuje on `job_manager` do raportowania postępu w UI.
+
+### Zmieniono
+- **DeveloperService**: Całkowicie zrefaktoryzowano serwis pod kątem **ID-Only**. Pobieranie danych surowych i logotypów delegowane jest teraz do `usi-scrapers` przy użyciu technicznych identyfikatorów.
+- **Maintenance Score**: Algorytm wyliczający kondycję danych korzysta teraz z nowych wzorców nazw plików (`raw_{portal}_{portal_id}.json`), co eliminuje błędy weryfikacji przy zmianach slugów.
+- **Logowanie zdarzeń**: Każda operacja odświeżania jest teraz automatycznie dokumentowana w dzienniku zdarzeń dewelopera (`dev_log`).
+
+### Naprawiono
+- **Testy**: Zaktualizowano i rozszerzono pakiet testów `pytest`, aby uwzględnić nowe konwencje nazewnictwa i asynchroniczność API.
+
 ## Wersja 0.9.71 — Mandat ID-Only dla Deweloperów (Fix Korupcji Danych) — 2026-06-07
 
 ### Zmieniono

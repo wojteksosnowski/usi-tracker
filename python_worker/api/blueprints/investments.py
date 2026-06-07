@@ -485,6 +485,37 @@ def badge_reset(usi_dev_id):
     developer_manager.create_developer_file(dev_data)
     return jsonify({"ok": True})
 
+@investments_bp.route("/developer/<usi_dev_id>/refresh", methods=["POST"])
+def refresh_developer_route(usi_dev_id):
+    """
+    Asynchroniczne odświeżenie profilu dewelopera ze wszystkich sparowanych platform.
+    Gwarantuje nieblokowanie wątku głównego aplikacji poprzez użycie job_managera.
+    """
+    dev_data = developer_manager.get_developer_by_id(usi_dev_id)
+    if not dev_data:
+        abort(404, description="Developer not found")
+        
+    dev_name = dev_data.get("name", usi_dev_id)
+    
+    def run_dev_refresh_job(job_id, d_id, d_name):
+        job_manager.update_progress(job_id, 10, f"Inicjalizacja pobierania danych dla: {d_name}")
+        try:
+            dev_service = DeveloperService(Path(USI_DATA_DIR), Path(USI_DATA_DIR).parent / "USIdev")
+            success = dev_service.update_developer_profile(d_id)
+            
+            dev_service.record_maintenance(dev_data.get("developer_slug"), success=success)
+            
+            if success:
+                job_manager.update_progress(job_id, 100, f"Dane dewelopera {d_name} zostały pomyślnie zaktualizowane.")
+            else:
+                job_manager.update_progress(job_id, 100, f"Brak zmian lub błąd podczas odświeżania profilu {d_name}.", status="failed")
+        except Exception as e:
+            logger.exception(f"Critical failure inside dev refresh job {job_id}: {e}")
+            job_manager.update_progress(job_id, 100, f"Błąd krytyczny: {str(e)}", status="failed")
+
+    job_id = job_manager.start_job(f"Refresh Deweloper: {dev_name}", run_dev_refresh_job, usi_dev_id, dev_name)
+    return jsonify({"ok": True, "job_id": job_id})
+
 @investments_bp.route("/developer/<usi_dev_id>")
 def get_developer_detail(usi_dev_id):
     import time
@@ -492,7 +523,6 @@ def get_developer_detail(usi_dev_id):
     import json
     from python_worker.developer_manager import DeveloperManager
     from python_worker.config import USI_DATA_DIR
-    from python_worker.algorithms.similarity.engine import DeveloperMatcher
 
     dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
     dev = dm.get_developer_by_id(usi_dev_id)
@@ -505,19 +535,19 @@ def get_developer_detail(usi_dev_id):
     # Inicjalizacja indeksu inwestycji
     import python_worker.investment_index as inv_index
     all_invs = inv_index.load(USI_DATA_DIR) or []
-    dev_pm = dev.get("portal_mapping", {})
     
     base_invs = []
     invs_by_dev_id = {}
     
+    # MANDAT ID-ONLY: Inwestycje przypisujemy WYŁĄCZNIE po usi_dev_id.
+    # Zakaz używania _inv_matches_dev (zgadywanie po slugach/portalach) w widoku szczegółowym.
     for i in all_invs:
         did = i.get("usi_dev_id")
         if did:
-            invs_by_dev_id.setdefault(did, []).append(i)
-            if str(did) == str(target_id):
+            s_did = str(did)
+            invs_by_dev_id.setdefault(s_did, []).append(i)
+            if s_did == str(target_id):
                 base_invs.append(i)
-        elif _inv_matches_dev(i, dev_pm):
-            base_invs.append(i)
             
     # Ładowanie historii zdarzeń
     events = []
@@ -559,25 +589,22 @@ def get_developer_detail(usi_dev_id):
         member["slug"] = child_dev.get("developer_slug")
         member["_pm"] = (child_dev.get("original_portal_mapping") or child_dev.get("portal_mapping") or {}).copy()
         member["_dev"] = child_dev
-        member["_invs"] = invs_by_dev_id.get(child_id, [])
+        # MANDAT ID-ONLY: Pobieramy inwestycje wyłącznie po przypisanym w indeksie ID
+        member["_invs"] = invs_by_dev_id.get(str(child_id), [])
         valid_members.append(member)
 
-    base_portals = {p for p in ("rp", "oto", "to") if base_pm.get(p)}
-
-    if not base_portals and not base_invs:
-        dev["base_record"] = None
-    else:
-        dev["base_record"] = {
-            "name": dev.get("name"),
-            "developer_slug": dev.get("developer_slug"),
-            "usi_dev_id": dev.get("usi_dev_id"),
-            "portal_mapping": base_pm,
-            "investments_count": len(base_invs),
-            "inv_list": [
-                {"name": inv.get("name", inv.get("usi_inv_id", "")), "id": inv.get("usi_inv_id", "")}
-                for inv in base_invs[:10]
-            ]
-        }
+    # Budowa bazy (Root record)
+    dev["base_record"] = {
+        "name": dev.get("name"),
+        "developer_slug": dev.get("developer_slug"),
+        "usi_dev_id": dev.get("usi_dev_id"),
+        "portal_mapping": base_pm,
+        "investments_count": len(base_invs),
+        "inv_list": [
+            {"name": inv.get("name", inv.get("usi_inv_id", "")), "id": inv.get("usi_inv_id", "")}
+            for inv in base_invs[:10]
+        ]
+    }
 
     final_members = []
     investments = list(base_invs)
@@ -609,31 +636,40 @@ def get_developer_detail(usi_dev_id):
     dev["merged_from"] = final_members
     merged_ids = {str(m.get("usi_dev_id")) for m in final_members if m.get("usi_dev_id")}
 
-    # --- BEZLITOSNY LIVE-ENGINE INJECTION (Ominięcie zepsutego cache dyskowego) ---
-    # Ładujemy wszystkich deweloperów bezpośrednio z ich fizycznych plików dyskowych, 
-    # aby mieć 100% pewności, że stan pamięci RAM jest idealny i świeży.
+    # --- BEZPIECZNE SUGESTIE: PASYWNY ODCZYT + RAM REVERSE LOOKUP ---
+    # Całkowicie rezygnujemy z uruchamiania silnika LIVE podczas żądania GET.
+    # Zapobiega to wydłużeniu czasu ładowania i "mieszaniu" danych przez błędy parowania w locie.
+    suggestions_dict = {str(s.get("usi_dev_id") or s.get("target_id")): s for s in dev.get("suggestions", []) if (s.get("usi_dev_id") or s.get("target_id"))}
+
     try:
-        from python_worker.daemons import TrackerDoktorDelegate
-        delegate = TrackerDoktorDelegate(Path(USI_DATA_DIR), Path(USI_DEV_DIR))
-        fresh_all_developers = delegate.get_developers_for_analysis()
-        dismissed = delegate.get_dismissed_cache()
-        
-        matcher = DeveloperMatcher()
-        # Generujemy sugestie w czasie rzeczywistym przy żądaniu HTTP!
-        live_suggestions = matcher.find_suggestions_for_developer(dev, fresh_all_developers, dismissed)
-    except Exception as engine_err:
-        logger.error(f"Krytyczny błąd generowania live-sugestii w API: {engine_err}", exc_info=True)
-        live_suggestions = []
+        # Pobieramy pełny stan deweloperów z hot-cache pamięci RAM (Zero Disk I/O)
+        # Służy tylko do wykrycia czy inni mają sugestie skierowane do nas.
+        all_devs_cached = dm.list_developers() or []
+        for other_dev in all_devs_cached:
+            other_id = other_dev.get("usi_dev_id")
+            if not other_id or str(other_id) == str(target_id):
+                continue
+                
+            for other_sug in other_dev.get("suggestions", []):
+                if str(other_sug.get("usi_dev_id") or other_sug.get("target_id")) == str(target_id) and other_sug.get("score", 0) >= 0.75:
+                    if str(other_id) not in suggestions_dict:
+                        suggestions_dict[str(other_id)] = {
+                            "usi_dev_id": other_id,
+                            "target_id": other_id,
+                            "developer_slug": other_dev.get("developer_slug"),
+                            "reason": f"[Relacja zwrotna] {other_sug.get('reason')}",
+                            "score": other_sug.get("score", 0.0)
+                        }
+    except Exception as cache_err:
+        logger.error(f"Błąd budowania relacji zwrotnych: {cache_err}")
 
     valid_suggestions = []
-    for s in live_suggestions:
-        s_id = str(s.get("target_id") or s.get("usi_dev_id"))
+    for s_id, s in suggestions_dict.items():
         if s_id in merged_ids or s_id == str(target_id):
             continue
 
         s_dev = dm.get_developer_by_id(s_id)
         if s_dev:
-            # Rygorystyczne mapowanie pod frontend Reacta
             valid_suggestions.append({
                 "usi_dev_id": s_id,
                 "target_id": s_id,
