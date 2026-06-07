@@ -152,10 +152,9 @@ def _build_dev_from_raws(dev_subdir: Path, dev_slug: str, dev_name: str, dm: Dev
             meta = scraper_api.extract_developer_meta(raw_data, portal)
             portal_id = meta.get("id")
             
-            # Pancerne zabezpieczenie: awaryjny fallback na ID z nazwy pliku (dla starych makiet)
+            # Wymagamy obecności ID, nie zgadujemy z nazwy pliku
             if not portal_id:
-                if len(parts) >= 3 and parts[2] != dev_slug:
-                    portal_id = parts[2]
+                raise ValueError(f"Brak ID w surowych danych. Zgodnie z polityką ID-Only nie fallbackujemy do nazwy pliku.")
             
             # Budowa struktury portal_mapping dla pojedynczego pliku Level 2
             pm = {"rp": None, "oto": None, "to": None}

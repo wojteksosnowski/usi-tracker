@@ -1,5 +1,11 @@
 # Changelog
 
+## Wersja 0.9.74 — Bezwzględny Rygor ID-Only (Usunięcie Fallbacków) — 2026-06-07
+
+### Zmieniono
+- **Rygor Tożsamości**: Całkowicie wyeliminowano mechanizm "zgadywania" identyfikatora portalu z nazwy pliku w `init_developers.py`. Od teraz brak technicznego ID wewnątrz pliku surowego skutkuje jawnym błędem `ValueError`.
+- **Spójność Danych**: Wzmocniono proces budowania rekordów Level 2, aby wykluczyć ryzyko powstawania niepoprawnie powiązanych metadanych.
+
 ## Wersja 0.9.73 — Pełna Delegacja Ekstrakcji do Usi-Scrapers — 2026-06-07
 
 ### Zmieniono
