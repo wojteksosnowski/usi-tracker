@@ -1,5 +1,19 @@
 # Changelog
 
+## Wersja 0.9.71 — Mandat ID-Only dla Deweloperów (Fix Korupcji Danych) — 2026-06-07
+
+### Zmieniono
+- **Model Tożsamości (ID-Only)**: Wprowadzono bezwzględny priorytet identyfikatora portalowego nad slugami. System nie dopuszcza już zgadywania dewelopera po nazwie folderu czy tekście.
+- **Konwencja Nazewnictwa (Level 2)**: Zgodnie z nowym `CANONICAL.md`, pliki Level 2 deweloperów zmieniają format z `usi_dev_{ID}_{slug}.json` na **`usi_dev_{portal}_{portal_id}.json`**. Gwarantuje to unikalność rekordów nawet przy kolizji slugów w tym samym folderze.
+- **Automatyczny Rebuilder**: Całkowicie przepisano `rebuild_devs_id_only.py`. Wykorzystuje on teraz autorytatywne API `usi-scrapers` do ekstrakcji ID z plików RAW oraz posiada mechanizm de-duplikacji ignorujący archiwalne pliki surowe.
+- **Backend & API**:
+    - `DeveloperRepository` oraz `DeveloperManager` wymuszają teraz wyszukiwanie wyłącznie po ID USI lub ID portalu.
+    - `DeveloperResolver` identyfikuje deweloperów podczas rejestracji inwestycji wyłącznie po technicznych ID z sekcji `sources`.
+- **Wydajność**: Usunięto automatyczne skanowanie podobieństwa (Similarity Engine) z widoków GET, co wyeliminowało opóźnienia w ładowaniu szczegółów dewelopera i ryzyko korupcji danych.
+
+### Naprawiono
+- **Kolizje Slugów**: Rozwiązano problem "śmietnika" w folderach takich jak `022-investments`, gdzie archiwalne pliki RAW powodowały powstawanie zduplikowanych, błędnych rekordów USI.
+
 ## Wersja 0.9.70 — Kamień 13 (Refaktoryzacja Strony Deweloperów) — 2026-06-07
 
 ### Zmieniono

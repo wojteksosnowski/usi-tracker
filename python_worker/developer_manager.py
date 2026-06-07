@@ -21,7 +21,10 @@ class DeveloperManager:
     def data_dir(self): return self.repo.data_dir
 
     # Repository Delegation
-    def get_developer(self, dev_slug: str): return self.repo.get_developer(dev_slug)
+    def get_developer(self, usi_dev_id: str): 
+        """MANDAT ID-ONLY: Pobiera dewelopera wyłącznie po identyfikatorze USI (DEV-...)."""
+        return self.repo.get_developer(usi_dev_id)
+    
     def get_developer_by_id(self, usi_dev_id: str): return self.repo.get_developer_by_id(usi_dev_id)
     def get_developer_resources(self, usi_dev_id: str): return self.repo.get_developer_resources(usi_dev_id)
     def list_developers(self, only_merged: bool = False): return self.repo.list_developers(only_merged, self.indexer.get_existing_identifiers())
@@ -33,7 +36,6 @@ class DeveloperManager:
     def append_dev_log(self, *args, **kwargs): return self.repo.append_dev_log(*args, **kwargs)
     def log_event(self, *args, **kwargs): return self.repo.log_event(*args, **kwargs)
     def get_total_pending_count(self): return self.repo.get_total_pending_count(self.indexer.get_existing_identifiers())
-    def get_developer(self, slug: str): return self.repo.get_developer(slug, self.indexer.get_existing_identifiers())
 
     # Indexer Delegation
     def generate_usi_id(self, prefix: str): return self.indexer.generate_usi_id(prefix)

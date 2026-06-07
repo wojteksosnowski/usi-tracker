@@ -81,7 +81,7 @@ reference-data/  Static reference files: coda/ (CSV + request samples), rynekpie
 Public/          Dropbox-synced folder (do not rename)
   USI/           Downloaded images: {dev_slug}/{inv_slug}/{file}
   USIdata/       Investment JSON data: {dev_slug}/{inv_slug}/
-  USIdev/        Developer profile JSONs: {dev_slug}/usi_dev_{DEV-ID}_{slug}.json (one per portal) + raw_{portal}_{slug}.json + dev_master_{DM-ID}.json + dev_log_{slug}.txt
+  USIdev/        Developer profile JSONs: {dev_slug}/usi_dev_{portal}_{portal_id}.json (one per portal) + raw_{portal}_{portal_id}.json + dev_master_{DM-ID}.json + dev_log_{portal}_{portal_id}.txt
 logs/            Runtime logs (worker.log, ui_errors.log)
 ~~~~
 

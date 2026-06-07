@@ -186,27 +186,36 @@ class DeveloperRepository:
         subdir.mkdir(parents=True, exist_ok=True)
 
         # Load existing data for audit/id preservation.
-        # When incoming data targets a specific portal, match by that portal to avoid
-        # reusing the DEV ID from a different portal's file (1:1 rule).
+        # MANDATE: Search strictly by original portal ID.
         existing_data = {}
         incoming_pm = developer_data.get("portal_mapping") or {}
+        
+        # Identification key: take first non-empty portal and its technical ID
         incoming_portal = next((p for p in ("rp", "oto", "to") if incoming_pm.get(p)), None)
 
         if incoming_portal:
+            target_id = (incoming_pm[incoming_portal].get("id") 
+                         if incoming_portal == "rp" 
+                         else incoming_pm[incoming_portal].get("agency_id"))
+            
+            # Scan directory for a file containing the EXACT same original portal ID
             for f in sorted(subdir.glob(f"usi_dev_*_{dev_slug}.json")):
                 try:
                     d = json.loads(f.read_text(encoding="utf-8"))
-                    if d.get("portal_mapping", {}).get(incoming_portal):
+                    curr_pm = d.get("portal_mapping", {}).get(incoming_portal, {})
+                    curr_id = curr_pm.get("id") if incoming_portal == "rp" else curr_pm.get("agency_id")
+                    
+                    if str(curr_id) == str(target_id) and target_id:
                         existing_data = d
                         break
                 except Exception as e:
-                    logger.warning(f"Could not read existing dev file {f}: {e}")
+                    logger.warning(f"Error verifying portal ID in {f}: {e}")
         else:
+            # Fallback for records without portal mapping (e.g. manual merges)
             for candidate in [
-                self._dev_file_path(dev_slug),           # new format (glob)
-                self._dev_file_path_old_canonical(dev_slug),  # pre-ID canonical
-                self._dev_file_path_legacy(dev_slug),    # flat legacy
-                self.data_dir / dev_slug / f"usi_dev_{dev_slug}.json",
+                self._dev_file_path(dev_slug),
+                self._dev_file_path_old_canonical(dev_slug),
+                self._dev_file_path_legacy(dev_slug),
             ]:
                 if candidate and candidate.exists():
                     try:
@@ -260,17 +269,24 @@ class DeveloperRepository:
         developer_data.pop("suggestions", None)
 
         usi_dev_id = developer_data["usi_dev_id"]
-        file_path = subdir / f"usi_dev_{usi_dev_id}_{dev_slug}.json"
+        
+        # New naming convention: usi_dev_{portal}_{portal_id}.json
+        portal = incoming_portal or "unknown"
+        portal_id = "unknown"
+        if incoming_portal:
+            p_data = incoming_pm[incoming_portal]
+            portal_id = p_data.get("id") or p_data.get("agency_id") or "unknown"
+        
+        file_path = subdir / f"usi_dev_{portal}_{portal_id}.json"
         file_path.write_text(json.dumps(developer_data, indent=2, ensure_ascii=False), encoding="utf-8")
 
-        # Auto-remove old-format file in same directory if it's a different path
-        old_canonical = self._dev_file_path_old_canonical(dev_slug)
-        if old_canonical.exists() and old_canonical != file_path:
+        # Clean up any files with the same USI ID but different portal/portal_id in the same directory
+        # (Since we just saved the authoritative record for this portal)
+        for old_id_file in subdir.glob(f"usi_dev_{usi_dev_id}_*.json"):
             try:
-                old_canonical.unlink()
-                logger.info(f"Removed old-format file {old_canonical}")
-            except Exception as e:
-                logger.warning(f"Could not remove old-format file {old_canonical}: {e}")
+                old_id_file.unlink()
+                logger.info(f"Removed old-format file with ID: {old_id_file}")
+            except Exception: pass
 
         logger.info(f"Saved developer file: {file_path}")
         
@@ -281,66 +297,38 @@ class DeveloperRepository:
         return file_path
 
     def _find_anchor_by_id(self, usi_dev_id: str) -> Path | None:
-        """ Leniwe i zoptymalizowane lokalizowanie pliku kotwicy dewelopera.
-        
-        Sprowadza operację dyskową z katastrofalnego O(N) skanowania całego 
-        drzewa katalogów za pomocą glob() do natychmiastowego sprawdzenia O(1).
-        
-        Args:
-            usi_dev_id (str): Unikalny identyfikator dewelopera USI.
-            
-        Returns:
-            Path | None: Ścieżka do pliku JSON dewelopera lub None w przypadku braku.
+        """Locates the developer anchor file by USI-DEV-ID.
+        With the new naming convention (usi_dev_{portal}_{portal_id}.json),
+        this requires an index lookup or a scan since ID is no longer in the filename.
         """
         if not usi_dev_id:
             return None
 
-        # Ścieżka bezpośrednia (Szybka ścieżka - O(1))
-        # Sprawdzamy, czy katalog o nazwie identyfikatora istnieje bezpośrednio w USIdev
-        direct_folder = self.dev_dir / usi_dev_id
-        if direct_folder.is_dir():
-            target_file = direct_folder / f"usi_dev_{usi_dev_id}.json"
-            if target_file.exists():
-                return target_file
-            
-            # Jeśli nazwa pliku ma dodatkowe sufiksy, iterujemy TYLKO po tym jednym podkatalogu
+        # 1. Try RAM index first (Fastest)
+        try:
+            from . import developer_index
+            idx = developer_index.load(self.dev_dir)
+            if idx:
+                entry = next((e for e in idx if e.get("usi_dev_id") == usi_dev_id), None)
+                if entry and entry.get("developer_slug"):
+                    subdir = self.dev_dir / entry["developer_slug"]
+                    if subdir.exists():
+                        for f in subdir.glob("usi_dev_*.json"):
+                            try:
+                                d = json.loads(f.read_text(encoding="utf-8"))
+                                if d.get("usi_dev_id") == usi_dev_id:
+                                    return f
+                            except Exception: continue
+        except Exception: pass
+
+        # 2. Fallback: Full Scan (Slow path - O(N))
+        # This is the last resort if index is missing or stale.
+        for f in self.dev_dir.glob("*/usi_dev_*.json"):
             try:
-                for f in direct_folder.iterdir():
-                    if f.name.startswith(f"usi_dev_{usi_dev_id}") and f.name.endswith(".json"):
-                        return f
-            except OSError as err:
-                logger.error(f"[IO_ERROR] Failed to quick-scan directory {direct_folder}: {err}")
-
-        # Pamięciowa ścieżka zapasowa (Wykorzystanie Developer Indexer - RAM O(1))
-        try:
-            from python_worker.developer_indexer import get_shared_developer_index
-            dev_index = get_shared_developer_index()
-            if dev_index:
-                dev_data = dev_index.get_developer(usi_dev_id)
-                if dev_data and "slug" in dev_data:
-                    # Szukamy w USIdev/{slug}/usi_dev_{ID}_{slug}.json
-                    slug = dev_data["slug"]
-                    expected_file = self.dev_dir / slug / f"usi_dev_{usi_dev_id}_{slug}.json"
-                    if expected_file.exists():
-                        return expected_file
-                    
-                    # Fallback na stary format bez sluga w nazwie pliku
-                    old_file = self.dev_dir / slug / f"usi_dev_{usi_dev_id}.json"
-                    if old_file.exists():
-                        return old_file
-        except Exception as err:
-            logger.debug(f"Developer index shortcut unavailable: {err}")
-
-        # Bezpieczny fallback - skanowanie podkatalogów USIdev (bez rekurencji głębokiej)
-        try:
-            for subdir in self.dev_dir.iterdir():
-                if subdir.is_dir():
-                    # Szukamy plików pasujących do wzorca usi_dev_{ID}_*.json
-                    for f in subdir.iterdir():
-                        if f.name.startswith(f"usi_dev_{usi_dev_id}") and f.name.endswith(".json"):
-                            return f
-        except OSError as err:
-            logger.error(f"[IO_ERROR] Critical failure during shallow directory iteration: {err}")
+                d = json.loads(f.read_text(encoding="utf-8"))
+                if d.get("usi_dev_id") == usi_dev_id:
+                    return f
+            except Exception: continue
 
         return None
 
@@ -583,11 +571,14 @@ class DeveloperRepository:
     # Merge / Unmerge
     # -------------------------------------------------------------------------
 
-    def log_event(self, dev_slug: str, event: dict) -> bool:
+    def log_event(self, usi_dev_id: str, event: dict) -> bool:
         """Append a generic event to the developer's log file."""
-        dev = self.get_developer(dev_slug)
-        if not dev:
+        anchor = self._find_anchor_by_id(usi_dev_id)
+        if not anchor:
             return False
+        
+        # Get slug from anchor parent directory
+        dev_slug = anchor.parent.name
         self.append_dev_log(dev_slug, event)
         return True
 

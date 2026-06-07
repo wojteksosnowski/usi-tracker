@@ -133,7 +133,9 @@ class DeveloperIndexer:
     # -------------------------------------------------------------------------
 
     def find_developer_by_id(self, portal: str, portal_id: str) -> dict | None:
-        """Finds a developer by its portal-specific ID (e.g., rp id, oto agency_id)."""
+        """Finds a developer by its portal-specific ID (e.g., rp id, oto agency_id).
+        MANDAT ID-ONLY: Autorytatywne wyszukiwanie po identyfikatorach technicznych portali.
+        """
         if not portal or not portal_id:
             return None
 
@@ -141,16 +143,28 @@ class DeveloperIndexer:
         if portal == "oto":
             clean_id = re.sub(r"^ID", "", clean_id)
 
+        # Pobieramy ścieżkę do ID w portal_mapping z centralnej konfiguracji
+        from usi_scrapers import get_mapping
+        try:
+            mapping = get_mapping(portal)
+            id_key = mapping.get("developer", {}).get("id", "id") # Fallback do 'id'
+            # Uwaga: w portal_mapping dewelopera klucze są uproszczone (id / agency_id)
+            # ale dla świętego spokoju sprawdzamy oba warianty.
+        except Exception:
+            id_key = "id"
+
         for dev in self.repo.list_developers(only_merged=False):
             pm = dev.get("portal_mapping", {})
             p_data = pm.get(portal)
             if not p_data:
                 continue
+                
+            # Sprawdzamy standardowe klucze ID w rekordzie dewelopera
             existing_id = p_data.get("id") or p_data.get("agency_id")
             if str(existing_id) == clean_id:
                 return dev
             
-            # Also check additional agency IDs
+            # Check additional agency IDs
             for aid in p_data.get("agency_ids", []):
                 if str(aid) == clean_id:
                     return dev
