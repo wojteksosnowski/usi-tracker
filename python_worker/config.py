@@ -124,3 +124,12 @@ def get_shared_fetcher():
         from usi_scrapers.fetcher import Fetcher
         _cached_fetcher = Fetcher(config)
     return _cached_fetcher
+
+_cached_gateway = None
+
+def get_shared_scraper_gateway():
+    global _cached_gateway
+    if _cached_gateway is None:
+        from python_worker.services.scraper_gateway import ScraperGateway
+        _cached_gateway = ScraperGateway(get_shared_config(), get_shared_fetcher())
+    return _cached_gateway

@@ -14,12 +14,12 @@ LIB_PATH = str(_BASE_DIR.parent / "usi-scrapers")
 if os.path.exists(LIB_PATH) and LIB_PATH not in sys.path:
     sys.path.insert(0, LIB_PATH)
 
-# Autorytatywne API usi-scrapers do ekstrakcji danych technicznych
+# Autorytatywna brama systemowa
 try:
-    from usi_scrapers import resolve_path, get_mapping
-    HAS_SCRAPERS = True
+    from python_worker.config import get_shared_scraper_gateway
+    HAS_GATEWAY = True
 except ImportError:
-    HAS_SCRAPERS = False
+    HAS_GATEWAY = False
 
 # Konfiguracja logowania
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(message)s")
@@ -31,8 +31,9 @@ class DevIdOnlyRebuilder:
         self.counters_path = Path(counters_path)
         if not self.dev_dir.exists():
             raise FileNotFoundError(f"Katalog USIdev nie istnieje: {dev_dir}")
-        if not HAS_SCRAPERS:
-            raise RuntimeError("Krytyczny brak biblioteki usi_scrapers. Rebuild przerwany.")
+        if not HAS_GATEWAY:
+            raise RuntimeError("Krytyczny brak bramy ScraperGateway. Rebuild przerwany.")
+        self.gateway = get_shared_scraper_gateway()
 
     def _generate_usi_dev_id(self) -> str:
         """Atomowo inkrementuje i pobiera ID z usi_counters.json."""
@@ -101,15 +102,15 @@ class DevIdOnlyRebuilder:
             portal = match.group(1)
             filename_portal_id = match.group(2)
             
-            # --- UŻYCIE USI-SCRAPERS API ---
+            # --- UŻYCIE BRAMY SYSTEMOWEJ ---
             try:
-                mapping = get_mapping(portal)
+                mapping = self.gateway.get_mapping(portal)
                 dev_mapping = mapping.get("developer", {})
-                portal_id = str(resolve_path(raw_data, dev_mapping.get("id")) or filename_portal_id)
-                dev_name = resolve_path(raw_data, dev_mapping.get("name"))
+                portal_id = str(self.gateway.resolve_path(raw_data, dev_mapping.get("id")) or filename_portal_id)
+                dev_name = self.gateway.resolve_path(raw_data, dev_mapping.get("name"))
                 if not dev_name: dev_name = raw_data.get("name") or dev_slug.replace("-", " ").title()
             except Exception as api_err:
-                logger.error(f"Błąd Scrapers-API dla {raw_path.name}: {api_err}")
+                logger.error(f"Błąd Bramy dla {raw_path.name}: {api_err}")
                 portal_id = filename_portal_id
                 dev_name = raw_data.get("name") or dev_slug.replace("-", " ").title()
 

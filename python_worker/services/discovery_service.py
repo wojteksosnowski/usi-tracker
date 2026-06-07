@@ -1,9 +1,7 @@
 import logging
 from pathlib import Path
 from datetime import datetime
-from python_worker.config import USI_DATA_DIR, get_shared_config, get_shared_fetcher
-from usi_scrapers import api as scraper_api
-from usi_scrapers import resolve_path
+from python_worker.config import USI_DATA_DIR, get_shared_config, get_shared_fetcher, get_shared_scraper_gateway
 from python_worker.url_parser import parse_url
 from python_worker.portal_matcher import filter_new_investments
 from python_worker.logger_utils import log_to_processing_log
@@ -13,10 +11,9 @@ from python_worker.services.investment_service import InvestmentService
 logger = logging.getLogger(__name__)
 
 class DiscoveryService:
-    def __init__(self, data_dir: Path = USI_DATA_DIR):
+    def __init__(self, data_dir: Path = USI_DATA_DIR, scraper_gateway=None):
         self.data_dir = data_dir
-        self.config = get_shared_config()
-        self.fetcher = get_shared_fetcher()
+        self.gateway = scraper_gateway or get_shared_scraper_gateway()
         self.isvc = InvestmentService(data_dir=data_dir)
 
     def discover_for_developer(self, system_id, job_id=None, job_manager=None, download=False, auto_register=True):
@@ -72,7 +69,7 @@ class DiscoveryService:
                 ids = identifier if isinstance(identifier, list) else [identifier]
                 results = []
                 for idx in ids:
-                    results.extend(scraper_api.list_investments(self.config, self.fetcher, portal, str(idx)))
+                    results.extend(self.gateway.list_investments(portal, str(idx)))
                 
                 portal_key = "rp" if portal == "rp" else ("otodom" if portal == "oto" else "to")
                 filtered = filter_new_investments(results, portal_key, dm.get_existing_identifiers())
@@ -222,8 +219,8 @@ class DiscoveryService:
             inv_slug = "unknown"
             logger.warning(f"No slug from URL/discovery for '{item['name']}' (portal={portal}) - using 'unknown'")
         
-        # Extract vendor ID for ID-first registration
-        vendor_id = resolve_path(item, "vendor.id|ad.agency.id|agency_id|developer_id")
+        # Extract vendor ID for ID-first registration via gateway
+        vendor_id = self.gateway.resolve_path(item, "vendor.id|ad.agency.id|agency_id|developer_id")
 
         # Delegate registration to InvestmentService (which now handles canonical slugs from library)
         return self.isvc.register_investment(
@@ -255,13 +252,8 @@ class DiscoveryService:
         portal_key = "rp" if portal == "rp" else ("otodom" if portal == "oto" else "to")
         
         try:
-            # USI-Scrapers v0.7.0+ standardized API
-            if portal_key == "rp":
-                results = scraper_api.discover_rp_investments(self.config, self.fetcher, identifier=identifier, limit=limit)
-            elif portal_key == "otodom":
-                results = scraper_api.discover_otodom_investments(self.config, self.fetcher, identifier=identifier, limit=limit)
-            else: # to
-                results = scraper_api.discover_to_investments(self.config, self.fetcher, identifier=identifier, limit=limit)
+            # Wywołanie przez bramę
+            results = self.gateway.discover_investments(portal_key, identifier=identifier, limit=limit)
 
             logger.info(f"Scraper library returned {len(results)} items for {portal}")
             

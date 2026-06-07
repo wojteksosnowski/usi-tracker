@@ -3,9 +3,8 @@ import json
 import logging
 import re
 from pathlib import Path
-from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
+from python_worker.config import USI_DATA_DIR, USI_DEV_DIR, get_shared_scraper_gateway
 from python_worker.developer_manager import DeveloperManager
-from usi_scrapers import api as scraper_api
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -126,7 +125,7 @@ def init_developers_from_konkurenci(
 
 def _build_dev_from_raws(dev_subdir: Path, dev_slug: str, dev_name: str, dm: DeveloperManager) -> bool:
     """Builds per-portal usi_dev_*.json files from whichever raw files exist in the subdir."""
-    from usi_scrapers import api as scraper_api
+    gateway = get_shared_scraper_gateway()
 
     raw_files = list(dev_subdir.glob("raw_*.json"))
     if not raw_files:
@@ -148,8 +147,8 @@ def _build_dev_from_raws(dev_subdir: Path, dev_slug: str, dev_name: str, dm: Dev
                 continue
             raw_data = json.loads(raw_text)
             
-            # KRYTYCZNA POPRAWKA: Bezwzględna delegacja ekstrakcji do bazy mapowań usi-scrapers
-            meta = scraper_api.extract_developer_meta(raw_data, portal)
+            # KRYTYCZNA POPRAWKA: Bezwzględna delegacja ekstrakcji do bramy systemowej
+            meta = gateway.extract_developer_meta(raw_data, portal)
             portal_id = meta.get("id")
             
             # Wymagamy obecności ID, nie zgadujemy z nazwy pliku

@@ -1,5 +1,14 @@
 # Changelog
 
+## Wersja 0.9.75 — Hermetyzacja Systemu (ScraperGateway) — 2026-06-07
+
+### Dodano
+- **ScraperGateway**: Wprowadzono nową warstwę bramy (`python_worker/services/scraper_gateway.py`), która stanowi jedyny punkt styku systemu z biblioteką `usi-scrapers`. Ukrywa ona detale implementacyjne i zapewnia stabilność API.
+
+### Zmieniono
+- **Hermetyzacja Usług**: Zrefaktoryzowano wszystkie kluczowe serwisy (`InvestmentSyncService`, `DiscoveryService`, `DeveloperService`) oraz skrypty (`init_developers.py`, `rebuild_devs_id_only.py`), aby komunikowały się z silnikiem skrapowania wyłącznie poprzez bramę.
+- **Zasady Architektury**: Usunięto bezpośrednie importy z `usi_scrapers` w logice biznesowej, co pozwala na bezpieczną wymianę biblioteki lub zmianę jej API bez konieczności modyfikacji całego systemu.
+
 ## Wersja 0.9.74 — Bezwzględny Rygor ID-Only (Usunięcie Fallbacków) — 2026-06-07
 
 ### Zmieniono

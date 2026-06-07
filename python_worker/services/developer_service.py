@@ -3,9 +3,8 @@ import logging
 from pathlib import Path
 from datetime import datetime, timezone
 
-from python_worker.config import get_shared_config, get_shared_fetcher
+from python_worker.config import get_shared_config, get_shared_fetcher, get_shared_scraper_gateway
 from python_worker.developer_manager import DeveloperManager
-from usi_scrapers import api as scraper_api
 
 logger = logging.getLogger(__name__)
 
@@ -16,34 +15,27 @@ def _iso(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 class DeveloperService:
-    def __init__(self, data_dir: Path, dev_dir: Path):
+    def __init__(self, data_dir: Path, dev_dir: Path, scraper_gateway=None):
         self.data_dir = data_dir
         self.dev_dir = dev_dir
         self.dm = DeveloperManager(data_dir, dev_dir)
-        
-        # Inicjalizacja współdzielonej konfiguracji z usi-scrapers
-        self.lib_config = get_shared_config()
-        self.lib_fetcher = get_shared_fetcher()
+        self.gateway = scraper_gateway or get_shared_scraper_gateway()
 
     def download_dev_profile_raw(self, portal: str, identifier: str, dev_slug: str) -> Path | None:
         """
-        Pobiera surowy profil dewelopera oraz jego logo delegując zadanie do usi-scrapers.
+        Pobiera surowy profil dewelopera oraz jego logo delegując zadanie do usi-scrapers przez bramę.
         Zgodnie z ID-only identyfikacja opiera się wyłącznie o portal_id.
         """
-        if not self.lib_config or not self.lib_fetcher:
-            logger.error("Scraper library not properly configured.")
-            return None
-
         try:
-            portal_prefix = scraper_api.resolve_prefix(portal)
+            portal_prefix = self.gateway.resolve_prefix(portal)
             
             # Bezwzględny rygor ID-only dla rp i oto (muszą być numeryczne)
             if portal_prefix in ("rp", "oto") and not str(identifier).isdigit():
                 logger.error(f"Identifier for portal {portal_prefix} must be numeric, got: {identifier}")
                 return None
 
-            # Wywołanie Publicznego API usi-scrapers z poprawną liczbą argumentów
-            res = scraper_api.download_raw_dev(self.lib_config, self.lib_fetcher, portal_prefix, str(identifier))
+            # Wywołanie przez bramę
+            res = self.gateway.download_raw_dev(portal_prefix, str(identifier))
             if not res or res.get("status") != "success":
                 msg = res.get("message", "Unknown error") if res else "No response"
                 logger.error(f"usi-scrapers failed to download dev profile for {portal_prefix}/{identifier}: {msg}")

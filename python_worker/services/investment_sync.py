@@ -7,9 +7,8 @@ from pathlib import Path
 # External libraries (ensuring config is imported first to patch sys.path)
 from python_worker.config import (
     get_shared_config, get_shared_fetcher, get_shared_tech_manager,
-    USI_DATA_DIR, PUBLIC_USI_DIR
+    USI_DATA_DIR, PUBLIC_USI_DIR, get_shared_scraper_gateway
 )
-from usi_scrapers import api as scraper_api
 
 from slugify import slugify
 
@@ -62,33 +61,20 @@ def _primary_portal_id(sources: dict) -> tuple[str, str | None]:
     return "rp", None
 
 class InvestmentSyncService:
-    def __init__(self, identity_resolver, data_dir: Path, public_usi_dir: Path, developer_manager=None, investment_repo=None):
+    def __init__(self, identity_resolver, data_dir: Path, public_usi_dir: Path, developer_manager=None, investment_repo=None, scraper_gateway=None):
         self.repo = investment_repo or InvestmentRepository(identity_resolver, data_dir)
         self.identity = identity_resolver
         self.data_dir = data_dir
         self.public_usi_dir = public_usi_dir
         self.dm = developer_manager or DeveloperManager(self.data_dir)
         
-        # Centralized and consistent dependency initialization
-        self._lib_config = get_shared_config()
-        self._fetcher = get_shared_fetcher()
+        # Przypisanie dedykowanej bramy zamiast luźnych obiektów config/fetcher
+        self.gateway = scraper_gateway or get_shared_scraper_gateway()
         self._tech_manager = get_shared_tech_manager()
         self._image_sync = None
             
         self.resolver = InvestmentIdentityResolver(self.data_dir, self.public_usi_dir)
         self.developer_resolver = DeveloperResolver(self.dm, self.identity)
-
-    @property
-    def lib_config(self):
-        return self._lib_config
-
-    @property
-    def fetcher(self):
-        return self._fetcher
-
-    @fetcher.setter
-    def fetcher(self, value):
-        self._fetcher = value
 
     @property
     def tech_manager(self):
@@ -107,13 +93,11 @@ class InvestmentSyncService:
     def _check_investment_exists(self, portal, item_id):
         if not item_id:
             return False
-
         full_portal = PORTAL_FULL_DOMAINS.get(portal)
         if not full_portal:
             return False
-
-        # Lekkie sprawdzenie bez alokacji pamięci na pełny JSON
-        return scraper_api.has_local_raw(self.lib_config, portal=full_portal, portal_id=str(item_id))
+        # Czyste, zhermetyzowane wywołanie bramy:
+        return self.gateway.has_local_raw(full_portal, str(item_id))
 
     def register_investment(self, portal, developer_name, name, item_id=None, url=None, allow_existing=False, vendor_id=None, force_dev_slug=None):
 
@@ -212,9 +196,8 @@ class InvestmentSyncService:
         return dev_slug, inv_slug, skeleton["usi_inv_id"]
 
     def download_raw_json(self, portal: str, identifier: str, system_id: str):
-        """Delegates raw investment download to the usi-scrapers library."""
         try:
-            return scraper_api.download_raw(self.lib_config, self.fetcher, portal, identifier)
+            return self.gateway.download_raw(portal, identifier)
         except Exception as e:
             logger.error(f"Download raw failed for {portal}/{identifier}: {e}")
             return False
@@ -238,33 +221,26 @@ class InvestmentSyncService:
         if not identifier:
             return None, None, None
 
-        # 2. Wybierz odpowiednią metodę API
+        # 2. Wybierz odpowiednią metodę API przez bramę
         try:
             full_portal = PORTAL_FULL_DOMAINS.get(portal, portal)
             if use_local_raw:
-                 # Sprawdź lokalnie
-                 raw_details = scraper_api.load_raw(self.lib_config, full_portal, str(identifier))
-                 if not raw_details: return None, None, None
-                 raw_data = raw_details
+                 raw_data = self.gateway.load_raw(full_portal, str(identifier))
+                 if not raw_data: return None, None, None
             else:
-                # Użyj poprawnego API z biblioteki
                 if str(identifier).startswith("http"):
-                    res = scraper_api.ingest_investment_by_url(self.lib_config, self.fetcher, portal, identifier)
+                    res = self.gateway.ingest_investment_by_url(portal, identifier)
                 else:
-                    res = scraper_api.refresh_investment_by_id(self.lib_config, self.fetcher, portal, identifier)
+                    res = self.gateway.refresh_investment_by_id(portal, identifier)
                 
-                # Weryfikacja wyniku
                 if res and "error" not in res:
-                    # Automatycznie zapisuje, więc nie musisz wywoływać save_raw ręcznie
                     raw_data = res
                 else:
                     error_msg = res.get("error", "Unknown error")
                     return None, None, f"{portal_name} ({error_msg})"
                     
-            # 3. Transformacja
             unified_data = AdapterFactory.get_adapter(raw_prefix).transform(raw_data, inv_slug, dev_slug)
             return unified_data, portal_name, None
-            
         except Exception as e:
             logger.error(f"Sync error: {e}")
             return None, None, f"{portal_name} ({str(e)})"
@@ -592,10 +568,8 @@ class InvestmentSyncService:
         if not targets:
             return False
 
-        # USI-Scrapers v1.0.0 process_batch handles internal throttling and I/O (save_raw, sync_images)
-        batch_results = scraper_api.process_batch(
-            self.lib_config, self.fetcher, portal, targets, on_progress=on_progress_callback
-        )
+        # Wywołanie przez bramę (ukrywa lib_config i fetcher)
+        batch_results = self.gateway.process_batch(portal, targets, on_progress=on_progress_callback)
         success_count = 0
 
         # --- TELEMETRIA PACZKI ---
