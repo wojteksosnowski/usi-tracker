@@ -1,5 +1,6 @@
 import re
 import math
+import sys
 from abc import ABC, abstractmethod
 from difflib import SequenceMatcher
 from typing import Dict, Any, Optional, Tuple, Set
@@ -44,7 +45,13 @@ class NameSimilarityStrategy(SimilarityStrategy):
         if not n1 or not n2:
             return 0.0, None
             
-        ratio: float = SequenceMatcher(None, n1, n2).ratio()
+        matcher = SequenceMatcher(None, n1, n2)
+        ratio = matcher.ratio()
+
+        # Wymuszenie dumpu dla konkretnej, problematycznej pary deweloperów
+        if "022" in n1 or "022" in n2:
+            dump_sequence_matcher_analysis(dev1, dev2, self)
+
         if ratio >= self.threshold:
             return ratio, f"Wysokie podobieństwo nazw rdzeniowych: '{n1}' ({int(ratio * 100)}%)"
         
@@ -102,18 +109,24 @@ class GeoProximityStrategy(SimilarityStrategy):
         return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
     def _get_coords(self, inv: Dict[str, Any]) -> Optional[Tuple[float, float]]:
-        coords = inv.get("coordinates") or {}
-        lat = coords.get("lat")
-        lng = coords.get("lng")
-        if lat is None or lng is None:
-            c = inv.get("coords")
-            if c and len(c) >= 2:
-                lat, lng = c[0], c[1]
-        if lat is not None and lng is not None:
+        coords = inv.get("coordinates")
+        if not coords:
+            # Fallback dla starego klucza "coords"
+            coords = inv.get("coords")
+            
+        if isinstance(coords, list) and len(coords) >= 2:
             try:
-                return float(lat), float(lng)
+                return float(coords[0]), float(coords[1])
             except (ValueError, TypeError):
-                pass
+                return None
+        elif isinstance(coords, dict):
+            lat = coords.get("lat")
+            lng = coords.get("lng")
+            if lat is not None and lng is not None:
+                try:
+                    return float(lat), float(lng)
+                except (ValueError, TypeError):
+                    pass
         return None
 
     def calculate(self, dev1: Dict[str, Any], dev2: Dict[str, Any]) -> Tuple[float, Optional[str]]:
@@ -145,6 +158,51 @@ class SharedInvestmentStrategy(SimilarityStrategy):
             return score, f"Współdzielenie tych samych inwestycji po końcówkach slugów ({count} szt.: {', '.join(list(common_slugs)[:3])})"
             
         return 0.0, None
+
+def dump_sequence_matcher_analysis(dev1: Dict[str, Any], dev2: Dict[str, Any], strategy: Any = None) -> None:
+    """
+    Wykonuje pełny zrzut diagnostyczny operacji porównywania ciągów tekstowych.
+    Wypisuje transformację tokenów oraz dokładne bloki dopasowań i opkody SequenceMatcher.
+    """
+    strat = strategy or NameSimilarityStrategy()
+    
+    raw_n1 = dev1.get("name") or dev1.get("developer_slug") or ""
+    raw_n2 = dev2.get("name") or dev2.get("developer_slug") or ""
+    
+    # Przechwycenie stanu po ultra-czyszczeniu
+    clean_n1 = strat._ultra_clean(raw_n1)
+    clean_n2 = strat._ultra_clean(raw_n2)
+    
+    matcher = SequenceMatcher(None, clean_n1, clean_n2)
+    ratio = matcher.ratio()
+    
+    print("=" * 80, file=sys.stderr)
+    print(f"DIAGNOSTYKA SEQUENCE MATCHER: {dev1.get('usi_dev_id')} <=> {dev2.get('usi_dev_id')}", file=sys.stderr)
+    print("=" * 80, file=sys.stderr)
+    print(f"REKORD 1: [Raw]: '{raw_n1}' -> [Cleaned]: '{clean_n1}'", file=sys.stderr)
+    print(f"REKORD 2: [Raw]: '{raw_n2}' -> [Cleaned]: '{clean_n2}'", file=sys.stderr)
+    print(f"WYNIK (Ratio): {ratio:.4f} (Threshold: {getattr(strat, 'threshold', 'N/A')})", file=sys.stderr)
+    print("-" * 80, file=sys.stderr)
+    
+    # 1. Zrzut identycznych bloków (Matching Blocks)
+    print("BLOKI DOPASOWANE (Matching Blocks):", file=sys.stderr)
+    matching_blocks = matcher.get_matching_blocks()
+    for block in matching_blocks:
+        if block.size > 0:
+            fragment = clean_n1[block.a : block.a + block.size]
+            print(f"  - Pozycja w R1: {block.a}, Pozycja w R2: {block.b}, Długość: {block.size} -> Tekst: '{fragment}'", file=sys.stderr)
+            
+    print("-" * 80, file=sys.stderr)
+    
+    # 2. Zrzut instrukcji transformacji (Opcodes)
+    print("OPERACJE TRANSFORMAJI (Opcodes):", file=sys.stderr)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        str1_chunk = clean_n1[i1:i2]
+        str2_chunk = clean_n2[j1:j2]
+        print(f"  - Akcja: {tag:<10} | R1[{i1}:{i2}] ('{str1_chunk}') -> R2[{j1}:{j2}] ('{str2_chunk}')", file=sys.stderr)
+        
+    print("=" * 80, file=sys.stderr)
+
 
 def normalize_name(name: Optional[str]) -> str:
     """Helper for backward compatibility."""

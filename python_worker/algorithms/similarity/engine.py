@@ -5,17 +5,18 @@ from .strategies import (
     NameSimilarityStrategy,
     GeoProximityStrategy,
     SharedInvestmentStrategy,
-    InvestmentTokenOverlapStrategy,
-    normalize_name
+    InvestmentTokenOverlapStrategy
 )
 
 logger = logging.getLogger(__name__)
 
 class DeveloperMatcher:
-    """Odpowiedzialny za proces parowania deweloperów na podstawie wstrzykniętych strategii."""
+    """
+    Zoptymalizowany silnik parowania deweloperów. 
+    Wprowadza przeszukiwanie lustrzane w RAM oraz tranzytywne przycinanie grafu porównań.
+    """
     
     def __init__(self, strategies: Optional[List[SimilarityStrategy]] = None) -> None:
-        # Default zestaw pancernych strategii, jeśli klient nie wstrzyknie własnych
         self.strategies = strategies or [
             NameSimilarityStrategy(threshold=0.85),
             SharedInvestmentStrategy(),
@@ -24,29 +25,18 @@ class DeveloperMatcher:
         ]
 
     def _is_excluded(self, d1: Dict[str, Any], d2: Dict[str, Any], dismissed_cache: Dict[str, Set[str]]) -> bool:
-        """Sprawdza reguły wykluczające pary z parowania (baza danych / logika biznesowa)."""
-        id1 = d1.get("usi_dev_id") or d1.get("id")
-        id2 = d2.get("usi_dev_id") or d2.get("id")
+        id1 = d1.get("usi_dev_id")
+        id2 = d2.get("usi_dev_id")
         
-        if not id1 or not id2:
+        if not id1 or not id2 or id1 == id2:
             return True
 
-        # 1. Tożsamość obiektów
-        if str(id1) == str(id2):
-            return True
-
-        # 2. Sprawdzenie cache odrzuconych w UI
-        s_id1, s_id2 = str(id1), str(id2)
-        if s_id2 in dismissed_cache.get(s_id1, set()) or s_id1 in dismissed_cache.get(s_id2, set()):
+        # Sprawdzenie odrzuconych par w UI
+        if id2 in dismissed_cache.get(id1, set()) or id1 in dismissed_cache.get(id2, set()):
             return True
             
-        # 3. Istniejące relacje architektoniczne (Master/Parent)
-        m1, m2 = d1.get("master_id"), d2.get("master_id")
-        if m1 and m1 == m2:
-            return True
-            
-        # Parent ID model
-        if d1.get("parent_id") == id2 or d2.get("parent_id") == id1:
+        # Ten sam master_id oznacza, że deweloperzy są już scaleni
+        if d1.get("master_id") and d1.get("master_id") == d2.get("master_id"):
             return True
             
         return False
@@ -58,22 +48,73 @@ class DeveloperMatcher:
         dismissed_cache: Dict[str, Set[str]]
     ) -> List[Dict[str, Any]]:
         """
-        Wyszukuje propozycje powiązań dla jednego konkretnego dewelopera.
+        Wyszukuje propozycje dla jednego dewelopera.
+        Wykorzystuje pamięć podręczną innych obiektów i reguły tranzytywne w celu ominięcia I/O i CPU.
         """
         suggestions: List[Dict[str, Any]] = []
-        target_id = target_dev.get("usi_dev_id") or target_dev.get("id")
+        target_id = target_dev.get("usi_dev_id")
+        target_slug = target_dev.get("developer_slug")
         
         if not target_id:
             return []
 
+        # KROK diagnostic-tranzytywny: Znajdź w pamięci RAM deweloperów skrajnie bliźniaczych do targetu
+        # (np. filie, wersje ze sp. z o.o.), którzy zdążyli już wykonać skanowanie.
+        clones_suggestions_map = {}
+        name_strat = NameSimilarityStrategy()
+        
         for candidate in all_developers:
-            if self._is_excluded(target_dev, candidate, dismissed_cache):
+            c_id = candidate.get("usi_dev_id")
+            if not c_id or c_id == target_id:
                 continue
                 
+            # Jeśli kandydat jest bliźniakiem (bardzo silne powiązanie nazwowe)
+            if target_slug == candidate.get("developer_slug"):
+                is_clone = True
+            else:
+                score, _ = name_strat.calculate(target_dev, candidate)
+                is_clone = (score >= 0.95)
+                
+            if is_clone and candidate.get("suggestions"):
+                # Mapujemy co ten bliźniak sądzi o innych: {candidate_id: score}
+                clones_suggestions_map[c_id] = {s["usi_dev_id"]: s["score"] for s in candidate["suggestions"] if "usi_dev_id" in s}
+
+        # GŁÓWNA PĘTLA PORÓWNAWCZA
+        for candidate in all_developers:
+            cand_id = candidate.get("usi_dev_id")
+            if self._is_excluded(target_dev, candidate, dismissed_cache):
+                continue
+
+            # OPTYMALIZACJA 1: Przeszukanie lustrzane w pamięci RAM.
+            # Jeśli kandydat (B) ma już w swojej tablicy sugestię dotyczącą targetu (A),
+            # pobieramy ten wynik natychmiast bez uruchamiania ciężkich strategii.
+            mirror_sug = next((s for s in candidate.get("suggestions", []) if s.get("usi_dev_id") == target_id), None)
+            if mirror_sug:
+                suggestions.append({
+                    "source_id": target_id,
+                    "target_id": cand_id,
+                    "target_slug": candidate.get("developer_slug") or "unknown",
+                    "reason": f"[Lustro RAM] {mirror_sug.get('reason')}",
+                    "score": mirror_sug.get("score", 0.0)
+                })
+                continue
+
+            # OPTYMALIZACJA 2: Przycinanie tranzytywne (Zasada słabego powiązania).
+            # Jeśli nasz bliźniak (B) skanował już tego kandydata (C) i ocenił go na 0.0,
+            # to my (A) również przypisujemy mu 0.0 i całkowicie pomijamy CPU-heavy kalkulacje.
+            pruned_by_transitivity = False
+            for clone_id, clone_sugs in clones_suggestions_map.items():
+                if cand_id in clone_sugs and clone_sugs[cand_id] == 0.0:
+                    pruned_by_transitivity = True
+                    break
+            
+            if pruned_by_transitivity:
+                continue
+
+            # REALNE OBLICZENIA (Tylko gdy brakuje danych w pamięci RAM)
             best_score = 0.0
             best_reason: Optional[str] = None
             
-            # Ewaluacja potoku strategii
             for strategy in self.strategies:
                 try:
                     score, reason = strategy.calculate(target_dev, candidate)
@@ -81,55 +122,51 @@ class DeveloperMatcher:
                         best_score = score
                         best_reason = reason
                 except Exception as strategy_error:
-                    logger.error(
-                        f"Krytyczny błąd strategii {strategy.__class__.__name__} "
-                        f"dla par {target_id} <> {candidate.get('usi_dev_id') or candidate.get('id')}: {strategy_error}",
-                        exc_info=True
-                    )
+                    logger.error(f"Błąd strategii {strategy.__class__.__name__} dla par {target_id} <> {cand_id}: {strategy_error}")
                     
             if best_score > 0.0 and best_reason:
                 suggestions.append({
                     "source_id": target_id,
-                    "target_id": candidate.get("usi_dev_id") or candidate.get("id"),
-                    "target_slug": candidate.get("developer_slug") or candidate.get("slug") or "unknown",
+                    "target_id": cand_id,
+                    "target_slug": candidate.get("developer_slug") or "unknown",
                     "reason": best_reason,
                     "score": round(best_score, 4)
                 })
                 
-        # Sortowanie od najwyższego prawdopodobieństwa trafienia
         suggestions.sort(key=lambda x: x["score"], reverse=True)
         return suggestions
 
+
 def calculate_similarities(devs: List[Dict[str, Any]], dismissed_cache: Dict[str, Set[str]] = None) -> List[Dict[str, Any]]:
     """
-    Główny punkt wejścia algorytmu podobieństwa (legacy wrapper).
-    Porównuje każdego dewelopera z każdym (N^2), biorąc pod uwagę odrzucone pary.
+    Batch wrapper kompatybilny wstecznie. 
+    Dzięki lustrzanym odbiciom w pamięci RAM wydajność rośnie drastycznie z każdą kolejną iteracją pętli.
     """
     matcher = DeveloperMatcher()
     all_suggestions = []
-    
     dismissed_cache = dismissed_cache or {}
     
-    logger.info(f"Rozpoczynam analizę podobieństwa dla {len(devs)} deweloperów...")
-    
-    # Optymalizacja: tylko deweloperzy z ID (wymóg ID-only)
     valid_devs = [d for d in devs if d.get("usi_dev_id")]
     
     for i, dev1 in enumerate(valid_devs):
-        # find_suggestions_for_developer jest O(N), wywołane w pętli daje O(N^2)
-        # ale używamy podzbioru (i+1:) aby uniknąć duplikatów i(A,B) vs i(B,A)
-        # Jednak find_suggestions_for_developer przeszukuje CAŁĄ listę.
-        # Dla zachowania kompatybilności z dotychczasowym calculate_similarities, 
-        # które zwracało listę par, użyjemy matcher.find_suggestions_for_developer na okrojonej liście
-        # lub zostawimy prostszą pętlę tutaj dla wydajności N(N-1)/2.
-        
-        dev1_id = dev1.get("usi_dev_id")
-        remaining_devs = valid_devs[i+1:]
-        
+        # Przekazujemy wszystkich deweloperów. 
+        # Z każdym krokiem pętli coraz więcej par jest rozwiązywanych przez OPTYMALIZACJĘ 1 (Mirror).
+        remaining_devs = [d for j, d in enumerate(valid_devs) if i != j]
         suggestions = matcher.find_suggestions_for_developer(dev1, remaining_devs, dismissed_cache)
-        all_suggestions.extend(suggestions)
-                
-        if (i + 1) % 100 == 0:
-            logger.info(f"Przetworzono {i + 1}/{len(valid_devs)} deweloperów...")
+        
+        # Filtrujemy tylko wartościowe sugestie do zwrotu
+        valid_suggestions = [s for s in suggestions if s["score"] >= 0.75]
+        all_suggestions.extend(valid_suggestions)
+        
+        # Aktualizujemy obiekt w pamięci podręcznej RAM dla kolejnych deweloperów w pętli batcha!
+        # To kluczowe, aby następne iteracje widziały co wyliczył dev1.
+        dev1["suggestions"] = [
+            {
+                "usi_dev_id": s["target_id"],
+                "developer_slug": s["target_slug"],
+                "score": s["score"],
+                "reason": s["reason"]
+            } for s in suggestions
+        ]
 
     return all_suggestions

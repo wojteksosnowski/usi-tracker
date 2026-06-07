@@ -18,7 +18,8 @@ except ImportError:
     HAS_CRAWLERS = False
 
 # Local similarity algorithms
-from python_worker.algorithms.similarity.engine import calculate_similarities, normalize_name
+from python_worker.algorithms.similarity.engine import calculate_similarities
+from python_worker.algorithms.similarity.strategies import normalize_name
 
 logger = logging.getLogger(__name__)
 

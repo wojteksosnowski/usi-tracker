@@ -1,0 +1,27 @@
+{
+  "name": "implement_structured_notification",
+  "description": "Wymusza na modelu implementację ustrukturyzowanych powiadomień (events) w systemie USI-Tracker, eliminując generyczne błędy tekstowe.",
+  "version": "1.0.0",
+  "instructions": [
+    "1. ABSOLUTNY ZAKAZ używania generycznych komunikatów tekstowych typu 'Wystąpił błąd' lub 'Operacja nieudana' w kodzie backendu i API.",
+    "2. Każde powiadomienie implementowane w serwisach (np. developer_service, investment_service) MUSI być słownikiem (Dict) przekazywanym do metody append_dev_log lub dedykowanego serwisu zdarzeń.",
+    "3. Słownik zdarzenia MUSI bezwzględnie zawierać klucze:",
+    "   - 'level': Wartości tekstowe: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR'",
+    "   - 'context': Identyfikator etapu/komponentu pisany UPPER_SNAKE_CASE (np. 'IMAGE_SYNC_START', 'GEO_PROXIMITY_CRASH')",
+    "   - 'message': Czytelny dla użytkownika, szczegółowy opis stanu faktycznego (np. 'Pobieranie zdjęcia przerwane: serwer zwrócił kod 404')",
+    "   - 'timestamp': Znacznik czasu w formacie ISO 8601 UTC Z",
+    "4. W blokach 'except Exception' model ma OBOWIĄZEK wyciągać nazwę klasy wyjątku (e.__class__.__name__) oraz jego treść (str(e)) i dołączać je do struktur danych logu pod kluczem 'error_details', aby UI mogło wyświetlić sekcję techniczną dla dewelopera.",
+    "5. Przed zatwierdzeniem kodu weryfikuj, czy dany log dewelopera nie jest nadpisywany w ciasnej pętli I/O, generując narzut dyskowy."
+  ],
+  "enforcement_rules": {
+    "disallowed_patterns": [
+      "log_to_dev_log\\(.*, \"[Ww]ystąpił błąd.*\"\\)",
+      "return \\{\"error\": \"[Ww]ystąpił błąd\"\\}"
+    ],
+    "required_patterns": [
+      "\"level\":",
+      "\"context\":",
+      "\"timestamp\":"
+    ]
+  }
+}

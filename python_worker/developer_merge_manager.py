@@ -75,6 +75,72 @@ class DeveloperMergeManager:
         self.repo.create_developer_file(target_dev)
         return True
 
+    def batch_add_suggestions(self, suggestions_list: list) -> int:
+        """
+        Przyjmuje listę surowych sugestii z silnika i zapisuje je zbiorczo.
+        Redukuje operacje dyskowe I/O z O(N) do dokładnie jednego zapisu per zmieniony deweloper.
+        """
+        # Słownik przechowujący załadowane profile deweloperów w RAM: {usi_dev_id: dev_dict}
+        loaded_profiles = {}
+        modified_ids = set()
+        
+        logger.info(f"Rozpoczynam zbiorcze przetwarzanie {len(suggestions_list)} sugestii...")
+
+        for sug in suggestions_list:
+            src_id = sug["source_id"]
+            tgt_id = sug["target_id"]
+            score = sug["score"]
+            reason = sug["reason"]
+            
+            # Ładowanie z repozytorium do cache (jeśli jeszcze nie załadowano)
+            if src_id not in loaded_profiles:
+                loaded_profiles[src_id] = self.repo.get_developer_by_id(src_id)
+            if tgt_id not in loaded_profiles:
+                loaded_profiles[tgt_id] = self.repo.get_developer_by_id(tgt_id)
+                
+            src_dev = loaded_profiles[src_id]
+            tgt_dev = loaded_profiles[tgt_id]
+            
+            if not src_dev or not tgt_dev:
+                continue
+
+            # 1. Aktualizacja profilu źródłowego (Source)
+            src_dev.setdefault("suggestions", [])
+            if not any(s.get("usi_dev_id") == tgt_id for s in src_dev["suggestions"]):
+                src_dev["suggestions"].append({
+                    "developer_slug": tgt_dev.get("developer_slug"),
+                    "name": tgt_dev.get("name"),
+                    "usi_dev_id": tgt_id,
+                    "reason": reason,
+                    "score": score,
+                    "timestamp": datetime.now().isoformat()
+                })
+                modified_ids.add(src_id)
+
+            # 2. Aktualizacja profilu docelowego (Target - Relacja zwrotna)
+            tgt_dev.setdefault("suggestions", [])
+            if not any(s.get("usi_dev_id") == src_id for s in tgt_dev["suggestions"]):
+                tgt_dev["suggestions"].append({
+                    "developer_slug": src_dev.get("developer_slug"),
+                    "name": src_dev.get("name"),
+                    "usi_dev_id": src_id,
+                    "reason": reason,
+                    "score": score,
+                    "timestamp": datetime.now().isoformat()
+                })
+                modified_ids.add(tgt_id)
+
+        # FAZA ZAPISU: Zapisujemy tylko pliki, które faktycznie uległy zmianie i tylko RAZ
+        write_count = 0
+        for dev_id in modified_ids:
+            profile_data = loaded_profiles[dev_id]
+            if profile_data:
+                self.repo.create_developer_file(profile_data)
+                write_count += 1
+                
+        logger.info(f"Zakończono zbiorczy zapis. Zmodyfikowano i zapisano plików na dysk: {write_count} (zamiast {len(suggestions_list) * 2})")
+        return write_count
+
     def dismiss_suggestion_by_id(self, target_id: str, suggested_id: str) -> bool:
         """Dismiss a suggestion by target usi_dev_id."""
         target_dev = self.repo.get_developer_by_id(target_id)
