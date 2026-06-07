@@ -1,5 +1,11 @@
 # Changelog
 
+## Wersja 0.9.76 — Gotowość do Aktualizacji usi-scrapers — 2026-06-07
+
+### Zmieniono
+- **ScraperGateway (Alignment)**: Dostosowano bramę systemową do API `usi-scrapers v1.3.0`. Zaimplementowano inteligentny dispatcher `process_batch`, który automatycznie wybiera tryb Ingest lub Refresh w zależności od typu celu (URL vs ID).
+- **Przygotowanie do Aktualizacji**: Przeprowadzono pełny audyt publicznego API biblioteki skraperów, co pozwoli na błyskawiczną adaptację do nadchodzących zmian w wersjach 1.4.0+.
+
 ## Wersja 0.9.75 — Hermetyzacja Systemu (ScraperGateway) — 2026-06-07
 
 ### Dodano

@@ -34,7 +34,28 @@ class ScraperGateway:
         return scraper_api.download_raw_dev(self._config, self._fetcher, portal, str(identifier))
 
     def process_batch(self, portal: str, targets: List[str], on_progress=None) -> List[Any]:
-        return scraper_api.process_batch(self._config, self._fetcher, portal, targets, on_progress=on_progress)
+        """
+        Inteligentny dispatcher dla zadań seryjnych.
+        Automatycznie wybiera tryb Ingest (URL) lub Refresh (ID).
+        """
+        if not targets:
+            return []
+            
+        # Sprawdzamy pierwszy element, aby zdecydować o trybie
+        if str(targets[0]).startswith("http"):
+            return scraper_api.process_batch_ingest(
+                self._config, self._fetcher, portal, targets, on_progress=on_progress
+            )
+        else:
+            return scraper_api.process_batch_refresh(
+                self._config, self._fetcher, portal, targets, on_progress=on_progress
+            )
+
+    def process_batch_ingest(self, portal: str, urls: List[str], on_progress=None) -> List[Any]:
+        return scraper_api.process_batch_ingest(self._config, self._fetcher, portal, urls, on_progress=on_progress)
+
+    def process_batch_refresh(self, portal: str, portal_ids: List[str], on_progress=None) -> List[Any]:
+        return scraper_api.process_batch_refresh(self._config, self._fetcher, portal, portal_ids, on_progress=on_progress)
 
     def list_investments(self, portal: str, identifier: str) -> List[Dict[str, Any]]:
         return scraper_api.list_investments(self._config, self._fetcher, portal, str(identifier))
