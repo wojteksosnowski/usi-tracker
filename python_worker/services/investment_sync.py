@@ -555,34 +555,34 @@ class InvestmentSyncService:
         if not targets:
             return 0
 
-        # KROK 1: Najpierw odpalamy scraper. Nie zgadujemy niczego na oślep.
-        # Scraper pobiera pełny dokument, zapisuje plik raw na dysku i wyciąga realne metadane.
+        # KROK 1: Masowe pobranie danych. Scraper wykonuje całe I/O i zapisuje pliki raw.
         batch_results = self.gateway.process_batch(portal, targets, on_progress=on_progress_callback)
         
-        logger.info(f"[BATCH] Scraper complete. Starting authoritative finalization for {len(to_process)} items.")
+        logger.info(f"[BATCH] Scraper complete. Finalizing metadata via usi-scrapers mapping engine.")
+        
+        # Oficjalne wejście do warstwy mapowania scrapera - zero tolerancji dla duplikacji kodu
+        from usi_scrapers.mapping import transform_to_unified
         
         saved_count = 0
         
-        # KROK 2: Iteracja po wynikach i rejestracja na podstawie FAKTYCZNYCH danych z wnętrza strony
+        # KROK 2: Konsumpcja wyników przez ujednolicony kontrakt
         for info, data in zip(to_process, batch_results):
             if not data or (isinstance(data, dict) and "error" in data):
                 continue
                 
             try:
-                # Wyciągamy twarde, sprawdzone dane, które scraper wyekstrahował z parsowanej strony
-                item_id = info.get("item_id") or data.get("id") or data.get("portal_id")
+                # Zabezpieczenie na wypadek gdyby scraper zwrócił czysty payload lub owinięty w kopertę
+                raw_payload = data.get("raw_details", data) if isinstance(data, dict) else data
                 
-                inv_name = data.get("name") or data.get("title") or info.get("name")
-                if not inv_name:
-                    inv_name = f"Inwestycja {portal.upper()} {item_id}"
-                    
-                dev_name = data.get("developer_name") or data.get("developer") or info.get("dev_name")
-                if isinstance(dev_name, dict):
-                    dev_name = dev_name.get("name")
-                    
-                vendor_id = data.get("vendor_id") or data.get("agency_id") or data.get("developer_id") or info.get("vendor_id")
-
-                # Dopiero teraz rejestrujemy szkielet w trackerze – mając 100% pewności co do danych
+                # KROK 3: Ekstrakcja czystych metadanych za pomocą silnika mapowania scrapera
+                meta = transform_to_unified(portal, raw_payload, entity_type="investment") or {}
+                
+                item_id = info.get("item_id") or meta.get("id") or (data.get("id") if isinstance(data, dict) else None) or (data.get("portal_id") if isinstance(data, dict) else None)
+                inv_name = meta.get("name") or info.get("name") or f"Inwestycja {portal.upper()} {item_id}"
+                dev_name = meta.get("developer_name") or info.get("dev_name")
+                vendor_id = meta.get("vendor_id") or info.get("vendor_id")
+                
+                # KROK 4: Rejestracja szkieletu w trackerze na bazie czystych, zunifikowanych danych
                 dev_slug, inv_slug, usi_inv_id, _ = self.register_investment(
                     portal=portal,
                     developer_name=dev_name,
@@ -596,14 +596,14 @@ class InvestmentSyncService:
                 if not usi_inv_id:
                     continue
 
-                # KROK 3: Unifikacja semantyczna (transformacja zapisanego przed chwilą raw -> zunifikowany plik usi_*.json)
+                # KROK 5: Uruchomienie pełnego potoku transformacji semantycznej i zapisu usi_*.json
                 if self.update_investment(usi_inv_id, use_local_raw=True, fast_mode=True):
                     saved_count += 1
                     
             except Exception as e:
-                logger.error(f"[BATCH_ERROR] Krytyczny błąd finalizacji dla identyfikatora {info.get('ident')}: {e}")
+                logger.error(f"[BATCH_ERROR] Krytyczny błąd mapowania/finalizacji dla {info.get('ident')}: {e}")
                 
-        logger.info(f"[BATCH] Processing complete. Saved: {saved_count}/{len(to_process)}")
+        logger.info(f"[BATCH] Finished. Saved {saved_count}/{len(to_process)} investments.")
         self.dm.invalidate_identifiers_cache()
         
         return saved_count
