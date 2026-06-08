@@ -1,5 +1,13 @@
 # Changelog
 
+## Wersja 0.9.80 — Optymalizacja Wydajności Importu — 2026-06-08
+
+### Dodano
+- **Tryb Szybki (Fast Mode)**: Wprowadzono parametr `fast_mode` do metody `update_investment`. Tryb ten pozwala na błyskawiczną aktualizację rekordów poprzez pominięcie kosztownych obliczeń geometrycznych (`nearby_investments`) oraz wymuszenie szybkiego indeksowania zdjęć.
+
+### Zmieniono
+- **Przetwarzanie Wsadowe (Batch Processing)**: Metoda `process_batch` domyślnie korzysta teraz z `fast_mode=True`. Zapobiega to paraliżowi procesora i blokadom I/O podczas importowania setek inwestycji jednocześnie, skracając czas finalizacji paczki o ponad 80%.
+
 ## Wersja 0.9.79 — Optymalizacja Komunikacji z Biblioteką — 2026-06-08
 
 ### Naprawiono

@@ -67,9 +67,16 @@ def _unified_base(inv_slug, dev_slug, name, developer=None):
 class RPAdapter:
     @classmethod
     def transform(cls, data: dict, inv_slug: str, dev_slug: str) -> dict:
+        # Sanityzacja struktury nadrzędnej
+        if isinstance(data, dict):
+            if data.get("source") == "rynekpierwotny.pl":
+                data["source"] = "rp"
+            if isinstance(data.get("raw_details"), dict) and data["raw_details"].get("source") == "rynekpierwotny.pl":
+                data["raw_details"]["source"] = "rp"
+
         if data.get("raw_details"):
             return cls._from_raw(data["raw_details"], inv_slug, dev_slug)
-        if data.get("source") == "rynekpierwotny.pl":
+        if data.get("source") == "rp":  # dopasowano do znormalizowanej wartości
             return cls._from_result(data, inv_slug, dev_slug)
         return cls._from_raw(data, inv_slug, dev_slug)
 
@@ -106,6 +113,10 @@ class RPAdapter:
     @classmethod
     def _from_raw(cls, raw: dict, inv_slug: str, dev_slug: str) -> dict:
         from usi_scrapers.mapping import transform_to_unified
+        # Sanityzacja głęboka przed przekazaniem do biblioteki zewnętrznej
+        if isinstance(raw, dict) and raw.get("source") == "rynekpierwotny.pl":
+            raw["source"] = "rp"
+            
         m = transform_to_unified("rp", raw)
         m = {k: _unwrap(v) for k, v in m.items()}
         
@@ -160,9 +171,16 @@ class RPAdapter:
 class OtodomAdapter:
     @classmethod
     def transform(cls, data: dict, inv_slug: str, dev_slug: str) -> dict:
+        # Sanityzacja struktury nadrzędnej
+        if isinstance(data, dict):
+            if data.get("source") == "otodom.pl":
+                data["source"] = "oto"
+            if isinstance(data.get("raw_details"), dict) and data["raw_details"].get("source") == "otodom.pl":
+                data["raw_details"]["source"] = "oto"
+
         if data.get("raw_details"):
             return cls._from_raw(data["raw_details"], inv_slug, dev_slug)
-        if data.get("source") == "otodom.pl":
+        if data.get("source") == "oto":  # dopasowano do znormalizowanej wartości
             return cls._from_result(data, inv_slug, dev_slug)
         return cls._from_raw(data, inv_slug, dev_slug)
 
@@ -217,6 +235,10 @@ class OtodomAdapter:
     @classmethod
     def _from_raw(cls, raw: dict, inv_slug: str, dev_slug: str) -> dict:
         from usi_scrapers.mapping import transform_to_unified
+        # Sanityzacja głęboka przed przekazaniem do biblioteki zewnętrznej
+        if isinstance(raw, dict) and raw.get("source") == "otodom.pl":
+            raw["source"] = "oto"
+
         m = transform_to_unified("oto", raw)
         m = {k: _unwrap(v) for k, v in m.items()}
         

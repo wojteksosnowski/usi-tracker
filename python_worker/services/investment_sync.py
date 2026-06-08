@@ -241,7 +241,7 @@ class InvestmentSyncService:
             logger.error(f"Sync error: {e}")
             return None, None, f"{portal_name} ({str(e)})"
 
-    def update_investment(self, system_id, use_local_raw=False, skip_images=False, skip_index=False, skip_log=False):
+    def update_investment(self, system_id, use_local_raw=False, skip_images=False, skip_index=False, skip_log=False, fast_mode=False):
         """
         Orchestrates the update of an investment:
         1. Scrapes raw data (or loads local)
@@ -360,9 +360,9 @@ class InvestmentSyncService:
             
             # Use resolve_images to finalize photos list
             if resources:
-                new_unified["photos"] = resolve_images(new_unified, inv_dir, self.public_usi_dir, resources, fast_index=False)
+                new_unified["photos"] = resolve_images(new_unified, inv_dir, self.public_usi_dir, resources, fast_index=fast_mode)
             else:
-                new_unified["photos"] = resolve_images(new_unified, inv_dir, self.public_usi_dir, fast_index=False)
+                new_unified["photos"] = resolve_images(new_unified, inv_dir, self.public_usi_dir, fast_index=fast_mode)
 
             new_unified["images_count"] = len(new_unified["photos"])
 
@@ -371,7 +371,9 @@ class InvestmentSyncService:
             new_coords = new_unified.get("location", {}).get("coords")
 
             needs_recalc = False
-            if not usi_data.get("nearby_investments"):
+            if fast_mode:
+                needs_recalc = False
+            elif not usi_data.get("nearby_investments"):
                 needs_recalc = True
             elif old_coords != new_coords:
                 needs_recalc = True
@@ -612,7 +614,8 @@ class InvestmentSyncService:
                 if res:
                     # register_investment returns (dev_slug, inv_slug, usi_inv_id)
                     _, _, usi_inv_id = res
-                    self.update_investment(usi_inv_id, use_local_raw=True, skip_images=True, skip_index=True)
+                    # ZMIANA: Dodano fast_mode=True, aby uniknąć paraliżu serwera przy importowaniu setek rekordów
+                    self.update_investment(usi_inv_id, use_local_raw=True, skip_images=True, skip_index=True, fast_mode=True)
                     success_count += 1
             except Exception as e:
                 logger.error(
