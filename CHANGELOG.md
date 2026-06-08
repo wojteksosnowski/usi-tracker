@@ -1,5 +1,11 @@
 # Changelog
 
+## Wersja 0.9.81 — Optymalizacja Rejestracji Wsadowej — 2026-06-08
+
+### Zmieniono
+- **Rejestracja Inwestycji (Registration Optimization)**: Metoda `register_investment` obsługuje teraz flagi `skip_index_rebuild` oraz `skip_cache_invalidation`. Pozwala to na uniknięcie wielokrotnego, kosztownego przebudowywania indeksu i inwalidacji cache wewnątrz pętli.
+- **Efektywność `process_batch`**: Wprowadzono odroczone odświeżanie indeksu i cache. Wszystkie operacje porządkowe są wykonywane dokładnie raz, po zakończeniu całej paczki, co drastycznie zwiększa wydajność przy masowej rejestracji inwestycji.
+
 ## Wersja 0.9.80 — Optymalizacja Wydajności Importu — 2026-06-08
 
 ### Dodano

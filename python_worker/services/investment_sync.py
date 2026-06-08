@@ -96,7 +96,7 @@ class InvestmentSyncService:
         # USUNIĘTO: mapowanie na pełną domenę, która rozbijała parser w scraperze
         return self.gateway.has_local_raw(portal, str(item_id))
 
-    def register_investment(self, portal, developer_name, name, item_id=None, url=None, allow_existing=False, vendor_id=None, force_dev_slug=None):
+    def register_investment(self, portal, developer_name, name, item_id=None, url=None, allow_existing=False, vendor_id=None, force_dev_slug=None, skip_index_rebuild=False, skip_cache_invalidation=False):
 
         dev_slug, resolved_developer_name, inv_slug_from_url, usi_dev_id = self.developer_resolver.resolve_developer_for_registration(
             portal, developer_name, url, vendor_id, force_dev_slug
@@ -181,16 +181,20 @@ class InvestmentSyncService:
         }
 
         self.repo.create_investment_skeleton(skeleton["usi_inv_id"], portal, str(item_id) if item_id else None, skeleton)
-        if hasattr(self, 'resolver') and self.resolver:
+        if not skip_index_rebuild and hasattr(self, 'resolver') and self.resolver:
             self.resolver.build_index()
             
         try:
-            inv_index.upsert(self.data_dir, self.public_usi_dir, inv_id=skeleton["usi_inv_id"])
+            if not skip_index_rebuild:
+                inv_index.upsert(self.data_dir, self.public_usi_dir, inv_id=skeleton["usi_inv_id"])
         except Exception as _ie:
             logger.debug(f"Index upsert skipped for {inv_slug}: {_ie}")
 
         log_to_processing_log(dev_slug, inv_slug, f"Registered from discovery ({portal})")
-        self.dm.invalidate_identifiers_cache()
+        
+        if not skip_cache_invalidation:
+            self.dm.invalidate_identifiers_cache()
+            
         return dev_slug, inv_slug, skeleton["usi_inv_id"]
 
     def download_raw_json(self, portal: str, identifier: str, system_id: str):
@@ -608,7 +612,9 @@ class InvestmentSyncService:
                     url=info["url"],
                     allow_existing=True,
                     vendor_id=vendor_id,
-                    force_dev_slug=dev_slug
+                    force_dev_slug=dev_slug,
+                    skip_index_rebuild=True,
+                    skip_cache_invalidation=True
                 )
 
                 if res:
@@ -628,6 +634,16 @@ class InvestmentSyncService:
             f"Processed {current_item_index}/{total_batch_items} items. "
             f"Successfully finalized: {success_count}."
         )
+
+        # ZMIANA: Inwalidacja cache i przebudowa indeksu wykonywana RAZ dla całej paczki
+        self.dm.invalidate_identifiers_cache()
+        try:
+            # Jednorazowe odświeżenie indeksu globalnego po skończonym batchu
+            if hasattr(self, 'resolver') and self.resolver:
+                self.resolver.build_index()
+        except Exception as _ie:
+            logger.debug(f"Global index rebuild failed: {_ie}")
+
         return success_count > 0
 
     def _merge_batch_info(self, info, data):
