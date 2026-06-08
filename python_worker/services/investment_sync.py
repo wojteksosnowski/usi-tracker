@@ -555,49 +555,55 @@ class InvestmentSyncService:
         if not targets:
             return 0
 
-        # KROK 1: Rejestracja szkieletów przed pobieraniem.
-        # Wpis w indeksie pozwoli usi-scrapers na bezbłędne, lokalne I/O (zapis raw_*.json)
-        usi_map = {}
-        for info in to_process:
-            try:
-                _, _, usi_inv_id, _ = self.register_investment(
-                    portal=portal,
-                    developer_name=info.get("dev_name"),
-                    name=info.get("name"),
-                    item_id=info.get("item_id"),
-                    url=info.get("url"),
-                    allow_existing=True,
-                    vendor_id=info.get("vendor_id")
-                )
-                if usi_inv_id:
-                    usi_map[str(info["ident"])] = usi_inv_id
-            except Exception as e:
-                logger.error(f"[BATCH_PRE] Rejestracja szkieletu nieudana dla {info.get('item_id')}: {e}")
-
-        # KROK 2: Pobieranie masowe przez bramę (całe surowe I/O wykonuje pakiet usi-scrapers)
+        # KROK 1: Najpierw odpalamy scraper. Nie zgadujemy niczego na oślep.
+        # Scraper pobiera pełny dokument, zapisuje plik raw na dysku i wyciąga realne metadane.
         batch_results = self.gateway.process_batch(portal, targets, on_progress=on_progress_callback)
         
-        logger.info(f"[BATCH] Starting finalization for {len(to_process)} items.")
+        logger.info(f"[BATCH] Scraper complete. Starting authoritative finalization for {len(to_process)} items.")
         
-        # KROK 3: Unifikacja i przetwarzanie semantyczne z lokalnego pliku raw
         saved_count = 0
+        
+        # KROK 2: Iteracja po wynikach i rejestracja na podstawie FAKTYCZNYCH danych z wnętrza strony
         for info, data in zip(to_process, batch_results):
             if not data or (isinstance(data, dict) and "error" in data):
                 continue
                 
-            usi_inv_id = usi_map.get(str(info["ident"]))
-            if not usi_inv_id:
-                continue
-                
             try:
-                # use_local_raw=True ładuje raw zapisany przez scraper.
-                # fast_mode=True odcina mordercze skanowanie dysku przez glob() przy masowym zapisie.
+                # Wyciągamy twarde, sprawdzone dane, które scraper wyekstrahował z parsowanej strony
+                item_id = info.get("item_id") or data.get("id") or data.get("portal_id")
+                
+                inv_name = data.get("name") or data.get("title") or info.get("name")
+                if not inv_name:
+                    inv_name = f"Inwestycja {portal.upper()} {item_id}"
+                    
+                dev_name = data.get("developer_name") or data.get("developer") or info.get("dev_name")
+                if isinstance(dev_name, dict):
+                    dev_name = dev_name.get("name")
+                    
+                vendor_id = data.get("vendor_id") or data.get("agency_id") or data.get("developer_id") or info.get("vendor_id")
+
+                # Dopiero teraz rejestrujemy szkielet w trackerze – mając 100% pewności co do danych
+                dev_slug, inv_slug, usi_inv_id, _ = self.register_investment(
+                    portal=portal,
+                    developer_name=dev_name,
+                    name=inv_name,
+                    item_id=item_id,
+                    url=info.get("url"),
+                    allow_existing=True,
+                    vendor_id=vendor_id
+                )
+                
+                if not usi_inv_id:
+                    continue
+
+                # KROK 3: Unifikacja semantyczna (transformacja zapisanego przed chwilą raw -> zunifikowany plik usi_*.json)
                 if self.update_investment(usi_inv_id, use_local_raw=True, fast_mode=True):
                     saved_count += 1
+                    
             except Exception as e:
-                logger.error(f"[BATCH_POST] Aktualizacja danych dla {usi_inv_id} nieudana: {e}")
+                logger.error(f"[BATCH_ERROR] Krytyczny błąd finalizacji dla identyfikatora {info.get('ident')}: {e}")
                 
-        logger.info(f"[BATCH] Finalization complete. Saved: {saved_count}/{len(to_process)}")
+        logger.info(f"[BATCH] Processing complete. Saved: {saved_count}/{len(to_process)}")
         self.dm.invalidate_identifiers_cache()
         
         return saved_count
