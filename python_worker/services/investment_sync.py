@@ -555,56 +555,49 @@ class InvestmentSyncService:
         if not targets:
             return 0
 
-        # Wywołanie przez bramę (ukrywa lib_config i fetcher)
+        # KROK 1: Rejestracja szkieletów przed pobieraniem.
+        # Wpis w indeksie pozwoli usi-scrapers na bezbłędne, lokalne I/O (zapis raw_*.json)
+        usi_map = {}
+        for info in to_process:
+            try:
+                _, _, usi_inv_id, _ = self.register_investment(
+                    portal=portal,
+                    developer_name=info.get("dev_name"),
+                    name=info.get("name"),
+                    item_id=info.get("item_id"),
+                    url=info.get("url"),
+                    allow_existing=True,
+                    vendor_id=info.get("vendor_id")
+                )
+                if usi_inv_id:
+                    usi_map[str(info["ident"])] = usi_inv_id
+            except Exception as e:
+                logger.error(f"[BATCH_PRE] Rejestracja szkieletu nieudana dla {info.get('item_id')}: {e}")
+
+        # KROK 2: Pobieranie masowe przez bramę (całe surowe I/O wykonuje pakiet usi-scrapers)
         batch_results = self.gateway.process_batch(portal, targets, on_progress=on_progress_callback)
         
         logger.info(f"[BATCH] Starting finalization for {len(to_process)} items.")
         
+        # KROK 3: Unifikacja i przetwarzanie semantyczne z lokalnego pliku raw
         saved_count = 0
-        errors_count = 0
-        
         for info, data in zip(to_process, batch_results):
             if not data or (isinstance(data, dict) and "error" in data):
-                errors_count += 1
+                continue
+                
+            usi_inv_id = usi_map.get(str(info["ident"]))
+            if not usi_inv_id:
                 continue
                 
             try:
-                # Ustalamy slug dewelopera bezpośrednio z danych wejściowych scrapera
-                dev_slug = info.get("dev_slug") or (data.get("developer_slug") if isinstance(data, dict) else None)
-                inv_name = info.get("name") or (data.get("name") if isinstance(data, dict) else None)
-                item_id = info.get("item_id")
-                
-                if not dev_slug or not inv_name:
-                    logger.error(f"Missing crucial developer or investment metadata for item {item_id}")
-                    continue
-                    
-                # GENEROWANIE DETERMINISTYCZNEGO ID (np. na podstawie portalu i id źródłowego)
-                # USI-Tracker nie powinien szukać tego na dysku przez glob!
-                usi_inv_id = self.identity.generate_deterministic_id(portal, item_id)
-                
-                # BEZPOŚREDNI ZAPIS DO KATALOGU - Bez odpytywania resolverów
-                dev_dir = Path(USI_DATA_DIR) / dev_slug
-                dev_dir.mkdir(parents=True, exist_ok=True)
-                
-                file_name = f"usi_{usi_inv_id}.json"
-                file_path = dev_dir / file_name
-                
-                # Zapisujemy czysty, znormalizowany JSON dostarczony ze scrapera
-                with open(file_path, "w", encoding="utf-8") as f:
-                    json.dump(data, f, ensure_ascii=False, indent=2)
-                    
-                # SZYBKA AKTUALIZACJA INDEKSU (Zapis liniowy do pliku mapowania/indeksu)
-                self.index.add_to_index(self.data_dir, usi_inv_id, dev_slug, inv_name, portal, item_id)
-                
-                saved_count += 1
-                
+                # use_local_raw=True ładuje raw zapisany przez scraper.
+                # fast_mode=True odcina mordercze skanowanie dysku przez glob() przy masowym zapisie.
+                if self.update_investment(usi_inv_id, use_local_raw=True, fast_mode=True):
+                    saved_count += 1
             except Exception as e:
-                logger.exception(f"Critical error writing investment {info.get('ident')}: {str(e)}")
-                errors_count += 1
+                logger.error(f"[BATCH_POST] Aktualizacja danych dla {usi_inv_id} nieudana: {e}")
                 
-        logger.info(f"[BATCH] Finalization complete. Saved: {saved_count}, Errors: {errors_count}")
-        
-        # JEDNORAZOWE operacje po zakończeniu całej paczki
+        logger.info(f"[BATCH] Finalization complete. Saved: {saved_count}/{len(to_process)}")
         self.dm.invalidate_identifiers_cache()
         
         return saved_count
