@@ -1,5 +1,12 @@
 # Changelog
 
+## Wersja 0.9.78 — Aktualizacja Biblioteki i Dokumentacji — 2026-06-08
+
+### Zmieniono
+- **Zależności (Dependency Update)**: Podniesiono wersję `usi-scrapers` do **v1.3.0**. Zapewnia to pełną zgodność z nowym systemem bramy (`ScraperGateway`) oraz optymalizację procesów `process_batch`.
+- **Dokumentacja (Architecture)**: Zaktualizowano `docs/architecture_redesign.md`, usuwając przestarzałe odniesienia do identyfikacji opartej na slugach. Dokumentacja odzwierciedla teraz rygorystyczny mandat **ID-only** oraz nowe standardy nazewnictwa plików.
+- **Porządki w repozytorium**: Usunięto zbędne, wygenerowane raporty audytowe (`audit_full_report.json`, `audit_report.csv` itp.), utrzymując czystość struktury projektu.
+
 ## Wersja 0.9.77 — Bezpieczeństwo i Precyzja Linkowania — 2026-06-08
 
 ### Naprawiono

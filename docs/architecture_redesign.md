@@ -4,67 +4,53 @@
 Celem jest odejście od zależności od `Coda.io` oraz `USImaster.csv` na rzecz autonomicznego systemu opartego na zunifikowanych danych JSON. Dropbox staje się jedynie warstwą backupu, a nie interfejsem komunikacyjnym.
 
 ### Główne Założenia:
-- **Single Source of Truth**: Plik `usi_{slug}.json` jako jedyne źródło danych dla UI i procesów analitycznych.
-- **Raw Archiving**: Zachowanie nienaruszonych danych źródłowych do celów porównawczych i aktualizacji.
-- **Translation Layer**: Dedukowane adaptery dla każdego dostawcy (RynekPierwotny, Otodom, TabelaOfert).
+- **Single Source of Truth**: Plik `usi_{source}_{id}.json` jako jedyne źródło danych dla UI i procesów analitycznych.
+- **Raw Archiving**: Zachowanie nienaruszonych danych źródłowych (`raw_{source}_{id}.json`) do celów porównawczych i aktualizacji.
+- **ID-Only Mandate**: Wszystkie operacje, rezolucja ścieżek i identyfikacja obiektów odbywają się wyłącznie po technicznych identyfikatorach portalowych. Slugi są atrybutem informacyjnym, a nie kluczem tożsamości.
 
 ---
 
-## 2. Standard Nazewnictwa Plików
-Wszystkie pliki w folderze inwestycji (`/Public/USIdata/{dev}/{slug}/`) muszą zawierać slug w nazwie i posiadać jasny prefix określający ich rolę.
+## 2. Standard Nazewnictwa Plików (Mandat ID-Only)
+Wszystkie pliki w folderze inwestycji (`/Public/USIdata/{dev}/{slug}/`) oraz deweloperów (`/Public/USIdev/{dev-slug}/`) muszą bazować na technicznych identyfikatorach portalowych. Używanie slugów jako kluczy tożsamości jest zabronione.
 
 | Typ Pliku | Format Nazwy | Opis |
 | :--- | :--- | :--- |
-| **Zunifikowany** | `usi_{slug}.json` | Kluczowe dane w ustandaryzowanym formacie USI. |
-| **Deweloper** | `usi_dev_{dev-slug}.json` | Stabilne dane dewelopera (nazwa, NIP, portal_ids). |
-| **Surowy (Aktualny)** | `raw_{portal}_{slug}.json` | Ostatnio pobrany, pełny zrzut danych z portalu. |
-| **Surowy (Archiwum)** | `raw_{portal}_{slug}_{YYYYMMDD}.json` | Historyczne kopie danych do porównań. |
-| **Metadane** | `meta_{slug}_{type}.json` | Dodatkowe informacje (oceny, etapy, logi). |
+| **Zunifikowany** | `usi_{source}_{id}.json` | Kluczowe dane w formacie USI (np. `usi_rp_12345.json`). |
+| **Deweloper (L2)** | `usi_dev_{source}_{id}.json` | Rekord Level 2 dewelopera (1:1 z plikiem RAW). |
+| **Deweloper (Master)** | `dev_master_{DM-ID}.json` | Rekord Level 3 (Master) łączący wiele profili portalowych. |
+| **Surowy (Raw)** | `raw_{portal}_{id}.json` | Nienaruszony zrzut danych z portalu. |
 
 ---
 
-## 3. Warstwa Transformacji (Adapters)
-Zamiast rozproszonej logiki parsującej, system wprowadza jawne adaptery:
+## 3. Warstwa Transformacji (Adapters & Gateway)
+Zamiast rozproszonej logiki parsującej, system wprowadza jawne warstwy:
 
-1. **Scraper**: Pobiera dane i zapisuje plik `raw_`.
-2. **Adapter (np. `RPToUSI`)**: Czyta `raw_`, tłumaczy specyficzne pola (np. `geo_point` -> `coords`, `facilities` -> `amenities`) na standard USI.
-3. **Merger**: Jeśli inwestycja ma dane z wielu portali, merger łączy je w jednym pliku `usi_{slug}.json` według ustalonych wag (np. RP ma priorytet dla danych technicznych, Otodom dla opisów).
+1. **ScraperGateway**: Centralna brama komunikacyjna z biblioteką `usi-scrapers`. Jedyny punkt styku dla operacji sieciowych.
+2. **Adapter (np. `RPAdapter`)**: Czyta `raw_`, tłumaczy specyficzne pola na standard USI, korzystając z deklaratywnych mapowań w `portal_data_mapping.json`.
+3. **Merger**: Jeśli inwestycja ma dane z wielu portali, merger łączy je w głównym rekordzie według ustalonych wag.
 
 ---
 
-## 4. Zarządzanie Deweloperami (Podmioty)
-Deweloperzy muszą posiadać stabilną tożsamość niezależną od kaprysów portali.
-
-### Słownik Mapujący (Konkurenci.csv):
-Plik `reference-data/coda/Konkurenci.csv` stanowi **Master Dictionary** dla całego systemu. Zawiera on ręcznie zweryfikowane mapowania między stabilnym `usiFolder` (nasz `developer_slug`) a identyfikatorami portalowymi.
+## 4. Zarządzanie Deweloperami (ID-Only)
+Deweloperzy posiadają stabilną tożsamość opartą na unikalnych identyfikatorach `usi_dev_id` (format `DEV-NNNNN`) oraz `dm_id` (format `DM-NNNNN`) dla rekordów złączonych.
 
 ### Kluczowe Założenia:
-- **Inicjalizacja**: Baza deweloperów jest seedowana z `Konkurenci.csv` przed migracją inwestycji.
-- **Stabilny Developer Slug**: Raz nadany slug (np. `dom-development`) pozostaje niezmienny.
-- **Portal ID & Discovery**: Plik `usi_dev_{slug}.json` zawiera dane wyciągnięte z `Konkurenci.csv`:
-  - `rp_id` i `rp_slug` (z kolumn `rpID`, `rpSlug`)
-  - `oto_agency_ids` (wyciągnięte z kolumny `otoID`, np. `ID8495786` -> `8495786`)
-  - `to_dev_slug` (do uzupełnienia)
-- **Developer Scan Workflow**: System wykorzystuje te ID do automatycznego odpytywania API portali w poszukiwaniu nowych inwestycji.
-
-### Lokalizacja Pliku:
-Folder nadrzędny inwestycji: `/Public/USIdata/{dev-slug}/usi_dev_{dev-slug}.json`.
+- **ID-Only Priority**: Tożsamość, porównywanie i de-duplikacja odbywa się wyłącznie po identyfikatorach technicznych (np. `brand.id` dla TO, `vendor.id` dla RP).
+- **Stabilność Resolution**: Wszystkie operacje I/O muszą korzystać z `IdentityResolver`, który wyznacza ścieżki fizyczne na podstawie ID, ignorując zmiany slugów w URL-ach portali.
+- **Współdzielone Folder Slugi**: Folder o nazwie slugowej (np. `022-investments`) może zawierać wiele plików `usi_dev_*.json` jeśli różne podmioty portalowe dzielą tę samą nazwę tekstową. System musi obsługiwać listy rekordów dla danego folderu.
 
 ---
 
-## 5. Plan Migracji z USImaster.csv & Konkurenci.csv
-Proces wyodrębnienia danych:
+## 5. Plan Migracji i Utrzymania
+Proces utrzymania bazy danych:
 
-1. **Inicjalizacja Deweloperów**: Uruchomienie `python3 -m python_worker.init_developers` w celu utworzenia bazy `usi_dev_{slug}.json` na podstawie `Konkurenci.csv`.
-2. **Detekcja Sluga Inwestycji**: Mapowanie inwestycji do folderów deweloperów przy użyciu ID zawartych w nowej bazie deweloperów.
-3. **Ekstrakcja Raw**: Przeniesienie `rpJSON` i `otoJSON` z `USImaster.csv` do plików `raw_`.
-4. **Adaptery & Unifikacja**: Utworzenie plików `usi_{slug}.json`.
+1. **Rebuild Index**: Cykliczne odświeżanie indeksu O(1) w pamięci na podstawie skanowania plików JSON (nie nazw folderów).
+2. **Clean Portal Mappings**: Usuwanie osieroconych rekordów i naprawa powiązań ID po zmianach w strukturach portali.
+3. **Audit Workflow**: Flagowanie rekordów wymagających manualnej weryfikacji przez analityków.
 
 ---
 
-## 6. Zmiany w Kodzie (Do Wykonania)
-- **UI Server**: Usunięcie funkcji `_normalize_investment`. UI serwuje `usi_{slug}.json`. Dodanie widoku profilu dewelopera.
-- **Main CLI**: Nowe komendy:
-  - `python -m python_worker.main update-dev {dev-slug}` (skanuje portale w poszukiwaniu nowych inwestycji dewelopera).
-  - `python -m python_worker.main update {slug}` (aktualizuje konkretną inwestycję).
-- **Developer Resolver**: Moduł mapujący portalowe ID na stabilne foldery deweloperów podczas scrapingu.
+## 6. Zmiany w Kodzie (Implementacja ID-Only)
+- **Identity Resolver**: Usługa `InvestmentService.get_investment_resources` jako jedyny punkt rezolucji ścieżek.
+- **Hot Indexing**: Przechowywanie mapowań ID -> Path w pamięci serwera dla natychmiastowego dostępu.
+- **API Blueprints**: Wszystkie endpointy przyjmują `system_id` lub `portal_id` zamiast slugów.
