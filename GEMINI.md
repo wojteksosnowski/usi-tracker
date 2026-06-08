@@ -52,7 +52,7 @@ cp python_worker/.env python_worker/.env.local  # Then edit with your keys
 ### Key Commands
 - **Start UI**: `./start-ui.sh` or `python3 -m python_worker.main ui`
 - **Lint CSS**: `./lint-styles.sh` (Requires global stylelint: `npm install -g stylelint stylelint-config-standard`)
-- **Run Tests**: `pytest tests/` (Single file: `pytest tests/test_scraper_rp.py`)
+- **Run Tests**: `ALWAYS USE VIRTUAL ENVIRONMENT: ./venv/bin/python -m pytest tests/` (Single file: `./venv/bin/python -m pytest tests/test_scraper_rp.py`)
 - **Discover New Investments**: `python3 -m python_worker.main discover {dev_slug}` (Add `--download` to save raw JSONs)
 - **Update Single Investment**: `python3 -m python_worker.main update-inv {dev_slug}/{inv_slug}`
 - **Update Developer**: `python3 -m python_worker.main update-dev {dev_slug}`
@@ -170,3 +170,158 @@ Developer profiles use a **three-level** architecture under `Public/USIdev/{slug
 - **Polish `ł` / `Ł` Slugs**: Python's `unicodedata.normalize("NFKD", ...)` fails to decompose the Polish stroke letter. `slug_utils.slugify()` applies `str.maketrans("łŁ", "lL")` first to prevent literal `ł` in directory names.
 - **Image Source of Truth**: `image_paths` inside `usi_*.json` is the strict source of truth for the image API URLs. Never modify or guess these paths from `dev_slug` or folder structures. Fallback to filesystem directory scan is only permitted if `image_paths` is completely absent.
 - **No Name-based Developer Fallback**: `InvestmentService` does not execute fuzzy-name fallback resolution via `get_developer_by_name()`. If ID lookup fails, the investment is assigned to the `"unknown"` folder immediately. Link developer by ID first.
+
+## Specyfikacja Publicznego API `usi-scrapers` (`usi_scrapers/api.py`)
+
+Moduł stanowi jedyny oficjalny punkt wejścia (Fasadę) do interakcji z silnikami scraperów, systemem mapowania oraz warstwą I/O plików surowych (`raw_*.json`). `usi-tracker` ma kategoryczny zakaz wywoływania metod spoza tego interfejsu.
+
+### 1. Pobieranie i Odświeżanie Inwestycji (Single Entity Pipeline)
+
+#### `ingest_investment_by_url`
+~~~~python
+def ingest_investment_by_url(
+    config: "ScraperConfig", 
+    fetcher: "Fetcher", 
+    portal: str, 
+    url: str,
+    on_progress: Optional[Callable[[Dict[str, Any]], None]] = None
+) -> dict
+~~~~
+* **Zastosowanie:** Pierwszy punkt wejścia dla nowej inwestycji. Parsuje URL, pobiera pełny dokument ze źródła, inicjalizuje strukturę katalogów i rejestruje plik surowy przy użyciu `TechnicalDataManager`.
+* **Zwraca:** Surowy słownik pobrany z portalu lub `{"error": "komunikat"}` w przypadku awarii.
+
+#### `refresh_investment_by_id`
+~~~~python
+def refresh_investment_by_id(
+    config: "ScraperConfig", 
+    fetcher: "Fetcher", 
+    portal: str, 
+    portal_id: str,
+    on_progress: Optional[Callable[[Dict[str, Any]], None]] = None
+) -> dict
+~~~~
+* **Zastosowanie:** Cykliczne odświeżanie danych (ID-Only Architecture). Pobiera referencyjny URL z lokalnego indeksu dewelopera/inwestycji i uruchamia dedykowany scraper dla danego identyfikatora.
+* **Wymagania:** `portal_id` musi już istnieć w lokalnym indeksie dyskowym scrapera.
+
+---
+
+### 2. Przetwarzanie Potokowe (Batch Processing)
+
+#### `process_batch_ingest`
+~~~~python
+def process_batch_ingest(
+    config: "ScraperConfig",
+    fetcher: "Fetcher",
+    portal: str,
+    urls: List[str],
+    on_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
+    delay_range: tuple[float, float] = (0.5, 2.0),
+    max_retries: int = 3,
+) -> List[Dict[str, Any]]
+~~~~
+* **Zastosowanie:** Masowe, sekwencyjne pobieranie nowych inwestycji z kolejki discovery. Posiada wbudowaną obsługę błędów `429 / Timeout` (automatyczne oczekiwanie 10s) oraz losowe opóźnienia (`delay_range`) zapobiegające blokadom IP.
+
+#### `process_batch_refresh`
+~~~~python
+def process_batch_refresh(
+    config: "ScraperConfig",
+    fetcher: "Fetcher",
+    portal: str,
+    portal_ids: List[str],
+    on_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
+    delay_range: tuple[float, float] = (0.5, 2.0),
+    max_retries: int = 3,
+) -> List[Dict[str, Any]]
+~~~~
+* **Zastosowanie:** Masowe odświeżanie stanu posiadanych inwestycji na podstawie listy identyfikatorów portalowych.
+
+---
+
+### 3. Warstwa Abstrakcji Plików Surowych (Pure-Raw I/O)
+
+#### `load_raw`
+~~~~python
+def load_raw(config: ScraperConfig, portal: str, portal_id: str) -> Optional[Dict[str, Any]]
+~~~~
+* **Zastosowanie:** **Główne wejście konsumpcyjne dla `usi-tracker`.** Wczytuje i zwraca surowy JSON inwestycji bezpośrednio z dysku na podstawie ID i portalu. Tracker nie musi znać struktury katalogów (`USIdata/{dev_slug}/{inv_slug}`).
+
+#### `has_local_raw`
+~~~~python
+def has_local_raw(config: ScraperConfig, portal: str, portal_id: str) -> bool
+~~~~
+* **Zastosowanie:** Ultralekkie sprawdzenie boolowskie obecności pliku raw na dysku. Zapobiega niepotrzebnemu uruchamianiu procesów sieciowych scrapera.
+
+#### `save_raw`
+~~~~python
+def save_raw(config: ScraperConfig, data: Dict[str, Any], portal_prefix: str, portal_id: str) -> Path
+~~~~
+* **Zastosowanie:** Zrzuca czysty, nieprzetworzony payload ze scrapera jako `raw_*.json`. Najpierw odpytuje wewnętrzny indeks. Dla nowych inwestycji (brak w indeksie) wymaga obecności kluczy `developer_slug` i `investment_slug` w słowniku `data`. Automatycznie aktualizuje indeks.
+
+#### `save_raw_developer`
+~~~~python
+def save_raw_developer(config: ScraperConfig, data: Dict[str, Any], portal_prefix: str, portal_id: str) -> Path
+~~~~
+* **Zastosowanie:** Zapisuje surowy JSON profilu dewelopera w dedykowanej lokalizacji bazowej (`Path(config.public_dir) / "USIdev" / dev_slug`).
+
+---
+
+### 4. Ekstrakcja Metadanych i Silnik Mapowania (Mapping Engine)
+
+#### `transform_to_unified` *(Bezpośredni import z `usi_scrapers.mapping`)*
+~~~~python
+def transform_to_unified(portal: str, raw_data: dict, entity_type: str = "investment") -> dict
+~~~~
+* **Zastosowanie:** **Kluczowa metoda izolująca.** Przepuszcza surowe flaki dokumentu przez reguły z pliku `portal_data_mapping.json`. Pozwala trackerowi wyciągnąć ujednolicone pola (`name`, `developer_name`, `vendor_id`) bez parsowania struktur niskopoziomowych specyficznych dla danego portalu.
+
+#### `extract_developer_meta`
+~~~~python
+def extract_developer_meta(raw_data: dict, portal: str) -> dict
+~~~~
+* **Zastosowanie:** Wyciąga z surowego payloadu ujednolicony słownik dewelopera: `{"id": ..., "slug": ..., "name": ...}` przy użyciu mapowania encji typu `developer`.
+
+#### `identify_developer`
+~~~~python
+def identify_developer(fetcher: Fetcher, portal: str, url: str) -> Optional[str]
+~~~~
+* **Zastosowanie:** Próbuje zidentyfikować tekstową nazwę dewelopera wyłącznie na podstawie adresu URL pojedynczej oferty (wspierane dla `oto` oraz `to`).
+
+---
+
+### 5. Discovery (Wykrywanie i Wykaz)
+
+#### `list_investments`
+~~~~python
+def list_investments(
+    config: ScraperConfig,
+    fetcher: Fetcher,
+    portal: str,
+    identifier: Optional[str] = None
+) -> List[Dict[str, Any]]
+~~~~
+* **Zastosowanie:** Obsługuje Discovery. Pobiera uproszczoną listę inwestycji przypisanych do dewelopera. Jako `identifier` akceptuje numeryczne ID agencji lub pełny adres URL listingu (dla portali obsługujących wyszukiwanie po adresie).
+
+#### `list_developers`
+~~~~python
+def list_developers(
+    config: ScraperConfig,
+    fetcher: Fetcher,
+    portal: str,
+    page: int = 1,
+    base_url: Optional[str] = None
+) -> DeveloperPage
+~~~~
+* **Zastosowanie:** Pobiera i paginuje publiczny katalog deweloperów zarejestrowanych na wskazanym portalu.
+
+---
+
+### 6. Diagnostyka Systemowa
+
+#### `health_check`
+~~~~python
+def health_check(
+    config: Optional[ScraperConfig] = None,
+    fetcher: Optional[Fetcher] = None,
+    portals: Optional[List[str]] = None
+) -> Dict[str, Any]
+~~~~
+* **Zastosowanie:** Test integralności (Smoke-test). Pobiera losową inwestycję-sondę dla każdego portalu, uruchamia scraper i sprawdza zgodność struktury z wymaganymi polami (`required_fields`) zdefiniowanymi w konfiguracji portali.

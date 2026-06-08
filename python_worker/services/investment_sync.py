@@ -91,12 +91,6 @@ class InvestmentSyncService:
             self._image_sync = ImageSyncService(self.tech_manager, self.public_usi_dir)
         return self._image_sync
 
-    def _check_investment_exists(self, portal, item_id):
-        if not item_id:
-            return False
-        # USUNIĘTO: mapowanie na pełną domenę, która rozbijała parser w scraperze
-        return self.gateway.has_local_raw(portal, str(item_id))
-
     def register_investment(self, portal, developer_name, name, item_id=None, url=None, allow_existing=False, vendor_id=None, force_dev_slug=None, skip_disk=False):
 
         dev_slug, resolved_developer_name, inv_slug_from_url, usi_dev_id = self.developer_resolver.resolve_developer_for_registration(
@@ -138,10 +132,7 @@ class InvestmentSyncService:
             else:
                 raise ValueError(f"Investment already exists: {dev_slug}/{inv_slug}")
 
-        # 2. Check for ID-based duplication across all investments
-        if self._check_investment_exists(portal, item_id):
-            logger.info(f"Investment with ID {item_id} ({portal}) already exists in system. Skipping registration.")
-            return None, None, None, None
+        # --- TUTAJ BYŁ BŁĄD: USUNIĘTO WARUNEK self._check_investment_exists ---
 
         if not inv_dir:
              raise RuntimeError(f"Could not determine investment directory for {portal}/{item_id}")
@@ -168,13 +159,11 @@ class InvestmentSyncService:
         if vendor_id and portal in PORTAL_VENDOR_ID_KEYS and item_id:
             skeleton["sources"][portal].update(PORTAL_VENDOR_ID_KEYS[portal](vendor_id))
 
-        # KLUCZOWA ZMIANA: Skip I/O operations if requested
         if skip_disk:
             return dev_slug, inv_slug, skeleton["usi_inv_id"], skeleton
 
         self.repo.create_investment_skeleton(skeleton["usi_inv_id"], portal, str(item_id) if item_id else None, skeleton)
         
-        # Do aktualizacji globalnego indeksu używamy WYŁĄCZNIE metody przyrostowej upsert
         try:
             inv_index.upsert(self.data_dir, self.public_usi_dir, inv_id=skeleton["usi_inv_id"])
         except Exception as _ie:
@@ -577,12 +566,20 @@ class InvestmentSyncService:
                 # KROK 3: Ekstrakcja czystych metadanych za pomocą silnika mapowania scrapera
                 meta = transform_to_unified(portal, raw_payload, entity_type="investment") or {}
                 
+                # Bezpieczne wyznaczenie identyfikatora - priorytet dla twardego ID z mapowania lub info wejściowego
                 item_id = info.get("item_id") or meta.get("id") or (data.get("id") if isinstance(data, dict) else None) or (data.get("portal_id") if isinstance(data, dict) else None)
+                if not item_id and info.get("ident") and not str(info["ident"]).startswith("http"):
+                    item_id = str(info["ident"])
+
+                if not item_id:
+                    logger.error(f"[BATCH_SKIP] Skip item due to missing identification ID.")
+                    continue
+
                 inv_name = meta.get("name") or info.get("name") or f"Inwestycja {portal.upper()} {item_id}"
                 dev_name = meta.get("developer_name") or info.get("dev_name")
                 vendor_id = meta.get("vendor_id") or info.get("vendor_id")
                 
-                # KROK 4: Rejestracja szkieletu w trackerze na bazie czystych, zunifikowanych danych
+                # KROK 4: Bezpieczna rejestracja (nie zostanie już zablokowana przez plik raw)
                 dev_slug, inv_slug, usi_inv_id, _ = self.register_investment(
                     portal=portal,
                     developer_name=dev_name,
