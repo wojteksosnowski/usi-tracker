@@ -1,5 +1,12 @@
 # Changelog
 
+## Wersja 0.9.79 — Optymalizacja Komunikacji z Biblioteką — 2026-06-08
+
+### Naprawiono
+- **Portal Alias Handling**: Poprawiono mechanizm weryfikacji istnienia plików surowych (`_check_investment_exists`) oraz ładowania danych (`_fetch_and_transform_portal_data`). System przekazuje teraz krótki, techniczny alias portalu (np. `rp`, `oto`) zamiast pełnej domeny, co zapobiega błędom parsowania w bibliotece `usi-scrapers`.
+- **Ekstrakcja ID Dewelopera**: Udoskonalono metodę `_merge_batch_info` o obsługę zagnieżdżonej struktury `vendor` dla portalu RynekPierwotny. Gwarantuje to rzetelne wyciąganie `vendor_id` z paczek danych podczas procesów wsadowych.
+- **Stabilność Rejestracji**: Wyeliminowano ryzyko gubienia powiązań deweloperskich przy rejestracji nowych inwestycji z discovery poprzez wymuszenie poprawnej ścieżki ekstrakcji ID.
+
 ## Wersja 0.9.78 — Aktualizacja Biblioteki i Dokumentacji — 2026-06-08
 
 ### Zmieniono

@@ -4,7 +4,7 @@ build-backend = "setuptools.backends.legacy:build"
 
 [project]
 name = "usi-tracker"
-version = "0.9.78"
+version = "0.9.79"
 description = "Narzędzie do monitorowania inwestycji deweloperskich (RynekPierwotny, Otodom, TabelaOfert)"
 readme = "README.md"
 license = { text = "Proprietary" }

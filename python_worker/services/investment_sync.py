@@ -93,11 +93,8 @@ class InvestmentSyncService:
     def _check_investment_exists(self, portal, item_id):
         if not item_id:
             return False
-        full_portal = PORTAL_FULL_DOMAINS.get(portal)
-        if not full_portal:
-            return False
-        # Czyste, zhermetyzowane wywołanie bramy:
-        return self.gateway.has_local_raw(full_portal, str(item_id))
+        # USUNIĘTO: mapowanie na pełną domenę, która rozbijała parser w scraperze
+        return self.gateway.has_local_raw(portal, str(item_id))
 
     def register_investment(self, portal, developer_name, name, item_id=None, url=None, allow_existing=False, vendor_id=None, force_dev_slug=None):
 
@@ -215,18 +212,16 @@ class InvestmentSyncService:
         dev_slug = m.get("developer_slug") or "unknown"
         inv_slug = m.get("investment_slug") or inv_dir.name
 
-        # 1. Sprawdź dostępność ID lub URL
         fields = IDENTIFIER_PRIORITIES.get(portal, ["url", "id"])
         identifier = next((sources[portal].get(f) for f in fields if sources[portal].get(f)), None)
         
         if not identifier:
             return None, None, None
 
-        # 2. Wybierz odpowiednią metodę API przez bramę
         try:
-            full_portal = PORTAL_FULL_DOMAINS.get(portal, portal)
+            # NAPRAWA: Przekazujemy czysty, krótki alias portalu akceptowany przez usi-scrapers
             if use_local_raw:
-                 raw_data = self.gateway.load_raw(full_portal, str(identifier))
+                 raw_data = self.gateway.load_raw(portal, str(identifier))
                  if not raw_data: return None, None, None
             else:
                 if str(identifier).startswith("http"):
@@ -642,5 +637,10 @@ class InvestmentSyncService:
             inv_slug = data.get("investment_slug") or inv_slug
             item_id = data.get("id") or item_id
             vendor_id = data.get("vendor_id") or data.get("agency_id") or vendor_id
+            
+            # NAPRAWA: Zapewnienie wyciągania ID dla struktur specyficznych dla RynekPierwotny
+            if not vendor_id and info.get("portal") == "rp" and isinstance(data.get("vendor"), dict):
+                vendor_id = data["vendor"].get("id")
+                
         return dev_slug, inv_slug, vendor_id, item_id
 
