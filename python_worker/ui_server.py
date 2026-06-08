@@ -69,20 +69,34 @@ def index():
 def serve_static(filename):
     return send_from_directory(UI_DIR, filename)
 
-# ── Logging Filter ─────────────────────────────────────────────────────────────
+# ── Logging Setup ─────────────────────────────────────────────────────────────
 
-class IgnorePollingFilter(logging.Filter):
-    def filter(self, record):
-        msg = record.getMessage()
-        return not any(x in msg for x in [
-            "GET /api/jobs", 
-            "GET /api/crawler/status", 
-            "GET /api/doktor/status",
-            "GET /api/system/status",
-            "POST /api/ui-error"
-        ])
+# 1. Bezlitosne wyciszenie domyślnego, śmieciowego loggera Werkzeug
+werkzeug_logger = logging.getLogger("werkzeug")
+werkzeug_logger.setLevel(logging.WARNING)  # Przepuszcza wyłącznie błędy (4xx/5xx) i ostrzeżenia
 
-logging.getLogger("werkzeug").addFilter(IgnorePollingFilter())
+# 2. Wdrożenie zwięzłego, biznesowego loggera żądań HTTP
+@app.after_request
+def log_clean_request(response):
+    from flask import request
+    
+    # Pełna lista endpointów pollingowych i technicznych do całkowitego zignorowania
+    ignore_paths = {
+        "/api/jobs",
+        "/api/crawler/status",
+        "/api/doktor/status",
+        "/api/system/status",
+        "/api/ui-error",
+        "/api/reports/pending-summary"  # Dodano brakujące wąskie gardło pollingu
+    }
+    
+    # Ignorujemy również pobieranie plików statycznych (skryptów UI, stylów, ikon)
+    if request.path in ignore_paths or request.path.startswith("/assets/") or request.path.endswith(".jsx") or request.path.endswith(".js"):
+        return response
+
+    # Logujemy tylko esencję biznesową w jednolitym formacie aplikacji
+    logger.info(f"[HTTP] {request.method} {request.path} -> STATUS {response.status_code}")
+    return response
 
 @app.route("/assets/icons/<path:filename>")
 def serve_or_mock_icon(filename):

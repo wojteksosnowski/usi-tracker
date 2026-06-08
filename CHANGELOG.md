@@ -1,5 +1,19 @@
 # Changelog
 
+## Wersja 0.9.83 — Cisza w Logach i Optymalizacja Indeksu — 2026-06-08
+
+### Zmieniono
+- **Wyciszenie Werkzeug**: Całkowicie uciszono domyślny, gadatliwy logger biblioteki Werkzeug. System przepuszcza teraz wyłącznie błędy i ostrzeżenia.
+- **Custom Request Logger**: Wdrożono minimalistyczny logger żądań HTTP w Flasku (`log_clean_request`), który inteligentnie ignoruje endpointy pollingowe (`/api/jobs`, `/api/system/status`, `/api/reports/pending-summary`) oraz pobieranie plików statycznych. Pozwala to na zachowanie czystości konsoli przy jednoczesnym monitorowaniu istotnego ruchu biznesowego.
+- **Optymalizacja Indeksowania**: Usunięto kosztowne wywołanie `build_index()` z procesu rejestracji pojedynczej inwestycji. System polega teraz wyłącznie na przyrostowej metodzie `upsert`, co drastycznie redukuje I/O przy dodawaniu nowych rekordów.
+
+## Wersja 0.9.82 — Przetwarzanie w Pamięci (In-Memory Pipeline) — 2026-06-08
+
+### Zmieniono
+- **In-Memory Processing**: Całkowicie wyeliminowano redundantne operacje zapisu szkieletów na dysk w procesach masowych. Metoda `register_investment` w trybie `skip_disk=True` przygotowuje kompletny obiekt w pamięci RAM, który jest przekazywany bezpośrednio do `update_investment`.
+- **Optymalizacja I/O**: Dzięki nowemu potokowi danych, pętla `process_batch` wykonuje teraz **dokładnie jeden zapis na dysk** na każdą inwestycję (finalny plik USI), eliminując niepotrzebne cykle zapisu i ponownego odczytu tych samych danych.
+- **Wydajność Zdjęć**: Zoptymalizowano proces `resolve_images`, który w trybie masowym unika kosztownego skanowania systemu plików, drastycznie przyspieszając finalizację rekordów.
+
 ## Wersja 0.9.81 — Optymalizacja Rejestracji Wsadowej — 2026-06-08
 
 ### Zmieniono

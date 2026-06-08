@@ -96,7 +96,7 @@ class InvestmentSyncService:
         # USUNIĘTO: mapowanie na pełną domenę, która rozbijała parser w scraperze
         return self.gateway.has_local_raw(portal, str(item_id))
 
-    def register_investment(self, portal, developer_name, name, item_id=None, url=None, allow_existing=False, vendor_id=None, force_dev_slug=None, skip_index_rebuild=False, skip_cache_invalidation=False):
+    def register_investment(self, portal, developer_name, name, item_id=None, url=None, allow_existing=False, vendor_id=None, force_dev_slug=None, skip_disk=False):
 
         dev_slug, resolved_developer_name, inv_slug_from_url, usi_dev_id = self.developer_resolver.resolve_developer_for_registration(
             portal, developer_name, url, vendor_id, force_dev_slug
@@ -107,7 +107,8 @@ class InvestmentSyncService:
         # Resolve investment directory via TechnicalDataManager
         if self.tech_manager and portal and item_id:
             inv_dir = self.tech_manager.get_investment_path(portal, str(item_id))
-            inv_slug = inv_dir.name
+            if inv_dir:
+                inv_slug = inv_dir.name
         else:
             if not inv_slug:
                 inv_slug = slugify(name) if name else (str(item_id) if item_id else "unknown")
@@ -115,12 +116,12 @@ class InvestmentSyncService:
 
         # 1. Check if investment already exists (any file format)
         existing_file = None
-        if portal and item_id:
+        if portal and item_id and inv_dir:
             target_anchor = inv_dir / f"usi_{portal}_{item_id}.json"
             if target_anchor.exists():
                 existing_file = target_anchor
         
-        if not existing_file:
+        if not existing_file and inv_dir and inv_dir.exists():
             usi_files = [f for f in inv_dir.glob("usi_*.json") if "usi_dev_" not in f.name]
             if usi_files:
                 existing_file = usi_files[0]
@@ -130,15 +131,16 @@ class InvestmentSyncService:
                 try:
                     data = json.loads(existing_file.read_text(encoding="utf-8"))
                     usi_inv_id = data.get("usi_inv_id")
+                    return dev_slug, inv_slug, usi_inv_id, data
                 except Exception:
-                    usi_inv_id = None
-                return dev_slug, inv_slug, usi_inv_id
-            raise ValueError(f"Investment already exists: {dev_slug}/{inv_slug}")
+                    pass
+            else:
+                raise ValueError(f"Investment already exists: {dev_slug}/{inv_slug}")
 
         # 2. Check for ID-based duplication across all investments
         if self._check_investment_exists(portal, item_id):
             logger.info(f"Investment with ID {item_id} ({portal}) already exists in system. Skipping registration.")
-            return None, None
+            return None, None, None, None
 
         if not inv_dir:
              raise RuntimeError(f"Could not determine investment directory for {portal}/{item_id}")
@@ -146,24 +148,6 @@ class InvestmentSyncService:
         inv_dir.mkdir(parents=True, exist_ok=True)
 
         # Canonical filename and source construction
-        if portal in PORTAL_FULL_DOMAINS and item_id:
-            filename = f"usi_{portal}_{item_id}.json"
-            sources = {portal: {"id": str(item_id), "url": url}}
-            if vendor_id:
-                sources[portal].update(PORTAL_VENDOR_ID_KEYS.get(portal, lambda v: {})(vendor_id))
-        else:
-            filename = f"usi_{inv_slug}.json"
-            sources = {}
-            if portal in PORTAL_FULL_DOMAINS:
-                sources[portal] = {"url": url}
-                if vendor_id:
-                    sources[portal].update(PORTAL_VENDOR_ID_KEYS.get(portal, lambda v: {})(vendor_id))
-
-        # Diagnostic signals for initial classification
-        initial_raw = {"url": url, "name": name}
-        if portal == "rp" and item_id:
-            initial_raw["type"] = None # Placeholder for classification
-
         system_id = f"{portal}_{item_id}" if item_id else inv_slug
         skeleton = {
             "usi_inv_id": system_id,
@@ -172,7 +156,7 @@ class InvestmentSyncService:
             "usi_dev_id": usi_dev_id,
             "name": name,
             "reviewed": False,
-            "sources": sources,
+            "sources": {portal: {"id": str(item_id), "url": url}} if item_id else {},
             "specifications": {
                 "segment": None
             },
@@ -180,22 +164,24 @@ class InvestmentSyncService:
             "audit": {"created_at": datetime.now().isoformat()}
         }
 
+        if vendor_id and portal in PORTAL_VENDOR_ID_KEYS and item_id:
+            skeleton["sources"][portal].update(PORTAL_VENDOR_ID_KEYS[portal](vendor_id))
+
+        # KLUCZOWA ZMIANA: Skip I/O operations if requested
+        if skip_disk:
+            return dev_slug, inv_slug, skeleton["usi_inv_id"], skeleton
+
         self.repo.create_investment_skeleton(skeleton["usi_inv_id"], portal, str(item_id) if item_id else None, skeleton)
-        if not skip_index_rebuild and hasattr(self, 'resolver') and self.resolver:
-            self.resolver.build_index()
-            
+        
+        # Do aktualizacji globalnego indeksu używamy WYŁĄCZNIE metody przyrostowej upsert
         try:
-            if not skip_index_rebuild:
-                inv_index.upsert(self.data_dir, self.public_usi_dir, inv_id=skeleton["usi_inv_id"])
+            inv_index.upsert(self.data_dir, self.public_usi_dir, inv_id=skeleton["usi_inv_id"])
         except Exception as _ie:
             logger.debug(f"Index upsert skipped for {inv_slug}: {_ie}")
 
         log_to_processing_log(dev_slug, inv_slug, f"Registered from discovery ({portal})")
-        
-        if not skip_cache_invalidation:
-            self.dm.invalidate_identifiers_cache()
-            
-        return dev_slug, inv_slug, skeleton["usi_inv_id"]
+        self.dm.invalidate_identifiers_cache()
+        return dev_slug, inv_slug, skeleton["usi_inv_id"], skeleton
 
     def download_raw_json(self, portal: str, identifier: str, system_id: str):
         try:
@@ -245,7 +231,7 @@ class InvestmentSyncService:
             logger.error(f"Sync error: {e}")
             return None, None, f"{portal_name} ({str(e)})"
 
-    def update_investment(self, system_id, use_local_raw=False, skip_images=False, skip_index=False, skip_log=False, fast_mode=False):
+    def update_investment(self, system_id, use_local_raw=False, skip_images=False, skip_index=False, skip_log=False, initial_data=None, fast_mode=False):
         """
         Orchestrates the update of an investment:
         1. Scrapes raw data (or loads local)
@@ -265,14 +251,14 @@ class InvestmentSyncService:
         dev_slug = m.get("developer_slug") or "unknown"
         inv_slug = m.get("investment_slug") or inv_dir.name
 
-        if not actual_file and not use_local_raw:
-            logger.warning(f"Investment file not found skipping: {inv_dir}/usi_*.json")
-            return False
-
-        usi_data = {}
-        if actual_file and actual_file.exists():
-            with open(actual_file, "r", encoding="utf-8") as f:
-                usi_data = json.load(f)
+        # KLUCZOWA ZMIANA: Użycie przekazanych danych w pamięci RAM zamiast I/O
+        if initial_data and isinstance(initial_data, dict):
+            usi_data = initial_data
+        else:
+            usi_data = {}
+            if actual_file and actual_file.exists():
+                with open(actual_file, "r", encoding="utf-8") as f:
+                    usi_data = json.load(f)
 
         sources = usi_data.get("sources", {})
         if not sources and use_local_raw:
@@ -347,7 +333,8 @@ class InvestmentSyncService:
 
             # Technical layer: Image synchronization via library
             all_urls = new_unified.get("image_urls", [])
-            self.image_sync.sync_investment_images(system_id, new_unified, all_urls, skip_images, usi_data, resources)
+            if not skip_images:
+                self.image_sync.sync_investment_images(system_id, new_unified, all_urls, skip_images, usi_data, resources)
 
             # Backfill developer ID into portal_mapping if missing
             self.developer_resolver.backfill_developer_mapping(system_id, new_unified)
@@ -362,30 +349,27 @@ class InvestmentSyncService:
             new_unified["amenities_matched"] = score_data["matched"]
             new_unified["suggested_udogodnienia"] = suggest_udogodnienia(score_data["score"])
             
-            # Use resolve_images to finalize photos list
-            if resources:
-                new_unified["photos"] = resolve_images(new_unified, inv_dir, self.public_usi_dir, resources, fast_index=fast_mode)
-            else:
-                new_unified["photos"] = resolve_images(new_unified, inv_dir, self.public_usi_dir, fast_index=fast_mode)
-
+            # KLUCZOWA ZMIANA: Przekazujemy fast_mode, żeby resolve_images nie orało dysku przez glob()
+            new_unified["photos"] = resolve_images(new_unified, inv_dir, self.public_usi_dir, resources, fast_index=fast_mode)
             new_unified["images_count"] = len(new_unified["photos"])
 
-            # Task 06.01.02: Pre-calculate nearby investments if coords changed or missing
-            old_coords = usi_data.get("location", {}).get("coords")
-            new_coords = new_unified.get("location", {}).get("coords")
-
-            needs_recalc = False
+            # Kalkulacja sąsiedztwa (wyłączona w trybie masowym fast_mode)
             if fast_mode:
-                needs_recalc = False
-            elif not usi_data.get("nearby_investments"):
-                needs_recalc = True
-            elif old_coords != new_coords:
-                needs_recalc = True
-
-            if needs_recalc:
-                new_unified["nearby_investments"] = self._calculate_nearby_investments(system_id, new_coords)
-            else:
                 new_unified["nearby_investments"] = usi_data.get("nearby_investments", [])
+            else:
+                old_coords = usi_data.get("location", {}).get("coords")
+                new_coords = new_unified.get("location", {}).get("coords")
+
+                needs_recalc = False
+                if not usi_data.get("nearby_investments"):
+                    needs_recalc = True
+                elif old_coords != new_coords:
+                    needs_recalc = True
+
+                if needs_recalc:
+                    new_unified["nearby_investments"] = self._calculate_nearby_investments(system_id, new_coords)
+                else:
+                    new_unified["nearby_investments"] = usi_data.get("nearby_investments", [])
 
             # Check deletion list
             deletion_file = inv_dir / "deletion_list.json"
@@ -573,37 +557,22 @@ class InvestmentSyncService:
         # Wywołanie przez bramę (ukrywa lib_config i fetcher)
         batch_results = self.gateway.process_batch(portal, targets, on_progress=on_progress_callback)
         success_count = 0
-
-        # --- TELEMETRIA PACZKI ---
         total_batch_items = len(to_process)
-        logger.info(
-            f"[CRITICAL_TRACE] Entering batch finalization loop. "
-            f"Processing {total_batch_items} items for portal: {portal!r}."
-        )
         current_item_index = 0
-        # -------------------------
+
+        logger.info(f"[BATCH] Starting finalization for {total_batch_items} items.")
 
         for info, data in zip(to_process, batch_results):
             current_item_index += 1
-            logger.info(
-                f"[CRITICAL_TRACE] Batch item progress: {current_item_index}/{total_batch_items} "
-                f"-> identifier: {info.get('ident')!r}"
-            )
-
             try:
                 if not data or "error" in data:
-                    logger.warning(
-                        f"Batch item failed: {info.get('ident')} "
-                        f"- {data.get('error') if data else 'No data'}"
-                    )
                     continue
 
                 dev_slug, inv_slug, vendor_id, item_id = self._merge_batch_info(info, data)
                 if not dev_slug or not inv_slug:
-                    logger.warning(f"Missing slugs for {info['ident']} - skipping registration.")
                     continue
 
-                # Registration: library already saved raw files and images if successful
+                # KROK 1: Rejestracja w pamięci (skip_disk=True) - zero operacji na plikach szkieletu!
                 res = self.register_investment(
                     portal=info["portal"],
                     developer_name=info["dev_name"] or dev_slug.replace("-", " ").title(),
@@ -613,32 +582,27 @@ class InvestmentSyncService:
                     allow_existing=True,
                     vendor_id=vendor_id,
                     force_dev_slug=dev_slug,
-                    skip_index_rebuild=True,
-                    skip_cache_invalidation=True
+                    skip_disk=True
                 )
 
                 if res:
-                    # register_investment returns (dev_slug, inv_slug, usi_inv_id)
-                    _, _, usi_inv_id = res
-                    # ZMIANA: Dodano fast_mode=True, aby uniknąć paraliżu serwera przy importowaniu setek rekordów
-                    self.update_investment(usi_inv_id, use_local_raw=True, skip_images=True, skip_index=True, fast_mode=True)
+                    _, _, usi_inv_id, memory_skeleton = res
+                    # KROK 2: Aktualizacja z przekazaniem struktury z RAM-u oraz flagi fast_mode=True
+                    self.update_investment(
+                        usi_inv_id, 
+                        use_local_raw=True, 
+                        skip_images=True, 
+                        skip_index=True, 
+                        initial_data=memory_skeleton,
+                        fast_mode=True
+                    )
                     success_count += 1
             except Exception as e:
-                logger.error(
-                    f"[BATCH_ERROR] Error finalizing batch item {info.get('ident')}: {e}",
-                    exc_info=True
-                )
+                logger.error(f"[BATCH_ERROR] Error finalizing batch item {info.get('ident')}: {e}", exc_info=True)
 
-        logger.info(
-            f"[CRITICAL_TRACE] Exited batch finalization loop. "
-            f"Processed {current_item_index}/{total_batch_items} items. "
-            f"Successfully finalized: {success_count}."
-        )
-
-        # ZMIANA: Inwalidacja cache i przebudowa indeksu wykonywana RAZ dla całej paczki
+        # JEDNORAZOWE operacje po zakończeniu całej paczki (Batch)
         self.dm.invalidate_identifiers_cache()
         try:
-            # Jednorazowe odświeżenie indeksu globalnego po skończonym batchu
             if hasattr(self, 'resolver') and self.resolver:
                 self.resolver.build_index()
         except Exception as _ie:
