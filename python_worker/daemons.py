@@ -129,9 +129,8 @@ class TrackerDoktorDelegate:
             # Pobieramy zunifikowane dane z 'hot indexu'
             devs = developer_index.load(self.dev_dir)
             if not devs:
-                logger.warning("get_developers_for_analysis: Index empty or missing. Rebuilding...")
-                developer_index.rebuild(self.data_dir, self.dev_dir)
-                devs = developer_index.load(self.dev_dir) or []
+                logger.warning("get_developers_for_analysis: Index empty or missing.")
+                return []
 
             logger.info(
                 f"[PERF] Similarity analysis scan: Loaded {len(devs)} developers from index "

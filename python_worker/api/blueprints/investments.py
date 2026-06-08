@@ -12,6 +12,7 @@ from python_worker.services.investment_service import InvestmentService
 from python_worker.jobs import job_manager
 from python_worker.api.utils import _valid_slug, _valid_filename
 import python_worker.investment_index as inv_index
+import python_worker.developer_index as dev_index
 from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR, USI_DEV_DIR, get_shared_config, get_shared_fetcher, get_shared_tech_manager
 from usi_scrapers import api as scraper_api
 
@@ -71,6 +72,20 @@ def invalidate_list_cache():
 
 # Register callback for index changes
 inv_index.on_change(invalidate_list_cache)
+
+_list_dev_cache = {} # Map full_path -> {"data": result, "timestamp": ts}
+_list_dev_lock = threading.Lock()
+
+def invalidate_dev_list_cache():
+    """Clears the server-side cache for developer lists."""
+    with _list_dev_lock:
+        count = len(_list_dev_cache)
+        _list_dev_cache.clear()
+        if count > 0:
+            logger.info(f"Developer list cache invalidated ({count} entries cleared)")
+
+# Register callback for developer index changes
+dev_index.on_change(invalidate_dev_list_cache)
 
 
 
@@ -160,32 +175,7 @@ def list_investments():
         return jsonify([])
 
     entries = inv_index.load(data_root)
-    investments = entries
-
-    if investments is None:
-        # Index missing — build it in background
-        logger.info("Investment index not found; checking rebuild status")
-
-        from python_worker.investment_index import _is_rebuilding
-        if not _is_rebuilding:
-            logger.info("Triggering background index rebuild (no rebuild currently in progress)")
-            public_usi_dir = investment_service.public_usi_dir
-
-            def _rebuild():
-                try:
-                    logger.info("Background rebuild thread starting...")
-                    inv_index.rebuild(data_root, public_usi_dir)
-                    logger.info("Background rebuild thread finished successfully.")
-                except Exception as e:
-                    logger.error(f"Background index rebuild failed: {e}")
-
-            import threading
-            threading.Thread(target=_rebuild, daemon=True).start()
-        else:
-            logger.warning("Index rebuild already in progress. Multiple concurrent rebuilds prevented.")
-        investments = []
-    if investments is None:
-        investments = []
+    investments = entries or []
 
     # Server-side filtering
     filters = []
@@ -393,6 +383,16 @@ def get_stats():
 @investments_bp.route("/developers")
 def list_developers():
     import time
+    cache_key = request.full_path
+
+    # Check if cache is still valid
+    with _list_dev_lock:
+        if cache_key in _list_dev_cache:
+            entry = _list_dev_cache[cache_key]
+            if (time.time() - entry["timestamp"]) < 30:
+                logger.info(f"Returning cached developers list for {cache_key}")
+                return jsonify(entry["data"])
+
     t0 = time.time()
     dm = developer_manager
     t1 = time.time()
@@ -406,6 +406,13 @@ def list_developers():
     # Sort alphabetically
     devs.sort(key=lambda d: d.get("name", d.get("usi_dev_id", "")).lower())
     
+    # Update cache
+    with _list_dev_lock:
+        _list_dev_cache[cache_key] = {
+            "data": devs,
+            "timestamp": time.time()
+        }
+
     t3 = time.time()
     logger.info(f"[TIMING] /developers - total: {t3-t0:.3f}s")
     

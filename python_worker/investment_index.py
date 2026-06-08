@@ -4,259 +4,264 @@ import threading
 import os
 from pathlib import Path
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
-_index_cache = None
-_index_cache_mtime = 0
-_index_lock = threading.Lock()
-_rebuild_lock = threading.Lock()
-_is_rebuilding = False
-_on_change_callbacks = []
+class InvestmentIndex:
+    _instance = None
+    _lock = threading.Lock()
+
+    def __new__(cls, *args, **kwargs):
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super(InvestmentIndex, cls).__new__(cls)
+                cls._instance._initialized = False
+            return cls._instance
+
+    def __init__(self, data_dir: Path | str = None, public_usi_dir: Path | str = None):
+        if self._initialized:
+            return
+            
+        from python_worker.config import USI_DATA_DIR, PUBLIC_USI_DIR
+        self.data_dir = Path(data_dir or USI_DATA_DIR)
+        self.public_usi_dir = Path(public_usi_dir or PUBLIC_USI_DIR)
+        self.index_path = self.data_dir / "_index.json"
+        
+        self._index = {} # dict keyed by usi_inv_id
+        self._slug_map = {} # dict keyed by dev_slug/inv_slug
+        
+        self._index_lock = threading.Lock()
+        self._rebuild_lock = threading.Lock()
+        self._is_rebuilding = False
+        self._on_change_callbacks = []
+        self._mtime = 0
+        
+        self.load_or_rebuild()
+        self._initialized = True
+
+    def on_change(self, callback):
+        """Register a callback to be called whenever the index is updated or rebuilt."""
+        self._on_change_callbacks.append(callback)
+
+    def _notify_change(self):
+        """Triggers all registered change callbacks."""
+        for cb in self._on_change_callbacks:
+            try:
+                cb()
+            except Exception as e:
+                logger.error(f"Error in investment_index change callback: {e}")
+
+    def load_or_rebuild(self) -> None:
+        """Loads index from JSON file. If file doesn't exist, builds it once."""
+        if self.index_path.exists():
+            self._load_from_disk()
+        else:
+            self.rebuild()
+
+    def _load_from_disk(self):
+        with self._index_lock:
+            try:
+                mtime = self.index_path.stat().st_mtime
+                if self._mtime >= mtime:
+                    return
+                
+                data = json.loads(self.index_path.read_text(encoding="utf-8"))
+                entries = data.get("entries", [])
+                
+                new_index = {}
+                new_slug_map = {}
+                for e in entries:
+                    inv_id = e.get("usi_inv_id")
+                    if inv_id:
+                        new_index[inv_id] = e
+                        dev_slug = e.get("developer_slug")
+                        inv_slug = e.get("investment_slug")
+                        if dev_slug and inv_slug:
+                            new_slug_map[f"{dev_slug}/{inv_slug}"] = e
+                            
+                self._index = new_index
+                self._slug_map = new_slug_map
+                self._mtime = mtime
+                logger.info(f"Loaded investment index: {len(self._index)} entries")
+            except Exception as e:
+                logger.warning(f"Could not read investment index: {e}")
+
+    def rebuild(self) -> int:
+        """
+        Scans all USIdata subdirectories and builds a unified index file.
+        Returns number of entries indexed.
+        """
+        with self._rebuild_lock:
+            if self._is_rebuilding:
+                return 0
+            self._is_rebuilding = True
+
+        try:
+            logger.info(f"Initial index build: Scanning {self.data_dir} via rglob...")
+            start_t = datetime.now()
+            
+            usi_files = list(self.data_dir.rglob("usi_*.json"))
+            entries = []
+            
+            from collections import defaultdict
+            inv_groups = defaultdict(list)
+            
+            for usi_file in usi_files:
+                if "usi_dev_" in usi_file.name: continue
+                if usi_file.name.startswith("inv_master_"): continue
+                try:
+                    data = json.loads(usi_file.read_text())
+                    usi_inv_id = data.get("usi_inv_id") or data.get("usi_id")
+                    if usi_inv_id:
+                        inv_groups[usi_inv_id].append((usi_file, data))
+                except Exception: continue
+                    
+            for uid, group in inv_groups.items():
+                # Pick canonical (simplification for rebuild)
+                canonical = sorted(group, key=lambda x: x[0].name)[0]
+                usi_file, data = canonical
+                try:
+                    from python_worker.api.utils import _load_investment
+                    entry = _load_investment(data_dir=self.data_dir, public_usi_dir=self.public_usi_dir, system_id=uid, usi_file=usi_file, fast_index=True)
+                    if entry:
+                        entry.pop("image_urls", None)
+                        entry.pop("nearby_investments", None)
+                        entries.append(entry)
+                except Exception: continue
+
+            # Update state
+            new_index = {e["usi_inv_id"]: e for e in entries}
+            new_slug_map = {f"{e['developer_slug']}/{e['investment_slug']}": e for e in entries if e.get("developer_slug") and e.get("investment_slug")}
+            
+            with self._index_lock:
+                self._index = new_index
+                self._slug_map = new_slug_map
+                self._save_to_disk()
+            
+            duration = (datetime.now() - start_t).total_seconds()
+            logger.info(f"Index rebuilt: {len(entries)} entries in {duration:.2f}s")
+            self._notify_change()
+            return len(entries)
+        finally:
+            self._is_rebuilding = False
+
+    def add_or_update(self, usi_id: str, metadata: dict) -> None:
+        """
+        INCREMENTAL UPDATE O(1) in memory.
+        No rglob! Just updates the dictionary and performs an atomic flush.
+        """
+        # Ensure latest data is loaded (if changed externally)
+        self._load_from_disk()
+        
+        entry = {
+            "usi_inv_id": usi_id,
+            "developer_slug": metadata.get("developer_slug"),
+            "investment_slug": metadata.get("investment_slug") or usi_id,
+            "name": metadata.get("name"),
+            "portal": metadata.get("portal"),
+            "portal_id": str(metadata.get("portal_id") or metadata.get("external_id") or ""),
+            "status": metadata.get("status", "Brak"),
+            "reviewed": metadata.get("reviewed", False),
+            "folder_path": metadata.get("folder_path") or f"Public/USIdata/{metadata.get('developer_slug')}/{usi_id}",
+            "updated_at": datetime.now().isoformat()
+        }
+
+        with self._index_lock:
+            self._index[usi_id] = entry
+            dev_slug = entry.get("developer_slug")
+            inv_slug = entry.get("investment_slug")
+            if dev_slug and inv_slug:
+                self._slug_map[f"{dev_slug}/{inv_slug}"] = entry
+            
+            self._save_to_disk()
+        
+        self._notify_change()
+
+    def _save_to_disk(self):
+        """Atomic write to _index.json."""
+        data = {
+            "built_at": datetime.now().isoformat(),
+            "count": len(self._index),
+            "entries": list(self._index.values()),
+            "updated_at": datetime.now().isoformat()
+        }
+        tmp_path = self.index_path.with_suffix(".tmp")
+        try:
+            tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            os.replace(tmp_path, self.index_path)
+            self._mtime = self.index_path.stat().st_mtime
+        except Exception as e:
+            if tmp_path.exists(): tmp_path.unlink()
+            logger.error(f"Failed to persist index to disk: {e}")
+
+    def get_all(self) -> List[Dict]:
+        self._load_from_disk()
+        return list(self._index.values())
+
+    def get_by_id(self, inv_id: str) -> Optional[Dict]:
+        self._load_from_disk()
+        return self._index.get(inv_id)
+
+    def get_by_slug(self, dev_slug: str, inv_slug: str) -> Optional[Dict]:
+        self._load_from_disk()
+        return self._slug_map.get(f"{dev_slug}/{inv_slug}")
+
+# --- Global Singleton and Compatibility Layer ---
+
+def get_investment_index() -> InvestmentIndex:
+    return InvestmentIndex()
+
+def get_index(data_dir=None) -> List[Dict]:
+    return get_investment_index().get_all()
+
+def load(data_dir=None) -> List[Dict]:
+    return get_index(data_dir)
+
+def get_entry_by_id(inv_id: str) -> Optional[Dict]:
+    return get_investment_index().get_by_id(inv_id)
+
+def get_entry_by_slug(dev_slug: str, inv_slug: str) -> Optional[Dict]:
+    return get_investment_index().get_by_slug(dev_slug, inv_slug)
+
+def add_to_index(data_dir, usi_inv_id, dev_slug, inv_name, portal, portal_id):
+    metadata = {
+        "developer_slug": dev_slug,
+        "name": inv_name,
+        "portal": portal,
+        "portal_id": portal_id
+    }
+    get_investment_index().add_or_update(usi_inv_id, metadata)
+    return True
+
+def rebuild(data_dir=None, public_usi_dir=None) -> int:
+    return get_investment_index().rebuild()
 
 def on_change(callback):
-    """Register a callback to be called whenever the index is updated or rebuilt."""
-    _on_change_callbacks.append(callback)
+    get_investment_index().on_change(callback)
 
-def _notify_change():
-    """Triggers all registered change callbacks."""
-    for cb in _on_change_callbacks:
-        try:
-            cb()
-        except Exception as e:
-            logger.error(f"Error in investment_index change callback: {e}")
-
-# Mapping: 
-# "slugs" -> { "dev_slug/inv_slug": entry }
-# "ids" -> { "usi_inv_id": entry }
-_hot_index = {"slugs": {}, "ids": {}}
-
-def _update_hot_index(entries: list):
-    global _hot_index
-    new_slugs = {}
-    new_ids = {}
-    for e in entries:
-        dev_slug = e.get("developer_slug")
-        inv_slug = e.get("investment_slug")
-        inv_id = e.get("usi_inv_id")
-        if dev_slug and inv_slug:
-            new_slugs[f"{dev_slug}/{inv_slug}"] = e
-        if inv_id:
-            new_ids[inv_id] = e
-    _hot_index = {"slugs": new_slugs, "ids": new_ids}
-
-def _index_path(data_dir: Path | str) -> Path:
-    from pathlib import Path
-    return Path(data_dir) / "_index.json"
-
-def _atomic_write_json(path: Path, data: dict):
-    """Writes JSON to a temporary file and replaces the target file atomically."""
-    tmp_path = path.with_suffix(".tmp")
-    try:
-        tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-        os.replace(tmp_path, path)
-    except Exception as e:
-        if tmp_path.exists():
-            tmp_path.unlink()
-        raise e
-
-def get_entry_by_slug(dev_slug: str, inv_slug: str) -> Optional[dict]:
-    return _hot_index["slugs"].get(f"{dev_slug}/{inv_slug}")
-
-def get_entry_by_id(inv_id: str) -> Optional[dict]:
-    return _hot_index["ids"].get(inv_id)
-
-def get_index(data_dir: Path) -> list:
-    """Returns the list of indexed investments, cached in memory."""
-    global _index_cache, _index_cache_mtime
-    import time
-    start_t = time.time()
-    path = _index_path(data_dir)
-    if not path.exists():
-        return []
-    
-    with _index_lock:
-        try:
-            mtime = path.stat().st_mtime
-            if _index_cache is not None and mtime <= _index_cache_mtime:
-                return _index_cache
-                
-            read_start = time.time()
-            raw_text = path.read_text(encoding="utf-8")
-            data = json.loads(raw_text)
-            _index_cache = data.get("entries", [])
-            _index_cache_mtime = mtime
-            
-            _update_hot_index(_index_cache)
-            
-            duration = (time.time() - start_t) * 1000
-            read_duration = (time.time() - read_start) * 1000
-            logger.info(f"Loaded investment index: {len(_index_cache)} entries in {duration:.1f}ms")
-            return _index_cache
-        except Exception as e:
-            logger.warning(f"Could not read investment index: {e}")
-            return []
-
-# Alias for backward compatibility
-load = get_index
-
-def rebuild(data_dir: Path, public_usi_dir: Path) -> int:
-    """
-    Scans all USIdata subdirectories and builds a unified index file.
-    Returns number of entries indexed.
-    """
-    global _is_rebuilding, _index_cache, _index_cache_mtime
-    
-    # Concurrency guard: only one rebuild at a time
-    with _rebuild_lock:
-        if _is_rebuilding:
-            logger.info("Index rebuild already in progress. Skipping duplicate request.")
-            return 0
-        _is_rebuilding = True
-
-    try:
-        import time
-        start_t = time.time()
-        entries = []
-        
-        from collections import defaultdict
-        
-        # Group by master_id OR usi_inv_id. Unmerged items stand alone identified by portal_id
-        inv_groups = defaultdict(list)
-        logger.info(f"Rebuilding investment index: Scanning {data_dir}...")
-        rglob_start = time.time()
-        usi_files = list(data_dir.rglob("usi_*.json"))
-        rglob_duration = time.time() - rglob_start
-        logger.info(f"Index rebuild: found {len(usi_files)} files in {rglob_duration:.2f}s via rglob")
-
-        for usi_file in usi_files:
-            if "usi_dev_" in usi_file.name: continue
-            if usi_file.name.startswith("inv_master_"): continue
-            
-            try:
-                data = json.loads(usi_file.read_text())
-                usi_inv_id = data.get("usi_inv_id") or data.get("usi_id")
-                
-                if not usi_inv_id:
-                    logger.error(f"Data Integrity Error: Missing usi_inv_id in {usi_file}")
-                    continue
-
-                uid = usi_inv_id
-                inv_groups[uid].append((usi_file, data))
-            except Exception as e:
-                logger.error(f"Failed to read {usi_file}: {e}")
-                continue
-                
-        for uid, group in inv_groups.items():
-            # Pick the canonical usi_file for this ID
-            canonical_item = None
-            for p in ("rp", "oto", "to"):
-                candidates = [item for item in group if item[0].name.startswith(f"usi_{p}_")]
-                if candidates:
-                    canonical_item = sorted(candidates, key=lambda x: x[0].name)[0]
-                    break
-            if not canonical_item:
-                for legacy in ("usi_rp_", "usi_oto_", "usi_to_"):
-                    candidates = [item for item in group if item[0].name.startswith(legacy)]
-                    if candidates:
-                        canonical_item = sorted(candidates, key=lambda x: x[0].name)[0]
-                        break
-            if not canonical_item:
-                canonical_item = sorted(group, key=lambda x: x[0].name)[0]
-
-            usi_file, data = canonical_item
-            try:
-                from python_worker.api.utils import _load_investment
-                
-                # Using _load_investment ensures consistent mapping between disk and index
-                # fast_index=True skips expensive photo scans and identity lookups
-                entry = _load_investment(data_dir=data_dir, public_usi_dir=public_usi_dir, system_id=uid, usi_file=usi_file, fast_index=True)
-                if entry:
-                    # Index now keeps full photo list for DetailView access from memory
-                    entry.pop("image_urls", None)
-                    entry.pop("nearby_investments", None)
-                    
-                    entries.append(entry)
-            except Exception as e:
-                logger.error(f"Failed to index {usi_file}: {e}")
-                continue
-
-        index = {
-            "built_at": datetime.now().isoformat(),
-            "count": len(entries),
-            "entries": entries,
-        }
-        path = _index_path(data_dir)
-        _atomic_write_json(path, index)
-        
-        total_duration = time.time() - start_t
-        logger.info(f"Index rebuilt: {len(entries)} entries → {path} (total: {total_duration:.2f}s)")
-        
-        with _index_lock:
-            _index_cache = entries
-            _index_cache_mtime = path.stat().st_mtime
-            _update_hot_index(_index_cache)
-        
-        _notify_change()
-        return len(entries)
-    except Exception as e:
-        logger.exception(f"Index rebuild failed: {e}")
-        return 0
-    finally:
-        with _rebuild_lock:
-            _is_rebuilding = False
-
-def upsert(data_dir: Path, public_usi_dir: Path, dev_slug: str = None, inv_slug: str = None, portal: str | None = None, inv_id: str | None = None) -> bool:
-    """
-    Recomputes and updates the index entry for a single investment.
-    No-op (returns False) if index doesn't exist yet.
-    """
-    path = _index_path(data_dir)
-    if not path.exists():
-        return False
-
+def upsert(data_dir, public_usi_dir, dev_slug=None, inv_slug=None, portal=None, inv_id=None):
+    # For backward compatibility, we can just trigger add_or_update with loaded data
+    idx = get_investment_index()
     from python_worker.api.utils import _load_investment
     entry = _load_investment(data_dir=data_dir, public_usi_dir=public_usi_dir, system_id=inv_id, fast_index=True)
-    if not entry:
-        return False
+    if entry:
+        entry.pop("image_urls", None)
+        entry.pop("nearby_investments", None)
+        idx.add_or_update(inv_id, entry)
+        return True
+    return False
 
-    # Index now keeps full photo list for DetailView access from memory
-    entry.pop("image_urls", None)
-    entry.pop("nearby_investments", None)
-
-    try:
-        index = json.loads(path.read_text())
-    except Exception:
-        return False
-
-    entries = index.get("entries", [])
-
-    # Replace existing or append
-    replaced = False
-    resolved_id = entry.get("usi_inv_id") or inv_id
-    if resolved_id:
-        for i, e in enumerate(entries):
-            if e.get("usi_inv_id") == resolved_id:
-                entries[i] = entry
-                replaced = True
-                break
-    
-    if not replaced:
-        entries.append(entry)
-
-    index["entries"] = entries
-    index["count"] = len(entries)
-    index["updated_at"] = datetime.now().isoformat()
-    _atomic_write_json(path, index)
-    
-    global _index_cache, _index_cache_mtime
-    with _index_lock:
-        _index_cache = entries
-        _index_cache_mtime = path.stat().st_mtime
-        # --- KLUCZOWA POPRAWKA: Wymuszamy aktualizację słownika szybkich wyszukiwań ---
-        _update_hot_index(_index_cache)
-        
-    logger.info(f"Successfully upserted investment ID {inv_id} to index and rebuilt hot mapping.")
-    _notify_change()
-    return True
+def remove(data_dir, inv_id):
+    idx = get_investment_index()
+    with idx._index_lock:
+        if inv_id in idx._index:
+            entry = idx._index.pop(inv_id)
+            ds = entry.get("developer_slug")
+            is_ = entry.get("investment_slug")
+            if ds and is_:
+                idx._slug_map.pop(f"{ds}/{is_}", None)
+            idx._save_to_disk()
+            idx._notify_change()
+            return True
+    return False

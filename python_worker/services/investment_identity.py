@@ -27,6 +27,10 @@ class InvestmentIdentityResolver:
         from python_worker.investment_index import rebuild
         return rebuild(self.data_dir, self.public_usi_dir)
 
+    def generate_deterministic_id(self, portal: str, item_id: str) -> str:
+        """Generates a stable system ID based on portal and source ID."""
+        return f"{portal}_{item_id}"
+
     def get_investment_resources(self, inv_id: str) -> dict | None:
         from python_worker.investment_index import get_entry_by_id
         entry = get_entry_by_id(inv_id)

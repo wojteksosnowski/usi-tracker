@@ -22,6 +22,20 @@ logger = logging.getLogger(__name__)
 
 _INDEX_FILENAME = "_dev_index.json"
 
+_on_change_callbacks = []
+
+def on_change(callback):
+    """Register a callback to be called whenever the developer index is updated or rebuilt."""
+    _on_change_callbacks.append(callback)
+
+def _notify_change():
+    """Triggers all registered change callbacks."""
+    for cb in _on_change_callbacks:
+        try:
+            cb()
+        except Exception as e:
+            logger.error(f"Error in developer_index change callback: {e}")
+
 
 def _index_path(dev_dir: Path) -> Path:
     return dev_dir / _INDEX_FILENAME
@@ -107,6 +121,7 @@ def rebuild(data_dir: Path, dev_dir: Path) -> int:
         _write_atomic(_index_path(dev_dir), index)
         
     logger.info(f"Developer index rebuilt: {len(entries)} entries → {_index_path(dev_dir)}")
+    _notify_change()
     return len(entries)
 
 
@@ -185,6 +200,7 @@ def upsert(data_dir: Path, dev_dir: Path, dev_slug: str, usi_dev_id: str) -> boo
         _dev_index_cache = None
         _dev_index_cache_mtime = 0
         
+        _notify_change()
         return True
 
 
@@ -214,6 +230,7 @@ def remove(dev_dir: Path, usi_dev_id: str) -> bool:
         index["updated_at"] = datetime.now().isoformat()
         _write_atomic(path, index)
         
+    _notify_change()
     return True
 
 # -------------------------------------------------------------------------

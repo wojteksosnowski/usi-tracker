@@ -115,4 +115,4 @@ class JobManager:
     def list_active_jobs(self):
         return [j for j in self.jobs.values() if j["status"] in ("running", "queued")]
 
-job_manager = JobManager(max_workers=2)
+job_manager = JobManager(max_workers=1)
