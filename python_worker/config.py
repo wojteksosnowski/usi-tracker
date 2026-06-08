@@ -42,7 +42,9 @@ for d in [USI_DATA_DIR, PUBLIC_USI_DIR, USI_DEV_DIR, USI_DEV_RAW_DIR]:
 CSV_PATH = DROPBOX_PATH / "reference-data" / "coda" / "USImaster.csv"
 
 # HERE Maps API Key
-HERE_API_KEY = os.getenv("HERE_API_KEY", "BDske2zxCqqwwBGMf4IBKA49FRvRZLe4TnfBtYTor9c")
+HERE_API_KEY = os.getenv("HERE_API_KEY")
+if not HERE_API_KEY:
+    raise RuntimeError("Krytyczny błąd konfiguracji: Brak zmiennej środowiskowej HERE_API_KEY")
 
 # Otodom discovery URLs
 OTODOM_DISCOVERY_URLS = [

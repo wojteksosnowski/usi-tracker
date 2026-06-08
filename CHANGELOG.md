@@ -1,5 +1,12 @@
 # Changelog
 
+## Wersja 0.9.77 — Bezpieczeństwo i Precyzja Linkowania — 2026-06-08
+
+### Naprawiono
+- **Bezpieczeństwo (Critical)**: Usunięto hardkodowany klucz `HERE_API_KEY` z pliku `config.py`. System wymusza teraz obecność zmiennej środowiskowej, rzucając `RuntimeError` w przypadku jej braku.
+- **Linkowanie Deweloperów**: Wprowadzono inteligentne wiązanie inwestycji z deweloperami na podstawie identyfikatorów portalowych (`vendor_id`, `agency_id`). Inwestycje bez jawnego `usi_dev_id` są teraz poprawnie agregowane i wyświetlane w profilach deweloperów.
+- **Widok Listy**: Poprawiono statystyki na kartach deweloperów, aby uwzględniały inwestycje dopasowane rygorystycznie po ID portali.
+
 ## Wersja 0.9.76 — Gotowość do Aktualizacji usi-scrapers — 2026-06-07
 
 ### Zmieniono

@@ -24,9 +24,10 @@ System operuje wewnątrz folderu `/Public/` na Dropboxie:
 
 ## ⚙️ Konfiguracja
 
-1. **Plik .env**: Stwórz plik `.env` w głównym katalogu:
+1. **Plik .env**: Stwórz plik `.env` w katalogu `python_worker/`:
    ```env
    SCRAPERAPI_KEY=twoj_klucz_scraperapi
+   HERE_API_KEY=twoj_klucz_here_maps     # Wymagany dla miniatur map satelitarnych
    DROPBOX_PATH=/Volumes/Samsam/py/usi-tracker  # Ścieżka do roota projektu
    ```
 

@@ -101,7 +101,7 @@ class InvestmentSyncService:
 
     def register_investment(self, portal, developer_name, name, item_id=None, url=None, allow_existing=False, vendor_id=None, force_dev_slug=None):
 
-        dev_slug, resolved_developer_name, inv_slug_from_url = self.developer_resolver.resolve_developer_for_registration(
+        dev_slug, resolved_developer_name, inv_slug_from_url, usi_dev_id = self.developer_resolver.resolve_developer_for_registration(
             portal, developer_name, url, vendor_id, force_dev_slug
         )
         
@@ -172,6 +172,7 @@ class InvestmentSyncService:
             "usi_inv_id": system_id,
             "investment_slug": inv_slug,
             "developer_slug": dev_slug,
+            "usi_dev_id": usi_dev_id,
             "name": name,
             "reviewed": False,
             "sources": sources,

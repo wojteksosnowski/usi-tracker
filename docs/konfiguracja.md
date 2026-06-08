@@ -1,5 +1,20 @@
 # Konfiguracja
 
+## Zmienne środowiskowe (.env)
+
+System wymaga pliku `.env` umieszczonego w katalogu `python_worker/`. Przykładowa zawartość:
+
+```env
+# Klucz do ScraperAPI (wymagany dla Otodom i stron deweloperów)
+SCRAPERAPI_KEY=twoj_klucz
+
+# Klucz HERE Maps API (wymagany dla miniatur map satelitarnych)
+HERE_API_KEY=twoj_klucz
+
+# Ścieżka do głównego katalogu projektu (root)
+DROPBOX_PATH=/Volumes/Samsam/claude-py/usi-tracker
+```
+
 ## Faza testów
 
 W fazie testów katalogiem opracyjnym jest /Volumes/Samsam/claude-py/usi-tracker/Public

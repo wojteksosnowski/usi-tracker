@@ -57,6 +57,7 @@ class Merger:
         result = {
             "investment_slug": base.get("investment_slug"),
             "developer_slug": base.get("developer_slug"),
+            "usi_dev_id": base.get("usi_dev_id") or (existing_data or {}).get("usi_dev_id"),
             "name": base.get("name"),
             "developer": base.get("developer"),
             "website": base.get("website") or (existing_data or {}).get("website"),

@@ -70,6 +70,31 @@ def load_investment(system_id: str | None = None, usi_file: Path | None = None, 
             if len(parts) >= 3 and parts[0] == "usi":
                 if not usi.get("portal"): usi["portal"] = parts[1]
                 if not usi.get("portal_id"): usi["portal_id"] = parts[2]
+                
+        # MANDAT ID-ONLY: Automatyczne dowiązanie usi_dev_id na podstawie portal_id z źródeł (user hint)
+        if not usi.get("usi_dev_id"):
+            from python_worker.developer_index import load as load_dev_index
+            dev_index = load_dev_index(data_dir.parent / "USIdev")
+            if dev_index:
+                sources = usi.get("sources", {})
+                for portal, pdata in sources.items():
+                    pid = pdata.get("vendor_id") or pdata.get("agency_id") or pdata.get("developer_id")
+                    if not pid: continue
+                    
+                    # Szukamy dewelopera z tym portal_id w jego mappingu
+                    for d_entry in dev_index:
+                        pm = d_entry.get("portal_mapping", {})
+                        p_info = pm.get(portal) or {}
+                        if portal == "rp" and str(p_info.get("id")) == str(pid):
+                            usi["usi_dev_id"] = d_entry["usi_dev_id"]
+                            break
+                        elif portal == "oto" and str(pid) in [str(a) for a in (p_info.get("agency_ids") or [p_info.get("agency_id")]) if a]:
+                            usi["usi_dev_id"] = d_entry["usi_dev_id"]
+                            break
+                        elif portal == "to" and str(p_info.get("id") or p_info.get("agency_id")) == str(pid):
+                            usi["usi_dev_id"] = d_entry["usi_dev_id"]
+                            break
+                    if usi.get("usi_dev_id"): break
     except Exception:
         return None
 

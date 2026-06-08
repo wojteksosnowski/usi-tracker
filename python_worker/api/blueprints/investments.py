@@ -540,14 +540,23 @@ def get_developer_detail(usi_dev_id):
     invs_by_dev_id = {}
     
     # MANDAT ID-ONLY: Inwestycje przypisujemy WYŁĄCZNIE po usi_dev_id.
-    # Zakaz używania _inv_matches_dev (zgadywanie po slugach/portalach) w widoku szczegółowym.
+    # Uzupełnienie: Jako ID traktujemy również dopasowanie po technicznych portal_id z źródeł (user hint).
+    target_pm = dev.get("portal_mapping", {})
     for i in all_invs:
         did = i.get("usi_dev_id")
+        is_match = False
+        
         if did:
             s_did = str(did)
             invs_by_dev_id.setdefault(s_did, []).append(i)
             if s_did == str(target_id):
-                base_invs.append(i)
+                is_match = True
+        
+        if not is_match and _inv_matches_dev(i, target_pm):
+            is_match = True
+            
+        if is_match:
+            base_invs.append(i)
             
     # Ładowanie historii zdarzeń
     events = []
@@ -587,10 +596,20 @@ def get_developer_detail(usi_dev_id):
             continue
             
         member["slug"] = child_dev.get("developer_slug")
-        member["_pm"] = (child_dev.get("original_portal_mapping") or child_dev.get("portal_mapping") or {}).copy()
+        child_pm = (child_dev.get("original_portal_mapping") or child_dev.get("portal_mapping") or {}).copy()
+        member["_pm"] = child_pm
         member["_dev"] = child_dev
-        # MANDAT ID-ONLY: Pobieramy inwestycje wyłącznie po przypisanym w indeksie ID
-        member["_invs"] = invs_by_dev_id.get(str(child_id), [])
+        
+        # MANDAT ID-ONLY: Pobieramy inwestycje po ID oraz po portal_id (user hint)
+        child_invs = list(invs_by_dev_id.get(str(child_id), []))
+        # Dodajemy inwestycje pasujące po portal_id do tego dziecka
+        for i in all_invs:
+            if _inv_matches_dev(i, child_pm):
+                iid = i.get("usi_inv_id")
+                if iid and not any(ci.get("usi_inv_id") == iid for ci in child_invs):
+                    child_invs.append(i)
+        
+        member["_invs"] = child_invs
         valid_members.append(member)
 
     # Budowa bazy (Root record)

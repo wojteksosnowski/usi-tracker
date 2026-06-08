@@ -16,14 +16,16 @@ class DeveloperResolver:
         url: Optional[str], 
         vendor_id: Optional[str], 
         force_dev_slug: Optional[str]
-    ) -> Tuple[str, str, Optional[str]]:
+    ) -> Tuple[str, str, Optional[str], Optional[str]]:
         """
         Gwarantuje identyfikację wyłącznie po oryginalnym ID portalu.
         Slugi z URL służą wyłącznie do lokalizacji plików, nigdy do identyfikacji.
+        Zwraca: (dev_slug, dev_name, inv_slug, usi_dev_id)
         """
         developer_record: Optional[Dict[str, Any]] = None
         dev_slug: Optional[str] = force_dev_slug
         inv_slug_from_url: Optional[str] = None
+        usi_dev_id: Optional[str] = None
 
         # PARSOWANIE URL - wyłącznie do celów wyciągnięcia sluga inwestycji (struktura plików)
         if url:
@@ -37,11 +39,12 @@ class DeveloperResolver:
             if developer_record:
                 dev_slug = developer_record["developer_slug"]
                 developer_name = developer_record["name"]
-                logger.info(f"Zidentyfikowano dewelopera po ID {vendor_id} ({portal}): {developer_name}")
+                usi_dev_id = developer_record["usi_dev_id"]
+                logger.info(f"Zidentyfikowano dewelopera po ID {vendor_id} ({portal}): {developer_name} ({usi_dev_id})")
         else:
             # Brak oryginalnego ID portalu = brak możliwości bezpiecznej rejestracji/identyfikacji
             logger.error(f"Krytyczny brak oryginalnego ID portalu dla dewelopera '{developer_name}'. Rejestracja przerwana.")
-            return "unknown", developer_name or "Nieznany Deweloper", inv_slug_from_url
+            return "unknown", developer_name or "Nieznany Deweloper", inv_slug_from_url, None
 
         if not dev_slug:
             # Nie generujemy sluga z nazwy, nie zgadujemy. Jeśli rekord nie istnieje w indeksie po ID portalu,
@@ -61,13 +64,20 @@ class DeveloperResolver:
             elif portal == "to":
                 initial_pm["to"] = {"agency_id": str(vendor_id)}
 
-            self.dm.create_developer_file({
+            dev_file = self.dm.create_developer_file({
                 "developer_slug": dev_slug, 
                 "name": developer_name or dev_slug.replace("-", " ").title(),
                 "portal_mapping": initial_pm
             })
+            
+            # Re-load to get assigned usi_dev_id
+            if dev_file:
+                try:
+                    d = json.loads(dev_file.read_text())
+                    usi_dev_id = d.get("usi_dev_id")
+                except Exception: pass
 
-        return dev_slug, developer_name or "Nieznany Deweloper", inv_slug_from_url
+        return dev_slug, developer_name or "Nieznany Deweloper", inv_slug_from_url, usi_dev_id
 
     def backfill_developer_mapping(self, system_id: str, new_unified: Dict[str, Any]) -> None:
         """Uzupełnia portal_mapping w plikach deweloperów na podstawie ujednoliconych danych inwestycji.
@@ -82,11 +92,10 @@ class DeveloperResolver:
 
         # 1. Znajdź dewelopera na podstawie któregokolwiek ID portalu z inwestycji
         target_dev = None
-        from usi_scrapers import get_mapping, resolve_path
+        from usi_scrapers import get_mapping
 
         for portal, pdata in sources.items():
             try:
-                mapping = get_mapping(portal)
                 # Używamy ścieżki do ID dewelopera z konfiguracji biblioteki
                 # (np. 'vendor_id' dla RP w sources inwestycji)
                 pid = pdata.get("vendor_id") or pdata.get("agency_id") or pdata.get("developer_id")
@@ -98,6 +107,11 @@ class DeveloperResolver:
 
         if not target_dev:
             return
+
+        # Always inject usi_dev_id into investment data if found and missing
+        if target_dev.get("usi_dev_id") and not new_unified.get("usi_dev_id"):
+            new_unified["usi_dev_id"] = target_dev["usi_dev_id"]
+            logger.info(f"Injected usi_dev_id {target_dev['usi_dev_id']} into investment {system_id}")
 
         # 2. Skoro mamy dewelopera, uzupełniamy jego mapowanie o pozostałe ID z tej inwestycji
         needs_update = False

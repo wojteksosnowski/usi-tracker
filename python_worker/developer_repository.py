@@ -641,6 +641,23 @@ class DeveloperRepository:
         if base_id:
             _process_id(base_id)
 
+        # MANDAT ID-ONLY (Uzupełnienie): Dodajemy inwestycje pasujące po portal_id (user hint)
+        # Służy to poprawieniu statystyk w widoku listy dla deweloperów z niepełnym backfillem ID.
+        for i in self._inv_index_data:
+            ci_id = i.get("usi_inv_id")
+            if ci_id and ci_id in existing_inv_ids:
+                continue
+            
+            if self._inv_matches_dev(i, aggregated_pm):
+                total_count += 1
+                if ci_id: existing_inv_ids.add(ci_id)
+                investment_summary.append({
+                    "slug": i.get("slug"),
+                    "coordinates": i.get("coordinates") or i.get("coords")
+                })
+                ts = i.get("last_updated_ts")
+                if ts: all_mtimes.append(ts)
+
         # Process merged members
         for member in dev.get("merged_from", []):
             mid = member.get("usi_dev_id")
