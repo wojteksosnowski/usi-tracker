@@ -7,6 +7,8 @@
 - **Fallbacki Identyfikacji (TO)**: Wprowadzono zaawansowane mechanizmy ekstrakcji ID dewelopera dla TabelaOfert w `ScraperGateway`, bazujące na `klient-id`, JSON-LD (`brand`, `seller`) oraz analizie URL.
 
 ### Naprawiono
+- **Import Path w ScraperGateway**: Rozwiązano błąd `NameError: Path is not defined` blokujący start aplikacji po refaktoryzacji.
+- **Ostrzeżenia w DeveloperRepository**: Naprawiono błędy `AttributeError` i ostrzeżenia w konsoli dotyczące braku metod w `DiscoveryService`. Logika liczenia nieobsłużonych inwestycji została poprawnie przekierowana do `DeveloperManager`.
 - **Fix 404 TabelaOfert**: Naprawiono błąd w `ScraperGateway.list_investments`, który błędnie rzutował `None` na `"None"`, blokując mechanizm fallbacku w bibliotece scraperów.
 - **Robustność Otodom/RP**: Udoskonalono adaptery (`OtodomAdapter`, `RPAdapter`) pod kątem zmian w schematach JSON (unwrapping `props.pageProps.ad`), co wyeliminowało błędy "Saved 0/1".
 - **Priorytety Identyfikatorów**: Skorygowano `IDENTIFIER_PRIORITIES` w `InvestmentSyncService`, aby zawsze priorytetyzować techniczne ID nad URL-ami przy lokalizacji plików na dysku, zapobiegając dryfowi ścieżek.

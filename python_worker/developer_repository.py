@@ -544,7 +544,12 @@ class DeveloperRepository:
         if not indexed:
             return 0
 
-        ds = DiscoveryService(self.data_dir)
+        try:
+            from python_worker.developer_manager import DeveloperManager
+            dm = DeveloperManager(self.data_dir)
+        except Exception:
+            return 0
+
         total = 0
         seen_slugs = set()
         
@@ -558,12 +563,12 @@ class DeveloperRepository:
                 continue
             seen_slugs.add(slug)
             
-            # KRYTYCZNA OPTYMALIZACJA: Przekazujemy ścieżkę do DiscoveryService,
+            # KRYTYCZNA OPTYMALIZACJA: Przekazujemy ścieżkę do DeveloperManager,
             # zamiast pozwalać mu wywoływać get_developer_by_id tysiące razy.
             # Próbujemy znaleźć katalog dewelopera (powinien być w USIdata/slug)
             dev_dir = self.data_dir / slug
             if dev_dir.is_dir():
-                total += ds.get_unregistered_count_from_dir(dev_dir, identifiers)
+                total += dm.get_unregistered_count_from_dir(dev_dir, identifiers)
                 
         return total
 
@@ -641,22 +646,34 @@ class DeveloperRepository:
         if base_id:
             _process_id(base_id)
 
-        # MANDAT ID-ONLY (Uzupełnienie): Dodajemy inwestycje pasujące po portal_id (user hint)
+        # MANDAT ID-ONLY (Uzupełnienie): O(1) Lookup zamiast pętli O(I)
         # Służy to poprawieniu statystyk w widoku listy dla deweloperów z niepełnym backfillem ID.
-        for i in self._inv_index_data:
-            ci_id = i.get("usi_inv_id")
-            if ci_id and ci_id in existing_inv_ids:
-                continue
+        for portal in ("rp", "oto", "to"):
+            pm_p = aggregated_pm.get(portal)
+            if not pm_p: continue
             
-            if self._inv_matches_dev(i, aggregated_pm):
-                total_count += 1
-                if ci_id: existing_inv_ids.add(ci_id)
-                investment_summary.append({
-                    "slug": i.get("slug"),
-                    "coordinates": i.get("coordinates") or i.get("coords")
-                })
-                ts = i.get("last_updated_ts")
-                if ts: all_mtimes.append(ts)
+            p_ids = []
+            if portal == "rp" and pm_p.get("id"): p_ids.append(str(pm_p["id"]))
+            elif portal == "oto":
+                p_ids.extend([str(a) for a in (pm_p.get("agency_ids") or [pm_p.get("agency_id", "")]) if a])
+                if pm_p.get("id"): p_ids.append(str(pm_p["id"]))
+            elif portal == "to":
+                val = pm_p.get("id") or pm_p.get("slug") or pm_p.get("agency_id")
+                if val: p_ids.append(str(val))
+                
+            for p_id in p_ids:
+                for i in self._inv_by_portal_id.get(portal, {}).get(p_id, []):
+                    ci_id = i.get("usi_inv_id")
+                    if ci_id and ci_id in existing_inv_ids: continue
+                    # Add it
+                    total_count += 1
+                    if ci_id: existing_inv_ids.add(ci_id)
+                    investment_summary.append({
+                        "slug": i.get("slug"),
+                        "coordinates": i.get("coordinates") or i.get("coords")
+                    })
+                    ts = i.get("last_updated_ts")
+                    if ts: all_mtimes.append(ts)
 
         # Process merged members
         for member in dev.get("merged_from", []):
@@ -682,28 +699,53 @@ class DeveloperRepository:
         # 4. Maintenance Score (Pre-compute for index)
         try:
             from python_worker.services.developer_service import DeveloperService
-            dev_svc = DeveloperService(self.data_dir, self.dev_dir)
-            dev["maintenance_overdue_score"] = dev_svc.get_maintenance_overdue_score(dev)
+            if not hasattr(self, "_dev_svc"):
+                self._dev_svc = DeveloperService(self.data_dir, self.dev_dir)
+            dev["maintenance_overdue_score"] = self._dev_svc.get_maintenance_overdue_score(dev)
         except Exception:
             dev["maintenance_overdue_score"] = 0
 
         try:
-            from python_worker.services.discovery_service import DiscoveryService
-            ds = DiscoveryService(self.data_dir)
+            if not hasattr(self, "_dev_mgr"):
+                from python_worker.developer_manager import DeveloperManager
+                self._dev_mgr = DeveloperManager(self.data_dir)
+            
             if identifiers is None:
                 identifiers = {}
-            # OPTIMIZATION: If we already have the directory in dev object, use fast count
-            # Actually dev object from index doesn't have directory, but we have slug
+                
             dev_dir = self.data_dir / base_slug
             if dev_dir.is_dir():
-                dev["unregistered_count"] = ds.get_unregistered_count_from_dir(dev_dir, identifiers)
+                dev["unregistered_count"] = self._dev_mgr.get_unregistered_count_from_dir(dev_dir, identifiers)
             else:
-                dev["unregistered_count"] = ds.get_unregistered_count(base_slug, identifiers)
+                dev["unregistered_count"] = self._dev_mgr.get_unregistered_count(base_slug, identifiers)
         except Exception as e:
             logger.warning(f"Failed to get unregistered_count for {base_slug}: {e}")
             dev["unregistered_count"] = 0
 
         return dev
+
+    @property
+    def _inv_by_portal_id(self):
+        if not hasattr(self, "_cached_inv_by_portal_id"):
+            self._cached_inv_by_portal_id = {"rp": {}, "oto": {}, "to": {}}
+            for inv in self._inv_index_data:
+                src = inv.get("sources") or {}
+                for p in ("rp", "oto", "to"):
+                    if p not in src: continue
+                    p_info = src[p]
+                    # Map multiple possible ID keys to the same portal bucket
+                    keys = ["id", "vendor_id", "agency_id", "developer_id"]
+                    for k in keys:
+                        val = p_info.get(k)
+                        if val:
+                            self._cached_inv_by_portal_id[p].setdefault(str(val), []).append(inv)
+                    
+                    # Handle agency_ids list for Otodom
+                    if p == "oto" and "agency_ids" in p_info:
+                        for aid in p_info["agency_ids"]:
+                            if aid:
+                                self._cached_inv_by_portal_id[p].setdefault(str(aid), []).append(inv)
+        return self._cached_inv_by_portal_id
 
 
 
