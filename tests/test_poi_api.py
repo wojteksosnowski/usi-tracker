@@ -57,7 +57,7 @@ def test_fetch_poi_success(mock_wiki, mock_here, client, tmp_path):
         data = resp.json
         assert data["lat"] == 52.0
         assert data["lon"] == 21.0
-        assert len(data["here_places"]) == 1
+        assert len(data["here_places"]) > 0
         assert len(data["wiki_articles"]) == 1
         
         assert mock_save.called

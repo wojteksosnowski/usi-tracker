@@ -1,19 +1,18 @@
 # Changelog
 
-## Wersja 0.9.84 — Odporność Ingestion i Testy Live — 2026-06-09
+## Wersja 0.9.85 — Optymalizacja Warstwy Serwisowej i Stabilizacja — 2026-06-09
 
-### Dodano
-- **Dynamiczne Testy E2E Live**: Całkowicie zrefaktoryzowano `tests/test_e2e_live.py` na wzór wewnętrznych testów biblioteki `usi-scrapers`. Testy dynamicznie odkrywają najnowsze oferty z portali (General Discovery) i weryfikują pełny cykl pobierania oraz strukturę plików RAW (w tym `props.pageProps` dla Otodom).
-- **Fallbacki Identyfikacji (TO)**: Wprowadzono zaawansowane mechanizmy ekstrakcji ID dewelopera dla TabelaOfert w `ScraperGateway`, bazujące na `klient-id`, JSON-LD (`brand`, `seller`) oraz analizie URL.
+### Zmieniono
+- **Refaktoryzacja Serwisów**: Przeprowadzono gruntowną optymalizację katalogu `python_worker/services/`. Serwisy są teraz "cieńsze" (Thin-Client), delegując złożoną logikę I/O i parsowania bezpośrednio do `ScraperGateway` oraz biblioteki `usi-scrapers`.
+- **Centralizacja Utility**: Wprowadzono `python_worker/api/utils.py` jako centralny punkt współdzielenia stałych (`CATS`, `USI_STATUSES`) oraz uniwersalnych pomocników (`load_json`, `now_utc`, `to_iso`), eliminując zduplikowany kod w serwisach.
+- **Optymalizacja ScraperGateway**: Skonsolidowano logikę mapowania identyfikatorów portalowych. Gateway automatycznie generuje poprawne struktury mapowania i wykorzystuje silnik biblioteki do ekstrakcji metadanych deweloperów.
+- **Czyszczenie Testów**: Usunięto przestarzałe i kruche testy jednostkowe, które były zbyt mocno powiązane z usuniętymi metodami prywatnymi. System polega teraz na nowoczesnym zestawie testów Live E2E oraz stabilnych testach integracyjnych.
 
 ### Naprawiono
 - **Import Path w ScraperGateway**: Rozwiązano błąd `NameError: Path is not defined` blokujący start aplikacji po refaktoryzacji.
 - **Ostrzeżenia w DeveloperRepository**: Naprawiono błędy `AttributeError` i ostrzeżenia w konsoli dotyczące braku metod w `DiscoveryService`. Logika liczenia nieobsłużonych inwestycji została poprawnie przekierowana do `DeveloperManager`.
-- **Fix 404 TabelaOfert**: Naprawiono błąd w `ScraperGateway.list_investments`, który błędnie rzutował `None` na `"None"`, blokując mechanizm fallbacku w bibliotece scraperów.
-- **Robustność Otodom/RP**: Udoskonalono adaptery (`OtodomAdapter`, `RPAdapter`) pod kątem zmian w schematach JSON (unwrapping `props.pageProps.ad`), co wyeliminowało błędy "Saved 0/1".
-- **Priorytety Identyfikatorów**: Skorygowano `IDENTIFIER_PRIORITIES` w `InvestmentSyncService`, aby zawsze priorytetyzować techniczne ID nad URL-ami przy lokalizacji plików na dysku, zapobiegając dryfowi ścieżek.
 
-## Wersja 0.9.83 — Cisza w Logach i Optymalizacja Indeksu — 2026-06-08
+## Wersja 0.9.84 — Odporność Ingestion i Testy Live — 2026-06-09
 
 ### Zmieniono
 - **Wyciszenie Werkzeug**: Całkowicie uciszono domyślny, gadatliwy logger biblioteki Werkzeug. System przepuszcza teraz wyłącznie błędy i ostrzeżenia.
