@@ -36,11 +36,23 @@ class InvestmentRepository:
             return None
         return None
 
-    def save_investment_json(self, system_id: str, data: dict):
+    def save_investment_json(self, system_id: str, data: dict, anchor_path: Path = None):
         """Saves the canonical unified JSON for the investment."""
-        target_file = self._get_anchor_path(system_id)
+        target_file = anchor_path if anchor_path else self._get_anchor_path(system_id)
         with open(target_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
+
+    def save_raw_json(self, system_id: str, portal: str, portal_id: str, data: dict, target_dir: Path = None):
+        """Saves the raw portal JSON for the investment."""
+        try:
+            target_directory = target_dir if target_dir else self._get_dir_from_system_id(system_id)
+            target_file = target_directory / f"raw_{portal}_{portal_id}.json"
+            with open(target_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            return True
+        except Exception as e:
+            logger.error(f"Error saving raw JSON for {system_id}: {e}")
+            return False
 
     def create_investment_skeleton(self, system_id: str, portal: str, portal_id: str, skeleton_data: dict) -> Path:
         """
@@ -48,14 +60,17 @@ class InvestmentRepository:
         This uses the ID-only architecture, resolving paths via TechnicalDataManager.
         """
         tech_manager = get_shared_tech_manager()
-        if not tech_manager:
-            # Fallback if config is missing, though it shouldn't be in production
-            logger.warning("Scraper config missing during skeleton creation. Using legacy path structure as emergency fallback.")
+        inv_dir = None
+        if tech_manager:
+            inv_dir = tech_manager.get_investment_path(portal, portal_id)
+            if inv_dir:
+                inv_dir = Path(inv_dir)
+        
+        if not inv_dir:
+            # Fallback if config is missing or tech_manager doesn't know the path yet
             dev_slug = skeleton_data.get("developer_slug", "unknown")
             inv_slug = skeleton_data.get("investment_slug", system_id)
             inv_dir = self.data_dir / dev_slug / inv_slug
-        else:
-            inv_dir = tech_manager.get_investment_path(portal, portal_id)
 
         inv_dir.mkdir(parents=True, exist_ok=True)
         filename = f"usi_{system_id}.json"

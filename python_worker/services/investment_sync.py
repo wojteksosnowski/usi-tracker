@@ -92,7 +92,7 @@ class InvestmentSyncService:
         force_dev_slug: Optional[str] = None,
         skip_disk: bool = False,
         skip_index: bool = False
-    ) -> Tuple[str, str, str, Dict]:
+    ) -> Tuple[str, str, str, Dict, Optional[Path]]:
         """
         Registers a new investment skeleton.
         ID-ONLY: Priority for portal ID resolution.
@@ -114,7 +114,7 @@ class InvestmentSyncService:
                 raise ValueError(f"Investment already exists: {dev_slug}/{inv_slug}")
             try:
                 data = json.loads(existing_file.read_text(encoding="utf-8"))
-                return dev_slug, inv_slug, data.get("usi_inv_id"), data
+                return dev_slug, inv_slug, data.get("usi_inv_id"), data, existing_file
             except json.JSONDecodeError as jde:
                 logger.error(f"Zniszczony plik anchor JSON: {existing_file}. Błąd: {jde}")
 
@@ -139,8 +139,9 @@ class InvestmentSyncService:
             mapping = self.gateway.generate_portal_mapping(portal, vendor_id)
             skeleton["sources"][portal].update(mapping)
 
+        target_file = None
         if not skip_disk:
-            self.repo.create_investment_skeleton(
+            target_file = self.repo.create_investment_skeleton(
                 skeleton["usi_inv_id"], 
                 portal, 
                 str(item_id) if item_id else None, 
@@ -152,7 +153,7 @@ class InvestmentSyncService:
 
             log_to_processing_log(dev_slug, inv_slug, f"Registered from discovery ({portal})")
             
-        return dev_slug, inv_slug, skeleton["usi_inv_id"], skeleton
+        return dev_slug, inv_slug, skeleton["usi_inv_id"], skeleton, target_file
 
     def _find_existing_anchor(self, inv_dir: Path, portal: Optional[str], item_id: Optional[str]) -> Optional[Path]:
         """Helper to find existing usi_*.json file in a directory."""
@@ -448,12 +449,14 @@ class InvestmentSyncService:
 
         # 1. Bulk download
         batch_results = self.gateway.process_batch(portal, targets, on_progress=on_progress_callback)
+        logger.info(f"[BATCH] Gateway returned {len(batch_results)} results for {portal}")
         saved_count = 0
         cached_index = inv_index.get_index(self.data_dir)
 
         # 2. Consumption and processing
-        for item_info, data in zip(to_process, batch_results):
+        for i, (item_info, data) in enumerate(zip(to_process, batch_results)):
             if not data or (isinstance(data, dict) and "error" in data):
+                logger.warning(f"[BATCH] Skipping item {i} due to empty data or error: {data}")
                 continue
 
             try:
@@ -468,7 +471,8 @@ class InvestmentSyncService:
                     continue
 
                 # 5. Registration and Update (fast_mode enabled)
-                _, _, usi_inv_id, skeleton = self.register_investment(
+                logger.info(f"[BATCH] Registering {portal}/{item_id}...")
+                _, _, usi_inv_id, skeleton, inv_path = self.register_investment(
                     portal=portal,
                     developer_name=dev_meta.get("name") or meta.get("developer_name") or item_info.get("dev_name"),
                     name=meta.get("name") or item_info.get("name") or f"Inwestycja {portal.upper()} {item_id}",
@@ -478,18 +482,28 @@ class InvestmentSyncService:
                     vendor_id=dev_meta.get("id") or meta.get("vendor_id") or item_info.get("vendor_id"),
                     skip_index=True
                 )
+                
+                logger.info(f"[BATCH] Registered as {usi_inv_id}. Proceeding to update...")
 
-                if usi_inv_id and self.update_investment(
-                    usi_inv_id, 
-                    use_local_raw=True, 
-                    fast_mode=True, 
-                    skip_index=True, 
-                    initial_data=skeleton,
-                    cached_index=cached_index
-                ):
-                    saved_count += 1
+                if usi_inv_id:
+                    # MANDAT ID-ONLY: Zapisujemy surowe dane na dysk przed wywołaniem update_investment(use_local_raw=True)
+                    self.repo.save_raw_json(usi_inv_id, portal, item_id, raw_payload, target_dir=inv_path.parent if inv_path else None)
+                    
+                    ok = self.update_investment(
+                        usi_inv_id, 
+                        use_local_raw=True, 
+                        fast_mode=True, 
+                        skip_index=True, 
+                        initial_data=skeleton,
+                        cached_index=cached_index
+                    )
+                    logger.info(f"[BATCH] Update result for {usi_inv_id}: {ok}")
+                    if ok:
+                        saved_count += 1
+                    else:
+                        logger.warning(f"[BATCH] Update failed for {usi_inv_id}")
                 else:
-                    logger.warning(f"[BATCH] Update failed for {usi_inv_id}")
+                    logger.warning(f"[BATCH] No usi_inv_id returned for {item_id}")
 
             except Exception as e:
                 logger.error(f"[BATCH_ERROR] Błąd finalizacji dla {item_info.get('ident')}: {e}", exc_info=True)

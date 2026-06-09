@@ -253,10 +253,22 @@ class InvestmentIndex:
         self._load_from_disk()
         return self._slug_map.get(f"{dev_slug}/{inv_slug}")
 
+    def invalidate_cache(self):
+        """Resets the singleton instance and internal state. Used for testing isolation."""
+        with self._lock:
+            InvestmentIndex._instance = None
+        self._initialized = False
+        self._index = {}
+        self._slug_map = {}
+        self._mtime = 0
+
 # --- Global Singleton and Compatibility Layer ---
 
 def get_investment_index() -> InvestmentIndex:
     return InvestmentIndex()
+
+def invalidate_cache():
+    get_investment_index().invalidate_cache()
 
 def get_index(data_dir=None) -> List[Dict]:
     return get_investment_index().get_all()
