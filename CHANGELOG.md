@@ -1,5 +1,16 @@
 # Changelog
 
+## Wersja 0.9.84 — Odporność Ingestion i Testy Live — 2026-06-09
+
+### Dodano
+- **Dynamiczne Testy E2E Live**: Całkowicie zrefaktoryzowano `tests/test_e2e_live.py` na wzór wewnętrznych testów biblioteki `usi-scrapers`. Testy dynamicznie odkrywają najnowsze oferty z portali (General Discovery) i weryfikują pełny cykl pobierania oraz strukturę plików RAW (w tym `props.pageProps` dla Otodom).
+- **Fallbacki Identyfikacji (TO)**: Wprowadzono zaawansowane mechanizmy ekstrakcji ID dewelopera dla TabelaOfert w `ScraperGateway`, bazujące na `klient-id`, JSON-LD (`brand`, `seller`) oraz analizie URL.
+
+### Naprawiono
+- **Fix 404 TabelaOfert**: Naprawiono błąd w `ScraperGateway.list_investments`, który błędnie rzutował `None` na `"None"`, blokując mechanizm fallbacku w bibliotece scraperów.
+- **Robustność Otodom/RP**: Udoskonalono adaptery (`OtodomAdapter`, `RPAdapter`) pod kątem zmian w schematach JSON (unwrapping `props.pageProps.ad`), co wyeliminowało błędy "Saved 0/1".
+- **Priorytety Identyfikatorów**: Skorygowano `IDENTIFIER_PRIORITIES` w `InvestmentSyncService`, aby zawsze priorytetyzować techniczne ID nad URL-ami przy lokalizacji plików na dysku, zapobiegając dryfowi ścieżek.
+
 ## Wersja 0.9.83 — Cisza w Logach i Optymalizacja Indeksu — 2026-06-08
 
 ### Zmieniono

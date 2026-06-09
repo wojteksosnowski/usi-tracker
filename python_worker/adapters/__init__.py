@@ -120,15 +120,17 @@ class RPAdapter:
         m = transform_to_unified("rp", raw)
         m = {k: _unwrap(v) for k, v in m.items()}
         
-        u = _unified_base(inv_slug, dev_slug, m.get("name") or raw.get("name"), developer=m.get("developer_name"))
+        u = _unified_base(inv_slug, dev_slug, m.get("name") or raw.get("name") or raw.get("title"), developer=m.get("developer_name"))
+        
+        item_id = m.get("id") or raw.get("id")
         
         rp_src = {}
-        if m.get("id"): rp_src["id"] = str(m.get("id"))
+        if item_id: rp_src["id"] = str(item_id)
         if m.get("url"): rp_src["url"] = m.get("url")
         if m.get("developer_id"): rp_src["vendor_id"] = str(m.get("developer_id"))
         
-        if not rp_src.get("url") and m.get("developer_slug") and raw.get("slug") and m.get("id"):
-            rp_src["url"] = f"https://rynekpierwotny.pl/oferty/{m.get('developer_slug')}/{raw.get('slug')}-{m.get('id')}/"
+        if not rp_src.get("url") and m.get("developer_slug") and raw.get("slug") and item_id:
+            rp_src["url"] = f"https://rynekpierwotny.pl/oferty/{m.get('developer_slug')}/{raw.get('slug')}-{item_id}/"
             
         u["sources"]["rp"] = rp_src
         u["website"] = raw.get("website")
@@ -235,19 +237,52 @@ class OtodomAdapter:
     @classmethod
     def _from_raw(cls, raw: dict, inv_slug: str, dev_slug: str) -> dict:
         from usi_scrapers.mapping import transform_to_unified
+        
+        # MANDAT ROBUSTNOŚCI: Obsługa nowego, głęboko zagnieżdżonego schematu Otodom
+        actual_raw = raw
+        is_unwrapped = False
+        if isinstance(raw, dict) and "props" in raw and "pageProps" in raw["props"]:
+            ad_data = raw["props"]["pageProps"].get("ad")
+            if ad_data:
+                actual_raw = ad_data
+                is_unwrapped = True
+        
         # Sanityzacja głęboka przed przekazaniem do biblioteki zewnętrznej
-        if isinstance(raw, dict) and raw.get("source") == "otodom.pl":
-            raw["source"] = "oto"
+        if isinstance(actual_raw, dict) and actual_raw.get("source") == "otodom.pl":
+            actual_raw["source"] = "oto"
 
-        m = transform_to_unified("oto", raw)
+        m = transform_to_unified("oto", actual_raw)
         m = {k: _unwrap(v) for k, v in m.items()}
         
-        u = _unified_base(inv_slug, dev_slug, m.get("name"), developer=m.get("developer_name"))
+        # Wyznaczenie nazwy i ID z priorytetem dla danych od-pakowanych
+        name = m.get("name") or actual_raw.get("title") or actual_raw.get("name") or actual_raw.get("developmentTitle")
+        item_id = m.get("id") or actual_raw.get("id") or actual_raw.get("publicId") or actual_raw.get("ad_id")
         
-        oto_src = {"url": m.get("url") or (raw.get("ad") or raw).get("url") or ""}
-        if m.get("id"): oto_src["id"] = str(m.get("id"))
-        if m.get("developer_id"): oto_src["agency_id"] = str(m.get("developer_id"))
+        if not name:
+             # Ostateczny fallback na slug
+             name = inv_slug.replace("-", " ").title()
+             
+        u = _unified_base(inv_slug, dev_slug, name, developer=m.get("developer_name"))
+        
+        oto_src = {"url": m.get("url") or actual_raw.get("url") or ""}
+        if item_id: oto_src["id"] = str(item_id)
+        
+        # Extra developer ID logic
+        dev_id = m.get("developer_id") or actual_raw.get("agency", {}).get("id") or actual_raw.get("owner", {}).get("id")
+        if dev_id: oto_src["agency_id"] = str(dev_id)
+        
         u["sources"]["oto"] = oto_src
+        
+        # Logowanie dla debugowania (widoczne w testach live)
+        if not m.get("latitude") and is_unwrapped:
+             logger.debug(f"Otodom: No coords in mapping. Unwrapped payload keys: {list(actual_raw.keys())}")
+
+        # Jeśli od-pakowaliśmy, ale transformacja zwróciła pustkę, próbujemy wyciągnąć współrzędne ręcznie
+        if not m.get("latitude"):
+            coords = actual_raw.get("location", {}).get("coordinates", {})
+            if coords:
+                m["latitude"] = coords.get("latitude")
+                m["longitude"] = coords.get("longitude")
         
         u["location"].update({
             "coords": [m.get("latitude"), m.get("longitude")],
@@ -348,15 +383,27 @@ class TOAdapter:
     @classmethod
     def _from_raw(cls, raw: dict, inv_slug: str, dev_slug: str) -> dict:
         from usi_scrapers.mapping import transform_to_unified
-        m = transform_to_unified("to", raw)
+
+        # MANDAT ROBUSTNOŚCI: Unwrap if needed
+        actual_raw = raw.get("raw_details", raw) if isinstance(raw, dict) else raw
+
+        m = transform_to_unified("to", actual_raw)
         m = {k: _unwrap(v) for k, v in m.items()}
-        
-        u = _unified_base(inv_slug, dev_slug, m.get("name") or raw.get("name"), developer=m.get("developer_name"))
-        
-        to_src = {"url": m.get("url") or raw.get("to_url") or ""}
-        if m.get("id"): to_src["id"] = str(m.get("id"))
-        if m.get("developer_id"): to_src["developer_id"] = str(m.get("developer_id"))
+
+        name = m.get("name") or actual_raw.get("title") or actual_raw.get("name")
+        item_id = m.get("id") or actual_raw.get("id")
+
+        if not name:
+             name = inv_slug.replace("-", " ").title()
+
+        u = _unified_base(inv_slug, dev_slug, name, developer=m.get("developer_name"))
+
+        to_src = {"url": m.get("url") or actual_raw.get("url") or ""}
+        if item_id: to_src["id"] = str(item_id)
+
+        if m.get("developer_id"): to_src["agency_id"] = str(m.get("developer_id"))
         u["sources"]["to"] = to_src
+
         
         u["location"].update({
             "coords": [m.get("latitude"), m.get("longitude")],
