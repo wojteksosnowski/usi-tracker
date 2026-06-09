@@ -24,7 +24,6 @@
 ### Naprawiono
 - **Kompatybilność Windows**: Migracja z `fcntl` na bibliotekę `filelock` dla bezpiecznego blokowania plików w środowisku wieloprocesowym.
 - **Zależności Cykliczne**: Rozwiązano krytyczne błędy importów kołowych w warstwie API i serwisach raportowych.
-- **Struktura Public/USIdata**: Naprawiono błąd systemu plików, w którym folder `Public/` był błędnie rozpoznawany jako plik.
 
 ## Wersja 0.9.85 — Optymalizacja Warstwy Serwisowej i Stabilizacja — 2026-06-09
 
