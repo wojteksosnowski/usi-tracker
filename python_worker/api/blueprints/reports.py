@@ -5,7 +5,7 @@ from flask import Blueprint, jsonify, abort
 from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
 from python_worker.services.investment_loader import load_investment as _load_investment
 from python_worker.services.amenity_scorer import calculate_ocena_log as _calculate_ocena_log
-from python_worker.api.utils import _calculate_distance
+from python_worker.api.utils import _calculate_distance, filter_investments
 from python_worker.developer_manager import DeveloperManager
 
 logger = logging.getLogger(__name__)
@@ -73,36 +73,10 @@ def get_report_data(report_id):
         filters = report_def.get("filters", {})
         
         from python_worker.investment_index import get_index
-        investments = []
-        for inv in get_index(Path(USI_DATA_DIR)):
-            if inv:
-                    match = True
-                    if "city" in filters:
-                        city = filters["city"].lower()
-                        addr = (inv.get("address") or "").lower()
-                        distr = (inv.get("district") or "").lower()
-                        if city not in addr and city not in distr: 
-                            match = False
-                    
-                    if match and "developer_slug" in filters:
-                        if inv.get("developer_slug") != filters["developer_slug"]: 
-                            match = False
-                        
-                    if match and "min_rating" in filters:
-                        score = _calculate_ocena_log(inv.get("ratings", {}))
-                        if score is None or score < filters["min_rating"]: 
-                            match = False
-                    
-                    if match and "near" in filters:
-                        center = filters["near"].get("coords")
-                        radius = filters["near"].get("radius", 5)
-                        if center and inv.get("coords"):
-                            dist = _calculate_distance(center[0], center[1], inv["coords"][0], inv["coords"][1])
-                            if dist > radius:
-                                match = False
-
-                    if match:
-                        investments.append(inv)
+        all_investments = get_index(Path(USI_DATA_DIR))
+        
+        # Używamy uniwersalnego filtru dla danych raportu
+        investments = filter_investments(all_investments, filters)
         
         return jsonify({
             "definition": report_def,

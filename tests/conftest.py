@@ -1,4 +1,15 @@
 import pytest
+import sys
+import os
+from pathlib import Path
+
+# Add usi-scrapers and usi-crawlers to path
+BASE_DIR = Path(__file__).resolve().parent.parent
+LIB_PATH = str(BASE_DIR.parent / "usi-scrapers")
+CRAWLERS_PATH = str(BASE_DIR.parent / "usi-crawlers")
+for p in [LIB_PATH, CRAWLERS_PATH]:
+    if os.path.exists(p) and p not in sys.path:
+        sys.path.insert(0, p)
 
 def pytest_configure(config):
     # Initial state: no non-live tests have failed

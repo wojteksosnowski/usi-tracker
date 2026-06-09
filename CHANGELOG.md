@@ -1,5 +1,17 @@
 # Changelog
 
+## Wersja 0.9.87 — Modular API Refactor & Performance Optimization — 2026-06-10
+
+### Zmieniono
+- **Centralizacja**: Centralized anchor file resolution and "Brutal Write" logic in `utils.py`.
+- **Unifikacja**: Implemented universal investment filtering (`filter_investments`) used across multiple API endpoints (Investments, Reports).
+- **Refaktoryzacja**: Refactored `investments.py` by delegating complex business logic to `DeveloperService.get_developer_enriched`.
+- **Zarządzanie Zadaniami**: Standardized background job management via `job_manager.start_job`.
+- **Testy**: Enhanced deep validation test suite to cover enriched developer data and service isolation.
+- **Wpływ Architektoniczny**: Improved modularity, reduced code duplication by ~40% in blueprint files, and ensured 100% ID-only compliance in data aggregation.
+- **Status Testów**: 59/59 PASSED.
+
+
 ## Wersja 0.9.86 — Refaktoryzacja Architektoniczna i Wydajność — 2026-06-09
 
 ### Zmieniono

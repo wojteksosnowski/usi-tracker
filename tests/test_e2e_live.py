@@ -14,10 +14,10 @@ def scraper_config(tmp_path):
     load_dotenv() # root .env
     load_dotenv("python_worker/.env.local")
     
-    api_key = os.getenv("SCRAPERAPI_API_KEY")
+    api_key = os.getenv("SCRAPERAPI_KEY") or os.getenv("SCRAPERAPI_API_KEY")
 
     if not api_key:
-        pytest.skip("SCRAPERAPI_API_KEY not found in environment or .env.local")
+        pytest.skip("SCRAPERAPI_KEY not found in environment or .env files")
 
     public_dir = tmp_path / "tmp_live_public"
     public_dir.mkdir()

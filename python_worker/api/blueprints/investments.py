@@ -3,6 +3,7 @@ import logging
 import os
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import unquote
 from flask import Blueprint, jsonify, abort, request, send_file, redirect, send_from_directory
@@ -10,9 +11,9 @@ from werkzeug.utils import safe_join
 
 from python_worker.services.investment_service import InvestmentService
 from python_worker.jobs import job_manager
-from python_worker.api.utils import _valid_slug, _valid_filename
-import python_worker.investment_index as inv_index
+from python_worker.api.utils import _valid_slug, _valid_filename, get_anchor_path, update_anchor_json, filter_investments
 import python_worker.developer_index as dev_index
+import python_worker.investment_index as inv_index
 from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR, USI_DEV_DIR, get_shared_config, get_shared_fetcher, get_shared_tech_manager
 from usi_scrapers import api as scraper_api
 
@@ -23,55 +24,17 @@ _PLACEHOLDER_DIR = Path(__file__).parent.parent.parent / "ui" / "assets"
 _PLACEHOLDER_FILE = _PLACEHOLDER_DIR / "image-placeholder.svg"
 
 
-
-PORTAL_MATCHERS = {
-    "rp": lambda pm_p, src_p: bool(str(pm_p.get("id", "")) and str(src_p.get("vendor_id", "")) and str(pm_p.get("id", "")) == str(src_p.get("vendor_id", ""))),
-    "oto": lambda pm_p, src_p: str(src_p.get("agency_id", "")) in {str(a) for a in (pm_p.get("agency_ids") or [pm_p.get("agency_id", "")]) if a},
-    "to": lambda pm_p, src_p: (
-        (pm_id := str(pm_p.get("id") or pm_p.get("slug", "") or pm_p.get("agency_id", ""))) == 
-        (src_id := str(src_p.get("developer_id") or ""))
-    ) or (not pm_id and not src_id)
-}
-
-
-def _inv_matches_dev(inv: dict, pm: dict) -> bool:
-    """Return True only when a portal developer ID from sources exactly matches portal_mapping.
-    No fallback guessing — missing ID means no match."""
-    src = inv.get("sources") or {}
-    for portal, matcher in PORTAL_MATCHERS.items():
-        if not pm.get(portal) or not src.get(portal):
-            continue
-        pm_p = pm[portal]
-        src_p = src[portal]
-        
-        if pm_p.get("_inferred"):
-            return True
-            
-        if matcher(pm_p, src_p):
-            return True
-    return False
-
-
 investments_bp = Blueprint('investments', __name__)
 from python_worker.developer_manager import DeveloperManager
 from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
+from python_worker.services.developer_service import DeveloperService
+
 investment_service = InvestmentService()
 developer_manager = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
-
-from functools import lru_cache
-_list_inv_cache = {} # Map full_path -> {"data": result, "timestamp": ts}
-_list_inv_lock = threading.Lock()
-
-def invalidate_list_cache():
-    """Clears the server-side cache for investment lists."""
-    with _list_inv_lock:
-        count = len(_list_inv_cache)
-        _list_inv_cache.clear()
-        if count > 0:
-            logger.info(f"Investment list cache invalidated ({count} entries cleared)")
+developer_service = DeveloperService(Path(USI_DATA_DIR), Path(USI_DATA_DIR).parent / "USIdev")
 
 # Register callback for index changes
-inv_index.on_change(invalidate_list_cache)
+inv_index.on_change(investment_service.invalidate_cache)
 
 _list_dev_cache = {} # Map full_path -> {"data": result, "timestamp": ts}
 _list_dev_lock = threading.Lock()
@@ -91,33 +54,17 @@ dev_index.on_change(invalidate_dev_list_cache)
 
 @investments_bp.route("/image/<path:filepath>")
 def get_image(filepath):
-    """
-    Pancerna wersja obsługująca URL-encoded znaki (%20, %7B, itp.).
-    Eliminuje pętle rglob/skanowanie dysku przy nieprawidłowo zmapowanych ścieżkach.
-    """
-    if not filepath:
-        abort(400)
-
-    # KRYTYCZNA POPRAWKA: Odkodowanie znaków procenta (%20 -> spacja, %7B -> {)
-    # Przed tą poprawką os.path.exists() zwracało False i odpalało morderczy dla CPU fallback skanowania dysku.
-    decoded_filepath = unquote(filepath)
-
-    # Bezpieczne łączenie odkodowanej ścieżki do katalogu PUBLIC_USI_DIR (tam są zdjęcia)
-    target_path = safe_join(str(PUBLIC_USI_DIR), decoded_filepath)
+    """Serwuje zdjęcie bezpośrednio z dysku O(1). Bez skanowania i magii."""
+    decoded_path = Path(PUBLIC_USI_DIR) / unquote(filepath)
     
-    # Sprawdzamy fizyczną ścieżkę - operacja O(1), zero narzutu CPU
-    if target_path and os.path.exists(target_path):
-        response = send_file(target_path, conditional=False)
+    if decoded_path.exists() and decoded_path.is_file():
+        response = send_file(decoded_path)
         response.headers["Cache-Control"] = "public, max-age=86400, immutable"
         return response
 
-    # BEZLITOSNA BLOKADA: Jeśli plik nie istnieje, NATYCHMIAST zwracamy placeholder.
-    # Zakaz jakiegokolwiek rglob(), glob() czy szukania plików na dysku Dropboxa!
     if _PLACEHOLDER_FILE.exists():
-        response = send_file(_PLACEHOLDER_FILE, mimetype="image/svg+xml")
-        response.headers["Cache-Control"] = "public, max-age=86400, immutable"
-        return response
-
+        return send_file(_PLACEHOLDER_FILE, mimetype="image/svg+xml")
+        
     abort(404)
 
 @investments_bp.route("/developer/<usi_dev_id>/logo")
@@ -158,157 +105,89 @@ def serve_dev_logo(usi_dev_id):
 
 @investments_bp.route("/investments")
 def list_investments():
-    import time
-    cache_key = request.full_path
+    """Pobiera gotowy indeks z RAMu i filtruje go w locie przy użyciu uniwersalnego filtru."""
+    investments = inv_index.load(Path(USI_DATA_DIR)) or []
     
-    # Check if cache is still valid
-    with _list_inv_lock:
-        if cache_key in _list_inv_cache:
-            entry = _list_inv_cache[cache_key]
-            if (time.time() - entry["timestamp"]) < 30:
-                logger.info(f"Returning cached investments list for {cache_key}")
-                return jsonify(entry["data"])
-
-    start_t = time.time()
-    data_root = investment_service.data_dir
-    if not data_root.exists():
-        return jsonify([])
-
-    entries = inv_index.load(data_root)
-    investments = entries or []
-
-    # Server-side filtering
-    filters = []
-
-    if request.args.get("onlyUnreviewed") == "true":
-        filters.append(lambda inv: inv.get("reviewed") is False)
-    if request.args.get("onlyNoPhotos") == "true":
-        filters.append(lambda inv: not inv.get("photos"))
-    if search := request.args.get("search", "").lower():
-        filters.append(lambda inv: any(search in (inv.get(k) or "").lower() for k in ["name", "developer", "district", "address"]))
-    if dev := request.args.get("dev"):
-        filters.append(lambda inv: dev in (inv.get("developer_slug"), inv.get("developer")))
-    if status := request.args.get("status"):
-        filters.append(lambda inv: inv.get("status") == status)
-    if sources_arg := request.args.get("sources"):
-        sources = set(sources_arg.upper().split(","))
-        filters.append(lambda inv: inv.get("source", "").upper() in sources)
-    if segments_arg := request.args.get("segments"):
-        segments = set(segments_arg.split(","))
-        filters.append(lambda inv: (inv.get("segment") or inv.get("specifications", {}).get("segment")) in segments)
-    if cities_arg := request.args.get("cities"):
-        cities = set(cities_arg.lower().split(","))
-        main_cities = ['warszawa', 'kraków', 'wrocław', 'łódź', 'poznań', 'gdańsk', 'szczecin', 'bydgoszcz', 'lublin', 'białystok']
-        def city_filter(inv):
-            addr = (inv.get("address") or "").lower()
-            found_city = next((c for c in main_cities if c in addr), None)
-            return found_city in cities
-        filters.append(city_filter)
-
+    # Przekazujemy wszystkie parametry z requestu jako słownik filtrów
+    filtered = filter_investments(investments, request.args)
+    
+    # Licznik unreviewed zawsze dla całego zbioru (wymóg UI)
     unreviewed_count = sum(1 for inv in investments if inv.get("reviewed") is False)
 
-    filter_start = time.time()
-    filtered = [inv for inv in investments if all(f(inv) for f in filters)]
-
-    duration = (time.time() - start_t) * 1000
-    filter_duration = (time.time() - filter_start) * 1000
-    logger.info(f"list_investments: Found {len(filtered)}/{len(investments)} entries in {duration:.1f}ms (filtering: {filter_duration:.1f}ms)")
-
-    result = {"data": filtered, "unreviewedCount": unreviewed_count}
-    with _list_inv_lock:
-        _list_inv_cache[cache_key] = {"data": result, "timestamp": time.time()}
-        # Simple cleanup if cache grows too large
-        if len(_list_inv_cache) > 100:
-            _list_inv_cache.clear()
-
-    return jsonify(result)
+    return jsonify({"data": filtered, "unreviewedCount": unreviewed_count})
 
 @investments_bp.route("/investments/rebuild-index", methods=["POST"])
 def rebuild_index():
-    data_root = investment_service.data_dir
-    public_usi_dir = investment_service.public_usi_dir
-
-    def _run(job_id):
+    def _run_rebuild(job_id):
         try:
             job_manager.update_job(job_id, status="running", message="Budowanie indeksu inwestycji...")
-            count = inv_index.rebuild(data_root, public_usi_dir)
+            count = investment_service.rebuild_index()
             job_manager.update_job(job_id, status="done", message=f"Indeks gotowy: {count} inwestycji")
         except Exception as e:
             job_manager.update_job(job_id, status="error", message=str(e))
 
-    job_id = job_manager.create_job("rebuild-index", "Rebuild investment index")
-    import threading
-    threading.Thread(target=_run, args=(job_id,), daemon=True).start()
+    job_id = job_manager.start_job("rebuild-index", _run_rebuild)
     return jsonify({"job_id": job_id})
 
 @investments_bp.route("/investment/<system_id>/data")
 def get_investment_data(system_id):
-    """
-    Zwraca pełne, zunifikowane dane inwestycji bezpośrednio z pamięci podręcznej indeksu.
-    Gwarantuje zgodność struktury danych z frontendem, likwiduje pętle żądań i CPU spike.
-    """
+    """Pobiera pełne dane inwestycji. O(1) z gorącego indeksu RAM."""
     if not system_id:
         abort(400)
 
-    # KRYTYCZNA POPRAWKA: Pobieramy dane bezpośrednio z pamięci RAM (inv_index).
-    # Indeks zawiera w 100% zunifikowane dane, poprawne tablice 'photos' ze wszystkimi 7 zdjęciami.
     try:
-        # Uwaga: get_entry_by_id przyjmuje tylko system_id, korzystając z globalnego gorącego indeksu.
-        raw_entry = inv_index.get_entry_by_id(system_id)
-        if raw_entry:
-            # Tworzymy kopię, aby nie modyfikować globalnego cache'u w pamięci RAM
-            entry = raw_entry.copy()
-            
-            # Gwarantujemy istnienie struktury wymaganej przez frontend, aby zatrzymać rerender loop
-            if "specifications" not in entry:
-                entry["specifications"] = {}
-            
-            photos = entry.get("photos", [])
-            if not photos:
-                entry["photos"] = []
-                
-            logger.info(f"get_investment_data: Returning {len(photos)} photos for {system_id} from index memory")
-            
+        # Pobieramy zunifikowane dane (agregacja, zdjęcia, oceny) via Service
+        entry = investment_service.get_investment(system_id)
+        if entry:
             response = jsonify(entry)
-            # Wymuszamy brak cache'u dla danych, aby frontend zawsze widział pełną galerię po przebudowie indeksu
             response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
             return response
     except Exception as e:
-        logger.error(f"[PERF_ALERT] Failed to fetch investment {system_id} from index memory: {e}")
-
-    # Awaryjny fallback na wypadek, gdyby nowa inwestycja nie była jeszcze w indeksie
-    tech_manager = get_shared_tech_manager()
-    if tech_manager:
-        try:
-            res = tech_manager.get_investment_technical_data(system_id)
-            if res:
-                return jsonify(res)
-        except Exception as e:
-            logger.error(f"Tech manager failed for fallback: {e}")
+        logger.error(f"Failed to fetch investment {system_id}: {e}")
 
     abort(404)
 
 @investments_bp.route("/investment/<system_id>/ratings", methods=["POST"])
 def save_ratings(system_id):
+    """Zapisuje oceny (ratings) i status bezpośrednio do pliku anchor."""
     payload = request.get_json(silent=True) or {}
-    try:
-        if investment_service.save_ratings(system_id, payload):
-            return jsonify({"ok": True})
-        else:
-            return jsonify({"error": f"Nie znaleziono inwestycji (ID: {system_id})"}), 404
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
+    
+    def _update(data):
+        if "ratings" in payload:
+            data["ratings"] = payload["ratings"]
+        if "status" in payload:
+            data["status"] = payload["status"]
+        return True
+
+    if update_anchor_json(system_id, _update):
+        investment_service.invalidate_cache(system_id)
+        return jsonify({"ok": True})
+
+    abort(404)
 
 @investments_bp.route("/investment/<system_id>/mark-delete", methods=["POST"])
 def save_deletion_list(system_id):
+    """Zapisuje listę usuniętych zdjęć do deletion_list.json w katalogu inwestycji."""
     payload = request.get_json(silent=True) or {}
     paths = payload.get("paths", [])
     if not isinstance(paths, list):
         abort(400, "paths must be a list")
-    if investment_service.mark_deleted_photos(system_id, paths):
-        return jsonify({"ok": True, "count": len(paths)})
-    else:
+        
+    anchor_path = get_anchor_path(system_id)
+    if not anchor_path:
         abort(404)
+        
+    deletion_file = anchor_path.parent / "deletion_list.json"
+    
+    try:
+        with open(deletion_file, "w", encoding="utf-8") as f:
+            json.dump({"paths": paths, "updated_at": datetime.now().isoformat()}, f, indent=4)
+            
+        investment_service.invalidate_cache(system_id)
+        return jsonify({"ok": True, "count": len(paths)})
+    except Exception as e:
+        logger.error(f"Failed to save deletion list for {system_id}: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @investments_bp.route("/investment/<system_id>/reload", methods=["POST"])
 def reload_investment(system_id):
@@ -525,194 +404,11 @@ def refresh_developer_route(usi_dev_id):
 
 @investments_bp.route("/developer/<usi_dev_id>")
 def get_developer_detail(usi_dev_id):
-    import time
-    from pathlib import Path
-    import json
-    from python_worker.developer_manager import DeveloperManager
-    from python_worker.config import USI_DATA_DIR
-
-    dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
-    dev = dm.get_developer_by_id(usi_dev_id)
-    
-    if not dev: 
+    """Pobiera pełne dane dewelopera (agregacja inwestycji, logów, sugestii)."""
+    dev = developer_service.get_developer_enriched(usi_dev_id)
+    if not dev:
         abort(404)
-
-    target_id = dev.get("usi_dev_id")
-
-    # Inicjalizacja indeksu inwestycji
-    import python_worker.investment_index as inv_index
-    all_invs = inv_index.load(USI_DATA_DIR) or []
-    
-    base_invs = []
-    invs_by_dev_id = {}
-    
-    # MANDAT ID-ONLY: Inwestycje przypisujemy WYŁĄCZNIE po usi_dev_id.
-    # Uzupełnienie: Jako ID traktujemy również dopasowanie po technicznych portal_id z źródeł (user hint).
-    target_pm = dev.get("portal_mapping", {})
-    for i in all_invs:
-        did = i.get("usi_dev_id")
-        is_match = False
         
-        if did:
-            s_did = str(did)
-            invs_by_dev_id.setdefault(s_did, []).append(i)
-            if s_did == str(target_id):
-                is_match = True
-        
-        if not is_match and _inv_matches_dev(i, target_pm):
-            is_match = True
-            
-        if is_match:
-            base_invs.append(i)
-            
-    # Ładowanie historii zdarzeń
-    events = []
-    res_info = dm.get_developer_resources(usi_dev_id)
-    if res_info and "files" in res_info and res_info["files"].get("logs"):
-        log_files = res_info["files"]["logs"]
-        if log_files:
-            log_path = Path(log_files[0])
-            if log_path.exists():
-                try:
-                    with open(log_path, "r", encoding="utf-8") as lf:
-                        for line in lf:
-                            if line.strip():
-                                events.append(json.loads(line.strip()))
-                except Exception as le:
-                    logger.warning(f"Nie udało się odczytać dziennika zdarzeń dla {usi_dev_id}: {le}")
-    dev["events"] = sorted(events, key=lambda x: x.get("at", ""), reverse=True)
-
-    # Transformacja na rzecz maintenance
-    dev_service = DeveloperService(Path(USI_DATA_DIR), Path(USI_DATA_DIR).parent / "USIdev")
-    crawler = dev.setdefault("crawler", {})
-    maintenance_score = dev_service.get_maintenance_overdue_score(dev)
-    
-    crawler["last_visit"] = dev.get("last_maintenance", None)
-    crawler["last_new_count"] = dev.get("new_since_review", 0)
-    crawler["next_visit"] = "Wymaga uwagi" if maintenance_score > 500 else "Zintegrowany"
-    dev["maintenance_overdue_score"] = maintenance_score
-
-    # Skład rekordu
-    base_pm = (dev.get("original_portal_mapping") or dev.get("portal_mapping") or {}).copy()
-    valid_members = []
-    
-    for member in dev.get("merged_from", []):
-        child_id = member.get("usi_dev_id")
-        child_dev = dm.get_developer_by_id(child_id) if child_id else None
-        if not child_dev or str(child_dev.get("usi_dev_id")) == str(dev.get("usi_dev_id")):
-            continue
-            
-        member["slug"] = child_dev.get("developer_slug")
-        child_pm = (child_dev.get("original_portal_mapping") or child_dev.get("portal_mapping") or {}).copy()
-        member["_pm"] = child_pm
-        member["_dev"] = child_dev
-        
-        # MANDAT ID-ONLY: Pobieramy inwestycje po ID oraz po portal_id (user hint)
-        child_invs = list(invs_by_dev_id.get(str(child_id), []))
-        # Dodajemy inwestycje pasujące po portal_id do tego dziecka
-        for i in all_invs:
-            if _inv_matches_dev(i, child_pm):
-                iid = i.get("usi_inv_id")
-                if iid and not any(ci.get("usi_inv_id") == iid for ci in child_invs):
-                    child_invs.append(i)
-        
-        member["_invs"] = child_invs
-        valid_members.append(member)
-
-    # Budowa bazy (Root record)
-    dev["base_record"] = {
-        "name": dev.get("name"),
-        "developer_slug": dev.get("developer_slug"),
-        "usi_dev_id": dev.get("usi_dev_id"),
-        "portal_mapping": base_pm,
-        "investments_count": len(base_invs),
-        "inv_list": [
-            {"name": inv.get("name", inv.get("usi_inv_id", "")), "id": inv.get("usi_inv_id", "")}
-            for inv in base_invs[:10]
-        ]
-    }
-
-    final_members = []
-    investments = list(base_invs)
-    existing_inv_ids = {i.get("usi_inv_id") for i in base_invs if i.get("usi_inv_id")}
-    aggregated_pm = base_pm.copy()
-    
-    for m in valid_members:
-        m["investments_count"] = len(m["_invs"])
-        m["inv_list"] = [
-            {"name": inv.get("name", inv.get("usi_inv_id", "")), "id": inv.get("usi_inv_id", "")}
-            for inv in m["_invs"][:10]
-        ]
-        m["portal_mapping"] = m["_pm"]
-        m["original_portal_mapping"] = m["_pm"] 
-        
-        for p, pdata in m["_pm"].items():
-            if not aggregated_pm.get(p) and pdata:
-                aggregated_pm[p] = pdata
-        
-        for inv in m["_invs"]:
-            iid = inv.get("usi_inv_id")
-            if iid and iid not in existing_inv_ids:
-                investments.append(inv)
-                existing_inv_ids.add(iid)
-        
-        m.pop("_pm", None); m.pop("_dev", None); m.pop("_invs", None)
-        final_members.append(m)
-
-    dev["merged_from"] = final_members
-    merged_ids = {str(m.get("usi_dev_id")) for m in final_members if m.get("usi_dev_id")}
-
-    # --- BEZPIECZNE SUGESTIE: PASYWNY ODCZYT + RAM REVERSE LOOKUP ---
-    # Całkowicie rezygnujemy z uruchamiania silnika LIVE podczas żądania GET.
-    # Zapobiega to wydłużeniu czasu ładowania i "mieszaniu" danych przez błędy parowania w locie.
-    suggestions_dict = {str(s.get("usi_dev_id") or s.get("target_id")): s for s in dev.get("suggestions", []) if (s.get("usi_dev_id") or s.get("target_id"))}
-
-    try:
-        # Pobieramy pełny stan deweloperów z hot-cache pamięci RAM (Zero Disk I/O)
-        # Służy tylko do wykrycia czy inni mają sugestie skierowane do nas.
-        all_devs_cached = dm.list_developers() or []
-        for other_dev in all_devs_cached:
-            other_id = other_dev.get("usi_dev_id")
-            if not other_id or str(other_id) == str(target_id):
-                continue
-                
-            for other_sug in other_dev.get("suggestions", []):
-                if str(other_sug.get("usi_dev_id") or other_sug.get("target_id")) == str(target_id) and other_sug.get("score", 0) >= 0.75:
-                    if str(other_id) not in suggestions_dict:
-                        suggestions_dict[str(other_id)] = {
-                            "usi_dev_id": other_id,
-                            "target_id": other_id,
-                            "developer_slug": other_dev.get("developer_slug"),
-                            "reason": f"[Relacja zwrotna] {other_sug.get('reason')}",
-                            "score": other_sug.get("score", 0.0)
-                        }
-    except Exception as cache_err:
-        logger.error(f"Błąd budowania relacji zwrotnych: {cache_err}")
-
-    valid_suggestions = []
-    for s_id, s in suggestions_dict.items():
-        if s_id in merged_ids or s_id == str(target_id):
-            continue
-
-        s_dev = dm.get_developer_by_id(s_id)
-        if s_dev:
-            valid_suggestions.append({
-                "usi_dev_id": s_id,
-                "target_id": s_id,
-                "developer_slug": s_dev.get("developer_slug", "unknown"),
-                "name": s_dev.get("name", s_id),
-                "reason": s.get("reason", "Podobieństwo systemowe"),
-                "score": s.get("score", 1.0),
-                "portal_mapping": s_dev.get("portal_mapping", {}),
-                "website": s_dev.get("website"),
-                "investments_count": len(invs_by_dev_id.get(s_id, []))
-            })
-
-    dev["suggestions"] = valid_suggestions
-    dev["investments"] = investments
-    dev["investments_count"] = len(investments)
-    dev["portal_mapping"] = aggregated_pm
-    
     # Wymuszamy brak jakiegokolwiek cache'owania HTTP dla tego widoku
     response = jsonify(dev)
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
@@ -927,21 +623,39 @@ def suggest_similar_investments(system_id):
 
 @investments_bp.route("/investment/<system_id>/review", methods=["POST"])
 def mark_reviewed(system_id):
-    if investment_service.mark_as_reviewed(system_id):
+    """Bezpośredni brutalny zapis do pliku JSON na dysku."""
+    def _update(data):
+        data["reviewed"] = True
+        return True
+
+    if update_anchor_json(system_id, _update):
+        investment_service.invalidate_cache(system_id)
         return jsonify({"ok": True})
-    return jsonify({"ok": False}), 500
+
+    abort(404, "Investment update failed (not found or disk error)")
 
 @investments_bp.route("/investment/<system_id>/add-report", methods=["POST"])
 def add_report(system_id):
-    payload = request.get_json() or {}
+    """Dodawanie notatki użytkownika bezpośrednio do surowego pliku."""
+    payload = request.get_json(silent=True) or {}
     note = payload.get("note")
     if not note:
         abort(400, "note is required")
-        
-    if investment_service.add_report(system_id, note):
-        return jsonify({"ok": True})
-    return jsonify({"ok": False}), 500
 
+    def _update(data):
+        reports = data.setdefault("user_reports", [])
+        reports.append({
+            "note": note, 
+            "created_at": datetime.now().isoformat(),
+            "author": "User"
+        })
+        return True
+
+    if update_anchor_json(system_id, _update):
+        investment_service.invalidate_cache(system_id)
+        return jsonify({"ok": True})
+
+    abort(404)
 @investments_bp.route("/register-bulk", methods=["POST"])
 def register_bulk():
     payload = request.get_json()

@@ -64,7 +64,7 @@ class InvestmentSyncService:
     @property
     def image_sync(self) -> ImageSyncService:
         if self._image_sync is None:
-            self._image_sync = ImageSyncService(self.tech_manager, self.public_usi_dir)
+            self._image_sync = ImageSyncService(self.gateway, self.public_usi_dir)
         return self._image_sync
 
     def _resolve_inv_dir(self, portal: str, item_id: str, dev_slug: str, inv_slug: str) -> Path:
@@ -426,7 +426,12 @@ class InvestmentSyncService:
             if not vendor_id and portal == "rp" and isinstance(item.get("vendor"), dict):
                 vendor_id = item["vendor"].get("id")
 
-            targets.append(str(ident))
+            # MANDAT ROBUSTNOŚCI: Preferujemy URL jako identyfikator dla procesu batch.
+            # Dzięki temu gateway użyje process_batch_ingest, który radzi sobie z nowymi ofertami
+            # (refresh_by_id w bibliotece wywala błąd, jeśli plik nie istnieje lokalnie).
+            batch_target = url if url else str(ident)
+            targets.append(batch_target)
+            
             to_process.append({
                 "ident": ident, "inv_slug": inv_slug, "url": url, "portal": portal,
                 "name": item.get("name"), "item_id": item.get("id"),

@@ -21,6 +21,7 @@ dependencies = [
     "watchdog",
     "python-dotenv",
     "usi-scrapers==1.3.0",
+    "filelock",
 ]
 
 [project.optional-dependencies]

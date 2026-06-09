@@ -1,12 +1,12 @@
 import json
 from pathlib import Path
 import logging
-from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 from python_worker.config import USI_DATA_DIR, PUBLIC_USI_DIR
 from python_worker.developer_manager import DeveloperManager
 from python_worker.api.utils import load_json
+from python_worker.investment_index import get_investment_index
 
 # Import our new modular components
 from python_worker.services.investment_identity import InvestmentIdentityResolver
@@ -25,6 +25,7 @@ class InvestmentService:
     def __init__(self, data_dir: Path = None, public_usi_dir: Path = None):
         self.data_dir = data_dir or Path(USI_DATA_DIR)
         self.public_usi_dir = public_usi_dir or Path(PUBLIC_USI_DIR)
+        self._cache = {}
         
         # Shared Dependencies
         self.dm = DeveloperManager(self.data_dir)
@@ -63,16 +64,65 @@ class InvestmentService:
             fast_index=True,
         )
 
-
-    @lru_cache(maxsize=128)
     def get_unified_view(self, inv_id: str) -> dict:
         """Dynamically aggregates data into a virtual master view."""
+        if inv_id in self._cache:
+            return self._cache[inv_id]
+
         resources = self.get_investment_resources(inv_id)
         if not resources or not resources["files"].get("anchor"):
             return {}
 
         anchor = json.loads(resources["files"]["anchor"].read_text())
-        return self._aggregate_anchors([anchor])
+        view = self._aggregate_anchors([anchor])
+        self._cache[inv_id] = view
+        return view
+
+    def invalidate_cache(self, inv_id: str = None):
+        """Invalidates cache entries."""
+        if inv_id:
+            self._cache.pop(inv_id, None)
+        else:
+            self._cache.clear()
+
+    def list_investments_filtered(self, **kwargs) -> list[dict]:
+        """Filters all investments using the global index."""
+        index = get_investment_index()
+        all_invs = index.get_all()
+        if not kwargs:
+            return all_invs
+        
+        filtered = all_invs
+        for key, value in kwargs.items():
+            if value is None or value == "":
+                continue
+
+            if key == 'onlyUnreviewed' and value is True:
+                filtered = [i for i in filtered if not i.get('reviewed', False)]
+            elif key == 'onlyNoPhotos' and value is True:
+                filtered = [i for i in filtered if not i.get('photos') or len(i.get('photos', [])) == 0]
+            elif key == 'dev':
+                filtered = [i for i in filtered if i.get('developer_slug') == value]
+            elif key == 'search':
+                s = str(value).lower()
+                filtered = [i for i in filtered if s in i.get('name', '').lower() or s in i.get('developer', '').lower()]
+            elif key == 'sources' and isinstance(value, list):
+                # i.get('sources') is a dict {portal: {...}}
+                filtered = [i for i in filtered if any(p.lower() in [s.lower() for s in value] for p in i.get('sources', {}).keys())]
+            elif key == 'segments' and isinstance(value, list):
+                filtered = [i for i in filtered if i.get('segment') in value]
+            elif key == 'cities' and isinstance(value, list):
+                filtered = [i for i in filtered if i.get('city', '').lower() in [c.lower() for c in value]]
+            elif key in ['reviewed', 'developer_slug', 'portal', 'status']:
+                filtered = [i for i in filtered if i.get(key) == value]
+            else:
+                logger.debug(f"Ignoring unknown filter key: {key}")
+        return filtered
+
+    def rebuild_index(self) -> int:
+        """Rebuilds the global investment index."""
+        from python_worker.investment_index import get_investment_index
+        return get_investment_index().rebuild()
 
     def _aggregate_anchors(self, anchors: list[dict]) -> dict:
         master = {
@@ -115,7 +165,9 @@ class InvestmentService:
         return self.sync.download_raw_json(portal, identifier, system_id)
 
     def update_investment(self, system_id, use_local_raw=False, skip_images=False, skip_index=False, skip_log=False):
-        return self.sync.update_investment(system_id, use_local_raw, skip_images, skip_index, skip_log)
+        result = self.sync.update_investment(system_id, use_local_raw, skip_images, skip_index, skip_log)
+        self.invalidate_cache(system_id)
+        return result
 
     def process_batch(self, portal, investments, on_progress_callback=None):
         return self.sync.process_batch(portal, investments, on_progress_callback)
