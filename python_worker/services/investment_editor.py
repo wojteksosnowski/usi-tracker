@@ -16,7 +16,7 @@ class InvestmentEditorService:
         self.public_usi_dir = public_usi_dir
 
     def save_ratings(self, system_id, payload):
-        from python_worker.api.utils import _CATS, USI_STATUSES
+        from python_worker.api.utils import CATS, USI_STATUSES
         
         resources = self.identity.get_investment_resources(system_id)
         if not resources or not resources["files"]["anchor"]:
@@ -29,7 +29,7 @@ class InvestmentEditorService:
         existing_ratings = self.repo.get_ratings(system_id) or {}
 
         changes = []
-        for cat in _CATS:
+        for cat in CATS:
             if cat in payload:
                 val = payload[cat]
                 if val is not None:

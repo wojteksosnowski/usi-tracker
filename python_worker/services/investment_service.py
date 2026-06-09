@@ -6,6 +6,7 @@ from functools import lru_cache
 logger = logging.getLogger(__name__)
 from python_worker.config import USI_DATA_DIR, PUBLIC_USI_DIR
 from python_worker.developer_manager import DeveloperManager
+from python_worker.api.utils import load_json
 
 # Import our new modular components
 from python_worker.services.investment_identity import InvestmentIdentityResolver
@@ -94,8 +95,8 @@ class InvestmentService:
             raw_path = self.public_usi_dir.parent / "USIdata" / anchor.get("raw_file", "")
             meta_path = self.public_usi_dir.parent / "USIdata" / anchor.get("meta_file", "")
             
-            raw_data = self._load_json(raw_path)
-            meta_data = self._load_json(meta_path)
+            raw_data = load_json(raw_path)
+            meta_data = load_json(meta_path)
             
             master["data"].append({
                 "portal": portal,
@@ -103,11 +104,6 @@ class InvestmentService:
                 "meta": meta_data
             })
         return master
-
-    def _load_json(self, path: Path) -> dict:
-        if not path.exists() or not path.is_file():
-            return {}
-        return json.loads(path.read_text(encoding="utf-8"))
 
     # ---------------------------------------------------------
     # Sync & Updates (Delegated)

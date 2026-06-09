@@ -1,11 +1,15 @@
 import re
 import math
+import json
 from pathlib import Path
+from datetime import datetime, timezone
+
+# Constants for USI
+CATS = ['Balkony', 'Fasady', 'Wnętrza', 'Teren', 'Mieszkania', 'Udogodnienia']
+USI_STATUSES = ['Brak', 'AI', 'Wstępna', 'Poszerzona', 'Pełna', 'Aktualizacja', 'Ukończona']
 
 # Exporting components extracted to amenity_scorer
 from python_worker.services.amenity_scorer import (
-    CATS as _CATS,
-    USI_STATUSES,
     load_wyrozniki as _load_wyrozniki,
     compute_amenity_score as _compute_amenity_score,
     suggest_udogodnienia as _suggest_udogodnienia,
@@ -15,6 +19,16 @@ from python_worker.services.amenity_scorer import (
 from python_worker.services.investment_loader import (
     load_investment as _real_load_investment
 )
+
+def now_utc(): 
+    return datetime.now(tz=timezone.utc)
+
+def to_iso(dt): 
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+def load_json(path: Path): 
+    if not path or not path.exists(): return {}
+    return json.loads(path.read_text(encoding="utf-8"))
 
 def _load_investment(*args, **kwargs):
     # Support positional arg for system_id

@@ -3,11 +3,9 @@ import csv
 import logging
 from pathlib import Path
 from functools import lru_cache
+from python_worker.api.utils import CATS, USI_STATUSES
 
 logger = logging.getLogger(__name__)
-
-CATS = ['Balkony', 'Fasady', 'Wnętrza', 'Teren', 'Mieszkania', 'Udogodnienia']
-USI_STATUSES = ['Brak', 'AI', 'Wstępna', 'Poszerzona', 'Pełna', 'Aktualizacja', 'Ukończona']
 
 _WYROZNIKI_CSV = Path(__file__).parent.parent.parent / "data" / "wyrozniki.csv"
 _STANDARD_TIERS = [(16, 4), (8, 3), (4, 2), (1, 1), (0, 0)]

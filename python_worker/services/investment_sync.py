@@ -34,11 +34,6 @@ IDENTIFIER_PRIORITIES = {
     "oto": ["id", "url"],
     "to": ["id", "url"]
 }
-PORTAL_VENDOR_ID_KEYS = {
-    "rp": lambda vid: {"id": str(vid)},
-    "to": lambda vid: {"agency_id": str(vid)},
-    "oto": lambda vid: {"agency_id": str(vid), "agency_ids": [str(vid)]}
-}
 
 class InvestmentSyncService:
     def __init__(self, identity_resolver, data_dir: Path, public_usi_dir: Path, developer_manager=None, investment_repo=None, scraper_gateway=None):
@@ -118,8 +113,8 @@ class InvestmentSyncService:
             "audit": {"created_at": datetime.now().isoformat()}
         }
 
-        if vendor_id and portal in PORTAL_VENDOR_ID_KEYS and item_id:
-            skeleton["sources"][portal].update(PORTAL_VENDOR_ID_KEYS[portal](vendor_id))
+        if vendor_id and item_id:
+            skeleton["sources"][portal].update(self.gateway.generate_portal_mapping(portal, vendor_id))
 
         if skip_disk:
             return dev_slug, inv_slug, skeleton["usi_inv_id"], skeleton

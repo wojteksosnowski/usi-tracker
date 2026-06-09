@@ -1,6 +1,7 @@
 import logging
 from typing import Tuple, Optional, Dict, Any
 from python_worker.url_parser import parse_url
+from python_worker.services.scraper_gateway import ScraperGateway
 
 logger = logging.getLogger(__name__)
 
@@ -47,22 +48,21 @@ class DeveloperResolver:
             return "unknown", developer_name or "Nieznany Deweloper", inv_slug_from_url, None
 
         if not dev_slug:
-            # Nie generujemy sluga z nazwy, nie zgadujemy. Jeśli rekord nie istnieje w indeksie po ID portalu,
-            # ląduje w 'unknown' do czasu manualnego powiązania lub pełnego importu bazy deweloperów.
-            dev_slug = "unknown"
-            logger.warning(f"Brak rekordu USI dla ID {vendor_id} ({portal}) - przeniesienie do katalogu 'unknown'")
+            # MANDAT ROBUSTNOŚCI: Jeśli mamy techniczne ID, generujemy techniczny slug
+            # zamiast wrzucać wszystko do 'unknown'. Ułatwia to późniejsze masowe przenoszenie.
+            if vendor_id:
+                dev_slug = f"{portal}-{vendor_id}"
+                logger.info(f"Brak rekordu USI dla ID {vendor_id} ({portal}) - generowanie technicznego sluga: {dev_slug}")
+            else:
+                dev_slug = "unknown"
+                logger.warning(f"Brak ID i rekordu USI - przeniesienie do katalogu 'unknown'")
         
         # Automatyczne tworzenie profilu dewelopera TYLKO, gdy znamy poprawnego sluga dewelopera i mamy ID
         if dev_slug != "unknown" and not developer_record:
             logger.info(f"Auto-tworzenie profilu dewelopera dla ID: {vendor_id} ({portal})")
             
             initial_pm: Dict[str, Any] = {"rp": None, "oto": None, "to": None}
-            if portal == "rp":
-                initial_pm["rp"] = {"id": str(vendor_id)}
-            elif portal == "oto":
-                initial_pm["oto"] = {"agency_id": str(vendor_id), "agency_ids": [str(vendor_id)]}
-            elif portal == "to":
-                initial_pm["to"] = {"agency_id": str(vendor_id)}
+            initial_pm[portal] = ScraperGateway.generate_portal_mapping(portal, vendor_id)
 
             dev_file = self.dm.create_developer_file({
                 "developer_slug": dev_slug, 
@@ -121,24 +121,15 @@ class DeveloperResolver:
             pid = pdata.get("vendor_id") or pdata.get("agency_id") or pdata.get("developer_id")
             if not pid: continue
             
-            clean_id = str(pid)
-            if portal == "rp":
-                if not pm.get("rp"):
-                    pm["rp"] = {"id": clean_id}
-                    needs_update = True
+            if not pm.get(portal):
+                pm[portal] = ScraperGateway.generate_portal_mapping(portal, pid)
+                needs_update = True
             elif portal == "oto":
-                if not pm.get("oto"):
-                    pm["oto"] = {"agency_id": clean_id, "agency_ids": [clean_id]}
-                    needs_update = True
-                else:
-                    aids = pm["oto"].setdefault("agency_ids", [])
-                    if clean_id not in aids:
-                        aids.append(clean_id)
-                        pm["oto"]["agency_id"] = clean_id
-                        needs_update = True
-            elif portal == "to":
-                if not pm.get("to"):
-                    pm["to"] = {"agency_id": clean_id}
+                # Handle existing 'oto' merging
+                mapping = pm["oto"]
+                if pid not in mapping.get("agency_ids", []):
+                    mapping.setdefault("agency_ids", []).append(str(pid))
+                    mapping["agency_id"] = str(pid)
                     needs_update = True
 
         if needs_update:

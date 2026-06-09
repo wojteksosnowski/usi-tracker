@@ -1,18 +1,13 @@
 import json
 import logging
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime
 
 from python_worker.config import get_shared_config, get_shared_fetcher, get_shared_scraper_gateway
 from python_worker.developer_manager import DeveloperManager
+from python_worker.api.utils import now_utc, to_iso
 
 logger = logging.getLogger(__name__)
-
-def _now_utc() -> datetime:
-    return datetime.now(tz=timezone.utc)
-
-def _iso(dt: datetime) -> str:
-    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 class DeveloperService:
     def __init__(self, data_dir: Path, dev_dir: Path, scraper_gateway=None):
@@ -29,11 +24,6 @@ class DeveloperService:
         try:
             portal_prefix = self.gateway.resolve_prefix(portal)
             
-            # Bezwzględny rygor ID-only dla rp i oto (muszą być numeryczne)
-            if portal_prefix in ("rp", "oto") and not str(identifier).isdigit():
-                logger.error(f"Identifier for portal {portal_prefix} must be numeric, got: {identifier}")
-                return None
-
             # Wywołanie przez bramę
             res = self.gateway.download_raw_dev(portal_prefix, str(identifier))
             if not res or res.get("status") != "success":
@@ -66,26 +56,13 @@ class DeveloperService:
         mapping = dev_data.get("portal_mapping", {})
         updated = False
 
-        # RynekPierwotny
-        if rp_map := mapping.get("rp"):
-            if rp_id := rp_map.get("id"):
-                logger.info(f"Updating RP profile for {dev_slug} (ID: {rp_id})")
-                if self.download_dev_profile_raw("rp", str(rp_id), dev_slug):
-                    updated = True
-
-        # Otodom
-        if oto_map := mapping.get("oto"):
-            if oto_id := oto_map.get("id") or oto_map.get("agency_id"):
-                logger.info(f"Updating Otodom profile for {dev_slug} (ID: {oto_id})")
-                if self.download_dev_profile_raw("oto", str(oto_id), dev_slug):
-                    updated = True
-
-        # TabelaOfert
-        if to_map := mapping.get("to"):
-            if to_id := to_map.get("id"):
-                logger.info(f"Updating TO profile for {dev_slug} (ID: {to_id})")
-                if self.download_dev_profile_raw("to", str(to_id), dev_slug):
-                    updated = True
+        # Odświeżanie zmapowanych portali
+        for portal in ("rp", "oto", "to"):
+            if p_map := mapping.get(portal):
+                if pid := p_map.get("id") or p_map.get("agency_id"):
+                    logger.info(f"Updating {portal} profile for {dev_slug} (ID: {pid})")
+                    if self.download_dev_profile_raw(portal, str(pid), dev_slug):
+                        updated = True
 
         # Kompilacja warstwy Level 2 (usi_dev_*.json) na bazie nowych plików raw
         if updated:
@@ -101,7 +78,7 @@ class DeveloperService:
         Wylicza priorytet konserwacji opierając się ściśle o wzorce nazw z CANONICAL.md.
         """
         score = 0.0
-        now = _now_utc()
+        now = now_utc()
         
         if not dev_data.get("logo"):
             score += 1000.0
@@ -147,7 +124,7 @@ class DeveloperService:
 
         try:
             data = json.loads(dev_file.read_text(encoding="utf-8"))
-            data["last_maintenance"] = _iso(_now_utc())
+            data["last_maintenance"] = to_iso(now_utc())
             data["maintenance_success"] = success
             self.dm.create_developer_file(data)
             

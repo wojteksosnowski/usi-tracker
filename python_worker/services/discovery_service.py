@@ -78,11 +78,19 @@ class DiscoveryService:
                 new_found = [item for item in filtered if item.get("is_new")]
                 
                 for item in new_found:
-                    # If we are going to download immediately, skip pre-registration
-                    # process_batch will handle registration ONLY after successful download.
-                    # This prevents 'skeleton' fragments if download fails.
                     if auto_register and not download:
-                        self._register_new_investment(system_id, item, portal_key)
+                        # Determine source key
+                        portal_key_isvc = "rp" if portal == "rp" else ("oto" if portal == "otodom" else "to")
+                        vendor_id = self.gateway.resolve_path(item, "vendor.id|ad.agency.id|agency_id|developer_id")
+                        self.isvc.register_investment(
+                            portal=portal_key_isvc,
+                            developer_name=item.get("developer_name") or item.get("developer"),
+                            name=item["name"],
+                            item_id=item.get("id"),
+                            url=item.get("url"),
+                            allow_existing=True,
+                            vendor_id=vendor_id
+                        )
                         item["registered"] = True # Mark as registered in snapshot
                     elif auto_register and download:
                         # We mark as registered in snapshot because they are targeted for immediate ingestion
@@ -96,7 +104,9 @@ class DiscoveryService:
             current_progress += progress_step
 
         # Save snapshot of ALL items found in this run
-        self._save_discovery_snapshot(dev_slug, all_discovered)
+        from python_worker.developer_repository import DeveloperRepository
+        repo = DeveloperRepository(self.data_dir, self.data_dir.parent / "USIdev")
+        repo.save_discovery_snapshot(system_id, all_discovered)
 
         ingested_total = 0
         if download and new_items_to_download:
@@ -128,110 +138,8 @@ class DiscoveryService:
 
     def get_unregistered_count(self, system_id: str, identifiers: dict = None) -> int:
         """Returns count of items in discovery.json that are not yet registered."""
-        try:
-            from python_worker.developer_manager import DeveloperManager
-            dm = DeveloperManager(self.data_dir)
-            dev = dm.get_developer_by_id(system_id)
-            if not dev: return 0
-            
-            dev_dir = dev.get("directory")
-            if not dev_dir: return 0
-            
-            return self.get_unregistered_count_from_dir(Path(dev_dir), identifiers)
-        except Exception as e:
-            logger.debug(f"Error getting unregistered count for {system_id}: {e}")
-            return 0
-
-    def get_unregistered_count_from_dir(self, dev_dir: Path, identifiers: dict = None) -> int:
-        """
-        Ultra-wydajne liczenie nieobsłużonych inwestycji bezpośrednio z katalogu.
-        Omija lookupy dewelopera, co pozwala na masowe przetwarzanie tysięcy rekordów.
-        """
-        try:
-            discovery_file = dev_dir / "discovery.json"
-            if not discovery_file.exists():
-                return 0
-            
-            import json
-            with open(discovery_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            
-            if not isinstance(data, dict):
-                return 0
-
-            # Recalculate 'registered' status against current DB to be accurate
-            if identifiers is None:
-                from python_worker.developer_manager import DeveloperManager
-                dm = DeveloperManager(self.data_dir)
-                identifiers = dm.get_existing_identifiers()
-            
-            rp_ids = identifiers.get("rp_ids", set())
-            oto_ids = identifiers.get("oto_ids", set())
-            oto_slugs = identifiers.get("oto_slugs", set())
-            to_ids = identifiers.get("to_ids", set())
-            
-            count = 0
-            for item in data.get("items", []):
-                portal = item.get("portal")
-                is_registered = False
-                if portal == "rp":
-                    is_registered = str(item.get("id")) in rp_ids
-                elif portal == "otodom" or portal == "oto":
-                    is_registered = str(item.get("id")) in oto_ids or item.get("slug") in oto_slugs
-                elif portal in ("to", "tabelaofert"):
-                    is_registered = str(item.get("id")) in to_ids
-                
-                if not is_registered:
-                    count += 1
-            return count
-        except Exception as e:
-            logger.error(f"Error in get_unregistered_count_from_dir: {e}")
-            return 0
-
-    def _save_discovery_snapshot(self, system_id, items):
-        """Saves discovery results to a JSON file in the developer's directory."""
-        try:
-            from python_worker.developer_repository import DeveloperRepository
-            from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
-            repo = DeveloperRepository(Path(USI_DATA_DIR), Path(USI_DEV_DIR))
-            repo.save_discovery_snapshot(system_id, items)
-            logger.info(f"Saved discovery snapshot for {system_id} ({len(items)} items)")
-        except Exception as e:
-            logger.error(f"Failed to save discovery snapshot for {system_id}: {e}")
-
-
-    def _register_new_investment(self, system_id, item, portal):
-        """Helper to create a skeleton usi_*.json for a newly discovered investment."""
-        inv_slug = item.get("slug")
-        url = item.get("url")
-        
-        # If slug is missing in discovery result, try to parse it from URL
-        if not inv_slug and url:
-            parsed = parse_url(url)
-            inv_slug = parsed.get("investment_slug")
-            
-        # Determine source key
-        portal_key = "rp" if portal == "rp" else ("oto" if portal == "otodom" else "to")
-        
-        if not inv_slug:
-            # Last resort fallback if both discovery and parsing failed
-            # Mandate: Never slugify name. Use 'unknown' to avoid polluting DB with guessed slugs.
-            inv_slug = "unknown"
-            logger.warning(f"No slug from URL/discovery for '{item['name']}' (portal={portal}) - using 'unknown'")
-        
-        # Extract vendor ID for ID-first registration via gateway
-        vendor_id = self.gateway.resolve_path(item, "vendor.id|ad.agency.id|agency_id|developer_id")
-
-        # Delegate registration to InvestmentService (which now handles canonical slugs from library)
-        return self.isvc.register_investment(
-            portal=portal_key,
-            developer_name=item.get("developer_name") or item.get("developer"), # Pass real name if available, else None
-            name=item["name"],
-            item_id=item.get("id"),
-            url=url,
-            allow_existing=True,
-            vendor_id=vendor_id
-        )
+        from python_worker.developer_manager import DeveloperManager
+        return DeveloperManager(self.data_dir).get_unregistered_count(system_id, identifiers)
 
     def discovery_by_portal(self, portal, identifier=None, limit=None, pages=None):
         """

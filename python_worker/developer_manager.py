@@ -37,8 +37,63 @@ class DeveloperManager:
     def log_event(self, *args, **kwargs): return self.repo.log_event(*args, **kwargs)
     def get_total_pending_count(self): return self.repo.get_total_pending_count(self.indexer.get_existing_identifiers())
 
-    # Indexer Delegation
-    def generate_usi_id(self, prefix: str): return self.indexer.generate_usi_id(prefix)
+    def get_unregistered_count(self, system_id: str, identifiers: dict = None) -> int:
+        """Returns count of items in discovery.json that are not yet registered."""
+        try:
+            dev = self.get_developer_by_id(system_id)
+            if not dev: return 0
+            
+            dev_dir = dev.get("directory")
+            if not dev_dir: return 0
+            
+            return self.get_unregistered_count_from_dir(Path(dev_dir), identifiers)
+        except Exception as e:
+            logger.debug(f"Error getting unregistered count for {system_id}: {e}")
+            return 0
+
+    def get_unregistered_count_from_dir(self, dev_dir: Path, identifiers: dict = None) -> int:
+        """
+        Ultra-wydajne liczenie nieobsłużonych inwestycji bezpośrednio z katalogu.
+        Omija lookupy dewelopera, co pozwala na masowe przetwarzanie tysięcy rekordów.
+        """
+        try:
+            discovery_file = dev_dir / "discovery.json"
+            if not discovery_file.exists():
+                return 0
+            
+            import json
+            with open(discovery_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            if not isinstance(data, dict):
+                return 0
+
+            # Recalculate 'registered' status against current DB to be accurate
+            if identifiers is None:
+                identifiers = self.get_existing_identifiers()
+            
+            rp_ids = identifiers.get("rp_ids", set())
+            oto_ids = identifiers.get("oto_ids", set())
+            oto_slugs = identifiers.get("oto_slugs", set())
+            to_ids = identifiers.get("to_ids", set())
+            
+            count = 0
+            for item in data.get("items", []):
+                portal = item.get("portal")
+                is_registered = False
+                if portal == "rp":
+                    is_registered = str(item.get("id")) in rp_ids
+                elif portal == "otodom" or portal == "oto":
+                    is_registered = str(item.get("id")) in oto_ids or item.get("slug") in oto_slugs
+                elif portal in ("to", "tabelaofert"):
+                    is_registered = str(item.get("id")) in to_ids
+                
+                if not is_registered:
+                    count += 1
+            return count
+        except Exception as e:
+            logger.error(f"Error in get_unregistered_count_from_dir: {e}")
+            return 0
     def get_existing_identifiers(self): return self.indexer.get_existing_identifiers()
     def invalidate_identifiers_cache(self): return self.indexer.invalidate_identifiers_cache()
     def find_developer_by_id(self, *args, **kwargs): return self.indexer.find_developer_by_id(*args, **kwargs)
