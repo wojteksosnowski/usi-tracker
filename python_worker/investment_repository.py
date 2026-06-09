@@ -38,7 +38,7 @@ class InvestmentRepository:
 
     def save_investment_json(self, system_id: str, data: dict, anchor_path: Path = None):
         """Saves the canonical unified JSON for the investment."""
-        target_file = anchor_path if anchor_path else self._get_anchor_path(system_id)
+        target_file = anchor_path or self._get_anchor_path(system_id)
         with open(target_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
@@ -61,13 +61,14 @@ class InvestmentRepository:
         """
         tech_manager = get_shared_tech_manager()
         inv_dir = None
-        if tech_manager:
-            inv_dir = tech_manager.get_investment_path(portal, portal_id)
-            if inv_dir:
-                inv_dir = Path(inv_dir)
         
+        if tech_manager and portal and portal_id:
+            path_val = tech_manager.get_investment_path(portal, portal_id)
+            if path_val:
+                inv_dir = Path(path_val)
+
         if not inv_dir:
-            # Fallback if config is missing or tech_manager doesn't know the path yet
+            # Fallback if tech_manager failed or returned None (e.g. new investment)
             dev_slug = skeleton_data.get("developer_slug", "unknown")
             inv_slug = skeleton_data.get("investment_slug", system_id)
             inv_dir = self.data_dir / dev_slug / inv_slug
