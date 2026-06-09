@@ -3,15 +3,14 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
+from typing import Optional, Any, Dict, List, Tuple
 
-# External libraries (ensuring config is imported first to patch sys.path)
+from slugify import slugify
+
 from python_worker.config import (
     get_shared_config, get_shared_fetcher, get_shared_tech_manager,
     USI_DATA_DIR, PUBLIC_USI_DIR, get_shared_scraper_gateway
 )
-
-from slugify import slugify
-
 from python_worker.adapters import AdapterFactory, Merger
 from python_worker.logger_utils import log_to_processing_log
 from python_worker.developer_manager import DeveloperManager
@@ -21,28 +20,34 @@ from python_worker.services.developer_resolver import DeveloperResolver
 from python_worker.services.image_sync import ImageSyncService
 from python_worker.services.amenity_scorer import compute_amenity_score, suggest_udogodnienia
 from python_worker.services.image_resolver import resolve_images
-from python_worker.api.utils import _calculate_distance
 from python_worker.url_parser import parse_url
 import python_worker.investment_index as inv_index
-from typing import Optional, Any
+from usi_scrapers.mapping import transform_to_unified  # Poprawka: przeniesione z wnętrza metody
 
 logger = logging.getLogger(__name__)
 
-PORTAL_NAMES = {"rp": "RynekPierwotny", "oto": "Otodom", "to": "TabelaOfert"}
-IDENTIFIER_PRIORITIES = {
+PORTAL_NAMES: Dict[str, str] = {"rp": "RynekPierwotny", "oto": "Otodom", "to": "TabelaOfert"}
+IDENTIFIER_PRIORITIES: Dict[str, List[str]] = {
     "rp": ["id", "url"],
     "oto": ["id", "url"],
     "to": ["id", "url"]
 }
 
 class InvestmentSyncService:
-    def __init__(self, identity_resolver, data_dir: Path, public_usi_dir: Path, developer_manager=None, investment_repo=None, scraper_gateway=None):
+    def __init__(
+        self, 
+        identity_resolver: InvestmentIdentityResolver, 
+        data_dir: Path, 
+        public_usi_dir: Path, 
+        developer_manager: Optional[DeveloperManager] = None, 
+        investment_repo: Optional[InvestmentRepository] = None, 
+        scraper_gateway: Optional[Any] = None
+    ) -> None:
         self.data_dir = data_dir
         self.public_usi_dir = public_usi_dir
         self.identity = identity_resolver
         self.repo = investment_repo or InvestmentRepository(identity_resolver, data_dir)
         self.dm = developer_manager or DeveloperManager(self.data_dir)
-        
         self.gateway = scraper_gateway or get_shared_scraper_gateway()
         self.developer_resolver = DeveloperResolver(self.dm, self.identity)
         self._tech_manager = get_shared_tech_manager()
@@ -57,7 +62,7 @@ class InvestmentSyncService:
         self._tech_manager = value
 
     @property
-    def image_sync(self):
+    def image_sync(self) -> ImageSyncService:
         if self._image_sync is None:
             self._image_sync = ImageSyncService(self.tech_manager, self.public_usi_dir)
         return self._image_sync
@@ -67,26 +72,42 @@ class InvestmentSyncService:
         inv_dir = None
         if self.tech_manager and portal and item_id:
             resolved = self.tech_manager.get_investment_path(portal, str(item_id))
-            if resolved: inv_dir = Path(resolved)
+            if resolved: 
+                inv_dir = Path(resolved)
             
         if not inv_dir:
             inv_dir = self.data_dir / dev_slug / (inv_slug or str(item_id) or "unknown")
             
         return inv_dir
 
-    def register_investment(self, portal, developer_name, name, item_id=None, url=None, allow_existing=False, vendor_id=None, force_dev_slug=None, skip_disk=False, skip_index=False):
+    def register_investment(
+        self,
+        portal: str,
+        developer_name: str,
+        name: str,
+        item_id: Optional[str] = None,
+        url: Optional[str] = None,
+        allow_existing: bool = False,
+        vendor_id: Optional[str] = None,
+        force_dev_slug: Optional[str] = None,
+        skip_disk: bool = False,
+        skip_index: bool = False
+    ) -> Tuple[str, str, str, Dict]:
         """
         Registers a new investment skeleton.
         ID-ONLY: Priority for portal ID resolution.
         """
+        # 1. Resolve developer
         dev_slug, _, inv_slug_from_url, usi_dev_id = self.developer_resolver.resolve_developer_for_registration(
             portal, developer_name, url, vendor_id, force_dev_slug
         )
         
-        inv_dir = self._resolve_inv_dir(portal, item_id, dev_slug, inv_slug_from_url or slugify(name))
+        # 2. Resolve target directory and slugs
+        target_inv_slug = inv_slug_from_url or slugify(name)
+        inv_dir = self._resolve_inv_dir(portal, item_id, dev_slug, target_inv_slug)
         inv_slug = inv_dir.name
 
-        # 2. Check for existing investment
+        # 3. Check for existing investment
         existing_file = self._find_existing_anchor(inv_dir, portal, item_id)
         if existing_file:
             if not allow_existing:
@@ -94,12 +115,13 @@ class InvestmentSyncService:
             try:
                 data = json.loads(existing_file.read_text(encoding="utf-8"))
                 return dev_slug, inv_slug, data.get("usi_inv_id"), data
-            except Exception:
-                pass
+            except json.JSONDecodeError as jde:
+                logger.error(f"Zniszczony plik anchor JSON: {existing_file}. Błąd: {jde}")
 
-        # 3. Create skeleton
+        # 4. Create skeleton
         inv_dir.mkdir(parents=True, exist_ok=True)
         system_id = f"{portal}_{item_id}" if item_id else inv_slug
+        
         skeleton = {
             "usi_inv_id": system_id,
             "investment_slug": inv_slug,
@@ -114,38 +136,46 @@ class InvestmentSyncService:
         }
 
         if vendor_id and item_id:
-            skeleton["sources"][portal].update(self.gateway.generate_portal_mapping(portal, vendor_id))
+            mapping = self.gateway.generate_portal_mapping(portal, vendor_id)
+            skeleton["sources"][portal].update(mapping)
 
-        if skip_disk:
-            return dev_slug, inv_slug, skeleton["usi_inv_id"], skeleton
+        if not skip_disk:
+            self.repo.create_investment_skeleton(
+                skeleton["usi_inv_id"], 
+                portal, 
+                str(item_id) if item_id else None, 
+                skeleton
+            )
+            
+            if not skip_index:
+                self._update_indices_after_registration(skeleton["usi_inv_id"], inv_slug, dev_slug)
 
-        self.repo.create_investment_skeleton(skeleton["usi_inv_id"], portal, str(item_id) if item_id else None, skeleton)
-        
-        if not skip_index:
-            self._update_indices_after_registration(skeleton["usi_inv_id"], inv_slug, dev_slug)
-
-        log_to_processing_log(dev_slug, inv_slug, f"Registered from discovery ({portal})")
+            log_to_processing_log(dev_slug, inv_slug, f"Registered from discovery ({portal})")
+            
         return dev_slug, inv_slug, skeleton["usi_inv_id"], skeleton
 
-    def _find_existing_anchor(self, inv_dir, portal, item_id):
+    def _find_existing_anchor(self, inv_dir: Path, portal: Optional[str], item_id: Optional[str]) -> Optional[Path]:
         """Helper to find existing usi_*.json file in a directory."""
-        if not inv_dir: return None
+        if not inv_dir or not inv_dir.exists():
+            return None
         
+        # Priority 1: Match portal and ID exactly
         if portal and item_id:
             target = inv_dir / f"usi_{portal}_{item_id}.json"
-            if target.exists(): return target
+            if target.exists():
+                return target
             
-        if inv_dir.exists():
-            candidates = [f for f in inv_dir.glob("usi_*.json") if "usi_dev_" not in f.name]
-            if candidates: return sorted(candidates)[0]
-        return None
+        # Priority 2: Match any usi_*.json (excluding usi_dev_*.json)
+        candidates = [f for f in inv_dir.glob("usi_*.json") if "usi_dev_" not in f.name]
+        return sorted(candidates)[0] if candidates else None
 
-    def _update_indices_after_registration(self, system_id, inv_slug, dev_slug):
+    def _update_indices_after_registration(self, system_id: str, inv_slug: str, dev_slug: str) -> None:
         """Helper to trigger index updates."""
         try:
             inv_index.upsert(self.data_dir, self.public_usi_dir, inv_id=system_id)
-        except Exception as _ie:
-            logger.debug(f"Index upsert skipped for {inv_slug}: {_ie}")
+        except Exception as ie:
+            # Zmieniono z debug na warning - niespójność indeksu to sytuacja awaryjna
+            logger.warning(f"Krytyczny błąd aktualizacji indeksu dla {inv_slug}: {ie}")
         
         self.dm.invalidate_identifiers_cache()
 
@@ -170,9 +200,10 @@ class InvestmentSyncService:
         if not resources:
             return None, None, f"{portal_name} (No resources)"
 
-        m = resources["metadata"]
+        metadata = resources["metadata"]
         identifier = self._resolve_portal_identifier(sources[portal], portal)
-        if not identifier: return None, None, None
+        if not identifier:
+            return None, None, None
 
         try:
             if use_local_raw:
@@ -181,17 +212,33 @@ class InvestmentSyncService:
                 method = self.gateway.ingest_investment_by_url if str(identifier).startswith("http") else self.gateway.refresh_investment_by_id
                 res = method(portal, identifier)
                 raw_data = res if (res and "error" not in res) else None
-                if not raw_data: return None, None, f"{portal_name} ({res.get('error', 'Unknown error') if res else 'Empty response'})"
+                if not raw_data:
+                    return None, None, f"{portal_name} ({res.get('error', 'Unknown error') if res else 'Empty response'})"
                     
-            if not raw_data: return None, None, None
+            if not raw_data:
+                return None, None, None
 
-            unified_data = AdapterFactory.get_adapter(raw_prefix).transform(raw_data, m.get("investment_slug"), m.get("developer_slug"))
+            unified_data = AdapterFactory.get_adapter(raw_prefix).transform(
+                raw_data, 
+                metadata.get("investment_slug"), 
+                metadata.get("developer_slug")
+            )
             return unified_data, portal_name, None
         except Exception as e:
             logger.error(f"Sync error for {portal}/{identifier}: {e}")
             return None, None, f"{portal_name} ({str(e)})"
 
-    def update_investment(self, system_id, use_local_raw=False, skip_images=False, skip_index=False, skip_log=False, initial_data=None, fast_mode=False):
+    def update_investment(
+        self,
+        system_id: str,
+        use_local_raw: bool = False,
+        skip_images: bool = False,
+        skip_index: bool = False,
+        skip_log: bool = False,
+        initial_data: Optional[Dict] = None,
+        fast_mode: bool = False,
+        cached_index: Optional[List[Dict[str, Any]]] = None
+    ) -> bool:
         """
         Orchestrates the update of an investment:
         1. Scrapes raw data (or loads local)
@@ -203,27 +250,7 @@ class InvestmentSyncService:
         
         # MANDAT THIN-CLIENT: Jeśli brak w indeksie, wyznaczamy zasoby ręcznie (np. świeżo zarejestrowany batch)
         if not resources and initial_data and initial_data.get("sources"):
-            p_key = list(initial_data["sources"].keys())[0]
-            p_id = initial_data["sources"][p_key].get("id")
-            
-            inv_dir = self._resolve_inv_dir(p_key, p_id, initial_data.get("developer_slug"), initial_data.get("investment_slug"))
-            images_dir = self.tech_manager.get_image_path(p_key, str(p_id)) if self.tech_manager and p_id else None
-            
-            resources = {
-                "id": system_id,
-                "base_dir": inv_dir,
-                "files": {
-                    "anchor": inv_dir / f"usi_{system_id}.json",
-                    "raw": inv_dir / f"raw_{p_key}_{p_id}.json"
-                },
-                "images_dir": images_dir,
-                "metadata": {
-                    "portal": p_key,
-                    "portal_id": p_id,
-                    "developer_slug": inv_dir.parent.name,
-                    "investment_slug": inv_dir.name
-                }
-            }
+            resources = self._resolve_resources_manually(system_id, initial_data)
 
         if not resources:
             logger.warning(f"Investment resources not found skipping ID: {system_id}")
@@ -231,154 +258,153 @@ class InvestmentSyncService:
             
         inv_dir = resources["base_dir"]
         actual_file = resources["files"].get("anchor")
-        m = resources["metadata"]
-        dev_slug = m.get("developer_slug") or "unknown"
-        inv_slug = m.get("investment_slug") or inv_dir.name
+        metadata = resources["metadata"]
+        dev_slug = metadata.get("developer_slug") or "unknown"
+        inv_slug = metadata.get("investment_slug") or inv_dir.name
         
+        # 1. Load current state
         usi_data = initial_data if (initial_data and isinstance(initial_data, dict)) else {}
         if not usi_data and actual_file and actual_file.exists():
-            with open(actual_file, "r", encoding="utf-8") as f:
-                usi_data = json.load(f)
+            try:
+                usi_data = json.loads(actual_file.read_text(encoding="utf-8"))
+            except Exception as e:
+                logger.error(f"Error reading existing file {actual_file}: {e}")
 
         sources = usi_data.get("sources", {})
-        if not sources and m.get("portal") and m.get("portal_id"):
-            sources[m["portal"]] = {"id": str(m["portal_id"])}
+        if not sources and metadata.get("portal") and metadata.get("portal_id"):
+            sources[metadata["portal"]] = {"id": str(metadata["portal_id"])}
 
-        unified_data_map = {"rp": None, "oto": None, "to": None}
+        # 2. Fetch and Transform
+        unified_data_map = {}
         fetched_sources, failed_sources = [], []
 
-        for portal in ["rp", "oto", "to"]:
-            if portal not in sources: continue
+        for p_key in ["rp", "oto", "to"]:
+            if p_key not in sources:
+                continue
 
-            unified_data, fetched_src, failed_src = self._fetch_and_transform_portal_data(
-                system_id, portal, PORTAL_NAMES.get(portal, portal), portal, sources, use_local_raw, resources=resources
+            unified, p_name, error = self._fetch_and_transform_portal_data(
+                system_id, p_key, PORTAL_NAMES.get(p_key, p_key), p_key, sources, use_local_raw, resources
             )
             
-            if unified_data: unified_data_map[portal] = unified_data
-            if fetched_src: fetched_sources.append(fetched_src)
-            if failed_src: failed_sources.append(failed_src)
+            if unified:
+                unified_data_map[p_key] = unified
+                fetched_sources.append(p_name)
+            elif error:
+                failed_sources.append(error)
 
+        if not unified_data_map:
+            if failed_sources:
+                logger.error(f"Fetch failed for {system_id}: {'; '.join(failed_sources)}")
+            return False
 
-        if any(unified_data_map.values()):
-            # Semantic layer: Ratings and Merging
-            ratings_candidates = []
-            for p in ("rp", "oto", "to"):
-                ratings_candidates.extend(sorted(inv_dir.glob(f"meta_{p}_*.json"), reverse=True))
-            ratings_candidates.append(inv_dir / f"meta_{inv_slug}_ratings.json")
-            ratings = {}
-            for ratings_path in ratings_candidates:
-                if ratings_path.exists():
-                    try:
-                        with open(ratings_path, "r", encoding="utf-8") as f:
-                            ratings = json.load(f)
-                        break
-                    except Exception as e:
-                        logger.error(f"Error reading ratings file: {e}")
+        # 3. Semantic layer: Ratings and Merging
+        ratings = self._load_best_ratings(inv_dir, inv_slug)
+        event = f"Sync: {', '.join(fetched_sources)}" if fetched_sources else "Manual Update"
+        
+        new_unified = Merger.merge(
+            unified_data_map.get("rp"), 
+            unified_data_map.get("oto"), 
+            unified_data_map.get("to"), 
+            ratings, 
+            existing_data=usi_data, 
+            event=event
+        )
 
-            event = f"Sync: {', '.join(fetched_sources)}" if fetched_sources else "Manual Update"
-            new_unified = Merger.merge(unified_data_map["rp"], unified_data_map["oto"], unified_data_map["to"], ratings, existing_data=usi_data, event=event)
-
-            # Technical layer: Image synchronization via library
+        # 4. Technical layer: Images
+        if not skip_images:
             all_urls = new_unified.get("image_urls", [])
-            if not skip_images:
-                self.image_sync.sync_investment_images(system_id, new_unified, all_urls, skip_images, usi_data, resources)
+            self.image_sync.sync_investment_images(system_id, new_unified, all_urls, skip_images, usi_data, resources)
 
-            # Backfill developer ID into portal_mapping if missing
-            self.developer_resolver.backfill_developer_mapping(system_id, new_unified)
+        # 5. Enrich & Finalize
+        self.developer_resolver.backfill_developer_mapping(system_id, new_unified)
+        self._enrich_with_derived_data(new_unified, inv_dir, resources, usi_data, fast_mode, cached_index)
 
-            # Compute amenities and metadata on save
-            am_data = new_unified.get("amenities", {})
-            labels = am_data.get("labels", [])
-            raw_codes = am_data.get("raw_codes", [])
-            score_data = compute_amenity_score(labels, raw_codes)
+        # 6. Persistence
+        self.repo.save_investment_json(system_id, new_unified, anchor_path=actual_file)
+        
+        if not skip_index:
+            self._update_indices_after_registration(system_id, inv_slug, dev_slug)
+
+        if not skip_log:
+            summary = f"Updated: {', '.join(fetched_sources)}"
+            if failed_sources:
+                summary += f". Failed: {', '.join(failed_sources)}"
+            log_to_processing_log(dev_slug, inv_slug, summary)
             
-            new_unified["amenities_score"] = score_data["score"]
-            new_unified["amenities_matched"] = score_data["matched"]
-            new_unified["suggested_udogodnienia"] = suggest_udogodnienia(score_data["score"])
-            
-            # KLUCZOWA ZMIANA: Przekazujemy fast_mode, żeby resolve_images nie orało dysku przez glob()
-            new_unified["photos"] = resolve_images(new_unified, inv_dir, self.public_usi_dir, resources, fast_index=fast_mode)
-            new_unified["images_count"] = len(new_unified["photos"])
+        return True
 
-            # Kalkulacja sąsiedztwa (wyłączona w trybie masowym fast_mode)
-            if fast_mode:
-                new_unified["nearby_investments"] = usi_data.get("nearby_investments", [])
-            else:
-                old_coords = usi_data.get("location", {}).get("coords")
-                new_coords = new_unified.get("location", {}).get("coords")
+    def _resolve_resources_manually(self, system_id: str, initial_data: Dict) -> Dict:
+        """Helper to create resource map for new investments not yet in index."""
+        p_key = list(initial_data["sources"].keys())[0]
+        p_id = initial_data["sources"][p_key].get("id")
+        
+        inv_dir = self._resolve_inv_dir(p_key, p_id, initial_data.get("developer_slug"), initial_data.get("investment_slug"))
+        images_dir = self.tech_manager.get_image_path(p_key, str(p_id)) if self.tech_manager and p_id else None
+        
+        return {
+            "id": system_id,
+            "base_dir": inv_dir,
+            "files": {
+                "anchor": inv_dir / f"usi_{system_id}.json",
+                "raw": inv_dir / f"raw_{p_key}_{p_id}.json"
+            },
+            "images_dir": images_dir,
+            "metadata": {
+                "portal": p_key,
+                "portal_id": p_id,
+                "developer_slug": inv_dir.parent.name,
+                "investment_slug": inv_dir.name
+            }
+        }
 
-                needs_recalc = False
-                if not usi_data.get("nearby_investments"):
-                    needs_recalc = True
-                elif old_coords != new_coords:
-                    needs_recalc = True
-
-                if needs_recalc:
-                    new_unified["nearby_investments"] = self._calculate_nearby_investments(system_id, new_coords)
-                else:
-                    new_unified["nearby_investments"] = usi_data.get("nearby_investments", [])
-
-            # Check deletion list
-            deletion_file = inv_dir / "deletion_list.json"
-            if deletion_file.exists():
+    def _load_best_ratings(self, inv_dir: Path, inv_slug: str) -> Dict:
+        """Finds the most recent ratings file."""
+        candidates = []
+        for p in ("rp", "oto", "to"):
+            candidates.extend(sorted(inv_dir.glob(f"meta_{p}_*.json"), reverse=True))
+        candidates.append(inv_dir / f"meta_{inv_slug}_ratings.json")
+        
+        for path in candidates:
+            if path.exists():
                 try:
-                    dl = json.loads(deletion_file.read_text())
-                    new_unified["photos_to_delete"] = len(dl.get("paths", []))
-                except Exception:
-                    new_unified["photos_to_delete"] = 0
+                    return json.loads(path.read_text(encoding="utf-8"))
+                except Exception as e:
+                    logger.error(f"Error reading ratings file {path}: {e}")
+        return {}
+
+    def _enrich_with_derived_data(self, data: Dict, inv_dir: Path, resources: Dict, old_data: Dict, fast_mode: bool, cached_index: Optional[List[Dict[str, Any]]] = None):
+        """Computes scores, resolves photos, and calculates nearby investments."""
+        # Amenities
+        am_data = data.get("amenities", {})
+        score_data = compute_amenity_score(am_data.get("labels", []), am_data.get("raw_codes", []))
+        data["amenities_score"] = score_data["score"]
+        data["amenities_matched"] = score_data["matched"]
+        data["suggested_udogodnienia"] = suggest_udogodnienia(score_data["score"])
+        
+        # Photos
+        data["photos"] = resolve_images(data, inv_dir, self.public_usi_dir, resources, fast_index=fast_mode)
+        data["images_count"] = len(data["photos"])
+
+        # Nearby (expensive)
+        if fast_mode:
+            data["nearby_investments"] = old_data.get("nearby_investments", [])
+        else:
+            old_coords = old_data.get("location", {}).get("coords")
+            new_coords = data.get("location", {}).get("coords")
+            if not old_data.get("nearby_investments") or old_coords != new_coords:
+                data["nearby_investments"] = inv_index.get_nearby_investments(data.get("usi_inv_id"), new_coords, cached_index=cached_index)
             else:
-                new_unified["photos_to_delete"] = 0
+                data["nearby_investments"] = old_data.get("nearby_investments", [])
 
-            # Save to canonical new-format path; fall back to existing file path
-            self.repo.save_investment_json(system_id, new_unified, anchor_path=actual_file)
-            if not skip_index:
-                try:
-                    inv_index.upsert(self.data_dir, self.public_usi_dir, inv_id=system_id)
-                except Exception as _ie:
-                    logger.debug(f"Index upsert skipped for {inv_slug}: {_ie}")
-
-            if not skip_log:
-                summary = f"Updated: {', '.join(fetched_sources)}"
-                if failed_sources:
-                    summary += f". Failed: {', '.join(failed_sources)}"
-                log_to_processing_log(dev_slug, inv_slug, summary)
-            return True
-
-        # All portals failed
-        if failed_sources:
-            raise RuntimeError(f"Fetch failed for all portals: {'; '.join(failed_sources)}")
-        return False
-
-    def _calculate_nearby_investments(self, inv_id, coords, limit=12, max_dist_km=5.0):
-        """Calculates nearby investments using the global index with a bounding box optimization."""
-        if not coords or not coords[0]: return []
-
-        lat1, lon1 = coords
-        all_invs = inv_index.get_index(self.data_dir)
-        nearby = []
-
-        for other in all_invs:
-            if other.get("usi_inv_id") == inv_id: continue
-            
-            other_coords = other.get("coords")
-            if not other_coords or not other_coords[0]: continue
-
-            lat2, lon2 = other_coords
-            # Fast bounding box check (~5-7km)
-            if abs(lat2 - lat1) > 0.06 or abs(lon2 - lon1) > 0.1: continue
-
-            dist = _calculate_distance(lat1, lon1, lat2, lon2)
-            if dist <= max_dist_km:
-                nearby.append({
-                    "usi_inv_id": other.get("usi_inv_id"),
-                    "distance": round(dist, 2),
-                    "name": other.get("name"),
-                    "developer": other.get("developer"),
-                    "slug": other.get("slug")
-                })
-
-        nearby.sort(key=lambda x: x["distance"])
-        return nearby[:limit]
+        # Deletion list
+        deletion_file = inv_dir / "deletion_list.json"
+        data["photos_to_delete"] = 0
+        if deletion_file.exists():
+            try:
+                deletion_list = json.loads(deletion_file.read_text(encoding="utf-8"))
+                data["photos_to_delete"] = len(deletion_list.get("paths", []))
+            except Exception:
+                pass
         
     def _prepare_batch_identifiers(self, portal, investments):
         """Prepares identifiers and metadata for a batch without registering skeletons yet."""
@@ -386,11 +412,13 @@ class InvestmentSyncService:
 
         for item in investments:
             ident = self._resolve_portal_identifier(item, portal)
-            if not ident: continue
+            if not ident:
+                continue
 
             url = item.get("url")
             inv_slug = item.get("investment_slug") or item.get("inv_slug") or item.get("slug")
-            if not inv_slug and url: inv_slug = parse_url(url).get("investment_slug")
+            if not inv_slug and url:
+                inv_slug = parse_url(url).get("investment_slug")
             
             # Vendor ID extraction logic
             vendor_id = item.get("vendor_id") or item.get("agency_id") or item.get("developer_id")
@@ -407,60 +435,90 @@ class InvestmentSyncService:
         
         return targets, to_process
 
-    def process_batch(self, portal, investments, on_progress_callback=None):
+    def process_batch(self, portal: str, investments: List[Dict], on_progress_callback: Optional[Any] = None) -> int:
+        """
+        Processes a batch of investments with performance optimizations:
+        - Bulk downloading via gateway
+        - Local transformation
+        - Rebuilding index once at the end
+        """
         targets, to_process = self._prepare_batch_identifiers(portal, investments)
-        if not targets: return 0
+        if not targets:
+            return 0
 
-        # KROK 1: Masowe pobranie danych
+        # 1. Bulk download
         batch_results = self.gateway.process_batch(portal, targets, on_progress=on_progress_callback)
         saved_count = 0
-        
-        from usi_scrapers.mapping import transform_to_unified
-        
-        # KROK 2: Konsumpcja wyników
-        for info, data in zip(to_process, batch_results):
-            if not data or (isinstance(data, dict) and "error" in data): continue
-                
+        cached_index = inv_index.get_index(self.data_dir)
+
+        # 2. Consumption and processing
+        for item_info, data in zip(to_process, batch_results):
+            if not data or (isinstance(data, dict) and "error" in data):
+                continue
+
             try:
+                # 3. Preparation
                 raw_payload = data.get("raw_details", data) if isinstance(data, dict) else data
                 meta = transform_to_unified(portal, raw_payload, entity_type="investment") or {}
                 dev_meta = self.gateway.extract_developer_meta(raw_payload, portal)
-                
-                # Wyznaczenie ID z priorytetem dla danych ze scrapera
-                item_id = meta.get("id") or info.get("item_id")
-                if not item_id and isinstance(data, dict): item_id = data.get("id") or data.get("portal_id")
-                
-                # Fallback: Parsowanie z URL (MANDAT ROBUSTNOŚCI)
-                if not item_id and info.get("url"):
-                    item_id = parse_url(info["url"]).get("item_id")
-                    
-                if not item_id and info.get("ident") and not str(info["ident"]).startswith("http"):
-                    item_id = str(info["ident"])
 
-                if not item_id: continue
+                # 4. ID Resolution (Sacred IDs)
+                item_id = self._resolve_item_id_for_batch(portal, meta, item_info, data)
+                if not item_id:
+                    continue
 
-                # KROK 4: Rejestracja i Update w trybie fast_mode (skip_index=True)
+                # 5. Registration and Update (fast_mode enabled)
                 _, _, usi_inv_id, skeleton = self.register_investment(
                     portal=portal,
-                    developer_name=dev_meta.get("name") or meta.get("developer_name") or info.get("dev_name"),
-                    name=meta.get("name") or info.get("name") or f"Inwestycja {portal.upper()} {item_id}",
+                    developer_name=dev_meta.get("name") or meta.get("developer_name") or item_info.get("dev_name"),
+                    name=meta.get("name") or item_info.get("name") or f"Inwestycja {portal.upper()} {item_id}",
                     item_id=item_id,
-                    url=info.get("url"),
+                    url=item_info.get("url"),
                     allow_existing=True,
-                    vendor_id=dev_meta.get("id") or meta.get("vendor_id") or info.get("vendor_id"),
+                    vendor_id=dev_meta.get("id") or meta.get("vendor_id") or item_info.get("vendor_id"),
                     skip_index=True
                 )
-                
-                if usi_inv_id and self.update_investment(usi_inv_id, use_local_raw=True, fast_mode=True, skip_index=True, initial_data=skeleton):
+
+                if usi_inv_id and self.update_investment(
+                    usi_inv_id, 
+                    use_local_raw=True, 
+                    fast_mode=True, 
+                    skip_index=True, 
+                    initial_data=skeleton,
+                    cached_index=cached_index
+                ):
                     saved_count += 1
                 else:
                     logger.warning(f"[BATCH] Update failed for {usi_inv_id}")
+
             except Exception as e:
-                logger.error(f"[BATCH_ERROR] Błąd finalizacji dla {info.get('ident')}: {e}", exc_info=True)
-                
-        # OPTYMALIZACJA: Przebudowa indeksu raz na końcu batcha
-        logger.info(f"[BATCH] Finished. Saving {saved_count} items and rebuilding index.")
-        inv_index.rebuild(self.data_dir, self.public_usi_dir)
-        self.dm.invalidate_identifiers_cache()
+                logger.error(f"[BATCH_ERROR] Błąd finalizacji dla {item_info.get('ident')}: {e}", exc_info=True)
+
+        # 6. Global optimization: Single index rebuild
+        if saved_count > 0:
+            logger.info(f"[BATCH] Finished. Saving {saved_count} items and rebuilding index.")
+            inv_index.rebuild(self.data_dir, self.public_usi_dir)
+            self.dm.invalidate_identifiers_cache()
+
         return saved_count
+
+    def _resolve_item_id_for_batch(self, portal: str, meta: Dict, info: Dict, data: Any) -> Optional[str]:
+        """Strict ID resolution for batch processing."""
+        # Priority 1: Meta from transformation
+        item_id = meta.get("id") or info.get("item_id")
+
+        # Priority 2: Direct from data dictionary
+        if not item_id and isinstance(data, dict):
+            item_id = data.get("id") or data.get("portal_id")
+
+        # Priority 3: Parsing from URL
+        if not item_id and info.get("url"):
+            item_id = parse_url(info["url"]).get("item_id")
+
+        # Priority 4: Identifier itself if not a URL
+        if not item_id and info.get("ident") and not str(info["ident"]).startswith("http"):
+            item_id = str(info["ident"])
+
+        return item_id
+
 

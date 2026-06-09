@@ -1,5 +1,19 @@
 # Changelog
 
+## Wersja 0.9.86 — Refaktoryzacja Architektoniczna i Wydajność — 2026-06-09
+
+### Zmieniono
+- **InvestmentSyncService Refactor**: Gruntowna przebudowa serwisu synchronizacji. Wprowadzono modularność (SRP), jawne typowanie konstruktora i optymalizację geofencingu.
+- **InvestmentLoaderService Refactor**: Konwersja z funkcji proceduralnej na nowoczesny serwis klasowy z buforowaniem indeksu deweloperów, co znacząco przyspiesza ładowanie danych w UI.
+- **Optymalizacja Przestrzenna**: Przeniesienie logiki obliczeń geograficznych do `InvestmentIndex`, redukując I/O poprzez wykorzystanie `cached_index` w operacjach wsadowych (batch).
+- **Automatyzacja Testów E2E**: Wdrożenie w `tests/conftest.py` inteligentnych hooków Pytest, które automatycznie omijają kosztowne testy Live w przypadku awarii testów bazowych oraz dbają o poprawną kolejność ich wykonywania.
+- **Standardy Kodowania**: Pełne przejście na `encoding="utf-8"` dla wszystkich operacji I/O (kompatybilność z Windows) oraz usunięcie "kryptonimów" zmiennych na rzecz czytelnego nazewnictwa PEP 8.
+
+### Naprawiono
+- **Kompatybilność Windows**: Migracja z `fcntl` na bibliotekę `filelock` dla bezpiecznego blokowania plików w środowisku wieloprocesowym.
+- **Zależności Cykliczne**: Rozwiązano krytyczne błędy importów kołowych w warstwie API i serwisach raportowych.
+- **Struktura Public/USIdata**: Naprawiono błąd systemu plików, w którym folder `Public/` był błędnie rozpoznawany jako plik.
+
 ## Wersja 0.9.85 — Optymalizacja Warstwy Serwisowej i Stabilizacja — 2026-06-09
 
 ### Zmieniono

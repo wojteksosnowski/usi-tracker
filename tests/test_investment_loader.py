@@ -11,7 +11,7 @@ def test_load_investment_fails_on_legacy_id():
     result = load_investment(system_id="legacy_123")
     assert result is None
 
-@patch("python_worker.services.investment_identity.InvestmentIdentityResolver")
+@patch("python_worker.services.investment_loader.InvestmentIdentityResolver")
 def test_load_investment_uses_system_id_to_resolve_resources(mock_resolver_class, tmp_path):
     mock_resolver = MagicMock()
     mock_resolver_class.return_value = mock_resolver

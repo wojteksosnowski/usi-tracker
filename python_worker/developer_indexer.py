@@ -1,4 +1,3 @@
-import fcntl
 import json
 import logging
 import re
@@ -6,6 +5,7 @@ import threading
 from pathlib import Path
 from datetime import datetime
 from python_worker.slug_utils import slugify
+from filelock import FileLock
 
 _counter_lock = threading.Lock()
 logger = logging.getLogger(__name__)
@@ -24,18 +24,26 @@ class DeveloperIndexer:
         self.counters_path.parent.mkdir(parents=True, exist_ok=True)
         if not self.counters_path.exists():
             self.counters_path.write_text('{"dev": 0, "inv": 0, "dm": 0}', encoding="utf-8")
+        
+        lock_path = self.counters_path.with_suffix(".lock")
         with _counter_lock:
-            with open(self.counters_path, "r+", encoding="utf-8") as f:
-                fcntl.flock(f, fcntl.LOCK_EX)
-                try:
-                    data = json.load(f)
-                    data[key] = data.get(key, 0) + 1
-                    f.seek(0)
-                    json.dump(data, f, indent=2)
-                    f.truncate()
-                    return data[key]
-                finally:
-                    fcntl.flock(f, fcntl.LOCK_UN)
+            with FileLock(str(lock_path)):
+                with open(self.counters_path, "r+", encoding="utf-8") as f:
+                    try:
+                        data = json.load(f)
+                        data[key] = data.get(key, 0) + 1
+                        f.seek(0)
+                        json.dump(data, f, indent=2)
+                        f.truncate()
+                        return data[key]
+                    except (json.JSONDecodeError, ValueError):
+                        # Handle corrupted or empty file
+                        data = {"dev": 0, "inv": 0, "dm": 0}
+                        data[key] = 1
+                        f.seek(0)
+                        json.dump(data, f, indent=2)
+                        f.truncate()
+                        return 1
 
     def generate_usi_id(self, prefix: str) -> str:
         """Generates a new USI ID (e.g., DEV-0001, INV-0001, DM-0001, IM-0001)."""

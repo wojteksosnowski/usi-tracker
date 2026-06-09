@@ -3,7 +3,9 @@ import logging
 from pathlib import Path
 from flask import Blueprint, jsonify, abort
 from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
-from python_worker.api.utils import _load_investment, _calculate_ocena_log, _calculate_distance
+from python_worker.services.investment_loader import load_investment as _load_investment
+from python_worker.services.amenity_scorer import calculate_ocena_log as _calculate_ocena_log
+from python_worker.api.utils import _calculate_distance
 from python_worker.developer_manager import DeveloperManager
 
 logger = logging.getLogger(__name__)

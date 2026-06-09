@@ -68,7 +68,7 @@ def test_live_scrapers_api_direct(scraper_config, scraper_fetcher, portal):
     latest_file = max(raw_files, key=lambda p: p.stat().st_mtime)
     print(f"[LIVE] Verifying structure of newest file: {latest_file.name}")
     
-    data = json.loads(latest_file.read_text())
+    data = json.loads(latest_file.read_text(encoding="utf-8"))
     assert data, f"FAILED: File {latest_file} is empty"
     
     # 4. Portal-specific structural verification
@@ -87,7 +87,8 @@ def test_live_scrapers_api_direct(scraper_config, scraper_fetcher, portal):
 
     if portal == "tabelaofert":
         # Verify TO specifics (like klient-id or specific TO keys)
-        assert "to_id" in data or "klient-id" in data or "name" in data
+        # Note: Response might be a developer profile or investment details
+        assert any(k in data for k in ["to_id", "klient-id", "klient_id", "name", "nazwa"]), f"FAILED: TabelaOfert structure unknown: {list(data.keys())}"
         print(f"[LIVE] SUCCESS: TabelaOfert raw file looks valid.")
 
     if portal == "rp":

@@ -12,7 +12,7 @@ Kept in sync by:
 import json
 import logging
 import os
-import fcntl
+from filelock import FileLock
 import tempfile
 from contextlib import contextmanager
 from datetime import datetime
@@ -45,12 +45,8 @@ def _index_path(dev_dir: Path) -> Path:
 def _index_lock(dev_dir: Path):
     """Provides an exclusive lock for writing to the index to prevent race conditions."""
     lock_path = _index_path(dev_dir).with_suffix('.lock')
-    with open(lock_path, 'w') as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(f, fcntl.LOCK_UN)
+    with FileLock(str(lock_path)):
+        yield
 
 
 def _write_atomic(path: Path, data: dict):

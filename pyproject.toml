@@ -4,7 +4,7 @@ build-backend = "setuptools.backends.legacy:build"
 
 [project]
 name = "usi-tracker"
-version = "0.9.85"
+version = "0.9.86"
 description = "Narzędzie do monitorowania inwestycji deweloperskich (RynekPierwotny, Otodom, TabelaOfert)"
 readme = "README.md"
 license = { text = "Proprietary" }
@@ -43,6 +43,9 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
 pythonpath = ["."]
+markers = [
+    "live: live E2E tests requiring external API access"
+]
 
 [tool.ruff]
 line-length = 120

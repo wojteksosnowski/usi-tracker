@@ -8,18 +8,6 @@ from datetime import datetime, timezone
 CATS = ['Balkony', 'Fasady', 'Wnętrza', 'Teren', 'Mieszkania', 'Udogodnienia']
 USI_STATUSES = ['Brak', 'AI', 'Wstępna', 'Poszerzona', 'Pełna', 'Aktualizacja', 'Ukończona']
 
-# Exporting components extracted to amenity_scorer
-from python_worker.services.amenity_scorer import (
-    load_wyrozniki as _load_wyrozniki,
-    compute_amenity_score as _compute_amenity_score,
-    suggest_udogodnienia as _suggest_udogodnienia,
-    calculate_ocena_log as _calculate_ocena_log
-)
-
-from python_worker.services.investment_loader import (
-    load_investment as _real_load_investment
-)
-
 def now_utc(): 
     return datetime.now(tz=timezone.utc)
 

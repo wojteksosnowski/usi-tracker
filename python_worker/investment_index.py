@@ -8,6 +8,9 @@ from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
+LAT_BOUND_THRESHOLD = 0.06
+LON_BOUND_THRESHOLD = 0.1
+
 class InvestmentIndex:
     _instance = None
     _lock = threading.Lock()
@@ -39,6 +42,49 @@ class InvestmentIndex:
         
         self.load_or_rebuild()
         self._initialized = True
+
+    def get_nearby_investments(
+        self, 
+        inv_id: str, 
+        coords: List[float], 
+        limit: int = 12, 
+        max_dist_km: float = 5.0,
+        cached_index: Optional[List[Dict[str, Any]]] = None
+    ) -> List[Dict[str, Any]]:
+        """Calculates nearby investments using the global index with a bounding box optimization."""
+        from python_worker.api.utils import _calculate_distance
+        
+        if not coords or not coords[0]: 
+            return []
+
+        lat1, lon1 = coords
+        all_invs = cached_index if cached_index is not None else self.get_all()
+        nearby = []
+
+        for other in all_invs:
+            if other.get("usi_inv_id") == inv_id: 
+                continue
+            
+            other_coords = other.get("coords")
+            if not other_coords or not other_coords[0]: 
+                continue
+
+            lat2, lon2 = other_coords
+            if abs(lat2 - lat1) > LAT_BOUND_THRESHOLD or abs(lon2 - lon1) > LON_BOUND_THRESHOLD: 
+                continue
+
+            dist = _calculate_distance(lat1, lon1, lat2, lon2)
+            if dist <= max_dist_km:
+                nearby.append({
+                    "usi_inv_id": other.get("usi_inv_id"),
+                    "distance": round(dist, 2),
+                    "name": other.get("name"),
+                    "developer": other.get("developer"),
+                    "slug": other.get("slug")
+                })
+
+        nearby.sort(key=lambda x: x["distance"])
+        return nearby[:limit]
 
     def on_change(self, callback):
         """Register a callback to be called whenever the index is updated or rebuilt."""
@@ -265,3 +311,6 @@ def remove(data_dir, inv_id):
             idx._notify_change()
             return True
     return False
+
+def get_nearby_investments(inv_id, coords, limit=12, max_dist_km=5.0, cached_index=None):
+    return get_investment_index().get_nearby_investments(inv_id, coords, limit, max_dist_km, cached_index)
