@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 PORTAL_NAMES: Dict[str, str] = {"rp": "RynekPierwotny", "oto": "Otodom", "to": "TabelaOfert"}
 IDENTIFIER_PRIORITIES: Dict[str, List[str]] = {
     "rp": ["id", "url"],
-    "oto": ["id", "url"],
+    "oto": ["hash_id", "id", "url"],
     "to": ["id", "url"]
 }
 
@@ -423,6 +423,9 @@ class InvestmentSyncService:
             
             # Vendor ID extraction logic
             vendor_id = item.get("vendor_id") or item.get("agency_id") or item.get("developer_id")
+            if not vendor_id and portal in ("otodom", "oto"):
+                 vendor_id = self.gateway.resolve_path(item, "vendor.id|ad.agency.id|agency_id|developer_id")
+            
             if not vendor_id and portal == "rp" and isinstance(item.get("vendor"), dict):
                 vendor_id = item["vendor"].get("id")
 
@@ -434,7 +437,7 @@ class InvestmentSyncService:
             
             to_process.append({
                 "ident": ident, "inv_slug": inv_slug, "url": url, "portal": portal,
-                "name": item.get("name"), "item_id": item.get("id"),
+                "name": item.get("name"), "item_id": item.get("hash_id") or item.get("id"),
                 "dev_name": item.get("developer_name") or item.get("developer"),
                 "vendor_id": vendor_id
             })
@@ -467,13 +470,25 @@ class InvestmentSyncService:
             try:
                 # 3. Preparation
                 raw_payload = data.get("raw_details", data) if isinstance(data, dict) else data
-                meta = transform_to_unified(portal, raw_payload, entity_type="investment") or {}
-                dev_meta = self.gateway.extract_developer_meta(raw_payload, portal)
+                
+                # MANDAT ROBUSTNOŚCI: Odpakowanie głębokich struktur Otodom przed ekstrakcją metadanych
+                unwrapped_payload = raw_payload
+                if portal in ("otodom", "oto") and isinstance(raw_payload, dict) and "props" in raw_payload and "pageProps" in raw_payload["props"]:
+                    ad = raw_payload["props"]["pageProps"].get("ad")
+                    if ad: unwrapped_payload = ad
+
+                meta = transform_to_unified(portal, unwrapped_payload, entity_type="investment") or {}
+                dev_meta = self.gateway.extract_developer_meta(unwrapped_payload, portal)
 
                 # 4. ID Resolution (Sacred IDs)
                 item_id = self._resolve_item_id_for_batch(portal, meta, item_info, data)
                 if not item_id:
                     continue
+
+                # 4.5. Vendor ID extraction with deep fallback
+                vendor_id = dev_meta.get("id") or meta.get("vendor_id") or item_info.get("vendor_id")
+                if not vendor_id and portal in ("otodom", "oto") and isinstance(unwrapped_payload, dict):
+                    vendor_id = unwrapped_payload.get("agency", {}).get("id") or unwrapped_payload.get("owner", {}).get("id")
 
                 # 5. Registration and Update (fast_mode enabled)
                 logger.info(f"[BATCH] Registering {portal}/{item_id}...")
@@ -484,7 +499,7 @@ class InvestmentSyncService:
                     item_id=item_id,
                     url=item_info.get("url"),
                     allow_existing=True,
-                    vendor_id=dev_meta.get("id") or meta.get("vendor_id") or item_info.get("vendor_id"),
+                    vendor_id=vendor_id,
                     skip_index=True
                 )
                 
@@ -523,12 +538,25 @@ class InvestmentSyncService:
 
     def _resolve_item_id_for_batch(self, portal: str, meta: Dict, info: Dict, data: Any) -> Optional[str]:
         """Strict ID resolution for batch processing."""
-        # Priority 1: Meta from transformation
+        
+        # Priority 0: Bezpośrednie wyciągnięcie Hash z surowych danych, całkowicie omijając portal_data_mapping.json
+        actual_data = data
+        if isinstance(data, dict):
+            if portal in ("otodom", "oto") and "props" in data and "pageProps" in data["props"]:
+                ad = data["props"]["pageProps"].get("ad")
+                if ad: actual_data = ad
+            
+            if portal in ("otodom", "oto"):
+                # Szukamy publicId (w payloadzie ad) lub hash_id przekazanego z discovery (w info)
+                hash_id = actual_data.get("publicId") or info.get("hash_id") or actual_data.get("hash_id")
+                if hash_id: return str(hash_id)
+
+        # Priority 1: Meta from transformation (zwróci niestety numeryczne ID dla Otodom)
         item_id = meta.get("id") or info.get("item_id")
 
         # Priority 2: Direct from data dictionary
-        if not item_id and isinstance(data, dict):
-            item_id = data.get("id") or data.get("portal_id")
+        if not item_id and isinstance(actual_data, dict):
+            item_id = actual_data.get("id") or actual_data.get("ad_id") or data.get("portal_id")
 
         # Priority 3: Parsing from URL
         if not item_id and info.get("url"):
@@ -538,6 +566,6 @@ class InvestmentSyncService:
         if not item_id and info.get("ident") and not str(info["ident"]).startswith("http"):
             item_id = str(info["ident"])
 
-        return item_id
+        return str(item_id) if item_id else None
 
 

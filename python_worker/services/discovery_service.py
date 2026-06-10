@@ -82,11 +82,13 @@ class DiscoveryService:
                         # Determine source key
                         portal_key_isvc = "rp" if portal == "rp" else ("oto" if portal == "otodom" else "to")
                         vendor_id = self.gateway.resolve_path(item, "vendor.id|ad.agency.id|agency_id|developer_id")
+                        item_id = item.get("id") or item.get("hash_id")
+                        
                         self.isvc.register_investment(
                             portal=portal_key_isvc,
                             developer_name=item.get("developer_name") or item.get("developer"),
-                            name=item["name"],
-                            item_id=item.get("id"),
+                            name=item.get("name") or item.get("title") or f"Inwestycja {portal_key_isvc.upper()} {item_id}",
+                            item_id=item_id,
                             url=item.get("url"),
                             allow_existing=True,
                             vendor_id=vendor_id

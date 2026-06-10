@@ -256,7 +256,7 @@ class OtodomAdapter:
         
         # Wyznaczenie nazwy i ID z priorytetem dla danych od-pakowanych
         name = m.get("name") or actual_raw.get("title") or actual_raw.get("name") or actual_raw.get("developmentTitle")
-        item_id = m.get("id") or actual_raw.get("id") or actual_raw.get("publicId") or actual_raw.get("ad_id")
+        item_id = actual_raw.get("publicId") or actual_raw.get("hash_id") or m.get("id") or actual_raw.get("id") or actual_raw.get("ad_id")
         
         if not name:
              # Ostateczny fallback na slug

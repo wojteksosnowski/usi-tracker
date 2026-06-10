@@ -97,6 +97,10 @@ class ScraperGateway:
         return lib_save_images(urls, target_dir, self._config)
 
     @staticmethod
+    def resolve_path(data: Dict[str, Any], path_str: str) -> Any:
+        return lib_resolve_path(data, path_str)
+
+    @staticmethod
     def generate_portal_mapping(portal: str, vendor_id: str) -> Dict[str, Any]:
         """Returns the canonical portal_mapping structure for a given vendor_id."""
         clean_id = str(vendor_id)
