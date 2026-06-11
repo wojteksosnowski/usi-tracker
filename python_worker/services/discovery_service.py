@@ -80,15 +80,13 @@ class DiscoveryService:
                 for item in new_found:
                     if auto_register and not download:
                         # Determine source key
-                        portal_key_isvc = "rp" if portal == "rp" else ("oto" if portal == "otodom" else "to")
-                        vendor_id = self.gateway.resolve_path(item, "vendor.id|ad.agency.id|agency_id|developer_id")
-                        item_id = item.get("id") or item.get("hash_id")
-                        
+                        portal_key_isvc = "rp" if portal == "rp" else ("oto" if portal in ("otodom", "oto") else "to")
+                        vendor_id = self.gateway.resolve_path(item, "vendor.id|ad.agency.id|agency_id|developer_id") or str(idx)
                         self.isvc.register_investment(
                             portal=portal_key_isvc,
                             developer_name=item.get("developer_name") or item.get("developer"),
-                            name=item.get("name") or item.get("title") or f"Inwestycja {portal_key_isvc.upper()} {item_id}",
-                            item_id=item_id,
+                            name=item.get("name") or item.get("title") or "Nieznana",
+                            item_id=item.get("id"),
                             url=item.get("url"),
                             allow_existing=True,
                             vendor_id=vendor_id

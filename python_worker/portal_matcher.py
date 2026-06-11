@@ -283,23 +283,23 @@ def filter_new_investments(discovered_items: list, portal: str, existing_identif
                 is_new = False
         elif portal in ("otodom", "oto"):
             item_id = str(item.get("id"))
-            item_hash = item.get("hash_id")
-            item_slug = item.get("slug")
+            
+            # Extract ID from URL if provided, using library parser
+            url_hash_id = None
+            item_url = item.get("url")
+            if item_url:
+                from .url_parser import parse_url
+                parsed = parse_url(item_url)
+                if parsed.get("otodom_id"):
+                    url_hash_id = parsed.get("otodom_id")
             
             id_match = item_id and item_id != "None" and item_id in oto_ids
-            hash_match_field = item_hash and item_hash in oto_ids
-            slug_match = item_slug and item_slug in oto_slugs
-            
-            hash_match_regex = False
-            if item_slug and not hash_match_field:
-                h_match = re.search(r"ID([a-zA-Z0-9]+)$", item_slug)
-                if h_match and h_match.group(1) in oto_ids:
-                    hash_match_regex = True
+            url_hash_match = url_hash_id and url_hash_id in oto_ids
 
-            if id_match or hash_match_field or slug_match or hash_match_regex:
+            if id_match or url_hash_match:
                 is_new = False
             else:
-                logger.info(f"Otodom item NEW: id={item_id}, hash={item_hash}.")
+                logger.info(f"Otodom item NEW: id={item_id}.")
         elif portal in ("to", "tabelaofert"):
             item_id = str(item.get("id"))
             if item_id and item_id != "None" and item_id in to_ids:

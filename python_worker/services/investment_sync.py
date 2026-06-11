@@ -114,25 +114,6 @@ class InvestmentSyncService:
                 raise ValueError(f"Investment already exists: {dev_slug}/{inv_slug}")
             try:
                 data = json.loads(existing_file.read_text(encoding="utf-8"))
-                
-                # Check if portal ID changed (e.g. Otodom ID refresh)
-                if portal and item_id:
-                    if "sources" not in data:
-                        data["sources"] = {}
-                    if portal not in data["sources"]:
-                        data["sources"][portal] = {}
-                        
-                    old_id = data["sources"][portal].get("id")
-                    if str(old_id) != str(item_id):
-                        logger.info(f"Updating portal {portal} ID from {old_id} to {item_id} for existing investment {dev_slug}/{inv_slug}")
-                        data["sources"][portal]["id"] = str(item_id)
-                        if url:
-                            data["sources"][portal]["url"] = url
-                            
-                        if not skip_disk:
-                            with open(existing_file, "w", encoding="utf-8") as f:
-                                json.dump(data, f, indent=2, ensure_ascii=False)
-
                 return dev_slug, inv_slug, data.get("usi_inv_id"), data, existing_file
             except json.JSONDecodeError as jde:
                 logger.error(f"Zniszczony plik anchor JSON: {existing_file}. Błąd: {jde}")
@@ -175,19 +156,31 @@ class InvestmentSyncService:
         return dev_slug, inv_slug, skeleton["usi_inv_id"], skeleton, target_file
 
     def _find_existing_anchor(self, inv_dir: Path, portal: Optional[str], item_id: Optional[str]) -> Optional[Path]:
-        """Helper to find existing usi_*.json file in a directory."""
+        """Helper to find existing usi_*.json file strictly by ID match."""
         if not inv_dir or not inv_dir.exists():
             return None
         
-        # Priority 1: Match portal and ID exactly
+        # Priority 1: Match filename exact ID
         if portal and item_id:
             target = inv_dir / f"usi_{portal}_{item_id}.json"
             if target.exists():
                 return target
             
-        # Priority 2: Match any usi_*.json (excluding usi_dev_*.json)
-        candidates = [f for f in inv_dir.glob("usi_*.json") if "usi_dev_" not in f.name]
-        return sorted(candidates)[0] if candidates else None
+        # Priority 2: Read candidates and check if sources contain the exact portal and ID
+        if portal and item_id:
+            for f in inv_dir.glob("usi_*.json"):
+                if "usi_dev_" in f.name:
+                    continue
+                try:
+                    import json
+                    data = json.loads(f.read_text(encoding="utf-8"))
+                    sources = data.get("sources", {})
+                    if portal in sources and str(sources[portal].get("id")) == str(item_id):
+                        return f
+                except Exception:
+                    pass
+                    
+        return None
 
     def _update_indices_after_registration(self, system_id: str, inv_slug: str, dev_slug: str) -> None:
         """Helper to trigger index updates."""

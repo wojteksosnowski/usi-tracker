@@ -104,12 +104,9 @@ class DeveloperIndexer:
                     from .url_parser import parse_url
                     parsed = parse_url(url)
                     if parsed.get("investment_slug"):
-                        full_slug = parsed["investment_slug"]
-                        oto_slugs.add(full_slug)
-                        # Extract ID from slug if present (canonical Otodom pattern)
-                        if "-ID" in full_slug:
-                            hash_id = full_slug.split("-ID")[-1]
-                            oto_ids.add(hash_id)
+                        oto_slugs.add(parsed["investment_slug"])
+                    if parsed.get("otodom_id"):
+                        oto_ids.add(parsed["otodom_id"])
                     if parsed.get("agency_id"):
                         oto_ids.add(parsed["agency_id"])
 
