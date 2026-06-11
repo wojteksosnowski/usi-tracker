@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 PORTAL_NAMES: Dict[str, str] = {"rp": "RynekPierwotny", "oto": "Otodom", "to": "TabelaOfert"}
 IDENTIFIER_PRIORITIES: Dict[str, List[str]] = {
     "rp": ["id", "url"],
-    "oto": ["hash_id", "id", "url"],
+    "oto": ["id", "url"],
     "to": ["id", "url"]
 }
 
@@ -114,6 +114,25 @@ class InvestmentSyncService:
                 raise ValueError(f"Investment already exists: {dev_slug}/{inv_slug}")
             try:
                 data = json.loads(existing_file.read_text(encoding="utf-8"))
+                
+                # Check if portal ID changed (e.g. Otodom ID refresh)
+                if portal and item_id:
+                    if "sources" not in data:
+                        data["sources"] = {}
+                    if portal not in data["sources"]:
+                        data["sources"][portal] = {}
+                        
+                    old_id = data["sources"][portal].get("id")
+                    if str(old_id) != str(item_id):
+                        logger.info(f"Updating portal {portal} ID from {old_id} to {item_id} for existing investment {dev_slug}/{inv_slug}")
+                        data["sources"][portal]["id"] = str(item_id)
+                        if url:
+                            data["sources"][portal]["url"] = url
+                            
+                        if not skip_disk:
+                            with open(existing_file, "w", encoding="utf-8") as f:
+                                json.dump(data, f, indent=2, ensure_ascii=False)
+
                 return dev_slug, inv_slug, data.get("usi_inv_id"), data, existing_file
             except json.JSONDecodeError as jde:
                 logger.error(f"Zniszczony plik anchor JSON: {existing_file}. Błąd: {jde}")
@@ -437,7 +456,7 @@ class InvestmentSyncService:
             
             to_process.append({
                 "ident": ident, "inv_slug": inv_slug, "url": url, "portal": portal,
-                "name": item.get("name"), "item_id": item.get("hash_id") or item.get("id"),
+                "name": item.get("name"), "item_id": item.get("id"),
                 "dev_name": item.get("developer_name") or item.get("developer"),
                 "vendor_id": vendor_id
             })
@@ -471,24 +490,16 @@ class InvestmentSyncService:
                 # 3. Preparation
                 raw_payload = data.get("raw_details", data) if isinstance(data, dict) else data
                 
-                # MANDAT ROBUSTNOŚCI: Odpakowanie głębokich struktur Otodom przed ekstrakcją metadanych
-                unwrapped_payload = raw_payload
-                if portal in ("otodom", "oto") and isinstance(raw_payload, dict) and "props" in raw_payload and "pageProps" in raw_payload["props"]:
-                    ad = raw_payload["props"]["pageProps"].get("ad")
-                    if ad: unwrapped_payload = ad
-
-                meta = transform_to_unified(portal, unwrapped_payload, entity_type="investment") or {}
-                dev_meta = self.gateway.extract_developer_meta(unwrapped_payload, portal)
+                meta = transform_to_unified(portal, raw_payload, entity_type="investment") or {}
+                dev_meta = self.gateway.extract_developer_meta(raw_payload, portal)
 
                 # 4. ID Resolution (Sacred IDs)
                 item_id = self._resolve_item_id_for_batch(portal, meta, item_info, data)
                 if not item_id:
                     continue
 
-                # 4.5. Vendor ID extraction with deep fallback
+                # 4.5. Vendor ID extraction
                 vendor_id = dev_meta.get("id") or meta.get("vendor_id") or item_info.get("vendor_id")
-                if not vendor_id and portal in ("otodom", "oto") and isinstance(unwrapped_payload, dict):
-                    vendor_id = unwrapped_payload.get("agency", {}).get("id") or unwrapped_payload.get("owner", {}).get("id")
 
                 # 5. Registration and Update (fast_mode enabled)
                 logger.info(f"[BATCH] Registering {portal}/{item_id}...")
@@ -539,24 +550,12 @@ class InvestmentSyncService:
     def _resolve_item_id_for_batch(self, portal: str, meta: Dict, info: Dict, data: Any) -> Optional[str]:
         """Strict ID resolution for batch processing."""
         
-        # Priority 0: Bezpośrednie wyciągnięcie Hash z surowych danych, całkowicie omijając portal_data_mapping.json
-        actual_data = data
-        if isinstance(data, dict):
-            if portal in ("otodom", "oto") and "props" in data and "pageProps" in data["props"]:
-                ad = data["props"]["pageProps"].get("ad")
-                if ad: actual_data = ad
-            
-            if portal in ("otodom", "oto"):
-                # Szukamy publicId (w payloadzie ad) lub hash_id przekazanego z discovery (w info)
-                hash_id = actual_data.get("publicId") or info.get("hash_id") or actual_data.get("hash_id")
-                if hash_id: return str(hash_id)
-
-        # Priority 1: Meta from transformation (zwróci niestety numeryczne ID dla Otodom)
+        # Priority 1: Meta from transformation
         item_id = meta.get("id") or info.get("item_id")
 
         # Priority 2: Direct from data dictionary
-        if not item_id and isinstance(actual_data, dict):
-            item_id = actual_data.get("id") or actual_data.get("ad_id") or data.get("portal_id")
+        if not item_id and isinstance(data, dict):
+            item_id = data.get("id") or data.get("portal_id")
 
         # Priority 3: Parsing from URL
         if not item_id and info.get("url"):
