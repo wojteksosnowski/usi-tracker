@@ -211,3 +211,39 @@ class InvestmentEditorService:
             return False
 
             return False
+
+    def update_computed_fields(self, system_id: str, computed_data: dict) -> bool:
+        """Saves computed dynamic fields back to the main investment file safely."""
+        from python_worker.investment_index import get_investment_index
+        idx = get_investment_index()
+        
+        with idx._index_lock:
+            resources = self.identity.get_investment_resources(system_id)
+            if not resources or not resources["files"]["anchor"]:
+                logger.error(f"Cannot update fields: Investment {system_id} not found.")
+                return False
+                
+            usi_file = resources["files"]["anchor"]
+            try:
+                import json
+                original_data = json.loads(usi_file.read_text(encoding="utf-8"))
+            except Exception as e:
+                logger.error(f"Cannot read {usi_file}: {e}")
+                return False
+
+            fields_to_sync = [
+                "photos", "amenities_score", "amenities_matched", 
+                "suggested_udogodnienia", "ratings", "comment", 
+                "photos_to_delete"
+            ]
+            
+            changed = False
+            for field in fields_to_sync:
+                if field in computed_data:
+                    original_data[field] = computed_data[field]
+                    changed = True
+                    
+            if changed:
+                self.repo._safe_write(usi_file, original_data)
+                
+            return changed

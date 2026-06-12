@@ -17,12 +17,16 @@ class InvestmentLoaderService:
     def __init__(
         self, 
         identity_resolver: Optional[InvestmentIdentityResolver] = None,
+        developer_manager: Optional[Any] = None,  # Wstrzyknij menedżera deweloperów
+        investment_repository: Optional[Any] = None,  # Wstrzyknij repozytorium
         data_dir: Optional[Path] = None,
         public_usi_dir: Optional[Path] = None
     ) -> None:
         self.data_dir = Path(data_dir or USI_DATA_DIR)
         self.public_usi_dir = Path(public_usi_dir or PUBLIC_USI_DIR)
         self.identity = identity_resolver or InvestmentIdentityResolver(self.data_dir, self.public_usi_dir)
+        self._dev_manager = developer_manager
+        self._repo = investment_repository
         self._dev_index = None
 
     def _extract_location_data(self, usi_data: Dict) -> Tuple[str, str, str, List[float]]:
@@ -72,18 +76,21 @@ class InvestmentLoaderService:
         merged_from = []
         master_usi_inv_id = None
         if master_id:
-            from python_worker.investment_repository import InvestmentRepository
-            repo = InvestmentRepository(self.identity, self.data_dir)
-            merged_from, master_usi_inv_id = repo.get_master_data(master_id, inv_dir)
+            # Zapytanie kierowane do wstrzykniętego repozytorium
+            if not self._repo:
+                from python_worker.investment_repository import InvestmentRepository
+                self._repo = InvestmentRepository(self.identity, self.data_dir)
+            merged_from, master_usi_inv_id = self._repo.get_master_data(master_id, inv_dir)
         return master_id, merged_from, master_usi_inv_id
 
     def _resolve_usi_dev_id(self, usi_data: Dict) -> Optional[str]:
         """Resolves the developer's USI ID by matching portal identifiers against the developer index."""
         if usi_data.get("usi_dev_id"):
             return usi_data.get("usi_dev_id")
-        
-        from python_worker.developer_manager import DeveloperManager
-        dm = DeveloperManager(self.data_dir, self.data_dir.parent / "USIdev")
+            
+        if not self._dev_manager:
+            from python_worker.developer_manager import DeveloperManager
+            self._dev_manager = DeveloperManager(self.data_dir, self.data_dir.parent / "USIdev")
             
         sources = usi_data.get("sources", {})
         for portal, pdata in sources.items():
@@ -91,7 +98,7 @@ class InvestmentLoaderService:
             if not pid: 
                 continue
             
-            dev_record = dm.find_developer_by_id(portal, str(pid))
+            dev_record = self._dev_manager.find_developer_by_id(portal, str(pid))
             if dev_record:
                 return dev_record.get("usi_dev_id")
         return None

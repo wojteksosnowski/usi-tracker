@@ -1,3 +1,9 @@
+## Wersja 0.9.91 — Eliminacja God Object i czyszczenie antywzorców — 2026-06-12
+
+### Zmieniono
+- **Refaktoryzacja `backfill_usi_data.py`**: Skrypt przestał samodzielnie pełznąć po dysku (rglob). Zastosowano wzorzec cienkiego klienta. Aktualnie wykorzystuje on `InvestmentRepository` do wyciągnięcia listy ID oraz `InvestmentEditorService` do bezpiecznego wtłoczenia przeliczonych danych.
+- **Dependency Inversion w `InvestmentLoaderService`**: Konstruktor loadera został rozbudowany o Dependency Injection (repozytorium, developer_manager). Ukryte instancjonowanie tych masywnych klas wewnątrz prywatnych metod `_load_master_data` i `_resolve_usi_dev_id` zostało zastąpione wywoływaniem obiektów dostarczonych "z góry", co docelowo rozwiąże problem kruchych testów jednostkowych i ukrytych cykli cyklu życia obiektów.
+
 ## Wersja 0.9.90 — Eliminacja antywzorców: Enkapsulacja Loaderów, Mergerów i Repozytorium — 2026-06-12
 
 ### Zmieniono

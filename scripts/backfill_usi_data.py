@@ -1,59 +1,50 @@
 import sys
-import json
 import logging
 from pathlib import Path
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from python_worker.config import USI_DATA_DIR
-from python_worker.services.investment_loader import load_investment
+from python_worker.config import USI_DATA_DIR, PUBLIC_USI_DIR
+from python_worker.investment_repository import InvestmentRepository
+from python_worker.services.investment_loader import get_shared_loader
+from python_worker.services.investment_editor import InvestmentEditorService
+from python_worker.services.investment_identity import InvestmentIdentityResolver
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("backfill")
 
 def main():
     data_dir = Path(USI_DATA_DIR)
+    public_usi_dir = Path(PUBLIC_USI_DIR)
     
-    # Find all usi_*.json files
-    usi_files = list(data_dir.rglob("usi_*.json"))
-    logger.info(f"Found {len(usi_files)} usi_*.json files to backfill.")
+    # Zamiast dzikiego rglob, pobierz encje zarządzane przez właściwe komponenty
+    identity_resolver = InvestmentIdentityResolver(data_dir=data_dir, public_usi_dir=public_usi_dir)
+    repo = InvestmentRepository(identity_resolver=identity_resolver, data_dir=data_dir)
+    investment_ids = repo.get_all_system_ids() 
     
-    success = 0
-    errors = 0
+    loader = get_shared_loader(data_dir=data_dir, public_usi_dir=public_usi_dir)
+    editor = InvestmentEditorService(identity_resolver=identity_resolver, data_dir=data_dir, public_usi_dir=public_usi_dir, investment_repo=repo)
     
-    for usi_file in usi_files:
+    logger.info(f"Found {len(investment_ids)} investments to backfill.")
+    
+    success, errors = 0, 0
+    
+    for system_id in investment_ids:
         try:
-            # Load using the current volatile loader which computes everything on the fly
-            inv_data = load_investment(usi_file=usi_file, data_dir=data_dir)
+            # Prawidłowe załadowanie przez ujednolicony loader
+            inv_data = loader.load_investment(system_id=system_id)
             if not inv_data:
-                logger.warning(f"Could not load data for {usi_file}")
+                logger.warning(f"Could not load data for {system_id}")
                 errors += 1
                 continue
                 
-            # Now we want to update the original usi_*.json with the computed fields
-            original_data = json.loads(usi_file.read_text())
-            
-            # Fields to backfill
-            fields_to_sync = [
-                "photos", "amenities_score", "amenities_matched", 
-                "suggested_udogodnienia", "ratings", "comment", 
-                "photos_to_delete"
-            ]
-            
-            changed = False
-            for field in fields_to_sync:
-                if field in inv_data:
-                    original_data[field] = inv_data[field]
-                    changed = True
-                    
+            # Zamiast ręcznego zapisu pliku, użyj serwisu edytorskiego
+            changed = editor.update_computed_fields(system_id, inv_data)
             if changed:
-                # Save back to usi_*.json
-                usi_file.write_text(json.dumps(original_data, ensure_ascii=False, indent=2))
                 success += 1
-                
         except Exception as e:
-            logger.error(f"Error processing {usi_file}: {e}")
+            logger.error(f"Error processing {system_id}: {e}")
             errors += 1
             
     logger.info(f"Backfill complete. Updated: {success}, Errors: {errors}")

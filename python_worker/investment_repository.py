@@ -141,4 +141,10 @@ class InvestmentRepository:
                     return data
         except FileNotFoundError:
             pass
-        return []
+    def get_all_system_ids(self) -> list[str]:
+        """Pobiera wszystkie identyfikatory inwestycji z indeksu."""
+        from python_worker.investment_index import get_investment_index, load
+        idx = get_investment_index()
+        # Jeśli indeks w pamięci jest pusty, wymusza ładowanie
+        entries = idx.get_all() if getattr(idx, "_index", None) else load(self.data_dir)
+        return [entry.get("usi_inv_id") for entry in entries if entry.get("usi_inv_id")]
