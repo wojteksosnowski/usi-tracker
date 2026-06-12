@@ -84,9 +84,18 @@
             return <Row key={field.key} k={field.label} v={rendered} mono={field.type === 'currency' || field.type === 'count'} />;
           })}
           {inv.folder_path && (
-            <div data-component="Metadata-FolderPath" className="usi-metadata-folder-path">
+            <div 
+              data-component="Metadata-FolderPath" 
+              className="usi-metadata-folder-path usi-cursor-pointer"
+              onClick={() => {
+                if (inv.usi_inv_id) {
+                    fetch(`/api/investment/${inv.usi_inv_id}/open-folder`, { method: 'POST' }).catch(() => {});
+                }
+              }}
+              title="Kliknij aby otworzyć folder w Finderze"
+            >
               <div className="usi-small usi-m-b-1">Ścieżka folderu</div>
-              <div className="usi-mono usi-metadata-folder-text">{inv.folder_path}</div>
+              <div className="usi-mono usi-metadata-folder-text" style={{textDecoration: 'underline'}}>{inv.folder_path}</div>
             </div>
           )}
         </div>

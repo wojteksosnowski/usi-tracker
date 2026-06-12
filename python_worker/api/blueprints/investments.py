@@ -195,13 +195,23 @@ def reload_investment(system_id):
     if not success:
         return jsonify({"ok": False, "error": "Failed to update"}), 500
     
-    # --- POPRAWKA: Czyszczenie cache listy inwestycji ---
-    with _list_inv_lock:
-        _list_inv_cache.clear()
-        logger.info("Cleared investments list cache due to manual reload.")
-        
+    
     updated_inv = investment_service.get_investment(system_id)
     return jsonify({"ok": True, "investment": updated_inv})
+
+@investments_bp.route("/investment/<system_id>/open-folder", methods=["POST"])
+def open_investment_folder(system_id):
+    import subprocess
+    from python_worker.services.investment_identity import InvestmentIdentityResolver
+    from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR
+    
+    resolver = InvestmentIdentityResolver(USI_DATA_DIR, PUBLIC_USI_DIR)
+    resources = resolver.get_investment_resources(system_id)
+    if not resources or not resources.get("base_dir") or not resources["base_dir"].exists():
+        abort(404, "Katalog inwestycji nie istnieje na dysku")
+        
+    subprocess.call(["open", str(resources["base_dir"])])
+    return jsonify({"status": "ok"})
 
 @investments_bp.route("/investment/<system_id>/refresh", methods=["POST"])
 def refresh_investment_route(system_id):
@@ -213,10 +223,7 @@ def refresh_investment_route(system_id):
         job_manager.update_progress(job_id, 10, f"Rozpoczęto odświeżanie: {i_name}")
         try:
             if investment_service.update_investment(system_id):
-                # --- POPRAWKA: Czyszczenie cache listy inwestycji po zakończeniu wątku ---
-                with _list_inv_lock:
-                    _list_inv_cache.clear()
-                logger.info(f"Cleared investments list cache after background refresh for {i_name}.")
+                logger.info(f"Finished background refresh for {i_name}.")
                 job_manager.update_progress(job_id, 100, f"Ukończono odświeżanie: {i_name}")
             else:
                 job_manager.update_progress(job_id, 100, f"Brak danych do odświeżenia: {i_name}", status="failed")

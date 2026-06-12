@@ -1,3 +1,14 @@
+## Wersja 0.9.88 — Naprawa Błędów API i Logiki Odświeżania Inwestycji — 2026-06-12
+
+### Zmieniono
+- **Priorytetyzacja Identyfikatorów**: Zmieniono `IDENTIFIER_PRIORITIES` w `investment_sync.py` tak, aby preferować `url` nad `id`. Dzięki temu mechanizm potrafi automatycznie zrekonstruować brakujące pliki `raw_*.json` w oparciu o adres URL z pliku agregującego, zapobiegając błędom `Brak danych do odświeżenia`.
+- **API `open-folder`**: Naprawiono błąd `500 Internal Server Error` we wtyczce integracyjnej z Finderem, korygując ścieżkę importu resolvera (użycie `InvestmentIdentityResolver`) oraz typowanie zwróconych zasobów (`dict` zamiast atrybutów obiektu).
+- **Naprawa UI**: Poprawiono ścieżki zapytań we frontendzie (`app.jsx`, `analytics.jsx`), zamieniając puste klucze `system_id` na obowiązujące `usi_inv_id`, by umożliwić poprawne działanie guzików odświeżania okna oraz Findera.
+
+### Wnioski ze zmian
+- Architektura oparta na oddzieleniu parasola (`usi_*.json`) od surowych danych (`raw_*.json`) wymaga fallbacku w postaci adresu URL na wypadek "płytkiej" rejestracji obiektu. Używanie twardych ID bez gwarancji istnienia pliku raw powoduje trudne do wyłapania, "ciche" błędy odświeżania.
+- Różnice w sposobie zwracania zasobów (obiekt w `usi-scrapers` vs. słownik `dict` w `usi-tracker`) są potencjalnym źródłem niepotrzebnych błędów. Zawsze należy dbać o unifikację typów zwracanych przez resolvery.
+
 # Changelog
 
 ## Wersja 0.9.87 — Modular API Refactor & Performance Optimization — 2026-06-10

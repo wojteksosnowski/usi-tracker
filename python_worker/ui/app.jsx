@@ -510,9 +510,8 @@
                   onBack={() => setView(prevView || 'list')}
                   onUpdateInv={() => {
                     refetch();
-                    const { developer_slug: d, investment_slug: i } = selectedInv;
-                    if (d && i) {
-                      fetch(`/api/data/${d}/${i}`)
+                    if (selectedInv.usi_inv_id) {
+                      fetch(`/api/investment/${selectedInv.usi_inv_id}/data`)
                         .then(r => r.json())
                         .then(fresh => setSelectedInv(fresh))
                         .catch(() => {});
