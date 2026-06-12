@@ -58,10 +58,5 @@ def test_create_investment_skeleton_fallback_when_config_missing(tmp_path):
     
     # Mock tech manager as None
     with patch("python_worker.investment_repository.get_shared_tech_manager", return_value=None):
-        # Execute
-        target_file = repo.create_investment_skeleton(system_id, portal, portal_id, skeleton_data)
-        
-        # Verify fallback path: data_dir / dev_slug / inv_slug
-        expected_dir = data_dir / "dev-slug" / "inv-slug"
-        assert target_file == expected_dir / f"usi_{system_id}.json"
-        assert target_file.exists()
+        with pytest.raises(RuntimeError, match="TechnicalDataManager failed to resolve path"):
+            repo.create_investment_skeleton(system_id, portal, portal_id, skeleton_data)

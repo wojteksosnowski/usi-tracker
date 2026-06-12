@@ -1,3 +1,10 @@
+## Wersja 0.9.90 — Eliminacja antywzorców: Enkapsulacja Loaderów, Mergerów i Repozytorium — 2026-06-12
+
+### Zmieniono
+- **Refaktoryzacja `InvestmentLoaderService`**: Usunięto z loadera logikę brutalnego parsowania identyfikatorów portalowych. Do mapowania identyfikatorów używany jest teraz `DeveloperManager` (z zachowaniem zasady Push Down Method), a odczyt `master_data` realizowany jest prawilnie przez wstrzyknięte `InvestmentRepository`. Nazwy plików nie są już splitowane po podłogach (`_`), zamiast tego polegamy na metadanych generowanych czysto z resolvera tożsamości z bezpiecznym fallbackiem opartym na oficjalnych polach JSON (zgodność z ID-only architecture).
+- **Standaryzacja w `Merger`**: Zlikwidowano uciążliwe nadpisywanie struktur portalowych i ręczne przepisywanie identyfikatorów w klasie `Merger`. Aktualnie korzysta ona natywnie z `ScraperGateway.generate_portal_mapping`, scentralizowanego na poziomie bramy. Dodatkowo zaprzestano niebezpiecznego obcinania zewnętrznych ścieżek obrazków – zadanie to delegowane jest do resolverów przed etapem fuzji danych.
+- **Odporność w `InvestmentRepository`**: Oczyszczono repozytorium (funkcja `create_investment_skeleton`) z destrukcyjnego cichego fallbacku, który umożliwiał wbrew systemowi tworzenie ułomnych katalogów. Jeśli `TechnicalDataManager` nie znajdzie poprawnej struktury, wyrzucany jest `RuntimeError`, co zabezpiecza system plików przed nieodwracalną desynchronizacją z cachem i API scraperów. Testy zostały odpowiednio dostrojone.
+
 ## Wersja 0.9.89 — Refaktoryzacja Logiki Łączenia Inwestycji (Push Down Method) — 2026-06-12
 
 ### Zmieniono

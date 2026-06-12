@@ -72,17 +72,9 @@ class InvestmentLoaderService:
         merged_from = []
         master_usi_inv_id = None
         if master_id:
-            master_file = self.data_dir / f"inv_master_{master_id}.json"
-            if not master_file.exists():
-                master_file = inv_dir / f"inv_master_{master_id}.json"
-            
-            if master_file.exists():
-                try:
-                    master_data = json.loads(master_file.read_text(encoding="utf-8"))
-                    merged_from = master_data.get("merged_from", [])
-                    master_usi_inv_id = master_data.get("master_usi_inv_id")
-                except Exception: 
-                    pass
+            from python_worker.investment_repository import InvestmentRepository
+            repo = InvestmentRepository(self.identity, self.data_dir)
+            merged_from, master_usi_inv_id = repo.get_master_data(master_id, inv_dir)
         return master_id, merged_from, master_usi_inv_id
 
     def _resolve_usi_dev_id(self, usi_data: Dict) -> Optional[str]:
@@ -90,11 +82,8 @@ class InvestmentLoaderService:
         if usi_data.get("usi_dev_id"):
             return usi_data.get("usi_dev_id")
         
-        if self._dev_index is None:
-            self._dev_index = load_dev_index(self.data_dir.parent / "USIdev")
-            
-        if not self._dev_index:
-            return None
+        from python_worker.developer_manager import DeveloperManager
+        dm = DeveloperManager(self.data_dir, self.data_dir.parent / "USIdev")
             
         sources = usi_data.get("sources", {})
         for portal, pdata in sources.items():
@@ -102,15 +91,9 @@ class InvestmentLoaderService:
             if not pid: 
                 continue
             
-            for d_entry in self._dev_index:
-                pm = d_entry.get("portal_mapping", {})
-                p_info = pm.get(portal) or {}
-                if portal == "rp" and str(p_info.get("id")) == str(pid):
-                    return d_entry["usi_dev_id"]
-                elif portal == "oto" and str(pid) in [str(a) for a in (p_info.get("agency_ids") or [p_info.get("agency_id")]) if a]:
-                    return d_entry["usi_dev_id"]
-                elif portal == "to" and str(p_info.get("id") or p_info.get("agency_id")) == str(pid):
-                    return d_entry["usi_dev_id"]
+            dev_record = dm.find_developer_by_id(portal, str(pid))
+            if dev_record:
+                return dev_record.get("usi_dev_id")
         return None
 
     def load_investment(
@@ -164,10 +147,17 @@ class InvestmentLoaderService:
             if resources and not usi.get("usi_inv_id"):
                 usi["usi_inv_id"] = resources["id"]
                 
-            parts = usi_file.stem.split("_")
-            if len(parts) >= 3 and parts[0] == "usi":
-                usi.setdefault("portal", parts[1])
-                usi.setdefault("portal_id", parts[2])
+            if not usi.get("portal") or not usi.get("portal_id"):
+                if resources and "metadata" in resources:
+                    usi.setdefault("portal", resources["metadata"].get("portal"))
+                    usi.setdefault("portal_id", resources["metadata"].get("portal_id"))
+                else:
+                    sources = usi.get("sources", {})
+                    for p in ("rp", "oto", "to"):
+                        if p in sources and sources[p].get("id"):
+                            usi.setdefault("portal", p)
+                            usi.setdefault("portal_id", str(sources[p]["id"]))
+                            break
                     
             if not usi.get("usi_dev_id"):
                 usi["usi_dev_id"] = self._resolve_usi_dev_id(usi)

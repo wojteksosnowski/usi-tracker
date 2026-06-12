@@ -68,10 +68,7 @@ class InvestmentRepository:
                 inv_dir = Path(path_val)
 
         if not inv_dir:
-            # Fallback if tech_manager failed or returned None (e.g. new investment)
-            dev_slug = skeleton_data.get("developer_slug", "unknown")
-            inv_slug = skeleton_data.get("investment_slug", system_id)
-            inv_dir = self.data_dir / dev_slug / inv_slug
+            raise RuntimeError(f"Cannot create skeleton: TechnicalDataManager failed to resolve path for {portal}_{portal_id}")
 
         inv_dir.mkdir(parents=True, exist_ok=True)
         filename = f"usi_{system_id}.json"

@@ -82,38 +82,33 @@ class Merger:
         existing_sources = (existing_data or {}).get("sources", {})
         all_image_urls = set(result.get("image_urls", []))
 
-        if rp_data:
-            result["sources"]["rp"] = rp_data["sources"].get("rp") or {}
-            if not result["sources"]["rp"].get("url") and existing_sources.get("rp", {}).get("url"):
-                result["sources"]["rp"]["url"] = existing_sources["rp"]["url"]
-            if not result["sources"]["rp"].get("vendor_id") and existing_sources.get("rp", {}).get("vendor_id"):
-                result["sources"]["rp"]["vendor_id"] = existing_sources["rp"]["vendor_id"]
-            if "image_urls" in rp_data:
-                all_image_urls.update(rp_data["image_urls"])
-        elif "rp" in existing_sources:
-            result["sources"]["rp"] = existing_sources["rp"]
+        from python_worker.services.scraper_gateway import ScraperGateway
+        
+        for portal, portal_data in [("rp", rp_data), ("oto", oto_data), ("to", to_data)]:
+            if portal_data:
+                src_info = portal_data["sources"].get(portal) or {}
+                vid = src_info.get("vendor_id") or src_info.get("id") or src_info.get("agency_id")
+                
+                # Próba pobrania z istniejących źródeł jeśli brakuje
+                if not vid and portal in existing_sources:
+                    ex_src = existing_sources[portal]
+                    vid = ex_src.get("vendor_id") or ex_src.get("id") or ex_src.get("agency_id")
 
-        if oto_data:
-            result["sources"]["oto"] = oto_data["sources"].get("oto") or {}
-            if not result["sources"]["oto"].get("url") and existing_sources.get("oto", {}).get("url"):
-                result["sources"]["oto"]["url"] = existing_sources["oto"]["url"]
-            if not result["sources"]["oto"].get("id") and existing_sources.get("oto", {}).get("id"):
-                result["sources"]["oto"]["id"] = existing_sources["oto"]["id"]
-            if not result["sources"]["oto"].get("agency_id") and existing_sources.get("oto", {}).get("agency_id"):
-                result["sources"]["oto"]["agency_id"] = existing_sources["oto"]["agency_id"]
-            if "image_urls" in oto_data:
-                all_image_urls.update(oto_data["image_urls"])
-        elif "oto" in existing_sources:
-            result["sources"]["oto"] = existing_sources["oto"]
+                url = src_info.get("url") or existing_sources.get(portal, {}).get("url")
 
-        if to_data:
-            result["sources"]["to"] = to_data["sources"].get("to") or {}
-            if not result["sources"]["to"].get("url") and existing_sources.get("to", {}).get("url"):
-                result["sources"]["to"]["url"] = existing_sources["to"]["url"]
-            if "image_urls" in to_data:
-                all_image_urls.update(to_data["image_urls"])
-        elif "to" in existing_sources:
-            result["sources"]["to"] = existing_sources["to"]
+                # Budowanie struktury przez Gateway
+                if vid:
+                    result["sources"][portal] = ScraperGateway.generate_portal_mapping(portal, str(vid))
+                else:
+                    result["sources"][portal] = src_info.copy()
+
+                if url:
+                    result["sources"][portal]["url"] = url
+                
+                if "image_urls" in portal_data:
+                    all_image_urls.update(portal_data["image_urls"])
+            elif portal in existing_sources:
+                result["sources"][portal] = existing_sources[portal]
 
         result["image_urls"] = sorted(list(all_image_urls))
 
