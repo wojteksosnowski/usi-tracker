@@ -9,7 +9,9 @@ SAFE_FILENAME_PATTERN = re.compile(r'^[a-zA-Z0-9_\-\.]+\.[a-zA-Z0-9]+$')
 
 def resolve_images(usi: dict, inv_dir: Path, public_usi_dir: Path, resources: dict = None, fast_index: bool = False) -> list[str]:
     """Resolves images to clean relative paths using a strict filename whitelist."""
-    raw = usi.get("image_paths") or [p.strip() for p in usi.get("ratings", {}).get("imgList", "").split(",") if p.strip()]
+    ratings_dict = usi.get("ratings") or {}
+    imgList = ratings_dict.get("imgList") or ""
+    raw = usi.get("image_paths") or [p.strip() for p in imgList.split(",") if p.strip()]
     
     resolved = []
     if raw:
