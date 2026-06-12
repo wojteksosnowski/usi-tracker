@@ -1,3 +1,8 @@
+## Wersja 0.9.92 — Uszczelnienie ScraperGateway — 2026-06-12
+
+### Zmieniono
+- **Rygor normalizacyjny w `ScraperGateway`**: Dodano bezwzględne wywołanie `self.normalize_portal_name(portal)` na wejściu do absolutnie każdej publicznej metody i metody statycznej zdefiniowanej w klasie. Uniemożliwia to przemycenie nienormatywnych zapytań (np. "otodom" lub "rynekpierwotny" w metodach `download_raw_dev`, `load_raw` itp.), chroniąc rygor walidacji i integralność połączeń z biblioteką bazową. 
+
 ## Wersja 0.9.91 — Eliminacja God Object i czyszczenie antywzorców — 2026-06-12
 
 ### Zmieniono

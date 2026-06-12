@@ -34,63 +34,74 @@ class ScraperGateway:
         self._fetcher = fetcher or get_shared_fetcher()
 
     def has_local_raw(self, portal: str, portal_id: str) -> bool:
-        return scraper_api.has_local_raw(self._config, portal=portal, portal_id=str(portal_id))
+        canonical_portal = self.normalize_portal_name(portal)
+        return scraper_api.has_local_raw(self._config, portal=canonical_portal, portal_id=str(portal_id))
 
     def download_raw(self, portal: str, identifier: str) -> Any:
-        return scraper_api.download_raw(self._config, self._fetcher, portal, identifier)
+        canonical_portal = self.normalize_portal_name(portal)
+        return scraper_api.download_raw(self._config, self._fetcher, canonical_portal, identifier)
 
     def load_raw(self, portal: str, identifier: str) -> Optional[Dict[str, Any]]:
-        config = self._config
-        return scraper_api.load_raw(config, portal, str(identifier))
+        canonical_portal = self.normalize_portal_name(portal)
+        return scraper_api.load_raw(self._config, canonical_portal, str(identifier))
 
     def ingest_investment_by_url(self, portal: str, url: str) -> Any:
-        return scraper_api.ingest_investment_by_url(self._config, self._fetcher, portal, url)
+        canonical_portal = self.normalize_portal_name(portal)
+        return scraper_api.ingest_investment_by_url(self._config, self._fetcher, canonical_portal, url)
 
     def refresh_investment_by_id(self, portal: str, identifier: str) -> Any:
-        return scraper_api.refresh_investment_by_id(self._config, self._fetcher, portal, identifier)
+        canonical_portal = self.normalize_portal_name(portal)
+        return scraper_api.refresh_investment_by_id(self._config, self._fetcher, canonical_portal, identifier)
 
     def resolve_prefix(self, portal: str) -> str:
-        return scraper_api.resolve_prefix(portal)
+        canonical_portal = self.normalize_portal_name(portal)
+        return scraper_api.resolve_prefix(canonical_portal)
 
     def download_raw_dev(self, portal: str, identifier: str) -> Any:
+        canonical_portal = self.normalize_portal_name(portal)
         # Bezwzględny rygor ID-only dla rp i oto (muszą być numeryczne)
-        if portal in ("rp", "oto") and not str(identifier).isdigit():
-            logger.error(f"Identifier for portal {portal} must be numeric, got: {identifier}")
+        if canonical_portal in ("rp", "oto") and not str(identifier).isdigit():
+            logger.error(f"Identifier for portal {canonical_portal} must be numeric, got: {identifier}")
             return None
-        return scraper_api.download_raw_dev(self._config, self._fetcher, portal, str(identifier))
+        return scraper_api.download_raw_dev(self._config, self._fetcher, canonical_portal, str(identifier))
 
     def process_batch(self, portal: str, targets: List[str], on_progress=None) -> List[Any]:
         """
         Inteligentny dispatcher dla zadań seryjnych.
         Automatycznie wybiera tryb Ingest (URL) lub Refresh (ID).
         """
+        canonical_portal = self.normalize_portal_name(portal)
         if not targets:
             return []
             
         # Sprawdzamy pierwszy element, aby zdecydować o trybie
         if str(targets[0]).startswith("http"):
             return scraper_api.process_batch_ingest(
-                self._config, self._fetcher, portal, targets, on_progress=on_progress
+                self._config, self._fetcher, canonical_portal, targets, on_progress=on_progress
             )
         else:
             return scraper_api.process_batch_refresh(
-                self._config, self._fetcher, portal, targets, on_progress=on_progress
+                self._config, self._fetcher, canonical_portal, targets, on_progress=on_progress
             )
 
     def process_batch_ingest(self, portal: str, urls: List[str], on_progress=None) -> List[Any]:
-        return scraper_api.process_batch_ingest(self._config, self._fetcher, portal, urls, on_progress=on_progress)
+        canonical_portal = self.normalize_portal_name(portal)
+        return scraper_api.process_batch_ingest(self._config, self._fetcher, canonical_portal, urls, on_progress=on_progress)
 
     def process_batch_refresh(self, portal: str, portal_ids: List[str], on_progress=None) -> List[Any]:
-        return scraper_api.process_batch_refresh(self._config, self._fetcher, portal, portal_ids, on_progress=on_progress)
+        canonical_portal = self.normalize_portal_name(portal)
+        return scraper_api.process_batch_refresh(self._config, self._fetcher, canonical_portal, portal_ids, on_progress=on_progress)
 
     def list_investments(self, portal: str, identifier: Optional[str] = None) -> List[Dict[str, Any]]:
+        canonical_portal = self.normalize_portal_name(portal)
         ident_str = str(identifier) if identifier is not None else None
-        return scraper_api.list_investments(self._config, self._fetcher, portal, ident_str)
+        return scraper_api.list_investments(self._config, self._fetcher, canonical_portal, ident_str)
 
     def discover_investments(self, portal_key: str, identifier: Optional[str] = None, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        if portal_key == "rp":
+        canonical_portal = self.normalize_portal_name(portal_key)
+        if canonical_portal == "rp":
             return scraper_api.discover_rp_investments(self._config, self._fetcher, identifier=identifier, limit=limit)
-        elif portal_key == "otodom":
+        elif canonical_portal == "oto":
             return scraper_api.discover_otodom_investments(self._config, self._fetcher, identifier=identifier, limit=limit)
         else:
             return scraper_api.discover_to_investments(self._config, self._fetcher, identifier=identifier, limit=limit)
@@ -106,21 +117,23 @@ class ScraperGateway:
     @staticmethod
     def generate_portal_mapping(portal: str, vendor_id: str) -> Dict[str, Any]:
         """Returns the canonical portal_mapping structure for a given vendor_id."""
+        canonical_portal = ScraperGateway.normalize_portal_name(portal)
         clean_id = str(vendor_id)
-        if portal == "rp":
+        if canonical_portal == "rp":
             return {"id": clean_id}
-        elif portal == "oto":
+        elif canonical_portal == "oto":
             return {"agency_id": clean_id, "agency_ids": [clean_id]}
-        elif portal == "to":
+        elif canonical_portal == "to":
             return {"agency_id": clean_id}
         return {}
 
     @staticmethod
     def extract_developer_meta(raw_data: Dict[str, Any], portal: str) -> Dict[str, Any]:
-        meta = scraper_api.extract_developer_meta(raw_data, portal)
+        canonical_portal = ScraperGateway.normalize_portal_name(portal)
+        meta = scraper_api.extract_developer_meta(raw_data, canonical_portal)
         if not meta.get("id"):
-            logger.debug(f"extract_developer_meta: Primary mapping failed for {portal}. Trying fallback via mapping...")
-            mapping = scraper_api.get_mapping(portal)
+            logger.debug(f"extract_developer_meta: Primary mapping failed for {canonical_portal}. Trying fallback via mapping...")
+            mapping = scraper_api.get_mapping(canonical_portal)
             developer_id_path = mapping.get("developer_id")
             if developer_id_path:
                 vid = lib_resolve_path(raw_data, developer_id_path)
@@ -128,11 +141,12 @@ class ScraperGateway:
                     meta["id"] = str(vid)
             
             # Ostateczny fallback dla nazwy dewelopera w TO, jeśli nadal brak
-            if portal == "to" and not meta.get("name"):
+            if canonical_portal == "to" and not meta.get("name"):
                 meta["name"] = raw_data.get("developer_name") or raw_data.get("vendor_name") or raw_data.get("brand", {}).get("name")
         
         return meta
 
     @staticmethod
     def get_mapping(portal: str) -> Dict[str, Any]:
-        return scraper_api.get_mapping(portal)
+        canonical_portal = ScraperGateway.normalize_portal_name(portal)
+        return scraper_api.get_mapping(canonical_portal)
