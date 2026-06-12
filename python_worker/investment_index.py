@@ -200,18 +200,13 @@ class InvestmentIndex:
         # Ensure latest data is loaded (if changed externally)
         self._load_from_disk()
         
-        entry = {
-            "usi_inv_id": usi_id,
-            "developer_slug": metadata.get("developer_slug"),
-            "investment_slug": metadata.get("investment_slug") or usi_id,
-            "name": metadata.get("name"),
-            "portal": metadata.get("portal"),
-            "portal_id": str(metadata.get("portal_id") or metadata.get("external_id") or ""),
-            "status": metadata.get("status", "Brak"),
-            "reviewed": metadata.get("reviewed", False),
-            "folder_path": metadata.get("folder_path") or f"Public/USIdata/{metadata.get('developer_slug')}/{usi_id}",
-            "updated_at": datetime.now().isoformat()
-        }
+        entry = metadata.copy()
+        entry["usi_inv_id"] = usi_id
+        if not entry.get("investment_slug"):
+            entry["investment_slug"] = usi_id
+        if not entry.get("folder_path"):
+            entry["folder_path"] = f"Public/USIdata/{metadata.get('developer_slug', 'unknown')}/{usi_id}"
+        entry["updated_at"] = datetime.now().isoformat()
 
         with self._index_lock:
             self._index[usi_id] = entry

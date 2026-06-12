@@ -150,12 +150,13 @@ def test_brutal_report_append_persistence(client, test_env):
     
     # Verify disk
     data = json.loads(anchor_file.read_text())
-    reports = data.get("user_reports", [])
+    reports = data.get("issue_reports", [])
     print(f"DEBUG: Reports on disk: {reports}")
     assert len(reports) == 2
-    assert reports[0]["note"] == "First note"
-    assert reports[1]["note"] == "Second note"
-    assert "created_at" in reports[0]
+    # issue_reports prepends (insert(0, ...)), so the second one should be at index 0
+    assert reports[0]["note"] == "Second note"
+    assert reports[1]["note"] == "First note"
+    assert "at" in reports[0]
 
 def test_image_serving_o1_and_placeholder(client, test_env):
     """Verifies O(1) image serving and fallback placeholder logic."""

@@ -218,8 +218,8 @@
         if (view === 'storyboard') return "USI Storyboard";
         if (view === 'download') return "Pobieranie";
         if (view === 'reports') return "Raporty";
-        if (view === 'detail') return selectedInv?.name || "Szczegóły";
-        if (view === 'dev-detail') return selectedDev?.name || "Szczegóły dewelopera";
+        if (view === 'detail') return "Szczegóły";
+        if (view === 'dev-detail') return "Szczegóły dewelopera";
         return "USI Tracker";
       };
 

@@ -103,18 +103,36 @@ def serve_dev_logo(usi_dev_id):
     response.headers["Cache-Control"] = "public, max-age=86400, immutable"
     return response
 
-@investments_bp.route("/investments")
-def list_investments():
-    """Pobiera gotowy indeks z RAMu i filtruje go w locie przy użyciu uniwersalnego filtru."""
-    investments = inv_index.load(Path(USI_DATA_DIR)) or []
-    
-    # Przekazujemy wszystkie parametry z requestu jako słownik filtrów
-    filtered = filter_investments(investments, request.args)
-    
-    # Licznik unreviewed zawsze dla całego zbioru (wymóg UI)
-    unreviewed_count = sum(1 for inv in investments if inv.get("reviewed") is False)
+def _parse_investment_filters(req) -> dict:
+    """Parsuje i oczyszcza parametry filtrowania z żądania HTTP."""
+    return {
+        "onlyUnreviewed": req.args.get("onlyUnreviewed") == "true",
+        "onlyNoPhotos": req.args.get("onlyNoPhotos") == "true",
+        "dev": req.args.get("dev"),
+        "search": req.args.get("search"),
+        "portal": req.args.get("portal"),
+        "status": req.args.get("status"),
+        "cities": req.args.getlist("cities[]") or req.args.getlist("cities"),
+        "segments": req.args.getlist("segments[]") or req.args.getlist("segments"),
+        "sources": req.args.getlist("sources[]") or req.args.getlist("sources"),
+    }
 
-    return jsonify({"data": filtered, "unreviewedCount": unreviewed_count})
+@investments_bp.route("/investments", methods=["GET"])
+def list_investments():
+    from python_worker.services.investment_service import InvestmentService
+    service = InvestmentService()
+    
+    filters = _parse_investment_filters(request)
+    print(f"DEBUG FILTERS: {filters}")
+    try:
+        results = service.list_investments_filtered(**filters)
+        
+        # Odtworzenie struktury wymaganej przez data.jsx
+        unreviewed_count = sum(1 for inv in (inv_index.load(Path(USI_DATA_DIR)) or []) if inv.get("reviewed") is False)
+        return jsonify({"data": results, "unreviewedCount": unreviewed_count}), 200
+    except Exception as e:
+        logger.error(f"Failed to list investments: {e}")
+        return jsonify({"error": "Internal server error"}), 500
 
 @investments_bp.route("/investments/rebuild-index", methods=["POST"])
 def rebuild_index():
@@ -149,45 +167,27 @@ def get_investment_data(system_id):
 
 @investments_bp.route("/investment/<system_id>/ratings", methods=["POST"])
 def save_ratings(system_id):
-    """Zapisuje oceny (ratings) i status bezpośrednio do pliku anchor."""
     payload = request.get_json(silent=True) or {}
-    
-    def _update(data):
-        if "ratings" in payload:
-            data["ratings"] = payload["ratings"]
-        if "status" in payload:
-            data["status"] = payload["status"]
-        return True
-
-    if update_anchor_json(system_id, _update):
-        investment_service.invalidate_cache(system_id)
-        return jsonify({"ok": True})
-
-    abort(404)
+    if not payload:
+        return jsonify({"error": "Missing payload"}), 400
+        
+    success = investment_service.save_ratings(system_id, payload)
+    if not success:
+        return jsonify({"error": f"Investment {system_id} not found or save failed"}), 404
+        
+    return jsonify({"ok": True, "status": "success"}), 200
 
 @investments_bp.route("/investment/<system_id>/mark-delete", methods=["POST"])
 def save_deletion_list(system_id):
-    """Zapisuje listę usuniętych zdjęć do deletion_list.json w katalogu inwestycji."""
     payload = request.get_json(silent=True) or {}
     paths = payload.get("paths", [])
     if not isinstance(paths, list):
         abort(400, "paths must be a list")
         
-    anchor_path = get_anchor_path(system_id)
-    if not anchor_path:
-        abort(404)
-        
-    deletion_file = anchor_path.parent / "deletion_list.json"
-    
-    try:
-        with open(deletion_file, "w", encoding="utf-8") as f:
-            json.dump({"paths": paths, "updated_at": datetime.now().isoformat()}, f, indent=4)
-            
-        investment_service.invalidate_cache(system_id)
+    success = investment_service.mark_deleted_photos(system_id, paths)
+    if success:
         return jsonify({"ok": True, "count": len(paths)})
-    except Exception as e:
-        logger.error(f"Failed to save deletion list for {system_id}: {e}")
-        return jsonify({"error": str(e)}), 500
+    abort(404, "Failed to mark photos as deleted")
 
 @investments_bp.route("/investment/<system_id>/reload", methods=["POST"])
 def reload_investment(system_id):
@@ -568,23 +568,14 @@ def merge_investment(system_id):
     target_entry = im._find_index_entry(system_id)
     source_entry = im._find_index_entry(source_id)
 
-    if im.merge_by_id(system_id, source_id):
-        # Auto-suggest developers if they differ
-        if target_entry and source_entry:
-            t_dev_id = target_entry.get("usi_dev_id")
-            s_dev_id = source_entry.get("usi_dev_id")
-            if t_dev_id and s_dev_id and t_dev_id != s_dev_id:
-                t_dev = dm.get_developer_by_id(t_dev_id)
-                s_dev = dm.get_developer_by_id(s_dev_id)
-                if t_dev and s_dev:
-                    t_master = t_dev.get("master_id") or t_dev_id
-                    s_master = s_dev.get("master_id") or s_dev_id
-                    
-                    if t_master != s_master:
-                        dm.add_suggestion(t_dev_id, s_dev_id, "Połączono ich inwestycje")
-        
-        return jsonify({"ok": True})
-    return jsonify({"ok": False, "error": "Merge failed"}), 422
+    # 1. Guard clause - jeśli merge się nie udał, wychodzimy natychmiast
+    if not im.merge_by_id(system_id, source_id):
+        return jsonify({"ok": False, "error": "Merge failed"}), 422
+
+    # 2. Czysta delegacja - zero instrukcji 'if' w prawo
+    dm.suggest_merge_from_investments(target_entry, source_entry)
+    
+    return jsonify({"ok": True})
 
 @investments_bp.route("/investment/<system_id>/unmerge", methods=["POST"])
 def unmerge_investment(system_id):
@@ -630,47 +621,33 @@ def suggest_similar_investments(system_id):
 
 @investments_bp.route("/investment/<system_id>/review", methods=["POST"])
 def mark_reviewed(system_id):
-    """Bezpośredni brutalny zapis do pliku JSON na dysku."""
-    def _update(data):
-        data["reviewed"] = True
-        return True
-
-    if update_anchor_json(system_id, _update):
-        investment_service.invalidate_cache(system_id)
+    if investment_service.mark_as_reviewed(system_id):
         return jsonify({"ok": True})
-
-    abort(404, "Investment update failed (not found or disk error)")
+    abort(404, "Investment update failed")
 
 @investments_bp.route("/investment/<system_id>/add-report", methods=["POST"])
 def add_report(system_id):
-    """Dodawanie notatki użytkownika bezpośrednio do surowego pliku."""
     payload = request.get_json(silent=True) or {}
     note = payload.get("note")
     if not note:
         abort(400, "note is required")
 
-    def _update(data):
-        reports = data.setdefault("user_reports", [])
-        reports.append({
-            "note": note, 
-            "created_at": datetime.now().isoformat(),
-            "author": "User"
-        })
-        return True
-
-    if update_anchor_json(system_id, _update):
-        investment_service.invalidate_cache(system_id)
+    success = investment_service.add_report(system_id, note)
+    if success:
         return jsonify({"ok": True})
-
-    abort(404)
+    abort(404, "Failed to add report")
 @investments_bp.route("/register-bulk", methods=["POST"])
 def register_bulk():
     payload = request.get_json()
-    portal = payload.get("portal")
+    from python_worker.services.scraper_gateway import ScraperGateway
+    try:
+        portal = ScraperGateway.normalize_portal_name(payload.get("portal", ""))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+        
     investments = payload.get("investments", [])
-    
-    if not portal or not investments:
-        return jsonify({"error": "Missing portal or investments list"}), 400
+    if not investments:
+        return jsonify({"error": "Missing investments list"}), 400
 
     def run_bulk_job(job_id, p, invs):
         def progress_wrapper(report):
@@ -690,41 +667,19 @@ def register_bulk():
 
 @investments_bp.route("/register", methods=["POST"])
 def register():
-    payload = request.get_json()
+    payload = request.get_json() or {}
+    raw_portal = payload.get("portal", "")
+    
     try:
-        portal = payload.get("portal", "")
-        if "rynekpierwotny" in portal or portal == "rp": portal = "rp"
-        elif "otodom" in portal or portal == "oto": portal = "oto"
-        elif "tabelaofert" in portal or portal == "to": portal = "to"
-
-        dev_name = payload.get("developer_name")
-        # Ensure we don't pass dummy values that mask identification
-        if dev_name and dev_name.lower() in ("nieznany deweloper", "unknown", "nieznany-deweloper", ""):
-            dev_name = None
-
-        result = investment_service.register_investment(
-            portal=portal,
-            developer_name=dev_name,
-            name=payload.get("name"),
-            item_id=payload.get("id"),
-            url=payload.get("url"),
-            vendor_id=payload.get("vendor_id")
-        )
-
-        if result == (None, None):
-            return jsonify({"ok": True, "skipped": True, "message": "Investment already exists by ID"})
-
-        dev_slug, inv_slug, system_id = result
-
-        def run_register_job(job_id, sys_id, inv_name):
-            job_manager.update_progress(job_id, 10, f"Rozpoczęto pobieranie: {inv_name}")
-            if investment_service.update_investment(sys_id):
-                job_manager.update_progress(job_id, 100, f"Ukończono: {inv_name}")
-            else:
-                job_manager.update_progress(job_id, 100, f"Błąd pobierania: {inv_name}", status="failed")
-
-        job_id = job_manager.start_job(f"Register: {payload.get('name')}", run_register_job, system_id, payload.get('name'))
-        return jsonify({"ok": True, "job_id": job_id})
+        from python_worker.services.scraper_gateway import ScraperGateway
+        portal = ScraperGateway.normalize_portal_name(raw_portal)
+        
+        result = investment_service.register_investment(portal=portal, payload=payload)
+        return jsonify(result), 200
+        
+    except ValueError as e:
+        logger.warning(f"Registration failed - bad input: {e}")
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
-        logger.error(f"API Error in {request.path}: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"Registration critical error: {e}", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500

@@ -111,13 +111,7 @@
           const containerClass = `detail-right-panel usi-scroll usi-p-24 ${detailMode === 'C' ? 'usi-overflow-hidden' : 'usi-overflow-auto'}`;
           return (
             <div data-component="DetailRightPanel" className={containerClass}>
-              {localReviewed === false && (
-                <div className="usi-flex-row usi-m-b-16">
-                  <button className="usi-btn success" onClick={handleApprove}>
-                    <Icon name="check" size={12} /> Zatwierdź nową inwestycję
-                  </button>
-                </div>
-              )}
+
 
               <HeroBand
                 inv={validInv}

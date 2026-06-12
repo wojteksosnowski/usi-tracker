@@ -103,6 +103,7 @@ def filter_investments(investments: list, filters: dict) -> list:
     
     cities = filters.get("cities", [])
     if isinstance(cities, str): cities = cities.lower().split(",") if cities else []
+    elif isinstance(cities, list): cities = [c.lower() for c in cities]
     elif not cities and filters.get("city"): cities = [filters.get("city").lower()]
 
     min_rating = filters.get("min_rating")

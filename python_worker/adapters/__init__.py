@@ -324,7 +324,20 @@ class OtodomAdapter:
             "delivery_date": del_date_str or (f"{dy}-Q{dq}" if dy and dq else None),
         })
         
-        gallery = m.get("images") or (raw.get("ad") or raw).get("image_urls") or []
+        raw_imgs = actual_raw.get("images") or []
+        gallery = []
+        for img in raw_imgs:
+            if isinstance(img, dict):
+                url = img.get("large") or img.get("medium") or img.get("thumbnail")
+                if url:
+                    gallery.append(url)
+            elif isinstance(img, str):
+                gallery.append(img)
+                
+        if not gallery:
+            gallery = m.get("images") or (raw.get("ad") or raw).get("image_urls") or []
+            gallery = [g for g in gallery if isinstance(g, str)]
+
         u["image_urls"] = gallery
         u["images_count"] = len(gallery)
         

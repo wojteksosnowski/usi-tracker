@@ -41,7 +41,6 @@
           <div className="hero-band-title-row">
             <h1 className="usi-h1 hero-band-title">{inv.name}</h1>
             <span className="usi-body hero-band-developer">{inv.developer}</span>
-            <SourceLinks inv={inv} />
           </div>
           <div className="hero-band-stats">
             {inv.usi_inv_id && <span className="usi-mono" style={{opacity: 0.6}}>ID: {inv.usi_inv_id}</span>}

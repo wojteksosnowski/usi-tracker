@@ -27,13 +27,14 @@ class InvestmentEditorService:
         usi_file = resources["files"]["anchor"]
         
         existing_ratings = self.repo.get_ratings(system_id) or {}
+        ratings_data = payload.get("ratings", payload)
 
         changes = []
         for cat in CATS:
-            if cat in payload:
-                val = payload[cat]
+            if cat in ratings_data:
+                val = ratings_data[cat]
                 if val is not None:
-                    if not isinstance(val, (int, float)) or not (0 <= val <= 4):
+                    if not isinstance(val, (int, float)) or not (0 <= val <= 5):
                         raise ValueError(f"Invalid value for {cat}: {val}")
                     new_val = float(val)
                 else:

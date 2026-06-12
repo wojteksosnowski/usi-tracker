@@ -25,7 +25,7 @@ class InvestmentLoaderService:
         self.identity = identity_resolver or InvestmentIdentityResolver(self.data_dir, self.public_usi_dir)
         self._dev_index = None
 
-    def _extract_location_data(self, usi_data: Dict, inv_slug: str) -> Tuple[str, str, str, List[float]]:
+    def _extract_location_data(self, usi_data: Dict) -> Tuple[str, str, str, List[float]]:
         """Extracts and normalizes location information (address, city, district, coords)."""
         loc = usi_data.get("location", {})
         coords = loc.get("coords")
@@ -41,7 +41,7 @@ class InvestmentLoaderService:
         district = loc.get("district")
         if not district:
             parts = [p.strip() for p in address.split(",")]
-            district = parts[-1] if len(parts) >= 2 else inv_slug.split("-")[0].title()
+            district = parts[-1] if len(parts) >= 2 else ""
             
         return address, city, district, [lat, lng]
 
@@ -186,7 +186,7 @@ class InvestmentLoaderService:
             display_amenities = [m["label"] for m in usi.get("amenities_matched")]
 
         source, source_url, source_links = self._resolve_source_data(usi)
-        address, city, district, coords = self._extract_location_data(usi, inv_slug)
+        address, city, district, coords = self._extract_location_data(usi)
         master_id, merged_from, master_usi_inv_id = self._load_master_data(usi, inv_dir)
         ratings_data = usi.get("ratings", {})
                 

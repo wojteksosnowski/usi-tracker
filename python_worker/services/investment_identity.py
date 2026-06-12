@@ -89,16 +89,10 @@ class InvestmentIdentityResolver:
             if candidates:
                 anchor_file = sorted(candidates)[0]
 
-        raw_file = inv_dir / f"raw_{portal}_{portal_id}.json"
-        if not raw_file.exists():
-             # Fallback for raw files too
-             raw_candidates = list(inv_dir.glob(f"raw_{portal}_*.json")) or list(inv_dir.glob("raw_*.json"))
-             if raw_candidates:
-                 raw_file = sorted(raw_candidates)[0]
-        
         # Meta/ratings files are still partially slug-based in names, but located in ID-resolved folder
         inv_slug = entry.get("investment_slug")
-        meta_file = inv_dir / f"meta_{inv_slug}_ratings.json" if inv_slug else None
+        usi_inv_id = entry.get("usi_inv_id")
+        meta_file = inv_dir / f"meta_{usi_inv_id}_ratings.json" if usi_inv_id else None
 
         return {
             "id": entry["usi_inv_id"],
@@ -106,11 +100,10 @@ class InvestmentIdentityResolver:
             "base_dir": inv_dir,
             "files": {
                 "anchor": anchor_file if anchor_file and anchor_file.exists() else None,
-                "raw": raw_file if raw_file and raw_file.exists() else None,
                 "meta": meta_file if meta_file and meta_file.exists() else None,
                 "logs": [inv_dir / "deletion_list.json"] if (inv_dir / "deletion_list.json").exists() else []
             },
-            "images_dir": images_dir if images_dir and images_dir.exists() else None,
+            "images_dir": images_dir,
             "metadata": {
                 "portal": portal,
                 "portal_id": portal_id,

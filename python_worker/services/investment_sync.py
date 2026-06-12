@@ -90,6 +90,7 @@ class InvestmentSyncService:
         allow_existing: bool = False,
         vendor_id: Optional[str] = None,
         force_dev_slug: Optional[str] = None,
+        force_inv_slug: Optional[str] = None,
         skip_disk: bool = False,
         skip_index: bool = False
     ) -> Tuple[str, str, str, Dict, Optional[Path]]:
@@ -97,15 +98,38 @@ class InvestmentSyncService:
         Registers a new investment skeleton.
         ID-ONLY: Priority for portal ID resolution.
         """
-        # 1. Resolve developer
-        dev_slug, _, inv_slug_from_url, usi_dev_id = self.developer_resolver.resolve_developer_for_registration(
-            portal, developer_name, url, vendor_id, force_dev_slug
-        )
-        
-        # 2. Resolve target directory and slugs
-        target_inv_slug = inv_slug_from_url or slugify(name)
-        inv_dir = self._resolve_inv_dir(portal, item_id, dev_slug, target_inv_slug)
-        inv_slug = inv_dir.name
+        # 1. BEZWZGLĘDNY RYGOR: usi-tracker nie tworzy folderów, jeśli usi-scrapers już to zrobiło
+        inv_dir = None
+        if self.tech_manager and portal and item_id:
+            resolved = self.tech_manager.get_investment_path(portal, str(item_id))
+            if resolved:
+                inv_dir = Path(resolved)
+
+        if not inv_dir and url:
+            # POBIERAMY RAW, ŻEBY UZYSKAĆ SLUG Z MAPPING.PY ZAMIAST ZGADYWAĆ
+            logger.info(f"Brak inv_dir, wymuszam pobranie z scrapera, aby uzyskać dokładny slug z mapping.py: {url}")
+            try:
+                raw_data = self.gateway.ingest_investment_by_url(portal, url)
+                if raw_data and "error" not in raw_data:
+                    # Po pobraniu, tech_manager będzie już znał ścieżkę
+                    resolved = self.tech_manager.get_investment_path(portal, str(item_id))
+                    if resolved:
+                        inv_dir = Path(resolved)
+                        force_dev_slug = raw_data.get("developer_slug") or force_dev_slug
+                        force_inv_slug = raw_data.get("investment_slug") or force_inv_slug
+            except Exception as e:
+                logger.error(f"Nie udało się wymusić pobrania: {e}")
+
+        if inv_dir:
+            # SLUG POBIERAMY Z API SCAPERS, A NIE Z NAZWY FOLDERU (ROBUSTNOŚĆ NA ZMIANY ŚCIEŻEK)
+            dev_slug = force_dev_slug or inv_dir.parent.name
+            inv_slug = force_inv_slug or inv_dir.name
+            
+            # Spróbujmy wyciągnąć usi_dev_id z istniejącego indeksu
+            dev_record = self.dm.find_developer_by_id(portal, str(vendor_id)) if vendor_id else None
+            usi_dev_id = dev_record.get("usi_dev_id") if dev_record else None
+        else:
+            raise ValueError(f"USI-Tracker odmawia utworzenia folderu na ślepo bez uprzedniego zatwierdzenia przez bibliotekę usi-scrapers (brak pliku raw).")
 
         # 3. Check for existing investment
         existing_file = self._find_existing_anchor(inv_dir, portal, item_id)
@@ -333,6 +357,8 @@ class InvestmentSyncService:
         self._enrich_with_derived_data(new_unified, inv_dir, resources, usi_data, fast_mode, cached_index)
 
         # 6. Persistence
+        if "usi_inv_id" not in new_unified or not new_unified["usi_inv_id"]:
+            new_unified["usi_inv_id"] = system_id
         self.repo.save_investment_json(system_id, new_unified, anchor_path=actual_file)
         
         if not skip_index:
@@ -358,8 +384,7 @@ class InvestmentSyncService:
             "id": system_id,
             "base_dir": inv_dir,
             "files": {
-                "anchor": inv_dir / f"usi_{system_id}.json",
-                "raw": inv_dir / f"raw_{p_key}_{p_id}.json"
+                "anchor": inv_dir / f"usi_{system_id}.json"
             },
             "images_dir": images_dir,
             "metadata": {
@@ -375,8 +400,8 @@ class InvestmentSyncService:
         candidates = []
         for p in ("rp", "oto", "to"):
             candidates.extend(sorted(inv_dir.glob(f"meta_{p}_*.json"), reverse=True))
+        candidates.append(inv_dir / "meta_ratings.json")
         candidates.append(inv_dir / f"meta_{inv_slug}_ratings.json")
-        
         for path in candidates:
             if path.exists():
                 try:
@@ -501,10 +526,12 @@ class InvestmentSyncService:
                     developer_name=dev_meta.get("name") or meta.get("developer_name") or item_info.get("dev_name"),
                     name=meta.get("name") or item_info.get("name") or f"Inwestycja {portal.upper()} {item_id}",
                     item_id=item_id,
-                    url=item_info.get("url"),
+                    url=item_info.get("url") or data.get("url") or data.get("to_url"),
                     allow_existing=True,
                     vendor_id=vendor_id,
-                    skip_index=True
+                    skip_index=True,
+                    force_dev_slug=data.get("developer_slug") or dev_meta.get("slug"),
+                    force_inv_slug=data.get("investment_slug")
                 )
                 
                 logger.info(f"[BATCH] Registered as {usi_inv_id}. Proceeding to update...")

@@ -93,12 +93,9 @@ class InvestmentRepository:
             pass
         return {}
 
-    def save_ratings(self, system_id: str, ratings_data: dict, inv_slug: str = None):
-        """Saves ratings for the investment. Supports (system_id, ratings) and (dev, inv, ratings)."""
-        if inv_slug:
-            target_dir = self.data_dir / system_id / inv_slug
-        else:
-            target_dir = self._get_dir_from_system_id(system_id)
+    def save_ratings(self, system_id: str, ratings_data: dict):
+        """Saves ratings for the investment."""
+        target_dir = self._get_dir_from_system_id(system_id)
             
         ratings_file = target_dir / "ratings.json"
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -124,12 +121,9 @@ class InvestmentRepository:
         with open(poi_file, "w", encoding="utf-8") as f:
             json.dump(poi_data, f, indent=2, ensure_ascii=False)
 
-    def mark_as_deleted(self, system_id: str, deleted_items: list[str], inv_slug: str = None):
-        """Saves the deleted properties list. Supports (system_id, items) and (dev, inv, items)."""
-        if inv_slug:
-            target_dir = self.data_dir / system_id / inv_slug
-        else:
-            target_dir = self._get_dir_from_system_id(system_id)
+    def mark_as_deleted(self, system_id: str, deleted_items: list[str]):
+        """Saves the deleted properties list."""
+        target_dir = self._get_dir_from_system_id(system_id)
             
         deletion_file = target_dir / "deletion_list.json"
         target_dir.mkdir(parents=True, exist_ok=True)

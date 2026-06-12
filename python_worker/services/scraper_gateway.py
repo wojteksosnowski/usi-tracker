@@ -8,7 +8,27 @@ from python_worker.config import get_shared_config, get_shared_fetcher
 
 logger = logging.getLogger(__name__)
 
+PORTAL_MAPPING = {
+    "rynekpierwotny": "rp",
+    "rp": "rp",
+    "otodom": "oto",
+    "oto": "oto",
+    "tabelaofert": "to",
+    "to": "to"
+}
+
 class ScraperGateway:
+    @staticmethod
+    def normalize_portal_name(raw_portal: str) -> str:
+        """Przekształca luźną nazwę portalu na kanoniczny identyfikator systemowy."""
+        raw_cleaned = str(raw_portal).lower().strip()
+        
+        for indicator, canonical in PORTAL_MAPPING.items():
+            if indicator in raw_cleaned:
+                return canonical
+                
+        raise ValueError(f"Unsupported or unrecognized portal: {raw_portal}")
+
     def __init__(self, config=None, fetcher=None):
         self._config = config or get_shared_config()
         self._fetcher = fetcher or get_shared_fetcher()
@@ -21,24 +41,7 @@ class ScraperGateway:
 
     def load_raw(self, portal: str, identifier: str) -> Optional[Dict[str, Any]]:
         config = self._config
-        res = scraper_api.load_raw(config, portal, str(identifier))
-        if res: return res
-        
-        # MANDAT ROBUSTNOŚCI: Fallback na ręczne przeszukanie katalogów, jeśli API zawiedzie
-        # (Przydatne gdy ID w indeksie scrapera rozjechało się z ID w trackerze)
-        logger.debug(f"load_raw: API failed for {portal}/{identifier}. Trying manual search...")
-        from pathlib import Path
-        public_dir = Path(config.public_dir)
-        # Przeszukujemy USIdata w poszukiwaniu pliku raw_{portal}_{identifier}.json
-        matches = list(public_dir.rglob(f"raw_{portal}_{identifier}.json"))
-        if matches:
-            try:
-                import json
-                with open(matches[0], "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception:
-                pass
-        return None
+        return scraper_api.load_raw(config, portal, str(identifier))
 
     def ingest_investment_by_url(self, portal: str, url: str) -> Any:
         return scraper_api.ingest_investment_by_url(self._config, self._fetcher, portal, url)

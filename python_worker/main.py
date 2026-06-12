@@ -443,34 +443,48 @@ def main():
 
     elif args.command == "rebuild-all":
         logger.info("Rebuilding usi_*.json from local raw files for all investments...")
-        from .services.investment_service import InvestmentService
+        from .services.scraper_gateway import ScraperGateway
+        from .investment_index import InvestmentIndex
+
         svc = InvestmentService()
+        gateway = ScraperGateway()
+        idx = InvestmentIndex(USI_DATA_DIR)
+        
+        all_investments = idx.get_all()
         built = failed = skipped = 0
-        for dev_dir in sorted(USI_DATA_DIR.iterdir()):
-            if not dev_dir.is_dir() or dev_dir.name.startswith("_"):
+        
+        for entry in all_investments:
+            system_id = entry.get("usi_inv_id")
+            portal = entry.get("portal")
+            portal_id = entry.get("portal_id")
+            
+            if not system_id or not portal or not portal_id:
+                skipped += 1
                 continue
-            for inv_dir in sorted(dev_dir.iterdir()):
-                if not inv_dir.is_dir():
-                    continue
-                dev_slug = dev_dir.name
-                inv_slug = inv_dir.name
-                has_raw = any(inv_dir.glob("raw_*.json"))
-                if not has_raw:
+                
+            has_raw = gateway.has_local_raw(portal, str(portal_id))
+            if not has_raw:
+                skipped += 1
+                continue
+
+            # In force mode, we rebuild anyway. If not force, we would check if usi exists.
+            # We can check if anchor file exists using identity.
+            if not args.force:
+                res = svc.identity.get_investment_resources(system_id)
+                if res and res["files"].get("anchor"):
                     skipped += 1
                     continue
-                has_usi = any(inv_dir.glob("usi_*.json"))
-                if has_usi and not args.force:
-                    skipped += 1
-                    continue
-                try:
-                    ok = svc.update_investment(dev_slug, inv_slug, use_local_raw=True, skip_images=True, skip_index=True, skip_log=True)
-                    if ok:
-                        built += 1
-                    else:
-                        failed += 1
-                except Exception as e:
-                    logger.error(f"Failed {dev_slug}/{inv_slug}: {e}")
+
+            try:
+                ok = svc.update_investment(system_id, use_local_raw=True, skip_images=True, skip_index=True, skip_log=True)
+                if ok:
+                    built += 1
+                else:
                     failed += 1
+            except Exception as e:
+                logger.error(f"Failed {system_id}: {e}")
+                failed += 1
+                
             if built % 500 == 0 and built > 0:
                 logger.info(f"Progress: {built} built, {failed} failed, {skipped} skipped...")
         logger.info(f"rebuild-all finished: {built} built, {failed} failed, {skipped} skipped.")

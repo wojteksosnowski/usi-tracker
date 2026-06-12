@@ -415,9 +415,6 @@ class DeveloperRepository:
             else:
                 anchor_file = self._find_anchor_by_id(usi_dev_id)
 
-        # Determine raw files
-        raw_files = sorted(list(subdir.glob("raw_*.json")))
-        
         # Determine master file
         master_file = None
         master_id = entry.get("master_id")
@@ -438,7 +435,6 @@ class DeveloperRepository:
             "base_dir": subdir,
             "files": {
                 "anchor": anchor_file if anchor_file and anchor_file.exists() else None,
-                "raw": raw_files,
                 "master": master_file if master_file and master_file.exists() else None,
                 "logs": [log_file] if log_file.exists() else []
             },

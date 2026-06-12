@@ -1,3 +1,10 @@
+## Wersja 0.9.89 — Refaktoryzacja Logiki Łączenia Inwestycji (Push Down Method) — 2026-06-12
+
+### Zmieniono
+- **Enkapsulacja logiki łączenia deweloperów**: Przeniesiono ("Push Down Method") rozproszoną anemiczną logikę wyciągania i parowania obiektów deweloperskich ze starej ruty API bezpośrednio do warstwy biznesowej (`DeveloperManager.suggest_merge_from_investments`). Menedżer stał się samodzielny i zdolny do samoczynnej oceny kryteriów łączenia.
+- **Guard Clauses i spłaszczenie zagnieżdżeń**: Zastosowano wczesny powrót (Guard Clause) w kontrolerze `/investment/<system_id>/merge` w `investments.py`. Eliminacja skomplikowanej "piramidy warunków" (nested ifs) i zmniejszenie złożoności cyklomatycznej endpointu poprzez wykorzystanie płaskiej delegacji.
+- **Rezygnacja ze zgadywania z nazw folderów**: Poprawki w `InvestmentSyncService.register_investment` upewniające, że parametry `dev_slug` i `inv_slug` są odczytywane ściśle z API `mapping.py` po zakończeniu pobierania (lub odrzucane z `ValueError` gdy plik `raw` nie zostanie wyodrębniony), a nie zgadywane z lokalnych ścieżek. Wdrożono absolutny nakaz korzystania z resolvera `TechnicalDataManager` biblioteki `usi-scrapers`.
+
 ## Wersja 0.9.88 — Naprawa Błędów API i Logiki Odświeżania Inwestycji — 2026-06-12
 
 ### Zmieniono

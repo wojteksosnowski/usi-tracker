@@ -107,16 +107,18 @@ class InvestmentService:
                 s = str(value).lower()
                 filtered = [i for i in filtered if s in i.get('name', '').lower() or s in i.get('developer', '').lower()]
             elif key == 'sources' and isinstance(value, list):
-                # i.get('sources') is a dict {portal: {...}}
+                if len(value) == 0: continue
                 filtered = [i for i in filtered if any(p.lower() in [s.lower() for s in value] for p in i.get('sources', {}).keys())]
             elif key == 'segments' and isinstance(value, list):
+                if len(value) == 0: continue
                 filtered = [i for i in filtered if i.get('segment') in value]
             elif key == 'cities' and isinstance(value, list):
+                if len(value) == 0: continue
                 filtered = [i for i in filtered if i.get('city', '').lower() in [c.lower() for c in value]]
             elif key in ['reviewed', 'developer_slug', 'portal', 'status']:
                 filtered = [i for i in filtered if i.get(key) == value]
             else:
-                logger.debug(f"Ignoring unknown filter key: {key}")
+                pass
         return filtered
 
     def rebuild_index(self) -> int:
@@ -131,9 +133,14 @@ class InvestmentService:
             "data": []
         }
         
+        from python_worker.services.scraper_gateway import ScraperGateway
+        gateway = ScraperGateway()
+        
         for anchor in anchors:
             portal = anchor.get("portal")
             sources = anchor.get("sources") or {}
+            portal_id = anchor.get("portal_id")
+
             if not portal and sources:
                 for p in ("rp", "oto", "to"):
                     if p in sources:
@@ -142,11 +149,12 @@ class InvestmentService:
                 if not portal:
                     portal = list(sources.keys())[0] if sources else "unknown"
 
-            raw_path = self.public_usi_dir.parent / "USIdata" / anchor.get("raw_file", "")
-            meta_path = self.public_usi_dir.parent / "USIdata" / anchor.get("meta_file", "")
+            raw_data = gateway.load_raw(portal, str(portal_id)) if portal and portal_id else None
             
-            raw_data = load_json(raw_path)
-            meta_data = load_json(meta_path)
+            resources = self.identity.get_investment_resources(anchor.get("usi_inv_id", ""))
+            meta_data = {}
+            if resources and resources["files"].get("meta"):
+                meta_data = load_json(resources["files"]["meta"])
             
             master["data"].append({
                 "portal": portal,
@@ -158,8 +166,46 @@ class InvestmentService:
     # ---------------------------------------------------------
     # Sync & Updates (Delegated)
     # ---------------------------------------------------------
-    def register_investment(self, *args, **kwargs):
-        return self.sync.register_investment(*args, **kwargs)
+    def register_investment(self, portal=None, developer_name=None, name=None, item_id=None, url=None, vendor_id=None, payload=None, **kwargs):
+        if payload is not None:
+            dev_name = payload.get("developer_name")
+            if dev_name and dev_name.lower() in ("nieznany deweloper", "unknown", "nieznany-deweloper", ""):
+                dev_name = None
+            
+            result = self.sync.register_investment(
+                portal=portal,
+                developer_name=dev_name,
+                name=payload.get("name"),
+                item_id=payload.get("id"),
+                url=payload.get("url"),
+                vendor_id=payload.get("vendor_id")
+            )
+            
+            if result == (None, None):
+                return {"ok": True, "skipped": True, "message": "Investment already exists by ID"}
+
+            _, _, system_id = result
+
+            from python_worker.jobs import job_manager
+            def run_register_job(job_id, sys_id, inv_name):
+                job_manager.update_progress(job_id, 10, f"Rozpoczęto pobieranie: {inv_name}")
+                if self.update_investment(sys_id):
+                    job_manager.update_progress(job_id, 100, f"Ukończono: {inv_name}")
+                else:
+                    job_manager.update_progress(job_id, 100, f"Błąd pobierania: {inv_name}", status="failed")
+
+            job_id = job_manager.start_job(f"Register: {payload.get('name')}", run_register_job, system_id, payload.get('name'))
+            return {"ok": True, "job_id": job_id}
+            
+        return self.sync.register_investment(
+            portal=portal, 
+            developer_name=developer_name, 
+            name=name, 
+            item_id=item_id, 
+            url=url, 
+            vendor_id=vendor_id, 
+            **kwargs
+        )
 
     def download_raw_json(self, portal: str, identifier: str, system_id: str):
         return self.sync.download_raw_json(portal, identifier, system_id)
@@ -176,13 +222,21 @@ class InvestmentService:
     # Editor Operations (Delegated)
     # ---------------------------------------------------------
     def save_ratings(self, system_id, payload):
-        return self.editor.save_ratings(system_id, payload)
+        success = self.editor.save_ratings(system_id, payload)
+        if success: self.invalidate_cache(system_id)
+        return success
 
     def mark_as_reviewed(self, system_id):
-        return self.editor.mark_as_reviewed(system_id)
+        success = self.editor.mark_as_reviewed(system_id)
+        if success: self.invalidate_cache(system_id)
+        return success
 
     def add_report(self, system_id, note):
-        return self.editor.add_report(system_id, note)
+        success = self.editor.add_report(system_id, note)
+        if success: self.invalidate_cache(system_id)
+        return success
 
     def mark_deleted_photos(self, system_id, paths):
-        return self.editor.mark_deleted_photos(system_id, paths)
+        success = self.editor.mark_deleted_photos(system_id, paths)
+        if success: self.invalidate_cache(system_id)
+        return success
