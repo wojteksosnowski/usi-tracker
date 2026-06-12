@@ -109,7 +109,19 @@
     const handleRating = (key, val) => {
       const next = { ...ratings, [key]: val };
       setRatings(next);
-      persist(next, comment, status, segment);
+      
+      let nextStatus = status;
+      const allZero = Object.values(next).every(v => v === 0);
+      
+      if (allZero && status !== 'Brak') {
+        nextStatus = 'Brak';
+        setStatus(nextStatus);
+      } else if (!allZero && status === 'Brak') {
+        nextStatus = 'Wstępna';
+        setStatus(nextStatus);
+      }
+      
+      persist(next, comment, nextStatus, segment);
     };
 
     const handleComment = (e) => {
