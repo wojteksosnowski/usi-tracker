@@ -165,9 +165,9 @@ function DataBusProvider({ children }) {
       if (f.status) params.append('status', f.status);
       if (f.onlyUnreviewed) params.append('onlyUnreviewed', 'true');
       if (f.onlyNoPhotos) params.append('onlyNoPhotos', 'true');
-      if (f.sources && f.sources.size > 0) params.append('sources', Array.from(f.sources).join(','));
-      if (f.segments && f.segments.size > 0) params.append('segments', Array.from(f.segments).join(','));
-      if (f.cities && f.cities.size > 0) params.append('cities', Array.from(f.cities).join(','));
+      if (f.sources && f.sources.size > 0) f.sources.forEach(s => params.append('sources', s));
+      if (f.segments && f.segments.size > 0) f.segments.forEach(s => params.append('segments', s));
+      if (f.cities && f.cities.size > 0) f.cities.forEach(s => params.append('cities', s));
       url += `?${params.toString()}`;
     }
     return setVariable(type, fetch(url).then(r => r.json()).then(data => {

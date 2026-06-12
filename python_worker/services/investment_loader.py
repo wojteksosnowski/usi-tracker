@@ -186,6 +186,15 @@ class InvestmentLoaderService:
         address, city, district, coords = self._extract_location_data(usi)
         master_id, merged_from, master_usi_inv_id = self._load_master_data(usi, inv_dir)
         ratings_data = usi.get("ratings", {})
+
+        base_dir_rel = ""
+        if resources and resources.get("base_dir"):
+            try:
+                base_dir_rel = str(resources["base_dir"].relative_to(self.data_dir.parent.parent))
+            except ValueError:
+                base_dir_rel = str(resources["base_dir"])
+        else:
+            base_dir_rel = f"Public/USIdata/{dev_slug}/{inv_slug}"
                 
         base_data = {
             "slug": f"{dev_slug}/{inv_slug}",
@@ -230,7 +239,7 @@ class InvestmentLoaderService:
             "ratings": ratings_data,
             "comment": ratings_data.get("komentarz", ""),
             "photos_to_delete": usi.get("photos_to_delete", 0),
-            "folder_path": f"Public/USIdata/{dev_slug}/{inv_slug}",
+            "folder_path": base_dir_rel,
             "last_updated_ts": usi_file.stat().st_mtime if usi_file else None,
             "website": "",
             "sources": usi.get("sources", {}),

@@ -28,9 +28,9 @@ logger = logging.getLogger(__name__)
 
 PORTAL_NAMES: Dict[str, str] = {"rp": "RynekPierwotny", "oto": "Otodom", "to": "TabelaOfert"}
 IDENTIFIER_PRIORITIES: Dict[str, List[str]] = {
-    "rp": ["url", "id"],
-    "oto": ["url", "id"],
-    "to": ["url", "id"]
+    "rp": ["id", "url"],
+    "oto": ["id", "url"],
+    "to": ["id", "url"]
 }
 
 class InvestmentSyncService:
@@ -92,119 +92,80 @@ class InvestmentSyncService:
         force_dev_slug: Optional[str] = None,
         force_inv_slug: Optional[str] = None,
         skip_disk: bool = False,
-        skip_index: bool = False
+        skip_index: bool = False,
+        raw_data: Optional[Dict] = None
     ) -> Tuple[str, str, str, Dict, Optional[Path]]:
         """
-        Registers a new investment skeleton.
-        ID-ONLY: Priority for portal ID resolution.
+        Registers a new investment by ingesting data from the portal and running the update pipeline.
+        Tracker delegates all I/O and folder creation to usi-scrapers.
         """
-        # 1. BEZWZGLĘDNY RYGOR: usi-tracker nie tworzy folderów, jeśli usi-scrapers już to zrobiło
-        inv_dir = None
-        if self.tech_manager and portal and item_id:
-            resolved = self.tech_manager.get_investment_path(portal, str(item_id))
-            if resolved:
-                inv_dir = Path(resolved)
-
-        if not inv_dir and url:
-            # POBIERAMY RAW, ŻEBY UZYSKAĆ SLUG Z MAPPING.PY ZAMIAST ZGADYWAĆ
-            logger.info(f"Brak inv_dir, wymuszam pobranie z scrapera, aby uzyskać dokładny slug z mapping.py: {url}")
-            try:
-                raw_data = self.gateway.ingest_investment_by_url(portal, url)
-                if raw_data and "error" not in raw_data:
-                    # Po pobraniu, tech_manager będzie już znał ścieżkę
-                    resolved = self.tech_manager.get_investment_path(portal, str(item_id))
-                    if resolved:
-                        inv_dir = Path(resolved)
-                        force_dev_slug = raw_data.get("developer_slug") or force_dev_slug
-                        force_inv_slug = raw_data.get("investment_slug") or force_inv_slug
-            except Exception as e:
-                logger.error(f"Nie udało się wymusić pobrania: {e}")
-
-        if inv_dir:
-            # SLUG POBIERAMY Z API SCAPERS, A NIE Z NAZWY FOLDERU (ROBUSTNOŚĆ NA ZMIANY ŚCIEŻEK)
-            dev_slug = force_dev_slug or inv_dir.parent.name
-            inv_slug = force_inv_slug or inv_dir.name
-            
-            # Spróbujmy wyciągnąć usi_dev_id z istniejącego indeksu
-            dev_record = self.dm.find_developer_by_id(portal, str(vendor_id)) if vendor_id else None
-            usi_dev_id = dev_record.get("usi_dev_id") if dev_record else None
+        portal = self.gateway.normalize_portal_name(portal)
+        
+        # 1. Bezwzględny rygor: pobieramy pełne dane przez scraper API (chyba że podano raw_data)
+        if raw_data:
+            pass # Use provided data
+        elif url:
+            raw_data = self.gateway.ingest_investment_by_url(portal, url)
+        elif item_id:
+            raw_data = self.gateway.refresh_investment_by_id(portal, item_id)
         else:
-            raise ValueError(f"USI-Tracker odmawia utworzenia folderu na ślepo bez uprzedniego zatwierdzenia przez bibliotekę usi-scrapers (brak pliku raw).")
+            raise ValueError("Rejestracja wymaga podania URL, item_id lub raw_data")
 
-        # 3. Check for existing investment
-        existing_file = self._find_existing_anchor(inv_dir, portal, item_id)
-        if existing_file:
-            if not allow_existing:
-                raise ValueError(f"Investment already exists: {dev_slug}/{inv_slug}")
-            try:
-                data = json.loads(existing_file.read_text(encoding="utf-8"))
-                return dev_slug, inv_slug, data.get("usi_inv_id"), data, existing_file
-            except json.JSONDecodeError as jde:
-                logger.error(f"Zniszczony plik anchor JSON: {existing_file}. Błąd: {jde}")
+        if not raw_data or "error" in raw_data:
+            raise ValueError(f"Nie udało się pobrać danych z portalu {portal}: {raw_data.get('error') if raw_data else 'Brak danych'}")
 
-        # 4. Create skeleton
-        inv_dir.mkdir(parents=True, exist_ok=True)
-        system_id = f"{portal}_{item_id}" if item_id else inv_slug
+        # 2. Wyciągnięcie kluczowych identyfikatorów
+        item_id = str(raw_data.get("id") or item_id)
+        dev_slug = force_dev_slug or raw_data.get("developer_slug")
+        inv_slug = force_inv_slug or raw_data.get("investment_slug")
         
-        skeleton = {
-            "usi_inv_id": system_id,
-            "investment_slug": inv_slug,
+        if not dev_slug or not inv_slug:
+            resolved = self.tech_manager.get_investment_path(portal, item_id)
+            if resolved:
+                p = Path(resolved)
+                dev_slug = dev_slug or p.parent.name
+                inv_slug = inv_slug or p.name
+        
+        if not dev_slug or not inv_slug:
+            raise ValueError(f"Nie udało się wyznaczyć slugów dla {portal}/{item_id}")
+
+        usi_inv_id = f"{portal}_{item_id}"
+        
+        # Sprawdzenie czy już istnieje
+        if not allow_existing:
+            resources = self.identity.get_investment_resources(usi_inv_id)
+            if resources and resources["files"].get("anchor"):
+                raise ValueError(f"Inwestycja {usi_inv_id} już istnieje w bazie.")
+
+        # 3. Wywołanie standardowego potoku aktualizacji (transformacja + zapis + indeks)
+        initial_data = {
+            "usi_inv_id": usi_inv_id,
+            "sources": {portal: {"id": item_id, "url": url}},
             "developer_slug": dev_slug,
-            "usi_dev_id": usi_dev_id,
-            "name": name,
-            "reviewed": False,
-            "sources": {portal: {"id": str(item_id), "url": url}} if item_id else {},
-            "specifications": {"segment": None},
-            "status": "Brak",
-            "audit": {"created_at": datetime.now().isoformat()}
+            "investment_slug": inv_slug,
+            "name": name or raw_data.get("name"),
+            "usi_dev_id": (self.dm.find_developer_by_id(portal, str(vendor_id)) or {}).get("usi_dev_id") if vendor_id else None
         }
-
-        if vendor_id and item_id:
-            mapping = self.gateway.generate_portal_mapping(portal, vendor_id)
-            skeleton["sources"][portal].update(mapping)
-
-        target_file = None
-        if not skip_disk:
-            target_file = self.repo.create_investment_skeleton(
-                skeleton["usi_inv_id"], 
-                portal, 
-                str(item_id) if item_id else None, 
-                skeleton
-            )
-            
-            if not skip_index:
-                self._update_indices_after_registration(skeleton["usi_inv_id"], inv_slug, dev_slug)
-
-            log_to_processing_log(dev_slug, inv_slug, f"Registered from discovery ({portal})")
-            
-        return dev_slug, inv_slug, skeleton["usi_inv_id"], skeleton, target_file
-
-    def _find_existing_anchor(self, inv_dir: Path, portal: Optional[str], item_id: Optional[str]) -> Optional[Path]:
-        """Helper to find existing usi_*.json file strictly by ID match."""
-        if not inv_dir or not inv_dir.exists():
-            return None
         
-        # Priority 1: Match filename exact ID
-        if portal and item_id:
-            target = inv_dir / f"usi_{portal}_{item_id}.json"
-            if target.exists():
-                return target
+        success = self.update_investment(
+            usi_inv_id, 
+            use_local_raw=True, 
+            skip_index=skip_index,
+            initial_data=initial_data
+        )
+        
+        if not success:
+            raise ValueError(f"Błąd przetwarzania/transformacji inwestycji {usi_inv_id}")
+
+        # 4. Załadowanie i zwrócenie finalnego rekordu
+        resources = self.identity.get_investment_resources(usi_inv_id)
+        if not resources:
+            resources = self._resolve_resources_manually(usi_inv_id, initial_data)
             
-        # Priority 2: Read candidates and check if sources contain the exact portal and ID
-        if portal and item_id:
-            for f in inv_dir.glob("usi_*.json"):
-                if "usi_dev_" in f.name:
-                    continue
-                try:
-                    import json
-                    data = json.loads(f.read_text(encoding="utf-8"))
-                    sources = data.get("sources", {})
-                    if portal in sources and str(sources[portal].get("id")) == str(item_id):
-                        return f
-                except Exception:
-                    pass
-                    
-        return None
+        anchor_file = resources["files"]["anchor"]
+        final_data = json.loads(anchor_file.read_text(encoding="utf-8"))
+        
+        return dev_slug, inv_slug, usi_inv_id, final_data, anchor_file
 
     def _update_indices_after_registration(self, system_id: str, inv_slug: str, dev_slug: str) -> None:
         """Helper to trigger index updates."""
@@ -224,8 +185,17 @@ class InvestmentSyncService:
             return False
 
 
-    def _resolve_portal_identifier(self, portal_data: dict, portal_key: str) -> Optional[str]:
-        """Resolves the best identifier (URL or ID) for a portal."""
+    def _resolve_portal_identifier(self, portal_data: dict, portal_key: str, system_id: str = "") -> Optional[str]:
+        """Resolves the best identifier (URL or ID) for a portal.
+        Priority: 
+        1. If system_id belongs to this portal, extract ID directly from system_id to avoid stale numeric IDs.
+        2. IDENTIFIER_PRIORITIES from portal_data.
+        """
+        if system_id and system_id.startswith(f"{portal_key}_"):
+            parts = system_id.split("_", 1)
+            if len(parts) == 2:
+                return parts[1]
+                
         fields = IDENTIFIER_PRIORITIES.get(portal_key, ["url", "id"])
         return next((portal_data.get(f) for f in fields if portal_data.get(f)), None)
 
@@ -238,7 +208,7 @@ class InvestmentSyncService:
             return None, None, f"{portal_name} (No resources)"
 
         metadata = resources["metadata"]
-        identifier = self._resolve_portal_identifier(sources[portal], portal)
+        identifier = self._resolve_portal_identifier(sources[portal], portal, system_id)
         if not identifier:
             return None, None, None
 
@@ -292,6 +262,9 @@ class InvestmentSyncService:
         if not resources:
             logger.warning(f"Investment resources not found skipping ID: {system_id}")
             return False
+            
+        # Zawsze przebudowujemy cache resolvera przed odświeżaniem w trybie UI, bo mógł się zdezaktualizować
+        self.tech_manager.resolver.force_rebuild()
             
         inv_dir = resources["base_dir"]
         actual_file = resources["files"].get("anchor")
@@ -488,76 +461,75 @@ class InvestmentSyncService:
         - Local transformation
         - Rebuilding index once at the end
         """
-        targets, to_process = self._prepare_batch_identifiers(portal, investments)
+    def process_batch(self, portal: str, investments: List[Dict], on_progress_callback: Optional[Any] = None) -> int:
+        """
+        Główna pętla batch: ufa całkowicie bibliotece usi-scrapers.
+        Pobiera, mapuje i zrzuca plik usi_*.json.
+        """
+        targets, _ = self._prepare_batch_identifiers(portal, investments)
         if not targets:
             return 0
 
-        # 1. Bulk download
+        logger.info(f"[BATCH] Delegating {len(targets)} targets to usi-scrapers process_batch_ingest...")
         batch_results = self.gateway.process_batch(portal, targets, on_progress=on_progress_callback)
         logger.info(f"[BATCH] Gateway returned {len(batch_results)} results for {portal}")
+        
         saved_count = 0
-        cached_index = inv_index.get_index(self.data_dir)
 
-        # 2. Consumption and processing
-        for i, (item_info, data) in enumerate(zip(to_process, batch_results)):
+        for i, data in enumerate(batch_results):
             if not data or (isinstance(data, dict) and "error" in data):
-                logger.warning(f"[BATCH] Skipping item {i} due to empty data or error: {data}")
+                logger.warning(f"[BATCH] Skipping item {i} due to empty data or error")
                 continue
 
             try:
-                # 3. Preparation
                 raw_payload = data.get("raw_details", data) if isinstance(data, dict) else data
                 
-                meta = transform_to_unified(portal, raw_payload, entity_type="investment") or {}
+                # Używamy API do mapowania
+                unified = transform_to_unified(portal, raw_payload, entity_type="investment") or {}
                 dev_meta = self.gateway.extract_developer_meta(raw_payload, portal)
-
-                # 4. ID Resolution (Sacred IDs)
-                item_id = self._resolve_item_id_for_batch(portal, meta, item_info, data)
-                if not item_id:
-                    continue
-
-                # 4.5. Vendor ID extraction
-                vendor_id = dev_meta.get("id") or meta.get("vendor_id") or item_info.get("vendor_id")
-
-                # 5. Registration and Update (fast_mode enabled)
-                logger.info(f"[BATCH] Registering {portal}/{item_id}...")
-                _, _, usi_inv_id, skeleton, inv_path = self.register_investment(
-                    portal=portal,
-                    developer_name=dev_meta.get("name") or meta.get("developer_name") or item_info.get("dev_name"),
-                    name=meta.get("name") or item_info.get("name") or f"Inwestycja {portal.upper()} {item_id}",
-                    item_id=item_id,
-                    url=item_info.get("url") or data.get("url") or data.get("to_url"),
-                    allow_existing=True,
-                    vendor_id=vendor_id,
-                    skip_index=True,
-                    force_dev_slug=data.get("developer_slug") or dev_meta.get("slug"),
-                    force_inv_slug=data.get("investment_slug")
-                )
                 
-                logger.info(f"[BATCH] Registered as {usi_inv_id}. Proceeding to update...")
-
-                if usi_inv_id:
-                    # MANDAT ID-ONLY: Zapisujemy surowe dane na dysk przed wywołaniem update_investment(use_local_raw=True)
-                    self.repo.save_raw_json(usi_inv_id, portal, item_id, raw_payload, target_dir=inv_path.parent if inv_path else None)
+                item_id = str(unified.get("id") or unified.get("numeric_id") or "")
+                if not item_id:
+                    logger.warning(f"[BATCH] Could not resolve item_id for item {i}")
+                    continue
                     
-                    ok = self.update_investment(
-                        usi_inv_id, 
-                        use_local_raw=True, 
-                        fast_mode=True, 
-                        skip_index=True, 
-                        initial_data=skeleton,
-                        cached_index=cached_index
-                    )
-                    logger.info(f"[BATCH] Update result for {usi_inv_id}: {ok}")
-                    if ok:
-                        saved_count += 1
-                    else:
-                        logger.warning(f"[BATCH] Update failed for {usi_inv_id}")
+                usi_inv_id = f"{portal}_{item_id}"
+                
+                # Używamy StorageResolvera z biblioteki do wyznaczenia poprawnej ścieżki (tam gdzie leży raw_*)
+                resolved_path = self.tech_manager.get_investment_path(portal, item_id)
+                if resolved_path:
+                    dest_dir = Path(resolved_path)
+                    dev_slug = dest_dir.parent.name
+                    inv_slug = dest_dir.name
                 else:
-                    logger.warning(f"[BATCH] No usi_inv_id returned for {item_id}")
+                    dev_slug = data.get("developer_slug") or dev_meta.get("slug") or "unknown"
+                    inv_slug = data.get("investment_slug") or unified.get("slug") or str(item_id)
+                    dest_dir = self.data_dir / dev_slug / inv_slug
+                
+                # Zrzucamy zunifikowane dane do pliku organizacyjnego
+                usi_file_data = {
+                    **unified,
+                    "usi_inv_id": usi_inv_id,
+                    "developer_slug": dev_slug,
+                    "investment_slug": inv_slug,
+                    "name": unified.get("name") or f"Inwestycja {portal.upper()} {item_id}",
+                    "usi_dev_id": None, # Tracker nie sprawdza już RAM-u w trakcie batcha
+                    "sources": {portal: {"id": item_id, "url": unified.get("url") or data.get("url")}}
+                }
+                
+                # Wyznaczenie ścieżki i zapis pliku
+                if dest_dir:
+                    dest_dir.mkdir(parents=True, exist_ok=True)
+                    target_file = dest_dir / f"usi_{usi_inv_id}.json"
+                    target_file.write_text(json.dumps(usi_file_data, indent=2, ensure_ascii=False), encoding="utf-8")
+                    
+                    logger.info(f"[BATCH] Registered and saved {usi_inv_id} to {target_file}")
+                    saved_count += 1
+                else:
+                    logger.error(f"[BATCH_ERROR] Brak wyznaczonej ścieżki dla {usi_inv_id}")
 
             except Exception as e:
-                logger.error(f"[BATCH_ERROR] Błąd finalizacji dla {item_info.get('ident')}: {e}", exc_info=True)
+                logger.error(f"[BATCH_ERROR] Błąd finalizacji dla {portal}: {e}", exc_info=True)
 
         # 6. Global optimization: Single index rebuild
         if saved_count > 0:
@@ -566,25 +538,5 @@ class InvestmentSyncService:
             self.dm.invalidate_identifiers_cache()
 
         return saved_count
-
-    def _resolve_item_id_for_batch(self, portal: str, meta: Dict, info: Dict, data: Any) -> Optional[str]:
-        """Strict ID resolution for batch processing."""
-        
-        # Priority 1: Meta from transformation
-        item_id = meta.get("id") or info.get("item_id")
-
-        # Priority 2: Direct from data dictionary
-        if not item_id and isinstance(data, dict):
-            item_id = data.get("id") or data.get("portal_id")
-
-        # Priority 3: Parsing from URL
-        if not item_id and info.get("url"):
-            item_id = parse_url(info["url"]).get("item_id")
-
-        # Priority 4: Identifier itself if not a URL
-        if not item_id and info.get("ident") and not str(info["ident"]).startswith("http"):
-            item_id = str(info["ident"])
-
-        return str(item_id) if item_id else None
 
 

@@ -44,10 +44,23 @@ class _Unbuffered:
 sys.stdout = _Unbuffered(sys.stdout)
 sys.stderr = _Unbuffered(sys.stderr)
 
+import time
+import subprocess
+
+def _get_git_commit():
+    try:
+        return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=Path(__file__).parent.parent, stderr=subprocess.DEVNULL).decode("utf-8").strip()
+    except Exception:
+        return "unknown"
+
+_git_commit = _get_git_commit()
+_session_id = int(time.time())
+
 # Set up logging for the whole application
-_LOG_FILE = Path(__file__).parent.parent / "logs" / "worker.log"
-_LOG_FILE.parent.mkdir(exist_ok=True)
-_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+_LOG_DIR = Path(__file__).parent.parent / "logs"
+_LOG_DIR.mkdir(exist_ok=True)
+_LOG_FILE = _LOG_DIR / f"worker_{_session_id}.log"
+_formatter = logging.Formatter(f'%(asctime)s - [commit:{_git_commit}] - %(name)s - %(levelname)s - %(message)s')
 
 _root = logging.getLogger()
 _root.setLevel(logging.INFO)
@@ -527,6 +540,16 @@ def main():
 
     elif args.command == "rebuild-index":
         from .investment_index import rebuild as rebuild_index
+        from .developer_index import rebuild as rebuild_dev_index, rebuild_master_index
+        
+        dev_dir = USI_DATA_DIR.parent / "USIdev"
+        dev_index_file = dev_dir / "_dev_index.json"
+        
+        if not dev_index_file.exists():
+            logger.info("Developer index missing. Rebuilding developer index first to ensure O(1) performance...")
+            rebuild_master_index(dev_dir)
+            rebuild_dev_index(USI_DATA_DIR, dev_dir)
+
         logger.info("Rebuilding investment index...")
         count = rebuild_index(USI_DATA_DIR, Path(PUBLIC_USI_DIR))
         logger.info(f"Done. {count} investments indexed.")

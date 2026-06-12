@@ -13,6 +13,9 @@ fi
 
 cd "$SCRIPT_DIR"
 
+echo "→ Odbudowuję index deweloperów (wymagane dla wydajności)..."
+"$PY" -m python_worker.main rebuild-dev-index
+
 echo "→ Odbudowuję index inwestycji..."
 "$PY" -m python_worker.main rebuild-index
 

@@ -172,38 +172,36 @@ class InvestmentService:
             if dev_name and dev_name.lower() in ("nieznany deweloper", "unknown", "nieznany-deweloper", ""):
                 dev_name = None
             
-            result = self.sync.register_investment(
-                portal=portal,
-                developer_name=dev_name,
-                name=payload.get("name"),
-                item_id=payload.get("id"),
-                url=payload.get("url"),
-                vendor_id=payload.get("vendor_id")
-            )
+            try:
+                # Call sync service which now handles full ingestion and update
+                dev_slug, inv_slug, usi_inv_id, data, path = self.sync.register_investment(
+                    portal=portal,
+                    developer_name=dev_name,
+                    name=payload.get("name"),
+                    item_id=payload.get("id"),
+                    url=payload.get("url"),
+                    vendor_id=payload.get("vendor_id"),
+                    allow_existing=True # Standard for UI trigger
+                )
+                
+                return {
+                    "ok": True, 
+                    "usi_inv_id": usi_inv_id, 
+                    "slug": f"{dev_slug}/{inv_slug}",
+                    "message": "Rejestracja zakończona sukcesem"
+                }
+            except Exception as e:
+                logger.error(f"Registration failed: {e}")
+                return {"ok": False, "error": str(e)}
             
-            if result == (None, None):
-                return {"ok": True, "skipped": True, "message": "Investment already exists by ID"}
-
-            _, _, system_id = result
-
-            from python_worker.jobs import job_manager
-            def run_register_job(job_id, sys_id, inv_name):
-                job_manager.update_progress(job_id, 10, f"Rozpoczęto pobieranie: {inv_name}")
-                if self.update_investment(sys_id):
-                    job_manager.update_progress(job_id, 100, f"Ukończono: {inv_name}")
-                else:
-                    job_manager.update_progress(job_id, 100, f"Błąd pobierania: {inv_name}", status="failed")
-
-            job_id = job_manager.start_job(f"Register: {payload.get('name')}", run_register_job, system_id, payload.get('name'))
-            return {"ok": True, "job_id": job_id}
-            
+        # Fallback for direct calls without payload
         return self.sync.register_investment(
-            portal=portal, 
-            developer_name=developer_name, 
-            name=name, 
-            item_id=item_id, 
-            url=url, 
-            vendor_id=vendor_id, 
+            portal=portal,
+            developer_name=developer_name,
+            name=name,
+            item_id=item_id,
+            url=url,
+            vendor_id=vendor_id,
             **kwargs
         )
 

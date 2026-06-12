@@ -1,4 +1,5 @@
 import os
+import json
 import logging
 from pathlib import Path
 from usi_scrapers.utils import images as scraper_images
@@ -25,9 +26,16 @@ class ImageSyncService:
             logger.warning(f"Could not determine image directory for {system_id}")
             return
 
+        portal = resources.get("metadata", {}).get("portal")
+        item_id = resources.get("metadata", {}).get("portal_id")
+        
+        if not portal or not item_id:
+            logger.error(f"Missing portal or portal_id in resources metadata for {system_id}")
+            return
+
         if all_urls:
             logger.info(f"Synchronizing images for {system_id} ({len(all_urls)} URLs)")
-            saved_filenames = self.gateway.save_images(all_urls, target_image_dir)
+            saved_filenames = self.gateway.save_images(all_urls, portal, str(item_id))
             
             rel_dir = target_image_dir.relative_to(self.public_usi_dir)
             new_unified["image_paths"] = [f"/Public/USI/{rel_dir}/{fname}" for fname in saved_filenames if fname]

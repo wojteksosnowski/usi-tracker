@@ -122,7 +122,7 @@ class RPAdapter:
         
         u = _unified_base(inv_slug, dev_slug, m.get("name") or raw.get("name") or raw.get("title"), developer=m.get("developer_name"))
         
-        item_id = m.get("id") or raw.get("id")
+        item_id = m.get("id") or m.get("numeric_id")
         
         rp_src = {}
         if item_id: rp_src["id"] = str(item_id)
@@ -256,7 +256,7 @@ class OtodomAdapter:
         
         # Wyznaczenie nazwy i ID z priorytetem dla danych od-pakowanych
         name = m.get("name") or actual_raw.get("title") or actual_raw.get("name") or actual_raw.get("developmentTitle")
-        item_id = actual_raw.get("publicId") or actual_raw.get("hash_id") or m.get("id") or actual_raw.get("id") or actual_raw.get("ad_id")
+        item_id = m.get("id") or m.get("numeric_id")
         
         if not name:
              # Ostateczny fallback na slug
@@ -404,7 +404,7 @@ class TOAdapter:
         m = {k: _unwrap(v) for k, v in m.items()}
 
         name = m.get("name") or actual_raw.get("title") or actual_raw.get("name")
-        item_id = m.get("id") or actual_raw.get("id")
+        item_id = m.get("id") or m.get("numeric_id")
 
         if not name:
              name = inv_slug.replace("-", " ").title()

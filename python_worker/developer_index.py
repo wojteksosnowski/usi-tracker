@@ -71,6 +71,7 @@ def rebuild(data_dir: Path, dev_dir: Path) -> int:
 
     entries = []
     seen_ids = set()
+    identifiers = dm.indexer.get_existing_identifiers()
 
     def _add(candidate_path: Path):
         try:
@@ -85,13 +86,13 @@ def rebuild(data_dir: Path, dev_dir: Path) -> int:
 
             seen_ids.add(dev_id)
             
-            # POPRAWKA: Zamiast dm.repo._enrich_with_master(data), który nie istnieje,
-            # pobieramy w pełni sformatowany rekord dewelopera za pomocą oficjalnego API managera.
-            enriched = dm.get_developer_by_id(dev_id)
+            # Fast path: enrich the data we ALREADY read from disk directly,
+            # bypassing the O(N^2) disk scan caused by dm.get_developer_by_id finding the anchor.
+            enriched = dm.repo._enrich_with_master(data, identifiers)
             if enriched:
                 entries.append(enriched)
             else:
-                entries.append(data) # Fallback do surowych danych, jeśli manager ich nie przetworzył
+                entries.append(data)
         except Exception as e:
             logger.warning(f"Error reading dev file for index {candidate_path}: {e}")
 

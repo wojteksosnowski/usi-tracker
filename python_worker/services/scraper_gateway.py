@@ -106,8 +106,14 @@ class ScraperGateway:
         else:
             return scraper_api.discover_to_investments(self._config, self._fetcher, identifier=identifier, limit=limit)
 
-    def save_images(self, urls: List[str], target_dir: Path) -> List[str]:
+    def save_images(self, urls: List[str], portal: str, portal_id: str) -> List[str]:
         from usi_scrapers.utils.images import save_images as lib_save_images
+        from usi_scrapers.manager import TechnicalDataManager
+        tech_manager = TechnicalDataManager(self._config)
+        target_dir = tech_manager.get_image_path(portal, str(portal_id))
+        if not target_dir:
+            return []
+        target_dir.mkdir(parents=True, exist_ok=True)
         return lib_save_images(urls, target_dir, self._config)
 
     @staticmethod
@@ -139,10 +145,6 @@ class ScraperGateway:
                 vid = lib_resolve_path(raw_data, developer_id_path)
                 if vid:
                     meta["id"] = str(vid)
-            
-            # Ostateczny fallback dla nazwy dewelopera w TO, jeśli nadal brak
-            if canonical_portal == "to" and not meta.get("name"):
-                meta["name"] = raw_data.get("developer_name") or raw_data.get("vendor_name") or raw_data.get("brand", {}).get("name")
         
         return meta
 

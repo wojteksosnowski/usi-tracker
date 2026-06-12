@@ -42,42 +42,6 @@ class InvestmentRepository:
         with open(target_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
-    def save_raw_json(self, system_id: str, portal: str, portal_id: str, data: dict, target_dir: Path = None):
-        """Saves the raw portal JSON for the investment."""
-        try:
-            target_directory = target_dir if target_dir else self._get_dir_from_system_id(system_id)
-            target_file = target_directory / f"raw_{portal}_{portal_id}.json"
-            with open(target_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-            return True
-        except Exception as e:
-            logger.error(f"Error saving raw JSON for {system_id}: {e}")
-            return False
-
-    def create_investment_skeleton(self, system_id: str, portal: str, portal_id: str, skeleton_data: dict) -> Path:
-        """
-        Creates a new investment directory and its initial usi_*.json file.
-        This uses the ID-only architecture, resolving paths via TechnicalDataManager.
-        """
-        tech_manager = get_shared_tech_manager()
-        inv_dir = None
-        
-        if tech_manager and portal and portal_id:
-            path_val = tech_manager.get_investment_path(portal, portal_id)
-            if path_val:
-                inv_dir = Path(path_val)
-
-        if not inv_dir:
-            raise RuntimeError(f"Cannot create skeleton: TechnicalDataManager failed to resolve path for {portal}_{portal_id}")
-
-        inv_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"usi_{system_id}.json"
-        target_file = inv_dir / filename
-        
-        with open(target_file, "w", encoding="utf-8") as f:
-            json.dump(skeleton_data, f, indent=2, ensure_ascii=False)
-        return target_file
-
     def get_ratings(self, system_id: str) -> dict:
         """Gets ratings for the investment."""
         try:

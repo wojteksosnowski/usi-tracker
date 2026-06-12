@@ -20,33 +20,6 @@ def sync_service(mock_identity, tmp_path):
             public_usi_dir=tmp_path / "Public" / "USI"
         )
 
-def test_register_investment_uses_tech_manager_path(sync_service, mock_identity, tmp_path):
-    portal = "rp"
-    item_id = "123"
-    dev_slug = "dev"
-    inv_slug = "inv"
-    
-    # Mock tech_manager
-    target_dir = tmp_path / "TechResolved"
-    sync_service.tech_manager = MagicMock()
-    sync_service.tech_manager.get_investment_path.return_value = target_dir
-    
-    # Mock other deps
-    sync_service._resolve_developer_for_registration = MagicMock(return_value=(dev_slug, "Dev Name", None))
-    sync_service._check_investment_exists = MagicMock(return_value=False)
-    
-    # Mock repo and identity to avoid complex internal calls
-    sync_service.repo = MagicMock()
-    sync_service.resolver = MagicMock()
-    
-
-    # The register_investment method will use tech_manager to resolve paths.
-    sync_service.register_investment(portal, "Dev Name", "Inv Name", item_id=item_id)
-        
-    # Verify tech_manager was used in SyncService
-
-    sync_service.tech_manager.get_investment_path.assert_called_with(portal, str(item_id))
-    assert target_dir.exists()
 
 def test_update_investment_uses_id_based_upsert(sync_service, mock_identity, tmp_path):
     system_id = "rp_123"

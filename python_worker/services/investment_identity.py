@@ -58,6 +58,15 @@ class InvestmentIdentityResolver:
                     portal = p
                     portal_id = sources[p].get("id")
                     break
+                    
+        # Robustness fallback: Extract from usi_inv_id (e.g., 'to_9232029')
+        if not portal or not portal_id:
+            usi_inv_id = entry.get("usi_inv_id")
+            if usi_inv_id and "_" in usi_inv_id:
+                parts = usi_inv_id.split("_", 1)
+                if parts[0] in ("rp", "oto", "to"):
+                    portal = parts[0]
+                    portal_id = parts[1]
 
         # OPTIMIZATION: Use cached folder_path if available in index entry
         inv_dir = None

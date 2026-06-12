@@ -34,6 +34,11 @@ app.register_blueprint(poi_bp, url_prefix='/api')
 def system_status():
     return jsonify({"status": "ok", "mode": "passive", "daemons": "disabled"})
 
+@app.route("/api/system/verify-library")
+def verify_library():
+    """Bezpieczna atrapa weryfikacji biblioteki."""
+    return jsonify({"ok": True, "version": "0.3.0", "portals": ["rp", "oto", "to"]})
+
 @app.route("/api/config")
 def get_config():
     return jsonify(get_ui_config())
