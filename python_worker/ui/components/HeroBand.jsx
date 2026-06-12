@@ -44,7 +44,12 @@
           </div>
           <div className="hero-band-stats">
             {inv.usi_inv_id && <span className="usi-mono" style={{opacity: 0.6}}>ID: {inv.usi_inv_id}</span>}
-            {((inv.location && inv.location.address) || inv.address) ? <span>📍 {(inv.location && inv.location.address) || inv.address}</span> : <span>📍 —</span>}
+            {(() => {
+              const city = (inv.location && inv.location.city) || inv.city;
+              const addr = (inv.location && inv.location.address) || inv.address;
+              const parts = [city, addr].filter(Boolean);
+              return parts.length > 0 ? <span>📍 {parts.join(', ')}</span> : <span>📍 —</span>;
+            })()}
             {((inv.financials && inv.financials.price_avg) || inv.price_avg) > 0 ? <span className="usi-mono">{((inv.financials && inv.financials.price_avg) || inv.price_avg).toLocaleString('pl-PL')} zł/m²</span> : <span className="usi-mono">—</span>}
             <span className="usi-mono">{((inv.specifications && (inv.specifications.delivery_date || inv.specifications.delivery_quarter || inv.specifications.delivery_year)) || inv.delivery || '—')}</span>
           </div>
