@@ -29,6 +29,11 @@ class ImageSyncService:
         portal = resources.get("metadata", {}).get("portal")
         item_id = resources.get("metadata", {}).get("portal_id")
         
+        if portal and system_id.startswith(f"{portal}_"):
+            parts = system_id.split("_", 1)
+            if len(parts) == 2:
+                item_id = parts[1]
+                
         if not portal or not item_id:
             logger.error(f"Missing portal or portal_id in resources metadata for {system_id}")
             return
