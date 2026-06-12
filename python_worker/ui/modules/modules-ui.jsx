@@ -79,7 +79,7 @@
         if (setVariable) setVariable('appStatus', { type: 'error', msg: 'Brak ID inwestycji' });
         return;
       }
-      request(`/api/ratings/${targetId}`, {
+      request(`/api/investment/${targetId}/ratings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...r, komentarz: c, status: s, Segment: seg }),
