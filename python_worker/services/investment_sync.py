@@ -385,6 +385,24 @@ class InvestmentSyncService:
 
     def _enrich_with_derived_data(self, data: Dict, inv_dir: Path, resources: Dict, old_data: Dict, fast_mode: bool, cached_index: Optional[List[Dict[str, Any]]] = None):
         """Computes scores, resolves photos, and calculates nearby investments."""
+        loc_dict = data.get("location", {})
+        coords = loc_dict.get("coords", [None, None])
+        if not coords or coords[0] is None or coords[1] is None:
+            address = loc_dict.get("address", "") or ""
+            city = loc_dict.get("city", "") or ""
+            full_address = f"{address}, {city}".strip(", ")
+            if full_address:
+                import logging
+                logging.getLogger(__name__).info(f"Brak współrzędnych z portalu. Uruchamiam geokodowanie ratunkowe dla: {full_address}")
+                from python_worker.services.here_maps_service import HereMapsService
+                from python_worker.config import get_shared_config
+                from python_worker.config import HERE_API_KEY
+                here_service = HereMapsService(api_key=HERE_API_KEY) 
+                lat, lng = here_service.geocode_address(full_address)
+                if lat and lng:
+                    loc_dict["coords"] = [lat, lng]
+                    data["location"] = loc_dict
+
         # Amenities
         am_data = data.get("amenities", {})
         score_data = compute_amenity_score(am_data.get("labels", []), am_data.get("raw_codes", []))
