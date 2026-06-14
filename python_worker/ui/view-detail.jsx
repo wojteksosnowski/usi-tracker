@@ -3,7 +3,7 @@
 (function() {
   const { usiRegister } = window;
 
-  function DetailRightPanel({ inv, onBack, onUpdateInv }) {
+  function DetailRightPanel({ inv, onBack, onUpdateInv, onSelectInv }) {
     const { React, useDataBus, useRatings, useMetadataConfig, HeroBand, ModeC, DetailsA, Lightbox, DataBoundary } = window;
     const { bus, setVariable } = useDataBus();
     const detailMode = bus.detailMode || 'A';
@@ -139,6 +139,7 @@
                     saved={saved}
                     focusedCat={focusedCat}
                     onFocusedCatChange={setFocusedCat}
+                    onSelectInv={onSelectInv}
                 />
               ) : (
                 <DetailsA
@@ -156,6 +157,7 @@
                     onFocusedCatChange={setFocusedCat}
                     metaConfig={metaConfig}
                     onUpdateInv={onUpdateInv}
+                    onSelectInv={onSelectInv}
                 />
               )}
 

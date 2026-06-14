@@ -79,11 +79,20 @@ class InvestmentService:
         return view
 
     def invalidate_cache(self, inv_id: str = None):
-        """Invalidates cache entries."""
+        """Invalidates cache entries and syncs to index."""
         if inv_id:
             self._cache.pop(inv_id, None)
+            from python_worker.api.utils import _load_investment
+            from python_worker.investment_index import get_investment_index
+            entry = _load_investment(system_id=inv_id, fast_index=True)
+            if entry:
+                entry.pop("image_urls", None)
+                entry.pop("nearby_investments", None)
+                get_investment_index().add_or_update(inv_id, entry)
         else:
             self._cache.clear()
+            from python_worker.investment_index import get_investment_index
+            get_investment_index().rebuild()
 
     def list_investments_filtered(self, **kwargs) -> list[dict]:
         """Filters all investments using the global index."""
@@ -105,16 +114,16 @@ class InvestmentService:
                 filtered = [i for i in filtered if i.get('developer_slug') == value]
             elif key == 'search':
                 s = str(value).lower()
-                filtered = [i for i in filtered if s in i.get('name', '').lower() or s in i.get('developer', '').lower()]
+                filtered = [i for i in filtered if s in str(i.get('name') or '').lower() or s in str(i.get('developer') or '').lower()]
             elif key == 'sources' and isinstance(value, list):
                 if len(value) == 0: continue
-                filtered = [i for i in filtered if any(p.lower() in [s.lower() for s in value] for p in i.get('sources', {}).keys())]
+                filtered = [i for i in filtered if any(str(p).lower() in [str(s).lower() for s in value] for p in i.get('sources', {}).keys())]
             elif key == 'segments' and isinstance(value, list):
                 if len(value) == 0: continue
                 filtered = [i for i in filtered if i.get('segment') in value]
             elif key == 'cities' and isinstance(value, list):
                 if len(value) == 0: continue
-                filtered = [i for i in filtered if i.get('city', '').lower() in [c.lower() for c in value]]
+                filtered = [i for i in filtered if str(i.get('city') or '').lower() in [str(c).lower() for c in value]]
             elif key in ['reviewed', 'developer_slug', 'portal', 'status']:
                 filtered = [i for i in filtered if i.get(key) == value]
             else:

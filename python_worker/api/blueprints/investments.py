@@ -128,8 +128,17 @@ def list_investments():
         results = service.list_investments_filtered(**filters)
         
         # Odtworzenie struktury wymaganej przez data.jsx
-        unreviewed_count = sum(1 for inv in (inv_index.load(Path(USI_DATA_DIR)) or []) if inv.get("reviewed") is False)
-        return jsonify({"data": results, "unreviewedCount": unreviewed_count}), 200
+        all_invs = inv_index.load(Path(USI_DATA_DIR)) or []
+        unreviewed_count = sum(1 for inv in all_invs if inv.get("reviewed") is False)
+        
+        # Build ratingsMap for nearby investments fallback when filtered
+        ratings_map = {
+            i.get("usi_inv_id"): i.get("ratings")
+            for i in all_invs
+            if i.get("ratings") and i.get("usi_inv_id")
+        }
+        
+        return jsonify({"data": results, "unreviewedCount": unreviewed_count, "ratingsMap": ratings_map}), 200
     except Exception as e:
         logger.error(f"Failed to list investments: {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -195,7 +204,33 @@ def reload_investment(system_id):
     if not success:
         return jsonify({"ok": False, "error": "Failed to update"}), 500
     
+    updated_inv = investment_service.get_investment(system_id)
+    return jsonify({"ok": True, "investment": updated_inv})
+
+@investments_bp.route("/investment/<system_id>/recalc-nearby", methods=["POST"])
+def recalc_nearby(system_id):
+    inv = investment_service.get_investment(system_id)
+    if not inv:
+        abort(404)
+        
+    coords = inv.get("coords")
     
+    from python_worker import investment_index
+    if not coords or not coords[0]:
+        new_nearby = []
+    else:
+        new_nearby = investment_index.get_nearby_investments(system_id, coords)
+    
+    # Podmieńmy w JSONie i zapiszmy
+    resources = investment_service.get_investment_resources(system_id)
+    if resources and resources["files"]["anchor"].exists():
+        import json
+        with open(resources["files"]["anchor"], "r", encoding="utf-8") as f:
+            data = json.load(f)
+        data["nearby_investments"] = new_nearby
+        with open(resources["files"]["anchor"], "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+            
     updated_inv = investment_service.get_investment(system_id)
     return jsonify({"ok": True, "investment": updated_inv})
 

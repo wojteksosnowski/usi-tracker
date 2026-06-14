@@ -5,13 +5,20 @@
 
   const SourceLinks = ({ inv }) => {
     let links = [];
-    if (inv.sources) {
-        links = Object.entries(inv.sources).map(([source, data]) => ({ source, url: data.url }));
-    } else if (inv.source_links) {
+    if (inv.sources && Object.keys(inv.sources).length > 0) {
+        links = Object.entries(inv.sources)
+            .filter(([source, data]) => data && data.url)
+            .map(([source, data]) => ({ source, url: data.url }));
+    } 
+    
+    if (links.length === 0 && inv.source_links && inv.source_links.length > 0) {
         links = inv.source_links;
-    } else if (inv.source && inv.source_url) {
+    } 
+    
+    if (links.length === 0 && inv.source && inv.source_url) {
         links = [{ source: inv.source, url: inv.source_url }];
     }
+    
     return (
       <div data-component="SourceLinks" className="source-links">
         {links.map((link, i) => (

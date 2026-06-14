@@ -49,8 +49,8 @@ class NameSimilarityStrategy(SimilarityStrategy):
         ratio = matcher.ratio()
 
         # Wymuszenie dumpu dla konkretnej, problematycznej pary deweloperów
-        if "022" in n1 or "022" in n2:
-            dump_sequence_matcher_analysis(dev1, dev2, self)
+        # if "022" in n1 or "022" in n2:
+        #     dump_sequence_matcher_analysis(dev1, dev2, self)
 
         if ratio >= self.threshold:
             return ratio, f"Wysokie podobieństwo nazw rdzeniowych: '{n1}' ({int(ratio * 100)}%)"

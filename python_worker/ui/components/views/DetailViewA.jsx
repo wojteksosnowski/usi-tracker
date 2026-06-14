@@ -4,7 +4,7 @@
   const { React, usiRegister, MetadataPanel, RatingsPanel, ModuleWrapper, NearbyInvestmentsModule, PoiModule, ModuleTypes, Gallery, Lightbox, Icon, ModuleErrorBoundary } = window;
 
   const DetailsA = ({ inv, ratings, handleRating, comment, handleComment, status, handleStatus, 
-      segment, handleSegment, saved, focusedCat, onFocusedCatChange, metaConfig, onUpdateInv }) => {
+      segment, handleSegment, saved, focusedCat, onFocusedCatChange, metaConfig, onUpdateInv, onSelectInv }) => {
     const { useDataBus, SourceBadge } = window;
     const [marked, setMarked] = React.useState(new Set());
     const [lightbox, setLightbox] = React.useState(null);
@@ -103,6 +103,27 @@
               title="W okolicy"
               icon="map"
               height={400}
+              onSelectInv={onSelectInv}
+              bus={bus}
+              headerAction={
+                <button 
+                  className="usi-btn ghost sm" 
+                  title="Przeskanuj ponownie promienie dla tej inwestycji"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    const btn = e.currentTarget;
+                    btn.disabled = true;
+                    try {
+                      const res = await fetch(`/api/investment/${inv.usi_inv_id}/recalc-nearby`, { method: 'POST' });
+                      if (res.ok && onUpdateInv) onUpdateInv();
+                    } finally {
+                      btn.disabled = false;
+                    }
+                  }}
+                >
+                  <Icon name="refresh" size={12} />
+                </button>
+              }
            />
            <div className="usi-h-24" />
            <ModuleErrorBoundary>

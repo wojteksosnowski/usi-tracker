@@ -28,9 +28,9 @@ logger = logging.getLogger(__name__)
 
 PORTAL_NAMES: Dict[str, str] = {"rp": "RynekPierwotny", "oto": "Otodom", "to": "TabelaOfert"}
 IDENTIFIER_PRIORITIES: Dict[str, List[str]] = {
-    "rp": ["id", "url"],
-    "oto": ["id", "url"],
-    "to": ["id", "url"]
+    "rp": ["url", "id"],
+    "oto": ["url", "id"],
+    "to": ["url", "id"]
 }
 
 class InvestmentSyncService:
@@ -402,7 +402,10 @@ class InvestmentSyncService:
         else:
             old_coords = old_data.get("location", {}).get("coords")
             new_coords = data.get("location", {}).get("coords")
-            if not old_data.get("nearby_investments") or old_coords != new_coords:
+            
+            if not new_coords or not new_coords[0]:
+                data["nearby_investments"] = []
+            elif not old_data.get("nearby_investments") or old_coords != new_coords:
                 data["nearby_investments"] = inv_index.get_nearby_investments(data.get("usi_inv_id"), new_coords, cached_index=cached_index)
             else:
                 data["nearby_investments"] = old_data.get("nearby_investments", [])

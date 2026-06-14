@@ -517,6 +517,7 @@
                         .catch(() => {});
                     }
                   }}
+                  onSelectInv={handleSelectInv}
                 />
               )}
 

@@ -93,7 +93,7 @@
           setVariable('investments', prev => {
             if (!Array.isArray(prev)) return prev;
             return prev.map(item => {
-              if (item.usi_inv_id === inv.usi_inv_id) {
+              if ((item.usi_inv_id && item.usi_inv_id === inv.usi_inv_id) || item.id === inv.id) {
                 const updatedSpec = { ...item.specifications, segment: seg };
                 return { ...item, status: s, ratings: { ...r, komentarz: c, status: s, Segment: seg }, comment: c, specifications: updatedSpec, segment: seg };
               }
@@ -145,17 +145,85 @@
   };
   usiRegister('useRatings', useRatings);
 
-  function NearbyInvestmentsModule({ items = [] }) {
+  function NearbyInvestmentsModule({ items = [], onSelectInv, bus }) {
+    const { USI_CATEGORIES } = window;
     if (items.length === 0) return <div className="usi-small" style={{ color: 'var(--usi-ink-4)' }}>Brak innych inwestycji w promieniu 5km.</div>;
+    
+    // Stwórzmy szybki lookup po id
+    const fastIndex = React.useMemo(() => {
+      const map = {};
+      if (bus && bus.investments) {
+        bus.investments.forEach(inv => {
+          if (inv.usi_inv_id) map[inv.usi_inv_id] = inv;
+        });
+      }
+      return map;
+    }, [bus?.investments]);
+
     return (
       <div className="usi-distance-list">
-        {items.slice(0, 10).map(i => (
-          <div key={i.slug} className="usi-distance-item">
-            <div className="usi-distance-dot" />
-            <div className="usi-distance-name">{i.name}</div>
-            <div className="usi-mono usi-distance-km">{i.distance.toFixed(1)}km</div>
-          </div>
-        ))}
+        {items.slice(0, 10).map(i => {
+          // Szukamy ocen w nowym indeksie `bus.investments` lub jako fallback w obiekcie
+          const indexInv = fastIndex[i.usi_inv_id || i.id];
+          let ratings = (indexInv && indexInv.ratings) ? indexInv.ratings : null;
+          if (!ratings && bus && bus.ratingsMap) {
+            ratings = bus.ratingsMap[i.usi_inv_id || i.id];
+          }
+          if (!ratings) {
+            ratings = (i.ratings || {});
+          }
+          
+          // Uznajemy za brak oceny tylko wartości null/undefined spośród dozwolonych kategorii
+          const hasAnyRating = USI_CATEGORIES.some(cat => {
+            const v = ratings[cat.key];
+            return v !== null && v !== undefined;
+          });
+          
+          return (
+            <div 
+              key={i.slug} 
+              className="usi-distance-item" 
+              style={{ cursor: onSelectInv ? 'pointer' : 'default' }}
+              onClick={() => onSelectInv && onSelectInv(indexInv || i)}
+            >
+              <div className="usi-distance-dot" />
+              <div className="usi-distance-name" style={{ flex: 1 }}>{i.name}</div>
+              
+              <div className="usi-flex-row usi-gap-4" style={{ marginRight: 12 }}>
+                {!hasAnyRating ? (
+                  <span className="usi-small" style={{ color: 'var(--usi-ink-4)', fontSize: '0.75rem' }}>Brak oceny</span>
+                ) : (
+                  USI_CATEGORIES.map(cat => {
+                    const val = ratings[cat.key];
+                    if (val === null || val === undefined) return null;
+                    return (
+                      <div 
+                        key={cat.key} 
+                        title={`${cat.key}: ${val}`}
+                        style={{
+                          width: 12, 
+                          height: 12, 
+                          borderRadius: '50%', 
+                          background: cat.color,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#fff',
+                          fontSize: '0.55rem',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        {val}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+              
+              <div className="usi-mono usi-distance-km">{i.distance.toFixed(1)}km</div>
+            </div>
+          );
+        })}
       </div>
     );
   }

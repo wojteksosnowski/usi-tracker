@@ -173,6 +173,7 @@ function DataBusProvider({ children }) {
     return setVariable(type, fetch(url).then(r => r.json()).then(data => {
       if (data && typeof data === 'object' && data.data) {
         setVariable('unreviewedCount', data.unreviewedCount || 0);
+        if (data.ratingsMap) setVariable('ratingsMap', data.ratingsMap);
         return Array.isArray(data.data) ? data.data : [];
       }
       return Array.isArray(data) ? data : [];

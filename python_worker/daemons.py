@@ -173,7 +173,9 @@ class TrackerDoktorDelegate:
                     existing_map[target_id] = new_s
 
             if has_changes:
-                fresh_dev["suggestions"] = list(existing_map.values())
+                master = self.dm.repo._get_or_create_dev_master(fresh_dev.get("developer_slug"), fresh_dev)
+                master["suggestions"] = list(existing_map.values())
+                self.dm.repo._save_dev_master(master, fresh_dev.get("developer_slug"))
                 self.dm.create_developer_file(fresh_dev)
                 logger.info(f"[IO_SAVE] Updated suggestions for {dev_id} (found new or improved matches).")
 

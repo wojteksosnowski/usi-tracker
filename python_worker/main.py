@@ -314,7 +314,7 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    if args.command in ["suggest", "daemon-wedrowiec", "daemon-doktor"]:
+    if args.command in ["daemon-wedrowiec", "daemon-doktor"]:
         print("[CRITICAL] Commands related to Wędrowiec and Doktor daemons are deprecated and removed.")
         sys.exit(1)
 

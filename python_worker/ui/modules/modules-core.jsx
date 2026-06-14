@@ -85,7 +85,7 @@
   }
   usiRegister('useApi', useApi);
 
-  function BaseModule({ title, icon, children, errorFallback, style }) {
+  function BaseModule({ title, icon, children, errorFallback, style, headerAction }) {
     const { Icon, ModuleErrorBoundary } = window;
     const containerRef = React.useRef(null);
     const [containerWidth, setContainerWidth] = React.useState(0);
@@ -113,9 +113,12 @@
     return (
       <div ref={containerRef} className="usi-card module-card" style={style}>
         {title && (
-          <div className="module-header">
-            {icon && <Icon name={icon} size={16} color="var(--usi-ink-3)" />}
-            <span className="usi-h3 usi-base-module-title">{title}</span>
+          <div className="module-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {icon && <Icon name={icon} size={16} color="var(--usi-ink-3)" />}
+              <span className="usi-h3 usi-base-module-title">{title}</span>
+            </div>
+            {headerAction && <div>{headerAction}</div>}
           </div>
         )}
         <div className="module-content">
@@ -223,12 +226,12 @@
   }
   usiRegister('ModuleKnobs', ModuleKnobs);
 
-  function ModuleWrapper({ component: Component, moduleSpec, context, title, icon, height }) {
+  function ModuleWrapper({ component: Component, moduleSpec, context, title, icon, height, headerAction, ...rest }) {
     const { ModuleSchemaValidator, BaseModule } = window;
     const validation = ModuleSchemaValidator.validate(moduleSpec.inputs, context);
     if (!validation.valid) {
       return (
-        <BaseModule title={title} icon={icon}>
+        <BaseModule title={title} icon={icon} headerAction={headerAction}>
           <div className="usi-module-wrapper-error">
             {validation.errors.map((err, i) => <div key={i}>{err}</div>)}
           </div>
@@ -236,8 +239,8 @@
       );
     }
     return (
-      <BaseModule title={title} icon={icon}>
-        <Component {...validation.aliasedData} height={height} />
+      <BaseModule title={title} icon={icon} headerAction={headerAction}>
+        <Component {...validation.aliasedData} height={height} {...rest} />
       </BaseModule>
     );
   }

@@ -80,7 +80,8 @@ class InvestmentIndex:
                     "distance": round(dist, 2),
                     "name": other.get("name"),
                     "developer": other.get("developer"),
-                    "slug": other.get("slug")
+                    "slug": other.get("slug"),
+                    "ratings": other.get("ratings", {})
                 })
 
         nearby.sort(key=lambda x: x["distance"])
