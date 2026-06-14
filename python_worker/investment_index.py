@@ -43,6 +43,63 @@ class InvestmentIndex:
         self.load_or_rebuild()
         self._initialized = True
 
+    def get_near_coordinates(
+        self, 
+        lat: float, 
+        lon: float, 
+        max_dist_km: float = 5.0, 
+        limit: int = 12
+    ) -> List[Dict[str, Any]]:
+        """
+        Wyszukuje inwestycje w pobliżu wskazanych współrzędnych geograficznych.
+        Wykorzystuje dynamiczny Bounding Box i operacje w pamięci podręcznej RAM.
+        """
+        from python_worker.api.utils import _calculate_distance
+        import math
+
+        all_invs = self.get_all()
+        nearby = []
+
+        # 1 stopień szerokości geograficznej to w przybliżeniu 111 km
+        delta_lat = max_dist_km / 111.0
+        
+        # Długość stopnia długości geograficznej kurczy się wraz ze zbliżaniem do biegunów
+        cos_lat = math.cos(math.radians(lat))
+        if cos_lat > 0.01:
+            delta_lon = max_dist_km / (111.0 * cos_lat)
+        else:
+            delta_lon = max_dist_km / 111.0
+
+        for inv in all_invs:
+            coords = inv.get("coords")
+            if not coords or len(coords) < 2 or coords[0] is None or coords[1] is None:
+                continue
+
+            lat2, lon2 = coords[0], coords[1]
+
+            # KROK 1: Błyskawiczne odrzucenie obiektów poza Bounding Boxem (O(1) na obiekt)
+            if abs(lat2 - lat) > delta_lat or abs(lon2 - lon) > delta_lon:
+                continue
+
+            # KROK 2: Dokładne obliczenie odległości (tylko dla obiektów wewnątrz pudełka)
+            dist = _calculate_distance(lat, lon, lat2, lon2)
+            if dist <= max_dist_km:
+                nearby.append({
+                    "usi_inv_id": inv.get("usi_inv_id"),
+                    "distance": round(dist, 2),
+                    "name": inv.get("name"),
+                    "developer": inv.get("developer"),
+                    "developer_slug": inv.get("developer_slug"),
+                    "investment_slug": inv.get("investment_slug"),
+                    "city": inv.get("city"),
+                    "coords": coords,
+                    "ratings": inv.get("ratings", {})
+                })
+
+        # Sortowanie według dystansu i nałożenie limitu
+        nearby.sort(key=lambda x: x["distance"])
+        return nearby[:limit]
+
     def get_nearby_investments(
         self, 
         inv_id: str, 

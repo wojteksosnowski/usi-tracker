@@ -60,3 +60,28 @@ def test_refresh_developer_route_starts_job(client, monkeypatch):
     assert "Refresh Deweloper: Test Dev" in started_jobs[0]["name"]
     assert started_jobs[0]["args"][0] == "DEV-00001"
 
+def test_api_investments_nearby(client, monkeypatch):
+    from python_worker.services.investment_service import investment_service
+    
+    def mock_list_nearby_by_coordinates(lat, lon, max_dist_km, limit):
+        return [
+            {"usi_inv_id": "INV-001", "name": "Test", "distance": 1.5}
+        ]
+        
+    monkeypatch.setattr(investment_service, "list_nearby_by_coordinates", mock_list_nearby_by_coordinates)
+    
+    # Missing params
+    response = client.get("/api/investments/nearby")
+    assert response.status_code == 400
+    
+    # Invalid params
+    response = client.get("/api/investments/nearby?lat=abc&lon=52")
+    assert response.status_code == 400
+    
+    # Valid params
+    response = client.get("/api/investments/nearby?lat=52.2297&lon=21.0122&radius=5&limit=10")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "ok"
+    assert data["count"] == 1
+    assert data["data"][0]["usi_inv_id"] == "INV-001"

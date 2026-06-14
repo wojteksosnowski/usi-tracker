@@ -117,13 +117,30 @@
     };
 
     React.useEffect(() => {
-      setVariable('currentInvestment', inv);
-      let nearby = [];
-      if (inv.nearby_investments?.length > 0) {
-          nearby = inv.nearby_investments;
+      setVariable('currentInvestment', fullInv || inv);
+      const coords = fullInv?.coords || inv?.coords;
+      const lat = coords?.[0];
+      const lon = coords?.[1];
+
+      if (lat != null && lon != null) {
+          const reqFn = window.request || fetch;
+          reqFn(`/api/investments/nearby?lat=${lat}&lon=${lon}`)
+            .then(res => (typeof res.json === 'function' ? res.json() : res))
+            .then(data => {
+                if (data && data.status === 'ok') {
+                    setVariable('nearbyInvestments', data.data || []);
+                } else {
+                    setVariable('nearbyInvestments', []);
+                }
+            })
+            .catch(err => {
+                console.error("Failed to fetch nearby investments", err);
+                setVariable('nearbyInvestments', []);
+            });
+      } else {
+          setVariable('nearbyInvestments', []);
       }
-      setVariable('nearbyInvestments', nearby);
-    }, [inv]);
+    }, [inv.usi_inv_id, fullInv?.coords]);
 
     // Keyboard shortcuts
     React.useEffect(() => {

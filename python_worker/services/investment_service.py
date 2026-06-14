@@ -90,9 +90,13 @@ class InvestmentService:
                 entry.pop("nearby_investments", None)
                 get_investment_index().add_or_update(inv_id, entry)
         else:
+            # Czyszczenie pamięci podręcznej RAM serwisu - operacja O(1)
             self._cache.clear()
-            from python_worker.investment_index import get_investment_index
-            get_investment_index().rebuild()
+            # POPRAWKA: Usunięto destrukcyjne, samobójcze wywołanie get_investment_index().rebuild()
+
+    def list_nearby_by_coordinates(self, lat: float, lon: float, max_dist_km: float = 5.0, limit: int = 12) -> list[dict]:
+        """Pobiera inwestycje z indeksu na podstawie dynamicznego filtra przestrzennego."""
+        return get_investment_index().get_near_coordinates(lat, lon, max_dist_km, limit)
 
     def list_investments_filtered(self, **kwargs) -> list[dict]:
         """Filters all investments using the global index."""

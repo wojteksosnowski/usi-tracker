@@ -33,7 +33,7 @@ investment_service = InvestmentService()
 developer_manager = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
 developer_service = DeveloperService(Path(USI_DATA_DIR), Path(USI_DATA_DIR).parent / "USIdev")
 
-# Register callback for index changes
+# Rejestracja po zmianie będzie bezpieczna - wyczyści tylko słownik RAM serwisu
 inv_index.on_change(investment_service.invalidate_cache)
 
 _list_dev_cache = {} # Map full_path -> {"data": result, "timestamp": ts}
@@ -142,6 +142,52 @@ def list_investments():
     except Exception as e:
         logger.error(f"Failed to list investments: {e}")
         return jsonify({"error": "Internal server error"}), 500
+
+@investments_bp.route("/investments/nearby", methods=["GET"])
+def get_nearby_investments_api():
+    """
+    Zwraca inwestycje w pobliżu współrzędnych podanych w Query String.
+    Parametry: lat (wymagany), lon (wymagany), radius (opcjonalny), limit (opcjonalny).
+    """
+    lat_raw = request.args.get("lat")
+    lon_raw = request.args.get("lon")
+
+    if not lat_raw or not lon_raw:
+        return jsonify({"error": "Missing required float parameters: 'lat' and 'lon'"}), 400
+
+    try:
+        lat = float(lat_raw)
+        lon = float(lon_raw)
+    except ValueError:
+        return jsonify({"error": "Coordinates 'lat' and 'lon' must be valid float numbers"}), 400
+
+    # Definiowanie bezpiecznych i zwalidowanych wartości domyślnych
+    try:
+        radius = float(request.args.get("radius", 5.0))
+        limit = int(request.args.get("limit", 12))
+    except ValueError:
+        return jsonify({"error": "Parameter 'radius' must be a float, and 'limit' must be an integer"}), 400
+
+    if radius <= 0 or limit <= 0:
+        return jsonify({"error": "Parameters 'radius' and 'limit' must be strictly positive values"}), 400
+
+    try:
+        results = investment_service.list_nearby_by_coordinates(
+            lat=lat, 
+            lon=lon, 
+            max_dist_km=radius, 
+            limit=limit
+        )
+        return jsonify({
+            "status": "ok",
+            "count": len(results),
+            "data": results
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Spatial query failed for lat={lat}, lon={lon}: {e}", exc_info=True)
+        return jsonify({"error": "Internal server error during spatial processing"}), 500
+
 
 @investments_bp.route("/investments/rebuild-index", methods=["POST"])
 def rebuild_index():
