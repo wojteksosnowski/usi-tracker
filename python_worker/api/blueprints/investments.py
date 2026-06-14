@@ -745,3 +745,20 @@ def register():
     except Exception as e:
         logger.error(f"Registration critical error: {e}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
+
+@investments_bp.route('/investments/group-records', methods=['POST'])
+def group_records():
+    data = request.get_json() or {}
+    source_id = data.get('source_id')
+    target_id = data.get('target_id')
+    
+    if not source_id or not target_id:
+        return jsonify({"error": "Missing source_id or target_id"}), 400
+        
+    try:
+        from python_worker.services.investment_group_service import InvestmentGroupService
+        group_service = InvestmentGroupService()
+        master_id = group_service.create_or_extend_group(source_id, target_id)
+        return jsonify({"status": "success", "master_id": master_id}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

@@ -1,3 +1,12 @@
+## Wersja 0.9.94 — Kamień 01 (Grupowanie Inwestycji) — 2026-06-15
+- Wdrożenie dedykowanego serwisu `InvestmentGroupService` służącego tworzeniu relacji master/slave dla zduplikowanych inwestycji (generowanie pliku `master_*.json` oraz flagowanie `master_id` w bazowych wpisach).
+- Otwarcie nowego endpointu `POST /api/investments/group-records` umożliwiającego asynchroniczne delegowanie operacji fuzji.
+- Aktualizacja `NearbyInvestmentsModule` na froncie - wprowadzenie ukrytej mechaniki dla "Power-userów" (wywoływanie łączenia za pomocą eventu `Alt+Click`), zwieńczonej potwierdzeniem (prompt) i zautomatyzowanym odświeżaniem widoku po przebudowie indeksów.
+
+### Wnioski ze zmian
+- **Decoupling architektury**: Zastosowanie nadrzędnego atrybutu `master_id` bez ingerencji w oryginalne pliki `usi_*.json` pozwoliło nam zamodelować strukturę grafową dla duplikatów przy utrzymaniu zasady ID-only bez kosztownej migracji.
+- **Gęstość UI**: Zastosowanie ukrytych modifier keys (jak `Alt`) w event handlerach doskonale wpisuje się w założenie "High Density UI", udostępniając zaawansowane narzędzia do zarządzania plikami bez zaśmiecania widoku.
+
 ## Wersja 0.9.93 — UI fixes i stabilizacja synchronizacji — 2026-06-14
 
 ### Zmieniono

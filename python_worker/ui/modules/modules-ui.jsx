@@ -148,6 +148,44 @@
   function NearbyInvestmentsModule({ items = [], onSelectInv, bus }) {
     const { USI_CATEGORIES } = window;
     if (items.length === 0) return <div className="usi-small" style={{ color: 'var(--usi-ink-4)' }}>Brak innych inwestycji w promieniu 5km.</div>;
+
+    const handleLinkClick = async (e, investment) => {
+      if (e.altKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        const currentInvestment = bus && bus.currentInvestment;
+        if (!currentInvestment || currentInvestment.id === investment.id) return;
+
+        const confirmMerge = window.confirm(
+          `Czy chcesz połączyć inwestycję "${investment.name}" z obecną "${currentInvestment.name}" w grupę masterską?`
+        );
+
+        if (confirmMerge) {
+          try {
+            const response = await fetch('/api/investments/group-records', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                source_id: currentInvestment.id || currentInvestment.usi_inv_id,
+                target_id: investment.id || investment.usi_inv_id
+              })
+            });
+            
+            if (response.ok) {
+              alert('Pomyślnie zgrupowano rekordy. Odświeżam indeks...');
+              window.location.reload();
+            } else {
+              const err = await response.json();
+              alert(`Błąd: ${err.error}`);
+            }
+          } catch (error) {
+            console.error('Group link failed', error);
+          }
+        }
+      } else {
+         if (onSelectInv) onSelectInv(investment);
+      }
+    };
     
     // Stwórzmy szybki lookup po id
     const fastIndex = React.useMemo(() => {
@@ -184,7 +222,8 @@
               key={i.slug} 
               className="usi-distance-item" 
               style={{ cursor: onSelectInv ? 'pointer' : 'default' }}
-              onClick={() => onSelectInv && onSelectInv(indexInv || i)}
+              onClick={(e) => handleLinkClick(e, indexInv || i)}
+              title="Kliknij by otworzyć, Alt+Click by zgrupować w masterską grupę"
             >
               <div className="usi-distance-dot" />
               <div className="usi-distance-name" style={{ flex: 1 }}>{i.name}</div>
