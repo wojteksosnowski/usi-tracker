@@ -251,7 +251,7 @@ class OtodomAdapter:
         if isinstance(actual_raw, dict) and actual_raw.get("source") == "otodom.pl":
             actual_raw["source"] = "oto"
 
-        m = transform_to_unified("oto", actual_raw)
+        m = transform_to_unified("oto", raw)  # Zawsze przekazuj główny, niezmodyfikowany payload do biblioteki
         m = {k: _unwrap(v) for k, v in m.items()}
         
         # Wyznaczenie nazwy i ID z priorytetem dla danych od-pakowanych
