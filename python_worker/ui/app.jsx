@@ -399,7 +399,20 @@
               ) : view === 'developers' ? (
                 null
               ) : view === 'detail' && selectedInv ? (
-                <div className="usi-flex-row usi-gap-16">
+                <div className="usi-flex-row usi-gap-16 usi-align-center">
+                  {(bus.markedPhotos && bus.markedPhotos.size > 0) && (
+                    <>
+                      <button
+                        className="usi-btn sm danger"
+                        onClick={() => window._usiDeleteMarked && window._usiDeleteMarked()}
+                        title="Oznacz zaznaczone zdjęcia do usunięcia"
+                      >
+                        <Icon name="trash" size={13} className="usi-m-r-4" />
+                        Usuń zaznaczone ({bus.markedPhotos.size})
+                      </button>
+                      <div className="usi-divider-v" />
+                    </>
+                  )}
                   {window.SourceLinks && <window.SourceLinks inv={selectedInv} />}
                   <div className="usi-divider-v" />
                   <div className="mode-switch">

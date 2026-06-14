@@ -172,7 +172,23 @@ class InvestmentLoaderService:
             logger.error(f"load_investment: JSON error in {usi_file}: {e}")
             return None
 
-        images = resolve_images(usi, inv_dir=inv_dir, public_usi_dir=self.public_usi_dir, fast_index=fast_index)
+        images = []
+        try:
+            deleted_paths = set()
+            if inv_dir:
+                deletion_file = inv_dir / "deletion_list.json"
+                if deletion_file.exists():
+                    with open(deletion_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        if isinstance(data, dict):
+                            deleted_paths = set(data.get("paths", []))
+                        elif isinstance(data, list):
+                            deleted_paths = set(data)
+            
+            images = resolve_images(usi, inv_dir=inv_dir, public_usi_dir=self.public_usi_dir, fast_index=fast_index, deleted_paths=deleted_paths)
+        except Exception as e:
+            logger.error(f"Failed to resolve images for {system_id}: {e}")
+            
         duration = (time.time() - start_t) * 1000
         if not fast_index:
             logger.info(f"load_investment: Loaded {system_id or usi_file.name} in {duration:.1f}ms")
@@ -247,8 +263,14 @@ class InvestmentLoaderService:
             "master_usi_inv_id": master_usi_inv_id,
             "suggestions": usi.get("suggestions", []),
             "merged_from": merged_from,
-            "nearby_investments": usi.get("nearby_investments", []),
         }
+        
+        if not fast_index and coords and coords[0]:
+            from python_worker import investment_index
+            inv_id_val = system_id or usi.get("master_id") or usi.get("usi_inv_id")
+            base_data["nearby_investments"] = investment_index.get_nearby_investments(inv_id_val, coords)
+        else:
+            base_data["nearby_investments"] = []
 
         if resources:
             files_dict = {}

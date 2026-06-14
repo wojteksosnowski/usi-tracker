@@ -41,17 +41,34 @@ class ImageSyncService:
         if all_urls:
             logger.info(f"Synchronizing images for {system_id} ({len(all_urls)} URLs)")
             saved_filenames = self.gateway.save_images(all_urls, portal, str(item_id))
-            
+
             rel_dir = target_image_dir.relative_to(self.public_usi_dir)
-            new_unified["image_paths"] = [f"/Public/USI/{rel_dir}/{fname}" for fname in saved_filenames if fname]
-            new_unified["images_count"] = len(new_unified["image_paths"])
-            logger.info(f"Image sync complete for {system_id}: {new_unified['images_count']} paths resolved")
+            new_paths = [f"/Public/USI/{rel_dir}/{fname}" for fname in saved_filenames if fname]
+            
+            existing_paths = usi_data.get("image_paths", [])
+            # Zachowaj kolejność (stare zdjęcia zostają, nowe lądują na końcu bez duplikatów)
+            combined_paths = list(dict.fromkeys(existing_paths + new_paths))
+            
+            new_unified["image_paths"] = combined_paths
+            new_unified["images_count"] = len(combined_paths)
         else:
-            # No URLs from scraper — check what is already on disk
-            if target_image_dir.is_dir():
+            # Brak zdjęć w aktualnym scraphie -> zachowujemy to, co mieliśmy w pliku usi_*.json
+            existing_paths = usi_data.get("image_paths", [])
+            if existing_paths:
+                new_unified["image_paths"] = existing_paths
+                new_unified["images_count"] = len(existing_paths)
+            elif target_image_dir.is_dir():
                 on_disk = sorted(p.name for p in target_image_dir.iterdir()
                                  if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"})
                 if on_disk:
                     rel_dir = target_image_dir.relative_to(self.public_usi_dir)
                     new_unified["image_paths"] = [f"/Public/USI/{rel_dir}/{fname}" for fname in on_disk]
                     new_unified["images_count"] = len(on_disk)
+                else:
+                    new_unified["image_paths"] = []
+                    new_unified["images_count"] = 0
+            else:
+                new_unified["image_paths"] = []
+                new_unified["images_count"] = 0
+
+        logger.info(f"Image sync complete for {system_id}: {new_unified['images_count']} paths resolved")

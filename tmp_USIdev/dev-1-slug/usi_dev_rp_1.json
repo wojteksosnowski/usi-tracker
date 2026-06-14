@@ -1,0 +1,22 @@
+{
+  "developer_slug": "dev-1-slug",
+  "name": "Super Development",
+  "usi_dev_id": "DEV-E2E-001",
+  "portal_mapping": {
+    "rp": {
+      "id": "1",
+      "slug": "dev-1-slug"
+    },
+    "oto": null,
+    "to": null
+  },
+  "investments": [],
+  "last_updated": null,
+  "new_since_review": 0,
+  "maintenance_overdue_score": 1600.0,
+  "unregistered_count": 0,
+  "audit": {
+    "created_at": "2026-06-13T01:15:43.209304",
+    "updated_at": "2026-06-13T01:15:43.209311"
+  }
+}

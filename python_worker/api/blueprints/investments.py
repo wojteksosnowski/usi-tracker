@@ -209,30 +209,11 @@ def reload_investment(system_id):
 
 @investments_bp.route("/investment/<system_id>/recalc-nearby", methods=["POST"])
 def recalc_nearby(system_id):
+    # Backward compatibility endpoint - nearby investments are now calculated dynamically in the frontend UI.
     inv = investment_service.get_investment(system_id)
     if not inv:
         abort(404)
-        
-    coords = inv.get("coords")
-    
-    from python_worker import investment_index
-    if not coords or not coords[0]:
-        new_nearby = []
-    else:
-        new_nearby = investment_index.get_nearby_investments(system_id, coords)
-    
-    # Podmieńmy w JSONie i zapiszmy
-    resources = investment_service.get_investment_resources(system_id)
-    if resources and resources["files"]["anchor"].exists():
-        import json
-        with open(resources["files"]["anchor"], "r", encoding="utf-8") as f:
-            data = json.load(f)
-        data["nearby_investments"] = new_nearby
-        with open(resources["files"]["anchor"], "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-            
-    updated_inv = investment_service.get_investment(system_id)
-    return jsonify({"ok": True, "investment": updated_inv})
+    return jsonify({"ok": True, "investment": inv})
 
 @investments_bp.route("/investment/<system_id>/open-folder", methods=["POST"])
 def open_investment_folder(system_id):

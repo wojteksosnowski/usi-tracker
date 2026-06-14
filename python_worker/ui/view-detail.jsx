@@ -13,6 +13,49 @@
     const [focusedCat, setFocusedCat] = React.useState(-1);
     const [lightbox, setLightbox] = React.useState(null);
 
+    // Reset marked when switching investment
+    React.useEffect(() => { setMarked(new Set()); }, [inv.usi_inv_id]);
+
+    // Sync marked count to DataBus so ActionBar can show delete button
+    React.useEffect(() => {
+      setVariable('markedPhotos', marked);
+    }, [marked]);
+
+    const toggleMark = (idx) => {
+      setMarked(prev => {
+        const next = new Set(prev);
+        if (next.has(idx)) next.delete(idx); else next.add(idx);
+        return next;
+      });
+    };
+
+    const handleDeleteMarked = async () => {
+      const { Icon } = window;
+      const photos = (fullInv.photos || fullInv.image_paths || []);
+      const paths = [...marked].map(i => photos[i]).filter(Boolean);
+      if (!paths.length) return;
+      try {
+        const data = await request(`/api/investment/${fullInv.usi_inv_id}/mark-delete`, {
+          method: 'POST',
+          body: JSON.stringify({ paths }),
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (data && data.ok) {
+          setMarked(new Set());
+          setVariable('appStatus', { type: 'success', msg: `Oznaczono ${paths.length} zdjęć do usunięcia.` });
+          // Expose globally so ActionBar can call it
+        }
+      } catch (err) {
+        setVariable('appStatus', { type: 'error', msg: 'Błąd: ' + err.message });
+      }
+    };
+
+    // Expose handleDeleteMarked globally so ActionBar delete btn can call it
+    React.useEffect(() => {
+      window._usiDeleteMarked = handleDeleteMarked;
+      return () => { delete window._usiDeleteMarked; };
+    });
+
     const config = window.useConfig();
     const metaConfig = useMetadataConfig();
     const [localReviewed, setLocalReviewed] = React.useState(inv.reviewed);
@@ -75,10 +118,12 @@
 
     React.useEffect(() => {
       setVariable('currentInvestment', inv);
-      // Task 06.02.03: Sync nearby investments from either full data or index stub
-      const nearby = fullInv.nearby_investments || inv.nearby_investments || [];
+      let nearby = [];
+      if (inv.nearby_investments?.length > 0) {
+          nearby = inv.nearby_investments;
+      }
       setVariable('nearbyInvestments', nearby);
-    }, [inv.usi_inv_id, inv.nearby_investments, fullInv.nearby_investments]);
+    }, [inv]);
 
     // Keyboard shortcuts
     React.useEffect(() => {
@@ -122,11 +167,7 @@
                 <ModeC 
                     inv={validInv} 
                     marked={marked} 
-                    onToggleMark={(idx) => {
-                        const next = new Set(marked);
-                        if (next.has(idx)) next.delete(idx); else next.add(idx);
-                        setMarked(next);
-                    }} 
+                    onToggleMark={toggleMark} 
                     onLightbox={setLightbox}
                     ratings={ratings}
                     handleRating={handleRating}
@@ -144,6 +185,8 @@
               ) : (
                 <DetailsA
                     inv={validInv}
+                    marked={marked}
+                    onToggleMark={toggleMark}
                     ratings={ratings}
                     handleRating={handleRating}
                     comment={comment}

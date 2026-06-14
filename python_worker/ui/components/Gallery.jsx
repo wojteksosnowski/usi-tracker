@@ -52,7 +52,7 @@
         {marked && <DeletionBadge />}
         <PhotoOverlay onOpen={onOpen} onToggleMark={onMark} marked={marked} visible={hover || marked} />
         {!hero && (
-          <button onClick={onMark} aria-label={marked ? 'Cofnij oznaczenie' : 'Oznacz do usunięcia'}
+          <button onClick={onOpen} aria-label="Otwórz podgląd"
             className="usi-gallery-photo-clickable" />
         )}
       </div>

@@ -3,10 +3,9 @@
 (function() {
   const { React, usiRegister, MetadataPanel, RatingsPanel, ModuleWrapper, NearbyInvestmentsModule, PoiModule, ModuleTypes, Gallery, Lightbox, Icon, ModuleErrorBoundary } = window;
 
-  const DetailsA = ({ inv, ratings, handleRating, comment, handleComment, status, handleStatus, 
+  const DetailsA = ({ inv, marked = new Set(), onToggleMark, ratings, handleRating, comment, handleComment, status, handleStatus, 
       segment, handleSegment, saved, focusedCat, onFocusedCatChange, metaConfig, onUpdateInv, onSelectInv }) => {
     const { useDataBus, SourceBadge } = window;
-    const [marked, setMarked] = React.useState(new Set());
     const [lightbox, setLightbox] = React.useState(null);
     const { bus, setVariable } = useDataBus();
     const [refreshing, setRefreshing] = React.useState(false);
@@ -73,11 +72,7 @@
               inv={inv} 
               columns={3} 
               marked={marked} 
-              onToggleMark={(idx) => {
-                  const next = new Set(marked);
-                  if (next.has(idx)) next.delete(idx); else next.add(idx);
-                  setMarked(next);
-              }} 
+              onToggleMark={onToggleMark} 
               onLightbox={setLightbox} 
            />
         </div>

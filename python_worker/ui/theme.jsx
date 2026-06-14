@@ -11,7 +11,7 @@ const USI_CATEGORIES = [
   { key: 'Udogodnienia', short: 'UDG', color: '#7E7B7B', icon: 'amenity' },      // szary
 ];
 
-const USI_STATUSES = ['Brak', 'AI', 'Wstępna', 'Poszerzona', 'Pełna', 'Aktualizacja', 'Ukończona'];
+const USI_STATUSES = ['Brak', 'AI', 'Wstępna', 'Poszerzona', 'Pełna', 'Aktualizacja', 'Ukończona', 'Niedostateczne dane'];
 
 const MAIN_CITIES = ['Warszawa', 'Kraków', 'Wrocław', 'Łódź', 'Poznań', 'Gdańsk', 'Szczecin'];
 

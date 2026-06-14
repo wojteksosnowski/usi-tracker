@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 # Constants for USI
 CATS = ['Balkony', 'Fasady', 'Wnętrza', 'Teren', 'Mieszkania', 'Udogodnienia']
-USI_STATUSES = ['Brak', 'AI', 'Wstępna', 'Poszerzona', 'Pełna', 'Aktualizacja', 'Ukończona']
+USI_STATUSES = ['Brak', 'AI', 'Wstępna', 'Poszerzona', 'Pełna', 'Aktualizacja', 'Ukończona', 'Niedostateczne dane']
 
 def now_utc(): 
     return datetime.now(tz=timezone.utc)
