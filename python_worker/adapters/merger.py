@@ -179,6 +179,12 @@ class Merger:
                 result["image_paths"] = local_paths
                 result["images_count"] = len(local_paths)
 
+        # Gwarancja zachowania wszystkich scalonych i historycznych źródeł
+        if existing_data and "sources" in existing_data:
+            for k, v in existing_data["sources"].items():
+                if k not in result["sources"]:
+                    result["sources"][k] = v
+
         # Priority override: Meta ratings 'Segment' takes precedence
         if meta_ratings and meta_ratings.get("Segment"):
             result["specifications"]["segment"] = meta_ratings["Segment"]

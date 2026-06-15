@@ -52,18 +52,26 @@ class InvestmentLoaderService:
     def _resolve_source_data(self, usi_data: Dict) -> Tuple[str, str, List[Dict]]:
         """Determines the primary source and gathers all available source links."""
         sources = usi_data.get("sources", {})
+        
+        # Ustala główny portal prezentacji na podstawie hierarchii ważności
         source = "RP"
-        if "rp" in sources: source = "RP"
-        elif "oto" in sources: source = "OTO"
-        elif "to" in sources: source = "TO"
+        if any(k.startswith("rp") for k in sources): source = "RP"
+        elif any(k.startswith("oto") for k in sources): source = "OTO"
+        elif any(k.startswith("to") for k in sources): source = "TO"
         
         source_links = []
-        if "rp" in sources and sources["rp"].get("url"): 
-            source_links.append({"source": "RP", "url": sources["rp"]["url"]})
-        if "oto" in sources and sources["oto"].get("url"): 
-            source_links.append({"source": "OTO", "url": sources["oto"]["url"]})
-        if "to" in sources and sources["to"].get("url"): 
-            source_links.append({"source": "TO", "url": sources["to"]["url"]})
+        # Dynamiczne skanowanie wszystkich kluczy (w tym przemapowanych i scalonych)
+        for k, src_info in sources.items():
+            if not isinstance(src_info, dict) or not src_info.get("url"):
+                continue
+            
+            if k.startswith("rp"):
+                source_links.append({"source": "RP", "url": src_info["url"]})
+            elif k.startswith("oto"):
+                source_links.append({"source": "OTO", "url": src_info["url"]})
+            elif k.startswith("to"):
+                source_links.append({"source": "TO", "url": src_info["url"]})
+        
         if not source_links: 
             source_links.append({"source": "RP", "url": "https://rynekpierwotny.pl/"})
         
@@ -125,10 +133,6 @@ class InvestmentLoaderService:
             return None
 
         if not usi_file and system_id:
-            if str(system_id).startswith("legacy_"):
-                logger.error(f"load_investment: Cannot load legacy ID {system_id}.")
-                return None
-            
             resources = self.identity.get_investment_resources(system_id)
             if resources:
                 usi_file = resources["files"].get("anchor")
@@ -194,13 +198,51 @@ class InvestmentLoaderService:
             logger.info(f"load_investment: Loaded {system_id or usi_file.name} in {duration:.1f}ms")
 
         am_data = usi.get("amenities", {})
-        display_amenities = am_data.get("labels", [])
+        display_amenities = []
+        
+        # Pancerne sprawdzenie typu i struktury danych wejściowych
+        if isinstance(am_data, dict):
+            display_amenities = am_data.get("labels", [])
+        elif isinstance(am_data, list):
+            display_amenities = am_data
+        elif am_data is None:
+            display_amenities = []
+            
         if not display_amenities and usi.get("amenities_matched"):
             display_amenities = [m["label"] for m in usi.get("amenities_matched")]
 
         source, source_url, source_links = self._resolve_source_data(usi)
         address, city, district, coords = self._extract_location_data(usi)
         master_id, merged_from, master_usi_inv_id = self._load_master_data(usi, inv_dir)
+
+        # --- NOWA LOGIKA: Łączenie list zdjęć dla widoku Master ---
+        if master_id:
+            all_photos = list(images) # Zaczynamy od zdjęć z obecnego katalogu
+            seen_photo_names = {Path(p).name for p in images}
+            
+            # Przechodzimy przez powiązane zasoby przekazane z repozytorium
+            for linked_record in merged_from:
+                linked_id = linked_record.get("usi_inv_id")
+                
+                # Check for strict exclusion against current system_id
+                if linked_id and linked_id != system_id:
+                    linked_res = self.identity.get_investment_resources(linked_id)
+                    if linked_res:
+                        try:
+                            # Pobieramy i filtrujemy listę zdjęć z powiązanego folderu
+                            linked_anchor = linked_res["files"].get("anchor")
+                            if linked_anchor and linked_anchor.exists():
+                                linked_usi = json.loads(linked_anchor.read_text(encoding="utf-8"))
+                                
+                                linked_images = resolve_images(linked_usi, inv_dir=linked_res["base_dir"], public_usi_dir=self.public_usi_dir, fast_index=fast_index)
+                                for img_path in linked_images:
+                                    if Path(img_path).name not in seen_photo_names:
+                                        seen_photo_names.add(Path(img_path).name)
+                                        all_photos.append(img_path)
+                        except Exception:
+                            pass
+            images = all_photos
+        # -----------------------------------------------------------
         ratings_data = usi.get("ratings", {})
 
         base_dir_rel = ""
@@ -211,6 +253,10 @@ class InvestmentLoaderService:
                 base_dir_rel = str(resources["base_dir"])
         else:
             base_dir_rel = f"Public/USIdata/{dev_slug}/{inv_slug}"
+            
+        inv_id_canonical = system_id or usi.get("usi_inv_id") or usi.get("master_id")
+        if not inv_id_canonical:
+            raise ValueError(f"Krytyczny brak identyfikatora strukturalnego w pliku {usi_file}")
                 
         base_data = {
             "slug": f"{dev_slug}/{inv_slug}",
@@ -248,7 +294,7 @@ class InvestmentLoaderService:
             "images_count": usi.get("images_count", len(images)),
             "portal": usi.get("portal"),
             "portal_id": usi.get("portal_id"),
-            "id": system_id or usi.get("master_id") or (f"{usi.get('portal')}_{usi.get('portal_id')}" if usi.get("portal") and usi.get("portal_id") else f"legacy_{dev_slug}/{inv_slug}"),
+            "id": inv_id_canonical,
             "usi_inv_id": usi.get("usi_inv_id"),
             "usi_dev_id": usi.get("usi_dev_id"),
             "reviewed": usi.get("reviewed", False),

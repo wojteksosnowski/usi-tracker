@@ -100,8 +100,15 @@ class InvestmentMerger:
         s_dev_slug = source_entry["developer_slug"]
         s_inv_slug = source_entry["investment_slug"]
 
-        t_inv_dir = self.data_dir / t_dev_slug / t_inv_slug
-        s_inv_dir = self.data_dir / s_dev_slug / s_inv_slug
+        t_res = self.identity.get_investment_resources(target_inv_id)
+        s_res = self.identity.get_investment_resources(source_inv_id)
+
+        if not t_res or not s_res:
+            logger.error("Target or Source resource mapping could not be resolved.")
+            return False
+
+        t_inv_dir = t_res["base_dir"]
+        s_inv_dir = s_res["base_dir"]
 
         t_res = self.identity.get_investment_resources(target_inv_id)
         t_usi_file = t_res["files"].get("anchor") if t_res else None
@@ -199,12 +206,25 @@ class InvestmentMerger:
             "changes": [{"field": "master_id", "old": None, "new": master_id}]
         })
 
-        # Also give target a master_id pointing to the same master!
+        # Także daj targetowi master_id pointing to the same master!
         if not t_data.get("master_id"):
             t_data["master_id"] = master_id
             t_data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
-            with open(t_usi_file, "w", encoding="utf-8") as f:
-                json.dump(t_data, f, indent=2, ensure_ascii=False)
+
+        # NOWY BLOK: Propagacja i unifikacja słowników sources z obsługą duplikatów portali
+        if "sources" not in t_data:
+            t_data["sources"] = {}
+
+        for src_k, src_v in s_data.get("sources", {}).items():
+            if src_k in t_data["sources"]:
+                # Jeśli klucz portalu już istnieje (np. oba to 'oto'), tworzymy unikalny klucz powiązania
+                unique_key = f"{src_k}_merged_{source_inv_id}"
+                t_data["sources"][unique_key] = src_v
+            else:
+                t_data["sources"][src_k] = src_v
+
+        with open(t_usi_file, "w", encoding="utf-8") as f:
+            json.dump(t_data, f, indent=2, ensure_ascii=False)
 
         # Save files
         with open(master_file_path, "w", encoding="utf-8") as f:
@@ -315,11 +335,12 @@ class InvestmentMerger:
         # Also remove from local suggestions
         target_entry = self._find_index_entry(target_inv_id)
         if target_entry:
-            t_dev_slug = target_entry["developer_slug"]
-            t_inv_slug = target_entry["investment_slug"]
-            t_inv_dir = self.data_dir / t_dev_slug / t_inv_slug
             t_res = self.identity.get_investment_resources(target_inv_id)
-            t_usi_file = t_res["files"].get("anchor") if t_res else None
+            if not t_res:
+                return False
+                
+            t_inv_dir = t_res["base_dir"]
+            t_usi_file = t_res["files"].get("anchor")
             if t_usi_file:
                 with open(t_usi_file, "r", encoding="utf-8") as f:
                     t_data = json.load(f)

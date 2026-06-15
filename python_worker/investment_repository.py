@@ -112,3 +112,21 @@ class InvestmentRepository:
         # Jeśli indeks w pamięci jest pusty, wymusza ładowanie
         entries = idx.get_all() if getattr(idx, "_index", None) else load(self.data_dir)
         return [entry.get("usi_inv_id") for entry in entries if entry.get("usi_inv_id")]
+
+    def get_master_data(self, master_id: str, inv_dir: Path) -> tuple[list, str | None]:
+        """
+        Wczytuje lokalny rekord scalenia Master (T3) z katalogu inwestycji.
+        Zwraca listę jednostek składowych oraz kanoniczny identyfikator Master.
+        """
+        master_file = inv_dir / f"inv_master_{master_id}.json"
+        if not master_file.exists():
+            logger.warning(f"Master file not found on disk: {master_file}")
+            return [], None
+            
+        try:
+            with open(master_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data.get("merged_from", []), data.get("master_usi_inv_id")
+        except Exception as e:
+            logger.error(f"Failed to read master file {master_file}: {e}")
+            return [], None

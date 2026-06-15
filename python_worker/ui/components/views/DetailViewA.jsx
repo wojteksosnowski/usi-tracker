@@ -135,6 +135,27 @@
               <Icon name="sparkle" size={14} className="usi-m-r-8" />
               {refreshLabel}
            </button>
+           <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+              {inv.master_id && (
+                <span className="badge master-group-badge" style={{
+                  backgroundColor: 'var(--color-primary, #2b6cb0)',
+                  color: '#fff',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  fontSize: '0.85rem',
+                  fontWeight: 'bold',
+                  display: 'inline-flex',
+                  alignItems: 'center'
+                }}>
+                  ⚙️ MASTER: {inv.master_id}
+                </span>
+              )}
+              {inv.source_links && inv.source_links.map((link, i) => (
+                  <a key={i} className="usi-btn sm ghost" href={link.url} target="_blank" rel="noopener">
+                    <SourceBadge source={link.source} /> <Icon name="arrow" size={11} />
+                  </a>
+              ))}
+           </div>
            <MetadataPanel inv={inv} config={metaConfig} />
            <div className="usi-m-b-16" />
            <InvestmentMergeModule inv={inv} onUpdateInv={onUpdateInv} />

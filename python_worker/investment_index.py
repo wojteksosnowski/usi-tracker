@@ -222,17 +222,43 @@ class InvestmentIndex:
                 except Exception: continue
                     
             for uid, group in inv_groups.items():
-                # Pick canonical (simplification for rebuild)
-                canonical = sorted(group, key=lambda x: x[0].name)[0]
-                usi_file, data = canonical
+                # group to lista krotek: (usi_file, data)
+                # Zamiast brać jeden plik, konsolidujemy słownik 'sources' ze wszystkich plików grupy
+                consolidated_sources = {}
+                primary_file, primary_data = group[0] # Punkt wyjścia jako baza danych
+
+                for usi_file, data in group:
+                    if "sources" in data and isinstance(data["sources"], dict):
+                        for src_k, src_v in data["sources"].items():
+                            # Jeśli źródło już istnieje, nie nadpisujemy, chyba że nowe ma świeższy timestamp
+                            if src_k not in consolidated_sources:
+                                consolidated_sources[src_k] = src_v
+                
+                # Wstrzykujemy skonsolidowane źródła do bazowego zestawu danych przed ładowaniem
+                if "sources" not in primary_data:
+                    primary_data["sources"] = {}
+                primary_data["sources"].update(consolidated_sources)
+
                 try:
                     from python_worker.api.utils import _load_investment
-                    entry = _load_investment(data_dir=self.data_dir, public_usi_dir=self.public_usi_dir, system_id=uid, usi_file=usi_file, fast_index=True)
+                    # Ładujemy inwestycję przekazując skonsolidowane dane
+                    entry = _load_investment(
+                        data_dir=self.data_dir, 
+                        public_usi_dir=self.public_usi_dir, 
+                        system_id=uid, 
+                        usi_file=primary_file, 
+                        fast_index=True
+                    )
                     if entry:
+                        # Gwarantujemy, że zaindeksowany obiekt zawiera połączone źródła
+                        entry["sources"].update(consolidated_sources)
                         entry.pop("image_urls", None)
                         entry.pop("nearby_investments", None)
                         entries.append(entry)
-                except Exception: continue
+                except Exception as e: 
+                    # ZAKAZ cichego ignorowania błędów strukturalnych! Logujemy awarię.
+                    logger.error(f"Krytyczny błąd indeksowania inwestycji {uid} z pliku {primary_file}: {e}", exc_info=True)
+                    continue
 
             # Update state
             new_index = {e["usi_inv_id"]: e for e in entries}
@@ -352,15 +378,37 @@ def on_change(callback):
     get_investment_index().on_change(callback)
 
 def upsert(data_dir, public_usi_dir, dev_slug=None, inv_slug=None, portal=None, inv_id=None):
-    # For backward compatibility, we can just trigger add_or_update with loaded data
+    """
+    Safely registers or updates an investment in the memory index.
+    Supports fallback path resolution for newly discovered investments.
+    """
     idx = get_investment_index()
     from python_worker.api.utils import _load_investment
+    from pathlib import Path
+    
+    # Krok 1: Próba standardowego załadowania po ID (dla istniejących rekordów)
     entry = _load_investment(data_dir=data_dir, public_usi_dir=public_usi_dir, system_id=inv_id, fast_index=True)
+    
+    # Krok 2: Fallback dla nowo odkrytych inwestycji (brak wpisu w indeksie)
+    if not entry and dev_slug and inv_slug and portal and inv_id:
+        # Rekonstrukcja ścieżki kanonicznej na podstawie specyfikacji bazy danych
+        expected_file = Path(public_usi_dir) / dev_slug / inv_slug / f"usi_{portal}_{inv_id}.json"
+        if expected_file.exists():
+            entry = _load_investment(
+                data_dir=data_dir, 
+                public_usi_dir=public_usi_dir, 
+                usi_file=expected_file, 
+                fast_index=True
+            )
+            
     if entry:
         entry.pop("image_urls", None)
         entry.pop("nearby_investments", None)
+        # Przyrostowa aktualizacja indeksu w pamięci i zrzut atomowy na dysk
         idx.add_or_update(inv_id, entry)
         return True
+        
+    logger.error(f"Upsert failed: Unable to resolve investment data for ID {inv_id} (Portal: {portal})")
     return False
 
 def remove(data_dir, inv_id):

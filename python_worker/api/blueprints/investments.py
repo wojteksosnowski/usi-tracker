@@ -603,7 +603,7 @@ def discover_developer_investments(usi_dev_id):
         job_manager.update_progress(job_id, 10, f"Szukanie nowych inwestycji dla: {d_name}")
         try:
             results = discovery_service.discover_for_developer(d_id)
-            count = len(results)
+            count = results if isinstance(results, int) else len(results)
             job_manager.update_progress(job_id, 100, f"Znaleziono {count} nowych ofert.")
         except Exception as e:
             logger.exception(f"Discovery failed for {d_id}")

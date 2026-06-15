@@ -1,3 +1,16 @@
+## Wersja 0.9.97 — Kamień 01 (Trwałe scalanie źródeł i fuzje deweloperów) — 2026-06-16
+
+- Wdrożono autodetekcję i fuzję deweloperów podczas grupowania inwestycji (`InvestmentGroupService`).
+- Zabezpieczono historię zmultiplikowanych źródeł portali (`merger.py`) przed utratą podczas cyklu scraperów.
+- Usunięto kolizje kluczy źródeł dla wielu rekordów z tego samego portalu (`investment_merger.py`).
+- Oczyszczono architekturę `InvestmentMerger` oraz `InvestmentLoader` z heurystyki bazującej na slugach na rzecz ścisłego bazowania na ID (`InvestmentIdentityResolver`).
+- Naprawiono `TypeError` i luki logiczne we wczytywaniu inwestycji, repozytorium oraz serwerach Discovery.
+- Przeprojektowano `upsert` w `investment_index.py`, wprowadzając odtwarzanie ścieżek fallback dla nowo odkrytych i nowo zarejestrowanych plików z fazy Discovery.
+
+### Wnioski ze zmian
+- **Self-Healing Data**: Zamykając cykl fuzji i weryfikacji powiązań od korzenia do gałęzi, osiągnęliśmy mechanikę samonaprawiającej się struktury JSON. System samodzielnie zespaja duplikaty kont developerskich na podstawie zagnieżdżonych inwestycji i propaguje to w górę drzewa.
+- **Rygoryzm typowania (Type-Guard)**: Migracja i elastyczność nie oznaczają ucieczki w brak typowania. Usztywnienie `amenities` oraz ID uratowało stabilność usługi wobec starszych i wadliwych rekordów w bazie.
+
 ## Wersja 0.9.94 — Kamień 01 (Grupowanie Inwestycji) — 2026-06-15
 - Wdrożenie dedykowanego serwisu `InvestmentGroupService` służącego tworzeniu relacji master/slave dla zduplikowanych inwestycji (generowanie pliku `master_*.json` oraz flagowanie `master_id` w bazowych wpisach).
 - Otwarcie nowego endpointu `POST /api/investments/group-records` umożliwiającego asynchroniczne delegowanie operacji fuzji.

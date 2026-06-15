@@ -284,6 +284,26 @@ class InvestmentSyncService:
         if not sources and metadata.get("portal") and metadata.get("portal_id"):
             sources[metadata["portal"]] = {"id": str(metadata["portal_id"])}
 
+        # --- NOWA LOGIKA: Agregacja źródeł z grupy Master ---
+        master_id = usi_data.get("master_id")
+        if master_id:
+            master_file = inv_dir / f"master_{master_id}.json"
+            if master_file.exists():
+                try:
+                    master_meta = json.loads(master_file.read_text(encoding="utf-8"))
+                    # Iterujemy po wszystkich ID powiązanych z tą grupą
+                    for linked_id in master_meta.get("investments", []):
+                        linked_res = self.identity.get_investment_resources(linked_id)
+                        if linked_res and linked_res["files"].get("anchor").exists():
+                            linked_usi = json.loads(linked_res["files"]["anchor"].read_text(encoding="utf-8"))
+                            # Scalamy słowniki źródeł (np. dodajemy 'rp' do rekordu 'oto')
+                            for p_k, p_v in linked_usi.get("sources", {}).items():
+                                if p_k not in sources:
+                                    sources[p_k] = p_v
+                except Exception as e:
+                    logger.error(f"Error aggregating master sources for {master_id}: {e}")
+        # ----------------------------------------------------
+
         # 2. Fetch and Transform
         unified_data_map = {}
         fetched_sources, failed_sources = [], []
