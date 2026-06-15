@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
-from python_worker.config import get_shared_tech_manager
+from typing import Optional, Dict, Any
+from python_worker.config import get_shared_tech_manager, PUBLIC_USI_DIR
 
 class InvestmentIdentityResolver:
     """
@@ -8,12 +9,11 @@ class InvestmentIdentityResolver:
     Returns a map of all physical files associated with a USI Investment ID.
     
     ARCHITECTURAL MANDATE: ID-ONLY PRIORITY.
-    This is the primary method for resolving physical resources. Never use slugs
-    for file lookup if an ID is available.
     """
-    def __init__(self, data_dir: Path | str, public_usi_dir: Path | str):
+    def __init__(self, data_dir: Path | str, public_usi_dir: Path | str = None):
         self.data_dir = Path(data_dir) if isinstance(data_dir, str) else data_dir
-        self.public_usi_dir = Path(public_usi_dir) if isinstance(public_usi_dir, str) else public_usi_dir
+        # Pobieranie poprawnego katalogu bazowego zamiast nawigacji relatywnej parent.parent
+        self.public_usi_dir = Path(public_usi_dir) if public_usi_dir else Path(PUBLIC_USI_DIR)
         self._tech_manager = None
 
     @property
@@ -22,16 +22,14 @@ class InvestmentIdentityResolver:
             self._tech_manager = get_shared_tech_manager()
         return self._tech_manager
 
-    def build_index(self):
-        """Triggers a full rebuild of the investment index."""
+    def build_index(self) -> int:
         from python_worker.investment_index import rebuild
         return rebuild(self.data_dir, self.public_usi_dir)
 
     def generate_deterministic_id(self, portal: str, item_id: str) -> str:
-        """Generates a stable system ID based on portal and source ID."""
         return f"{portal}_{item_id}"
 
-    def get_investment_resources(self, inv_id: str) -> dict | None:
+    def get_investment_resources(self, inv_id: str) -> Optional[Dict[str, Any]]:
         from python_worker.investment_index import get_entry_by_id
         entry = get_entry_by_id(inv_id)
         
@@ -46,8 +44,11 @@ class InvestmentIdentityResolver:
 
         return self._map_resources_from_entry(entry)
 
-    def _map_resources_from_entry(self, entry: dict) -> dict | None:
-        """Determines physical file locations. Prioritizes cached folder_path from index."""
+    def _map_resources_from_entry(self, entry: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        usi_inv_id = entry.get("usi_inv_id")
+        if not usi_inv_id:
+            return None
+
         portal = entry.get("portal")
         portal_id = entry.get("portal_id")
         
@@ -59,31 +60,25 @@ class InvestmentIdentityResolver:
                     portal_id = sources[p].get("id")
                     break
                     
-        # Robustness fallback: Extract from usi_inv_id (e.g., 'to_9232029')
         if not portal or not portal_id:
-            usi_inv_id = entry.get("usi_inv_id")
-            if usi_inv_id and "_" in usi_inv_id:
+            if "_" in usi_inv_id:
                 parts = usi_inv_id.split("_", 1)
                 if parts[0] in ("rp", "oto", "to"):
                     portal = parts[0]
                     portal_id = parts[1]
 
-        # OPTIMIZATION: Use cached folder_path if available in index entry
         inv_dir = None
         images_dir = None
         folder_path = entry.get("folder_path")
         
         if folder_path:
-            # folder_path in index is relative to root (e.g., Public/USIdata/dev/inv)
-            # We need to ensure it's resolved relative to self.data_dir's parent
-            project_root = self.data_dir.parent.parent
-            candidate_dir = project_root / folder_path
+            # Rozwiązanie ścieżki na podstawie poprawnego public_usi_dir lub tech_manager
+            candidate_dir = self.public_usi_dir / folder_path if not Path(folder_path).is_absolute() else Path(folder_path)
             if candidate_dir.exists():
                 inv_dir = candidate_dir
-                # Images are usually in Public/USI/dev/inv
-                images_dir = project_root / folder_path.replace("USIdata", "USI")
+                # Zgodnie z GEMINI.md: struktury USIdata oraz USI muszą być spójne
+                images_dir = Path(str(candidate_dir).replace("USIdata", "USI"))
 
-        # Fallback to TechnicalDataManager if not found or not in index
         if not inv_dir and self.tech_manager and portal and portal_id:
             inv_dir = self.tech_manager.get_investment_path(portal, str(portal_id))
             images_dir = self.tech_manager.get_image_path(portal, str(portal_id))
@@ -93,23 +88,20 @@ class InvestmentIdentityResolver:
 
         anchor_file = inv_dir / f"usi_{portal}_{portal_id}.json"
         if not anchor_file.exists():
-            # Robustness fallback (06.01.10): Find any usi_*.json in the resolved folder
             candidates = list(inv_dir.glob("usi_*.json"))
             if candidates:
                 anchor_file = sorted(candidates)[0]
 
-        # Meta/ratings files are still partially slug-based in names, but located in ID-resolved folder
-        inv_slug = entry.get("investment_slug")
-        usi_inv_id = entry.get("usi_inv_id")
-        meta_file = inv_dir / f"meta_{usi_inv_id}_ratings.json" if usi_inv_id else None
+        # POPRAWKA: Nazwa pliku meta ściśle według CANONICAL.md sekcja 3.2
+        meta_file = inv_dir / f"meta_{portal}_{portal_id}.json"
 
         return {
-            "id": entry["usi_inv_id"],
+            "id": usi_inv_id,
             "type": "investment",
             "base_dir": inv_dir,
             "files": {
-                "anchor": anchor_file if anchor_file and anchor_file.exists() else None,
-                "meta": meta_file if meta_file and meta_file.exists() else None,
+                "anchor": anchor_file if anchor_file.exists() else None,
+                "meta": meta_file if meta_file.exists() else None,
                 "logs": [inv_dir / "deletion_list.json"] if (inv_dir / "deletion_list.json").exists() else []
             },
             "images_dir": images_dir,
@@ -117,8 +109,7 @@ class InvestmentIdentityResolver:
                 "portal": portal,
                 "portal_id": portal_id,
                 "developer_slug": entry.get("developer_slug"),
-                "investment_slug": inv_slug,
-                "slug": f"{entry.get('developer_slug')}/{inv_slug}"
+                "investment_slug": entry.get("investment_slug"),
+                "slug": f"{entry.get('developer_slug')}/{entry.get('investment_slug')}"
             }
         }
-

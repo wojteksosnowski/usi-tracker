@@ -74,7 +74,6 @@ class DeveloperManager:
             
             rp_ids = identifiers.get("rp_ids", set())
             oto_ids = identifiers.get("oto_ids", set())
-            oto_slugs = identifiers.get("oto_slugs", set())
             to_ids = identifiers.get("to_ids", set())
             
             count = 0
@@ -83,8 +82,8 @@ class DeveloperManager:
                 is_registered = False
                 if portal == "rp":
                     is_registered = str(item.get("id")) in rp_ids
-                elif portal == "otodom" or portal == "oto":
-                    is_registered = str(item.get("id")) in oto_ids or item.get("slug") in oto_slugs
+                elif portal in ("otodom", "oto"):
+                    is_registered = str(item.get("id")) in oto_ids
                 elif portal in ("to", "tabelaofert"):
                     is_registered = str(item.get("id")) in to_ids
                 

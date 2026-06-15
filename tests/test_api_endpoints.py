@@ -61,7 +61,7 @@ def test_refresh_developer_route_starts_job(client, monkeypatch):
     assert started_jobs[0]["args"][0] == "DEV-00001"
 
 def test_api_investments_nearby(client, monkeypatch):
-    from python_worker.services.investment_service import investment_service
+    from python_worker.api.blueprints.investments import investment_service
     
     def mock_list_nearby_by_coordinates(lat, lon, max_dist_km, limit):
         return [

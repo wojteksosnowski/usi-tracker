@@ -99,40 +99,34 @@ class InvestmentService:
         return get_investment_index().get_near_coordinates(lat, lon, max_dist_km, limit)
 
     def list_investments_filtered(self, **kwargs) -> list[dict]:
-        """Filters all investments using the global index."""
+        """Filters all investments using the global index with Single-Pass Multi-Predicate strategy."""
         index = get_investment_index()
         all_invs = index.get_all()
         if not kwargs:
             return all_invs
-        
-        filtered = all_invs
-        for key, value in kwargs.items():
-            if value is None or value == "":
-                continue
 
-            if key == 'onlyUnreviewed' and value is True:
-                filtered = [i for i in filtered if not i.get('reviewed', False)]
-            elif key == 'onlyNoPhotos' and value is True:
-                filtered = [i for i in filtered if not i.get('photos') or len(i.get('photos', [])) == 0]
-            elif key == 'dev':
-                filtered = [i for i in filtered if i.get('developer_slug') == value]
-            elif key == 'search':
-                s = str(value).lower()
-                filtered = [i for i in filtered if s in str(i.get('name') or '').lower() or s in str(i.get('developer') or '').lower()]
-            elif key == 'sources' and isinstance(value, list):
-                if len(value) == 0: continue
-                filtered = [i for i in filtered if any(str(p).lower() in [str(s).lower() for s in value] for p in i.get('sources', {}).keys())]
-            elif key == 'segments' and isinstance(value, list):
-                if len(value) == 0: continue
-                filtered = [i for i in filtered if i.get('segment') in value]
-            elif key == 'cities' and isinstance(value, list):
-                if len(value) == 0: continue
-                filtered = [i for i in filtered if str(i.get('city') or '').lower() in [str(c).lower() for c in value]]
-            elif key in ['reviewed', 'developer_slug', 'portal', 'status']:
-                filtered = [i for i in filtered if i.get(key) == value]
-            else:
-                pass
-        return filtered
+        # Definicja predykatów mapujących klucz na funkcję filtrującą
+        predicates = {
+            'onlyUnreviewed': lambda i, v: not i.get('reviewed', False) if v else True,
+            'onlyNoPhotos': lambda i, v: (not i.get('photos') or len(i.get('photos', [])) == 0) if v else True,
+            'dev': lambda i, v: i.get('developer_slug') == v,
+            'search': lambda i, v: str(v).lower() in str(i.get('name') or '').lower() or str(v).lower() in str(i.get('developer') or '').lower(),
+            'sources': lambda i, v: any(str(p).lower() in [str(s).lower() for s in v] for p in i.get('sources', {}).keys()) if v else True,
+            'segments': lambda i, v: i.get('segment') in v if v else True,
+            'cities': lambda i, v: str(i.get('city') or '').lower() in [str(c).lower() for c in v] if v else True,
+            'reviewed': lambda i, v: i.get('reviewed') == v,
+            'developer_slug': lambda i, v: i.get('developer_slug') == v,
+            'portal': lambda i, v: i.get('portal') == v,
+            'status': lambda i, v: i.get('status') == v,
+        }
+
+        active_filters = [(predicates[k], v) for k, v in kwargs.items() if k in predicates and v is not None and v != "" and v != []]
+
+        # Jedno przejście przez pętlę zamiast wielokrotnego klonowania tablicy
+        return [
+            inv for inv in all_invs 
+            if all(predicate(inv, value) for predicate, value in active_filters)
+        ]
 
     def rebuild_index(self) -> int:
         """Rebuilds the global investment index."""

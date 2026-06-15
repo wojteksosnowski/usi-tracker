@@ -1,3 +1,10 @@
+## Wersja 0.9.98 — Hotfixy optymalizacyjne i architektoniczne — 2026-06-16
+
+- Usunięto identyfikację po slugu w `developer_manager.py` domykając w pełni wymóg *ID-Only Architecture* także dla portalów grupy Otodom.
+- Zoptymalizowano metodę `list_investments_filtered` w `investment_service.py`, zastępując O(N * M) strategią Single-Pass Multi-Predicate, oszczędzając masowo zasoby RAM oraz czas procesora dla wywołań w aplikacji webowej.
+- Naprawiono uszkodzony potok `InvestmentIdentityResolver` (błędna ekstrakcja identyfikatorów portalowych, skutkująca awarią endpoints `/data` i `/refresh`).
+- Doprowadzono do pełnej zgodności nazewnictwa plików konfiguracyjnych ze standardem `CANONICAL.md` (przekierowanie `meta_ratings` na ścisłe ID portali) poprzez masową operację `backfill`.
+
 ## Wersja 0.9.97 — Kamień 01 (Trwałe scalanie źródeł i fuzje deweloperów) — 2026-06-16
 
 - Wdrożono autodetekcję i fuzję deweloperów podczas grupowania inwestycji (`InvestmentGroupService`).
