@@ -87,7 +87,7 @@ class Merger:
         for portal, portal_data in [("rp", rp_data), ("oto", oto_data), ("to", to_data)]:
             if portal_data:
                 src_info = portal_data["sources"].get(portal) or {}
-                vid = src_info.get("vendor_id") or src_info.get("id") or src_info.get("agency_id")
+                vid = src_info.get("id") or src_info.get("vendor_id") or src_info.get("agency_id")
                 
                 # Próba pobrania z istniejących źródeł jeśli brakuje
                 if not vid and portal in existing_sources:

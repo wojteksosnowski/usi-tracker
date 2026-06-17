@@ -525,11 +525,11 @@ class InvestmentSyncService:
             try:
                 raw_payload = data.get("raw_details", data) if isinstance(data, dict) else data
                 
-                # Używamy API do mapowania
-                unified = transform_to_unified(portal, raw_payload, entity_type="investment") or {}
+                # Używamy API do wstępnego wyznaczenia ID
+                m_temp = transform_to_unified(portal, raw_payload, entity_type="investment") or {}
                 dev_meta = self.gateway.extract_developer_meta(raw_payload, portal)
                 
-                item_id = str(unified.get("id") or unified.get("numeric_id") or "")
+                item_id = str(m_temp.get("id") or m_temp.get("numeric_id") or "")
                 if not item_id:
                     logger.warning(f"[BATCH] Could not resolve item_id for item {i}")
                     continue
@@ -544,25 +544,43 @@ class InvestmentSyncService:
                     inv_slug = dest_dir.name
                 else:
                     dev_slug = data.get("developer_slug") or dev_meta.get("slug") or "unknown"
-                    inv_slug = data.get("investment_slug") or unified.get("slug") or str(item_id)
+                    inv_slug = data.get("investment_slug") or m_temp.get("slug") or str(item_id)
                     dest_dir = self.data_dir / dev_slug / inv_slug
                 
-                # Zrzucamy zunifikowane dane do pliku organizacyjnego
-                usi_file_data = {
-                    **unified,
-                    "usi_inv_id": usi_inv_id,
-                    "developer_slug": dev_slug,
-                    "investment_slug": inv_slug,
-                    "name": unified.get("name") or f"Inwestycja {portal.upper()} {item_id}",
-                    "usi_dev_id": None, # Tracker nie sprawdza już RAM-u w trakcie batcha
-                    "sources": {portal: {"id": item_id, "url": unified.get("url") or data.get("url")}}
-                }
+                # ARCHITECTURAL MANDATE: Używamy poprawnych adapterów do transformacji do pełnego zunifikowanego rekordu
+                # (usi_*.json musi być kanoniczny, nie może być surowym słownikiem 'm')
+                from python_worker.adapters import AdapterFactory
+                from python_worker.adapters.merger import Merger
+
+                unified_data = AdapterFactory.get_adapter(portal).transform(raw_payload, inv_slug, dev_slug)
+                
+                target_file = dest_dir / f"usi_{usi_inv_id}.json"
+                existing_data = None
+                if target_file.exists():
+                    try:
+                        existing_data = json.loads(target_file.read_text(encoding="utf-8"))
+                    except Exception:
+                        pass
+                        
+                usi_file_data = Merger.merge(
+                    rp_data=unified_data if portal == "rp" else None,
+                    oto_data=unified_data if portal == "oto" else None,
+                    to_data=unified_data if portal == "to" else None,
+                    existing_data=existing_data,
+                    event="Batch Update"
+                )
+                
+                # Upewniamy się, że podstawowe identyfikatory są nienaruszone
+                usi_file_data["usi_inv_id"] = usi_inv_id
+                
+                # Zabezpieczenie przed pobieraniem zdjęć w szybkim batchu (zależnie od implementacji można użyć flagi skip_images)
+                if "image_paths" not in usi_file_data:
+                    usi_file_data["image_paths"] = m_temp.get("image_paths", [])
                 
                 # Wyznaczenie ścieżki i zapis pliku
                 if dest_dir:
                     dest_dir.mkdir(parents=True, exist_ok=True)
-                    target_file = dest_dir / f"usi_{usi_inv_id}.json"
-                    target_file.write_text(json.dumps(usi_file_data, indent=2, ensure_ascii=False), encoding="utf-8")
+                    self.repo.save_investment_json(usi_inv_id, usi_file_data, anchor_path=target_file)
                     
                     logger.info(f"[BATCH] Registered and saved {usi_inv_id} to {target_file}")
                     saved_count += 1

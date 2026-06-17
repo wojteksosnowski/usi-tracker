@@ -7,10 +7,65 @@
       segment, handleSegment, saved, focusedCat, onFocusedCatChange, metaConfig, onUpdateInv, onSelectInv }) => {
     const { useDataBus, SourceBadge } = window;
     const [lightbox, setLightbox] = React.useState(null);
-    const { bus, setVariable } = useDataBus();
+    
+    // KROK 1: Wyciągamy 'refetch' z szyny danych do odświeżenia listy głównej po złączeniu
+    const { bus, setVariable, refetch } = useDataBus();
+    
     const [refreshing, setRefreshing] = React.useState(false);
     const [refreshLabel, setRefreshLabel] = React.useState('Odśwież dane');
     const pollRef = React.useRef(null);
+
+    // KROK 2: Wydajna kontrola klawisza Alt przez referencję (O(1) re-render overhead)
+    const altPressedRef = React.useRef(false);
+
+    React.useEffect(() => {
+        const handleKeyDown = (e) => { if (e.key === 'Alt') altPressedRef.current = true; };
+        const handleKeyUp = (e) => { if (e.key === 'Alt') altPressedRef.current = false; };
+        const handleBlur = () => { altPressedRef.current = false; };
+
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        window.addEventListener('blur', handleBlur);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+            window.removeEventListener('blur', handleBlur);
+        };
+    }, []);
+
+    // KROK 3: Interceptor kliknięcia w moduł "W okolicy"
+    const handleNearbySelect = async (nearbyInv) => {
+        if (altPressedRef.current) {
+            // Przechwycono Alt + Klik -> Wykonujemy złączenie struktur danych
+            if (!nearbyInv.usi_inv_id) return;
+            
+            setVariable('appStatus', { type: 'info', msg: 'Łączenie inwestycji z poziomu sąsiedztwa...' });
+            try {
+                const res = await fetch(`/api/investment/${inv.usi_inv_id}/merge`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        source_id: nearbyInv.usi_inv_id, 
+                        target_id: inv.usi_inv_id 
+                    })
+                });
+
+                if (res.ok) {
+                    setVariable('appStatus', { type: 'success', msg: `Pomyślnie podłączono ${nearbyInv.name || nearbyInv.investment_slug} do bieżącego rekordu.` });
+                    if (onUpdateInv) onUpdateInv(); // Odświeża stan widoku szczegółowego
+                    if (refetch) refetch('investments'); // Odświeża listę w tle
+                } else {
+                    const errData = await res.json().catch(() => ({}));
+                    setVariable('appStatus', { type: 'error', msg: 'Błąd API podczas złączania: ' + (errData.error || 'Nieznany błąd') });
+                }
+            } catch (err) {
+                setVariable('appStatus', { type: 'error', msg: 'Błąd komunikacji z backendem: ' + err.message });
+            }
+        } else {
+            // Standardowe zachowanie - przejście do klikniętej inwestycji
+            if (onSelectInv) onSelectInv(nearbyInv);
+        }
+    };
 
     // Cleanup poll on unmount
     React.useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
@@ -98,7 +153,8 @@
               title="W okolicy"
               icon="map"
               height={400}
-              onSelectInv={onSelectInv}
+              // PODMIANA TUTAJ: Przekazujemy nasz interceptor zamiast surowej metody nawigacji
+              onSelectInv={handleNearbySelect} 
               bus={bus}
               headerAction={
                 <button 
