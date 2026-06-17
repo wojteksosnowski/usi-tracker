@@ -154,8 +154,9 @@ class Merger:
                 if field in existing_data and not result.get(field):
                     result[field] = existing_data[field]
 
-            if existing_data.get("amenities", {}).get("labels"):
-                all_labels.update(existing_data["amenities"]["labels"])
+            ex_amen = existing_data.get("amenities") or {}
+            if ex_amen.get("labels"):
+                all_labels.update(ex_amen["labels"])
 
         # Zapisanie kolekcji
         result["image_urls"] = sorted(list(all_image_urls))
