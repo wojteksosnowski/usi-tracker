@@ -115,7 +115,7 @@ class Merger:
             elif isinstance(portal_data.get("gallery"), list):
                 all_image_urls.update(portal_data["gallery"])
             
-            amen = portal_data.get("amenities", {})
+            amen = portal_data.get("amenities") or {}
             if isinstance(amen.get("labels"), list):
                 all_labels.update(amen["labels"])
             if isinstance(amen.get("raw_codes"), list):

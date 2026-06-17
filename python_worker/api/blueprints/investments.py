@@ -147,10 +147,11 @@ def list_investments():
 def get_nearby_investments_api():
     """
     Zwraca inwestycje w pobliżu współrzędnych podanych w Query String.
-    Parametry: lat (wymagany), lon (wymagany), radius (opcjonalny), limit (opcjonalny).
+    Parametry: lat (wymagany), lon (wymagany), radius (opcjonalny), limit (opcjonalny), exclude_id (opcjonalny).
     """
     lat_raw = request.args.get("lat")
     lon_raw = request.args.get("lon")
+    exclude_id = request.args.get("exclude_id") or request.args.get("current_id")
 
     if not lat_raw or not lon_raw:
         return jsonify({"error": "Missing required float parameters: 'lat' and 'lon'"}), 400
@@ -161,7 +162,6 @@ def get_nearby_investments_api():
     except ValueError:
         return jsonify({"error": "Coordinates 'lat' and 'lon' must be valid float numbers"}), 400
 
-    # Definiowanie bezpiecznych i zwalidowanych wartości domyślnych
     try:
         radius = float(request.args.get("radius", 5.0))
         limit = int(request.args.get("limit", 12))
@@ -176,7 +176,8 @@ def get_nearby_investments_api():
             lat=lat, 
             lon=lon, 
             max_dist_km=radius, 
-            limit=limit
+            limit=limit,
+            exclude_id=exclude_id
         )
         return jsonify({
             "status": "ok",

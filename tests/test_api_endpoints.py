@@ -63,7 +63,7 @@ def test_refresh_developer_route_starts_job(client, monkeypatch):
 def test_api_investments_nearby(client, monkeypatch):
     from python_worker.api.blueprints.investments import investment_service
     
-    def mock_list_nearby_by_coordinates(lat, lon, max_dist_km, limit):
+    def mock_list_nearby_by_coordinates(lat, lon, max_dist_km, limit, exclude_id=None):
         return [
             {"usi_inv_id": "INV-001", "name": "Test", "distance": 1.5}
         ]

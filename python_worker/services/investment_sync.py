@@ -33,6 +33,34 @@ IDENTIFIER_PRIORITIES: Dict[str, List[str]] = {
     "to": ["id", "url"]
 }
 
+
+def _enrich_rp_unified(unified: dict) -> None:
+    """Post-processing po transform_to_unified dla portalu RP.
+    Konwertuje płaski klucz 'construction_date_upper' (YYYY-MM-DD) na
+    specifications.delivery_date (YYYY-QN), delivery_quarter i delivery_year.
+    Działa in-place.
+    """
+    upper = unified.get("construction_date_upper")
+    if not upper:
+        return
+
+    specs = unified.setdefault("specifications", {})
+    # Nie nadpisuj jeśli już wypełnione
+    if specs.get("delivery_date") or specs.get("delivery_quarter"):
+        return
+
+    try:
+        parts = upper.split("-")
+        year = int(parts[0])
+        month = int(parts[1]) if len(parts) > 1 else 12
+        quarter = (month - 1) // 3 + 1
+        specs["delivery_date"] = f"{year}-Q{quarter}"
+        specs["delivery_quarter"] = quarter
+        specs["delivery_year"] = year
+    except (ValueError, IndexError):
+        logger.warning(f"Cannot parse construction_date_upper: {upper!r}")
+
+
 class InvestmentSyncService:
     def __init__(
         self, 
@@ -233,6 +261,11 @@ class InvestmentSyncService:
 
             from usi_scrapers.mapping import transform_to_unified
             unified_data = transform_to_unified(portal, raw_data, "investment")
+
+            # RP-specific post-enrichment: construction_date_upper → specifications.delivery_*
+            if portal == "rp":
+                _enrich_rp_unified(unified_data)
+
             unified_data["investment_slug"] = metadata.get("investment_slug")
             unified_data["developer_slug"] = metadata.get("developer_slug")
             
@@ -571,6 +604,8 @@ class InvestmentSyncService:
                 from python_worker.adapters.merger import Merger
 
                 unified_data = transform_to_unified(portal, raw_payload, "investment")
+                if portal == "rp":
+                    _enrich_rp_unified(unified_data)
                 unified_data["investment_slug"] = inv_slug
                 unified_data["developer_slug"] = dev_slug
                 
