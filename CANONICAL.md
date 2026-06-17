@@ -105,6 +105,7 @@ Slugifikacja jest jednokierunkowym narzędziem pomocniczym. **Nigdy nie wolno u�
 
 * **Ścieżka:** `{public_dir}/USIdata/{dev_slug}/{inv_slug}/usi_{portal}_{portal_id}.json`
 * **Opis:** Główny, zunifikowany plik produkcyjny generowany przez komponent `Merger.merge()`. Stanowi podstawę odczytu danych dla interfejsu użytkownika. Agreguje dane ze wszystkich dostępnych źródeł portali dla danej inwestycji, dbając o zachowanie historii audytowej oraz właściwych priorytetów danych.
+* **Krytyczna reguła zarządzania mediami:** Bezwzględnie zabrania się nadpisywania pola `image_urls` ścieżkami lokalnymi. Pole `image_urls` musi zachować oryginalne adresy URL z CDN źródłowego. Lokalne ścieżki dyskowe do pobranych zasobów mogą być osadzane wyłącznie w dedykowanej tablicy `image_paths` podczas fazy integracji danych w trackerze.
 
 ### 3.4 `usi_stage_stub.json` (Detekcja etapów)
 
@@ -178,9 +179,9 @@ Wszystkie adaptery portali (`RPAdapter`, `OtodomAdapter`, `TOAdapter` w `adapter
     "financials": {"price_min": None, "price_max": None, "price_avg": None,
                    "price_m2_min": None, "price_m2_max": None},
     "amenities": {"labels": [], "raw_codes": []},
-    "image_urls": [],
-    "images_count": 0,
-    "image_paths": []
+    "image_urls": [],       # BEZWZGLĘDNIE: Oryginalne linki zewnętrzne CDN (np. RynekPierwotny, Otodom)
+    "images_count": 0,      # Liczba wykrytych multimediów
+    "image_paths": []       # BEZWZGLĘDNIE: Wyliczone lokalne ścieżki relatywne do zasobów w katalogu USI/
 }
 
 ```

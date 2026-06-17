@@ -72,8 +72,9 @@ class InvestmentIdentityResolver:
         folder_path = entry.get("folder_path")
         
         if folder_path:
-            # Rozwiązanie ścieżki na podstawie poprawnego public_usi_dir lub tech_manager
-            candidate_dir = self.public_usi_dir / folder_path if not Path(folder_path).is_absolute() else Path(folder_path)
+            # Rozwiązanie ścieżki (folder_path np. 'Public/USIdata/slug')
+            project_root = self.data_dir.parent.parent
+            candidate_dir = project_root / folder_path if not Path(folder_path).is_absolute() else Path(folder_path)
             if candidate_dir.exists():
                 inv_dir = candidate_dir
                 # Zgodnie z GEMINI.md: struktury USIdata oraz USI muszą być spójne

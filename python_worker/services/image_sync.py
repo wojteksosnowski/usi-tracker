@@ -16,6 +16,13 @@ class ImageSyncService:
 
     def sync_investment_images(self, system_id, new_unified, all_urls, skip_images, usi_data, resources):
         """Synchronizes images for the investment."""
+        
+        scraper_paths = new_unified.get("image_paths", [])
+        if scraper_paths:
+            new_unified["images_count"] = len(scraper_paths)
+            logger.info(f"Image paths already resolved from scraper for {system_id}: {len(scraper_paths)} paths")
+            return
+
         if skip_images:
             new_unified["image_paths"] = usi_data.get("image_paths", [])
             new_unified["images_count"] = usi_data.get("images_count", 0)

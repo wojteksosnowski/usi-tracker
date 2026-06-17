@@ -109,11 +109,8 @@ class InvestmentMerger:
 
         t_inv_dir = t_res["base_dir"]
         s_inv_dir = s_res["base_dir"]
-
-        t_res = self.identity.get_investment_resources(target_inv_id)
-        t_usi_file = t_res["files"].get("anchor") if t_res else None
-        s_res = self.identity.get_investment_resources(source_inv_id)
-        s_usi_file = s_res["files"].get("anchor") if s_res else None
+        t_usi_file = t_res["files"].get("anchor")
+        s_usi_file = s_res["files"].get("anchor")
 
         if not t_usi_file or not s_usi_file:
             logger.error("Underlying USI JSON files not found.")
@@ -279,23 +276,19 @@ class InvestmentMerger:
             "changes": [{"field": "master_id", "old": master_id, "new": None}]
         })
 
-        # Need to find the master file
-        # Master files are stored in the root of USIdata (self.data_dir)
-        master_file_path = self.data_dir / f"inv_master_{master_id}.json"
-        t_inv_dir = None
+        # POPRAWKA: Rekonstrukcja identyfikatora docelowego z master_id i poprawne mapowanie zasobów
+        target_inv_id = master_id.replace("MASTER-", "")
+        t_res = self.identity.get_investment_resources(target_inv_id)
+        
+        if not t_res:
+            logger.error(f"Target investment resources for ID {target_inv_id} could not be resolved.")
+            return False
+            
+        t_inv_dir = t_res["base_dir"]
+        master_file_path = t_inv_dir / f"inv_master_{master_id}.json"
 
-        # Check if it actually exists there
-        if not master_file_path.exists():
-            # Fallback (though it shouldn't be here) - check if it's in the investment directory
-            # but we don't know which investment directory.
-            # In unmerge, we know the source investment.
-            master_file_path = None
-            logger.warning(f"Master file not found at expected root: {self.data_dir / f'inv_master_{master_id}.json'}")
-
-        if master_file_path:
-            t_inv_dir = master_file_path.parent # This is just self.data_dir
+        if master_file_path.exists():
             with open(master_file_path, "r", encoding="utf-8") as f:
-
                 master_data = json.load(f)
 
             master_data["merged_from"] = [m for m in master_data.get("merged_from", []) if m.get("usi_inv_id") != source_inv_id]
@@ -304,13 +297,16 @@ class InvestmentMerger:
             with open(master_file_path, "w", encoding="utf-8") as f:
                 json.dump(master_data, f, indent=2, ensure_ascii=False)
 
-            # Master log
+            # Logowanie do pliku master_log w katalogu inwestycji docelowej
             log_path = t_inv_dir / f"inv_master_log_{master_id}.txt"
             with open(log_path, "a", encoding="utf-8") as lf:
                 lf.write(f"[{datetime.now().isoformat()}] Unmerged {s_dev_slug}/{s_inv_slug} ({source_inv_id}).\n")
 
-            # Update target index
-            inv_index.upsert(self.data_dir, self.public_dir, t_inv_dir.parent.name, t_inv_dir.name)
+            # Aktualizacja indeksu inwestycji docelowej przy użyciu właściwych slugów z t_res
+            inv_index.upsert(self.data_dir, self.public_dir, t_res["metadata"]["developer_slug"], t_res["metadata"]["investment_slug"])
+        else:
+            logger.error(f"Master file not found at expected location: {master_file_path}")
+            return False
 
         with open(s_usi_file, "w", encoding="utf-8") as f:
             json.dump(s_data, f, indent=2, ensure_ascii=False)
@@ -348,6 +344,9 @@ class InvestmentMerger:
                 t_data["suggestions"] = [s for s in suggestions if s.get("usi_inv_id") != suggested_inv_id]
                 with open(t_usi_file, "w", encoding="utf-8") as f:
                     json.dump(t_data, f, indent=2, ensure_ascii=False)
+                # POPRAWKA: Pobranie zmiennych ze słownika target_entry przed wykonaniem upsert
+                t_dev_slug = target_entry["developer_slug"]
+                t_inv_slug = target_entry["investment_slug"]
                 inv_index.upsert(self.data_dir, self.public_dir, t_dev_slug, t_inv_slug)
         
         return True

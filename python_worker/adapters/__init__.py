@@ -168,6 +168,7 @@ class RPAdapter:
         gallery = m.get("gallery") or raw.get("image_urls") or []
         u["image_urls"] = gallery
         u["images_count"] = len(gallery)
+        u["image_paths"] = raw.get("image_paths") or m.get("image_paths") or []
         
         return u
 class OtodomAdapter:
@@ -340,6 +341,7 @@ class OtodomAdapter:
 
         u["image_urls"] = gallery
         u["images_count"] = len(gallery)
+        u["image_paths"] = raw.get("image_paths") or m.get("image_paths") or []
         
         return u
 class TOAdapter:
@@ -466,6 +468,7 @@ class TOAdapter:
         gallery = raw.get("_raw_gallery_urls") or raw.get("image_urls") or []
         u["image_urls"] = gallery
         u["images_count"] = len(gallery)
+        u["image_paths"] = raw.get("image_paths") or m.get("image_paths") or []
         
         return u
 class AdapterFactory:
