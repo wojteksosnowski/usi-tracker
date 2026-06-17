@@ -1,6 +1,6 @@
-import os
 import json
 import logging
+import re
 from pathlib import Path
 import sys
 
@@ -11,6 +11,33 @@ from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+_PHOTO_URL_RE = re.compile(r'^/api/image/([^/]+)/([^/]+)/(.+)$')
+_IMG_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
+
+
+def _extract_slug_from_photos(photos: list) -> tuple[str, str] | tuple[None, None]:
+    """Wyciąga (dev_slug, inv_slug) z pierwszego poprawnego URL w polu photos."""
+    for url in photos:
+        if not isinstance(url, str):
+            continue
+        m = _PHOTO_URL_RE.match(url)
+        if m:
+            return m.group(1), m.group(2)
+    return None, None
+
+
+def _scan_image_dir(image_dir: Path, dev_slug: str, inv_slug: str) -> list[str]:
+    """Zwraca posortowaną listę ścieżek /Public/USI/{dev}/{inv}/{file} dla plików w katalogu."""
+    paths = []
+    try:
+        for item in sorted(image_dir.iterdir()):
+            if item.is_file() and item.suffix.lower() in _IMG_EXTS:
+                paths.append(f"/Public/USI/{dev_slug}/{inv_slug}/{item.name}")
+    except OSError as e:
+        logger.warning(f"Cannot scan {image_dir}: {e}")
+    return paths
+
 
 def run_backfill(data_dir: Path, usi_dir: Path) -> tuple[int, int]:
     count_updated = 0
@@ -23,69 +50,104 @@ def run_backfill(data_dir: Path, usi_dir: Path) -> tuple[int, int]:
     for dev_dir in data_dir.iterdir():
         if not dev_dir.is_dir() or dev_dir.name.startswith("_"):
             continue
-            
+
         for inv_dir in dev_dir.iterdir():
             if not inv_dir.is_dir():
                 continue
-                
+
             dev_slug = dev_dir.name
             inv_slug = inv_dir.name
-            
+
             for usi_file in inv_dir.glob("usi_*.json"):
                 try:
                     with open(usi_file, "r", encoding="utf-8") as f:
                         data = json.load(f)
-                        
+
                     changed = False
-                    
+
                     # 1. Czyszczenie image_urls z lokalnych ścieżek
                     urls = data.get("image_urls", [])
-                    clean_urls = []
-                    for url in urls:
-                        if isinstance(url, str) and url.startswith("http"):
-                            clean_urls.append(url)
-                    
+                    clean_urls = [u for u in urls if isinstance(u, str) and u.startswith("http")]
                     if len(clean_urls) != len(urls):
                         data["image_urls"] = clean_urls
                         changed = True
-                        
-                    # 2. Rekonstrukcja image_paths z rzeczywistych plików
-                    physical_dir = usi_dir / dev_slug / inv_slug
-                    image_paths = []
-                    if physical_dir.exists() and physical_dir.is_dir():
-                        for item in sorted(physical_dir.iterdir()):
-                            if item.is_file() and item.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}:
-                                rel_path = f"/Public/USI/{dev_slug}/{inv_slug}/{item.name}"
-                                image_paths.append(rel_path)
-                                
+
+                    # 2. Rekonstrukcja image_paths
                     current_paths = data.get("image_paths", [])
+
+                    # 2a. Jeśli image_paths już niepuste — sprawdź tylko czy nie wskazują
+                    #     na nieistniejące pliki (sanity check); jeśli ok, pomijamy.
+                    if current_paths:
+                        valid = [
+                            p for p in current_paths
+                            if isinstance(p, str)
+                            and "Public/USI/" in p
+                            and (usi_dir / p.split("Public/USI/")[-1].lstrip("/")).exists()
+                        ]
+                        if len(valid) != len(current_paths):
+                            data["image_paths"] = valid
+                            data["images_count"] = len(valid)
+                            changed = True
+                        # image_paths nadal niepuste — przechodzimy dalej
+                        if data.get("image_paths"):
+                            if changed:
+                                with open(usi_file, "w", encoding="utf-8") as f:
+                                    json.dump(data, f, indent=2, ensure_ascii=False)
+                                count_updated += 1
+                            continue
+
+                    # 2b. image_paths puste — szukamy plików na dysku
+
+                    # Krok 1: Sprawdź katalog pod bieżącym slugiem
+                    image_paths = _scan_image_dir(usi_dir / dev_slug / inv_slug, dev_slug, inv_slug)
+
+                    # Krok 2 (FALLBACK): Katalog pod bieżącym slugiem nie ma plików —
+                    # wyciągnij rzeczywisty slug z pola photos i spróbuj stamtąd.
+                    if not image_paths:
+                        photos = data.get("photos", [])
+                        if photos:
+                            photo_dev, photo_inv = _extract_slug_from_photos(photos)
+                            if photo_dev and photo_inv and (photo_dev, photo_inv) != (dev_slug, inv_slug):
+                                fallback_dir = usi_dir / photo_dev / photo_inv
+                                image_paths = _scan_image_dir(fallback_dir, photo_dev, photo_inv)
+                                if image_paths:
+                                    logger.info(
+                                        f"[FALLBACK] {dev_slug}/{inv_slug}: odbudowano {len(image_paths)} ścieżek "
+                                        f"z alternatywnego katalogu {photo_dev}/{photo_inv}"
+                                    )
+
                     if image_paths != current_paths:
                         data["image_paths"] = image_paths
                         data["images_count"] = len(image_paths)
                         changed = True
-                        
+
                     if changed:
                         with open(usi_file, "w", encoding="utf-8") as f:
                             json.dump(data, f, indent=2, ensure_ascii=False)
                         count_updated += 1
-                        logger.info(f"Updated {dev_slug}/{inv_slug} ({usi_file.name}): {len(image_paths)} local paths restored.")
-                        
+                        logger.info(
+                            f"Updated {dev_slug}/{inv_slug} ({usi_file.name}): "
+                            f"{len(image_paths)} paths restored."
+                        )
+
                 except Exception as e:
                     logger.error(f"Error processing {usi_file}: {e}")
                     count_errors += 1
 
     return count_updated, count_errors
 
+
 def main():
     data_dir = Path(USI_DATA_DIR)
     usi_dir = Path(PUBLIC_USI_DIR)
-    
+
     logger.info(f"Starting image_paths backfill...")
     logger.info(f"USIdata: {data_dir}")
     logger.info(f"USI: {usi_dir}")
-    
+
     updated, errors = run_backfill(data_dir, usi_dir)
     logger.info(f"Backfill complete. Updated {updated} files. Errors: {errors}")
+
 
 if __name__ == "__main__":
     main()

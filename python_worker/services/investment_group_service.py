@@ -69,17 +69,26 @@ class InvestmentGroupService:
         import logging
         logger = logging.getLogger(__name__)
         from python_worker.developer_merge_manager import DeveloperMergeManager
+        from python_worker.developer_manager import DeveloperManager
+        import python_worker.developer_index as dev_index
         
-        merge_mgr = DeveloperMergeManager(self.data_dir)
-        success = merge_mgr.merge_developer_records(master_id=master_dev_id, slave_id=secondary_dev_id)
+        # Inicjalizujemy pełny DeveloperManager jako repozytorium (lub dedykowane repo, jeśli występuje osobno)
+        # Zgodnie z konfiguracją w investments.py:
+        dev_dir = self.data_dir.parent / "USIdev"
+        dev_manager = DeveloperManager(str(self.data_dir), dev_dir)
+        
+        # Przekazujemy dev_manager jako repo oraz moduł indeksu/indexer zgodnie z wymaganiem sygnatury
+        merge_mgr = DeveloperMergeManager(dev_manager, dev_index)
+        
+        # POPRAWKA SYGNATURY: DeveloperMergeManager posiada metodę 'merge_by_id(target_id, source_id)'
+        # a nie 'merge_developer_records(master_id, slave_id)'. Używaj właściwej metody systemu!
+        success = merge_mgr.merge_by_id(target_id=master_dev_id, source_id=secondary_dev_id)
         
         if success:
             logger.info(f"[DEV_MERGE] Pomyślnie scalono rekordy deweloperów w strukturze USIdev.")
             self._backfill_investments_with_new_dev(secondary_dev_id, master_dev_id)
             
-            from python_worker.developer_manager import DeveloperManager
-            dm = DeveloperManager(self.data_dir)
-            dm.invalidate_identifiers_cache()
+            dev_manager.invalidate_identifiers_cache()
 
     def _backfill_investments_with_new_dev(self, old_dev_id: str, new_dev_id: str):
         import logging
