@@ -7,8 +7,9 @@ logger = logging.getLogger(__name__)
 # Dopuszczalne znaki: litery, cyfry, myślniki, podkreślniki, kropki. Żadnych ścieżek!
 SAFE_FILENAME_PATTERN = re.compile(r'^[a-zA-Z0-9_\-\.]+\.[a-zA-Z0-9]+$')
 
-# Wyciąganie {dev}/{inv} z URL-i pola photos
-_PHOTO_URL_RE = re.compile(r'^/api/image/([^/]+)/([^/]+)/(.+)$')
+# Wyciąganie pełnej ścieżki katalogu z URL-i pola photos
+# Ścieżka może mieć 2, 3 lub 4 segmenty (np. dev/inv lub dev/sub/inv lub dev/sub/sub/inv)
+_PHOTO_DIR_RE = re.compile(r'^/api/image/(.+)/[^/]+$')
 _IMG_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
@@ -52,20 +53,21 @@ def _resolve_from_photos_fallback(photos: list, public_usi_dir: Path, deleted_pa
     if not photos:
         return []
 
-    # Wyciągnij unikalny (dev_slug, inv_slug) z pierwszego poprawnego photos URL
-    photo_dev, photo_inv = None, None
+    # Wyciągnij pełną ścieżkę katalogu z pierwszego poprawnego photos URL
+    # Obsługuje dowolną głębokość: dev/inv, dev/sub/inv, dev/sub/sub/inv, itd.
+    photo_dir_rel = None
     for url in photos:
         if not isinstance(url, str):
             continue
-        m = _PHOTO_URL_RE.match(url)
+        m = _PHOTO_DIR_RE.match(url)
         if m:
-            photo_dev, photo_inv = m.group(1), m.group(2)
+            photo_dir_rel = m.group(1)  # np. "dom-development-sa/euro-styl-sa/wzgorze-hoplity"
             break
 
-    if not photo_dev or not photo_inv:
+    if not photo_dir_rel:
         return []
 
-    disk_dir = public_usi_dir / photo_dev / photo_inv
+    disk_dir = public_usi_dir / photo_dir_rel
     if not disk_dir.is_dir():
         return []
 
@@ -77,7 +79,7 @@ def _resolve_from_photos_fallback(photos: list, public_usi_dir: Path, deleted_pa
             filename = item.name
             if not SAFE_FILENAME_PATTERN.match(filename):
                 continue
-            resolved_path = f"/api/image/{photo_dev}/{photo_inv}/{filename}"
+            resolved_path = f"/api/image/{photo_dir_rel}/{filename}"
             if deleted_paths and resolved_path in deleted_paths:
                 continue
             resolved.append(resolved_path)
@@ -87,7 +89,7 @@ def _resolve_from_photos_fallback(photos: list, public_usi_dir: Path, deleted_pa
     if resolved:
         logger.info(
             f"[image_resolver] FALLBACK: odbudowano {len(resolved)} ścieżek "
-            f"z alternatywnego katalogu {photo_dev}/{photo_inv}"
+            f"z alternatywnego katalogu {photo_dir_rel}"
         )
     return resolved
 

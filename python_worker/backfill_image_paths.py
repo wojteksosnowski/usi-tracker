@@ -12,28 +12,30 @@ from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-_PHOTO_URL_RE = re.compile(r'^/api/image/([^/]+)/([^/]+)/(.+)$')
+_PHOTO_DIR_RE = re.compile(r'^/api/image/(.+)/[^/]+$')
 _IMG_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
-def _extract_slug_from_photos(photos: list) -> tuple[str, str] | tuple[None, None]:
-    """Wyciąga (dev_slug, inv_slug) z pierwszego poprawnego URL w polu photos."""
+def _extract_dir_from_photos(photos: list) -> str | None:
+    """Wyciąga pełną ścieżkę do katalogu ze zdjęciami z pierwszego poprawnego URL w polu photos.
+    Obsługuje ścieżki 2-, 3- i 4-poziomowe."""
     for url in photos:
         if not isinstance(url, str):
             continue
-        m = _PHOTO_URL_RE.match(url)
+        m = _PHOTO_DIR_RE.match(url)
         if m:
-            return m.group(1), m.group(2)
-    return None, None
+            return m.group(1)
+    return None
 
 
-def _scan_image_dir(image_dir: Path, dev_slug: str, inv_slug: str) -> list[str]:
-    """Zwraca posortowaną listę ścieżek /Public/USI/{dev}/{inv}/{file} dla plików w katalogu."""
+def _scan_image_dir(image_dir: Path, dir_rel: str) -> list[str]:
+    """Zwraca posortowaną listę ścieżek /Public/USI/{dir_rel}/{file} dla plików w katalogu.
+    dir_rel może być jedno- lub wielopoziomowy (np. 'dev/inv' lub 'dev/sub/inv')."""
     paths = []
     try:
         for item in sorted(image_dir.iterdir()):
             if item.is_file() and item.suffix.lower() in _IMG_EXTS:
-                paths.append(f"/Public/USI/{dev_slug}/{inv_slug}/{item.name}")
+                paths.append(f"/Public/USI/{dir_rel}/{item.name}")
     except OSError as e:
         logger.warning(f"Cannot scan {image_dir}: {e}")
     return paths
@@ -99,21 +101,21 @@ def run_backfill(data_dir: Path, usi_dir: Path) -> tuple[int, int]:
                     # 2b. image_paths puste — szukamy plików na dysku
 
                     # Krok 1: Sprawdź katalog pod bieżącym slugiem
-                    image_paths = _scan_image_dir(usi_dir / dev_slug / inv_slug, dev_slug, inv_slug)
+                    image_paths = _scan_image_dir(usi_dir / dev_slug / inv_slug, f"{dev_slug}/{inv_slug}")
 
                     # Krok 2 (FALLBACK): Katalog pod bieżącym slugiem nie ma plików —
-                    # wyciągnij rzeczywisty slug z pola photos i spróbuj stamtąd.
+                    # wyciągnij pełną ścieżkę katalogu z pola photos i spróbuj stamtąd.
                     if not image_paths:
                         photos = data.get("photos", [])
                         if photos:
-                            photo_dev, photo_inv = _extract_slug_from_photos(photos)
-                            if photo_dev and photo_inv and (photo_dev, photo_inv) != (dev_slug, inv_slug):
-                                fallback_dir = usi_dir / photo_dev / photo_inv
-                                image_paths = _scan_image_dir(fallback_dir, photo_dev, photo_inv)
+                            photo_dir_rel = _extract_dir_from_photos(photos)
+                            if photo_dir_rel and photo_dir_rel != f"{dev_slug}/{inv_slug}":
+                                fallback_dir = usi_dir / photo_dir_rel
+                                image_paths = _scan_image_dir(fallback_dir, photo_dir_rel)
                                 if image_paths:
                                     logger.info(
                                         f"[FALLBACK] {dev_slug}/{inv_slug}: odbudowano {len(image_paths)} ścieżek "
-                                        f"z alternatywnego katalogu {photo_dev}/{photo_inv}"
+                                        f"z alternatywnego katalogu {photo_dir_rel}"
                                     )
 
                     if image_paths != current_paths:
