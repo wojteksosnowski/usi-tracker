@@ -186,18 +186,24 @@ class InvestmentSyncService:
 
 
     def _resolve_portal_identifier(self, portal_data: dict, portal_key: str, system_id: str = "") -> Optional[str]:
-        """Resolves the best identifier (URL or ID) for a portal.
-        Priority: 
-        1. If system_id belongs to this portal, extract ID directly from system_id to avoid stale numeric IDs.
-        2. IDENTIFIER_PRIORITIES from portal_data.
-        """
+        """Resolves the best identifier (ID over URL) for a portal adhering to ID-only rule."""
         if system_id and system_id.startswith(f"{portal_key}_"):
             parts = system_id.split("_", 1)
             if len(parts) == 2:
                 return parts[1]
                 
-        fields = IDENTIFIER_PRIORITIES.get(portal_key, ["url", "id"])
-        return next((portal_data.get(f) for f in fields if portal_data.get(f)), None)
+        # Primary: numeric ID
+        portal_id = portal_data.get("id")
+        if portal_id:
+            return str(portal_id)
+            
+        # Fallback: URL with explicit logging
+        portal_url = portal_data.get("url")
+        if portal_url:
+            logger.warning(f"[{system_id}] Fallback to URL for {portal_key} - missing numeric ID")
+            return str(portal_url)
+            
+        return None
 
     def _fetch_and_transform_portal_data(self, system_id, portal, portal_name, raw_prefix, sources, use_local_raw, resources=None):
         """Fetches raw portal data (local or remote) and transforms it."""
