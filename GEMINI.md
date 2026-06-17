@@ -271,7 +271,33 @@ def save_raw_developer(config: ScraperConfig, data: Dict[str, Any], portal_prefi
 ~~~~python
 def transform_to_unified(portal: str, raw_data: dict, entity_type: str = "investment") -> dict
 ~~~~
-* **Zastosowanie:** **Kluczowa metoda izolująca.** Przepuszcza surowe flaki dokumentu przez reguły z pliku `portal_data_mapping.json`. Pozwala trackerowi wyciągnąć ujednolicone pola (`name`, `developer_name`, `vendor_id`) bez parsowania struktur niskopoziomowych specyficznych dla danego portalu.
+* **Zastosowanie:** **Kluczowa metoda izolująca.** Przepuszcza surowe flaki dokumentu przez reguły z pliku `portal_data_mapping.json`. Pozwala trackerowi wyciągnąć ujednolicone pola bez parsowania struktur niskopoziomowych specyficznych dla danego portalu.
+
+* **Wyjście ustrukturyzowane (od v1.3.6):** Klucze z notacją kropkową są automatycznie rozwijane do zagnieżdżonych słowników:
+  - `location.city` → `result["location"]["city"]`
+  - `specifications.delivery_date` → `result["specifications"]["delivery_date"]`
+  - `financials.price_min` → `result["financials"]["price_min"]`
+
+* **Auto-wyliczenia (silnik, brak pracy po stronie klienta):**
+  - Gdy `specifications.delivery_date` jest obecne (format `YYYY-QX` lub `YYYY-MM-DD`), a `delivery_quarter`/`delivery_year` brakuje — silnik uzupełnia je automatycznie.
+  - `financials.price_avg` = `round((price_min + price_max) / 2, 2)` — obliczane gdy brak jawnej wartości z portalu.
+
+* **Płaskie klucze zachowane:** Wszystkie dotychczasowe klucze (`name`, `city`, `latitude`, `delivery_date`, etc.) nadal obecne w wyniku dla wstecznej kompatybilności. Adapter powinien preferować nowe sekcje (`location`, `specifications`, `financials`).
+
+* **Przykład wyjścia dla `oto`:**
+~~~~python
+result = transform_to_unified("oto", raw_record)
+# {
+#   "name": "Nowa Inwestycja",
+#   "location": {"city": "Warszawa", "district": "Mokotów", "address": "Puławska", "coords": [52.1, 21.0]},
+#   "specifications": {"delivery_date": "2026-Q3", "delivery_quarter": 3, "delivery_year": 2026, "units_count": 120},
+#   "financials": {"price_min": 500000.0, "price_m2_min": 10000.0, "price_avg": 650000.0},
+#   "image_urls": ["https://..."],
+#   # + istniejące płaskie klucze (city, latitude, delivery_date, ...)
+# }
+~~~~
+
+* **Nowe transformery (od v1.3.6):** `extract_quarter_from_qformat`, `extract_year_from_qformat` (parsowanie `YYYY-QX` i ISO), `oto_extract_coords_as_array` (ekstrahuje `[lat, lon]` z zagnieżdżonego dokumentu Otodom).
 
 #### `extract_developer_meta`
 ~~~~python

@@ -189,7 +189,7 @@ class InvestmentEditorService:
 
         try:
             # Get existing deleted items via repo
-            existing_deleted = self.repo.get_deleted_items(system_id)
+            existing_deleted = self.repo.get_deleted_items(system_id) or []
             deleted = set(existing_deleted)
 
             for path in paths:

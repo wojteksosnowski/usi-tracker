@@ -18,7 +18,7 @@ class ImageSyncService:
         """Synchronizes images for the investment."""
         
         scraper_paths = new_unified.get("image_paths", [])
-        if scraper_paths:
+        if scraper_paths and len(scraper_paths) >= len(all_urls):
             new_unified["images_count"] = len(scraper_paths)
             logger.info(f"Image paths already resolved from scraper for {system_id}: {len(scraper_paths)} paths")
             return

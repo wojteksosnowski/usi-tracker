@@ -103,8 +103,9 @@ class InvestmentRepository:
                     if isinstance(data, dict):
                         return data.get("paths", [])
                     return data
-        except FileNotFoundError:
+        except Exception:
             pass
+        return []
     def get_all_system_ids(self) -> list[str]:
         """Pobiera wszystkie identyfikatory inwestycji z indeksu."""
         from python_worker.investment_index import get_investment_index, load
