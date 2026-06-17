@@ -11,7 +11,7 @@ from python_worker.config import (
     get_shared_config, get_shared_fetcher, get_shared_tech_manager,
     USI_DATA_DIR, PUBLIC_USI_DIR, get_shared_scraper_gateway
 )
-from python_worker.adapters import AdapterFactory, Merger
+from python_worker.adapters.merger import Merger
 from python_worker.logger_utils import log_to_processing_log
 from python_worker.developer_manager import DeveloperManager
 from python_worker.investment_repository import InvestmentRepository
@@ -225,11 +225,24 @@ class InvestmentSyncService:
             if not raw_data:
                 return None, None, None
 
-            unified_data = AdapterFactory.get_adapter(raw_prefix).transform(
-                raw_data, 
-                metadata.get("investment_slug"), 
-                metadata.get("developer_slug")
-            )
+            from usi_scrapers.mapping import transform_to_unified
+            unified_data = transform_to_unified(portal, raw_data, "investment")
+            unified_data["investment_slug"] = metadata.get("investment_slug")
+            unified_data["developer_slug"] = metadata.get("developer_slug")
+            
+            # Add sources block so Merger can pick it up
+            if "sources" not in unified_data:
+                unified_data["sources"] = {
+                    portal: {
+                        "id": str(identifier),
+                        "url": raw_data.get("url") if isinstance(raw_data, dict) else None
+                    }
+                }
+                
+            # Copy image paths if provided by scraper in live fetch
+            if isinstance(raw_data, dict) and "image_paths" in raw_data:
+                unified_data["image_paths"] = raw_data["image_paths"]
+
             return unified_data, portal_name, None
         except Exception as e:
             logger.error(f"Sync error for {portal}/{identifier}: {e}")
@@ -549,11 +562,25 @@ class InvestmentSyncService:
                 
                 # ARCHITECTURAL MANDATE: Używamy poprawnych adapterów do transformacji do pełnego zunifikowanego rekordu
                 # (usi_*.json musi być kanoniczny, nie może być surowym słownikiem 'm')
-                from python_worker.adapters import AdapterFactory
                 from python_worker.adapters.merger import Merger
 
-                unified_data = AdapterFactory.get_adapter(portal).transform(raw_payload, inv_slug, dev_slug)
+                unified_data = transform_to_unified(portal, raw_payload, "investment")
+                unified_data["investment_slug"] = inv_slug
+                unified_data["developer_slug"] = dev_slug
                 
+                # Add sources block so Merger can pick it up
+                if "sources" not in unified_data:
+                    unified_data["sources"] = {
+                        portal: {
+                            "id": str(item_id),
+                            "url": raw_payload.get("url") if isinstance(raw_payload, dict) else None
+                        }
+                    }
+                    
+                # Copy image paths if provided by scraper in live fetch
+                if isinstance(raw_payload, dict) and "image_paths" in raw_payload:
+                    unified_data["image_paths"] = raw_payload["image_paths"]
+
                 target_file = dest_dir / f"usi_{usi_inv_id}.json"
                 existing_data = None
                 if target_file.exists():

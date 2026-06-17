@@ -10,7 +10,7 @@ import queue
 import atexit
 
 from .config import USI_DATA_DIR, USI_DEV_DIR, PUBLIC_USI_DIR, get_shared_config
-from .adapters import RPAdapter, OtodomAdapter, TOAdapter, Merger
+from .adapters.merger import Merger
 from usi_scrapers.fetcher import Fetcher
 from usi_scrapers import api as scraper_api
 from .logger_utils import log_to_processing_log
