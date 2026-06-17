@@ -28,9 +28,9 @@ logger = logging.getLogger(__name__)
 
 PORTAL_NAMES: Dict[str, str] = {"rp": "RynekPierwotny", "oto": "Otodom", "to": "TabelaOfert"}
 IDENTIFIER_PRIORITIES: Dict[str, List[str]] = {
-    "rp": ["url", "id"],
-    "oto": ["url", "id"],
-    "to": ["url", "id"]
+    "rp": ["id", "url"],
+    "oto": ["id", "url"],
+    "to": ["id", "url"]
 }
 
 class InvestmentSyncService:

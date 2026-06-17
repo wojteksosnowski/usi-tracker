@@ -149,6 +149,11 @@ class Merger:
                 if field in existing_data:
                     result[field] = existing_data[field]
 
+            # Odzyskanie lokalnych danych obrazów
+            for field in ("image_paths", "images_count", "photos"):
+                if field in existing_data and not result.get(field):
+                    result[field] = existing_data[field]
+
             if existing_data.get("amenities", {}).get("labels"):
                 all_labels.update(existing_data["amenities"]["labels"])
 
