@@ -72,10 +72,7 @@ class InvestmentLoaderService:
             elif k.startswith("to"):
                 source_links.append({"source": "TO", "url": src_info["url"]})
         
-        if not source_links: 
-            source_links.append({"source": "RP", "url": "https://rynekpierwotny.pl/"})
-        
-        source_url = source_links[0]["url"]
+        source_url = source_links[0]["url"] if source_links else ""
         return source, source_url, source_links
 
     def _load_master_data(self, usi_data: Dict, inv_dir: Path) -> Tuple[Optional[str], List, Optional[str]]:

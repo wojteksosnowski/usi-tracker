@@ -220,8 +220,8 @@ class InvestmentSyncService:
             if len(parts) == 2:
                 return parts[1]
                 
-        # Primary: numeric ID
-        portal_id = portal_data.get("id")
+        # Primary: numeric ID (lub agency_id dla Otodom)
+        portal_id = portal_data.get("id") or portal_data.get("agency_id")
         if portal_id:
             return str(portal_id)
             
