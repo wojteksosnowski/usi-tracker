@@ -102,6 +102,21 @@ class Merger:
             if not portal_data:
                 continue
                 
+            # Fallback dla starszych (płaskich) kluczy z transform_to_unified
+            flat_mappings = {
+                "location": ["city", "street", "address", "region", "latitude", "longitude"],
+                "specifications": ["units_count", "ceiling_height_min", "ceiling_height_max", "ceiling_height", "segment", "delivery_date", "delivery_quarter", "delivery_year"],
+                "financials": ["price_min", "price_max", "price_m2_min", "price_m2_max"]
+            }
+            
+            for section in ("location", "specifications", "financials"):
+                if section not in portal_data:
+                    portal_data[section] = {}
+                
+                for flat_key in flat_mappings[section]:
+                    if flat_key in portal_data and portal_data[flat_key] is not None:
+                        portal_data[section][flat_key] = portal_data[flat_key]
+
             # Scalanie słowników sekwencyjnych (RP na końcu ma najwyższy priorytet nadpisywania)
             for section in ("location", "specifications", "financials"):
                 if portal_data.get(section):
@@ -116,10 +131,13 @@ class Merger:
                 all_image_urls.update(portal_data["gallery"])
             
             amen = portal_data.get("amenities") or {}
-            if isinstance(amen.get("labels"), list):
-                all_labels.update(amen["labels"])
-            if isinstance(amen.get("raw_codes"), list):
-                all_codes.update(amen["raw_codes"])
+            if isinstance(amen, list):
+                all_labels.update(amen)
+            elif isinstance(amen, dict):
+                if isinstance(amen.get("labels"), list):
+                    all_labels.update(amen["labels"])
+                if isinstance(amen.get("raw_codes"), list):
+                    all_codes.update(amen["raw_codes"])
 
             # Przepisanie źródeł przy użyciu Gateway
             src_info = portal_data.get("sources", {}).get(portal) or {}
