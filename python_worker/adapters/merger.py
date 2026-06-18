@@ -81,9 +81,9 @@ class Merger:
             "financials": base.get("financials", {}).copy() if base.get("financials") else {},
             "amenities": {"labels": [], "raw_codes": []},
             "ratings": meta_ratings or (existing_data or {}).get("ratings") or {},
-            "images_count": base.get("images_count", 0),
-            "image_paths": base.get("image_paths", []),
-            "image_urls": base.get("image_urls", []),
+            "images_count": base.get("images_count") or 0,
+            "image_paths": base.get("image_paths") or [],
+            "image_urls": base.get("image_urls") or [],
             "audit": {
                 "created_at": existing_audit.get("created_at") or datetime.now().isoformat(),
                 "updated_at": datetime.now().isoformat(),
@@ -92,7 +92,7 @@ class Merger:
         }
 
         # Agregacja unikalnych adresów URL zdjęć i ujednoliconych udogodnień
-        all_image_urls = set(result.get("image_urls", []))
+        all_image_urls = set(result["image_urls"])
         all_labels = set()
         all_codes = set()
 
