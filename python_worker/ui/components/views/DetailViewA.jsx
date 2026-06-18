@@ -206,11 +206,6 @@
                   ⚙️ MASTER: {inv.master_id}
                 </span>
               )}
-              {inv.source_links && inv.source_links.map((link, i) => (
-                  <a key={i} className="usi-btn sm ghost" href={link.url} target="_blank" rel="noopener">
-                    <SourceBadge source={link.source} /> <Icon name="arrow" size={11} />
-                  </a>
-              ))}
            </div>
            <MetadataPanel inv={inv} config={metaConfig} />
            <div className="usi-m-b-16" />

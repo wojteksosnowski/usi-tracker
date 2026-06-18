@@ -7,7 +7,7 @@
     let links = [];
     if (inv.sources && Object.keys(inv.sources).length > 0) {
         links = Object.entries(inv.sources)
-            .filter(([source, data]) => data && data.url)
+            .filter(([source, data]) => data && data.url && !data.url.endsWith('rynekpierwotny.pl') && !data.url.endsWith('rynekpierwotny.pl/'))
             .map(([source, data]) => ({ source, url: data.url }));
     } 
     
@@ -17,6 +17,10 @@
     
     if (links.length === 0 && inv.source && inv.source_url) {
         links = [{ source: inv.source, url: inv.source_url }];
+    }
+
+    if (links.length === 0 && inv.website) {
+        links.push({ source: inv.source || 'oto', url: inv.website });
     }
     
     return (
