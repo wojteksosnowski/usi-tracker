@@ -208,56 +208,29 @@ class InvestmentIndex:
             usi_files = list(self.data_dir.rglob("usi_*.json"))
             entries = []
             
-            from collections import defaultdict
-            inv_groups = defaultdict(list)
-            
             for usi_file in usi_files:
                 if "usi_dev_" in usi_file.name: continue
                 if usi_file.name.startswith("inv_master_"): continue
                 try:
                     data = json.loads(usi_file.read_text())
                     usi_inv_id = data.get("usi_inv_id") or data.get("usi_id")
-                    if usi_inv_id:
-                        inv_groups[usi_inv_id].append((usi_file, data))
-                except Exception: continue
-                    
-            for uid, group in inv_groups.items():
-                # group to lista krotek: (usi_file, data)
-                # Zamiast brać jeden plik, konsolidujemy słownik 'sources' ze wszystkich plików grupy
-                consolidated_sources = {}
-                primary_file, primary_data = group[0] # Punkt wyjścia jako baza danych
+                    if not usi_inv_id:
+                        continue
 
-                for usi_file, data in group:
-                    if "sources" in data and isinstance(data["sources"], dict):
-                        for src_k, src_v in data["sources"].items():
-                            # Jeśli źródło już istnieje, nie nadpisujemy, chyba że nowe ma świeższy timestamp
-                            if src_k not in consolidated_sources:
-                                consolidated_sources[src_k] = src_v
-                
-                # Wstrzykujemy skonsolidowane źródła do bazowego zestawu danych przed ładowaniem
-                if "sources" not in primary_data:
-                    primary_data["sources"] = {}
-                primary_data["sources"].update(consolidated_sources)
-
-                try:
                     from python_worker.api.utils import _load_investment
-                    # Ładujemy inwestycję przekazując skonsolidowane dane
                     entry = _load_investment(
                         data_dir=self.data_dir, 
                         public_usi_dir=self.public_usi_dir, 
-                        system_id=uid, 
-                        usi_file=primary_file, 
+                        system_id=usi_inv_id, 
+                        usi_file=usi_file, 
                         fast_index=True
                     )
                     if entry:
-                        # Gwarantujemy, że zaindeksowany obiekt zawiera połączone źródła
-                        entry["sources"].update(consolidated_sources)
                         entry.pop("image_urls", None)
                         entry.pop("nearby_investments", None)
                         entries.append(entry)
-                except Exception as e: 
-                    # ZAKAZ cichego ignorowania błędów strukturalnych! Logujemy awarię.
-                    logger.error(f"Krytyczny błąd indeksowania inwestycji {uid} z pliku {primary_file}: {e}", exc_info=True)
+                except Exception as e:
+                    logger.error(f"Krytyczny błąd indeksowania inwestycji z pliku {usi_file}: {e}", exc_info=True)
                     continue
 
             # Update state

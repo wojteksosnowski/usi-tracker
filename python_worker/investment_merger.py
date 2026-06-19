@@ -231,9 +231,21 @@ class InvestmentMerger:
             json.dump(s_data, f, indent=2, ensure_ascii=False)
 
         # Always update index for target because merged_from has changed
-        inv_index.upsert(self.data_dir, self.public_dir, t_dev_slug, t_inv_slug)
+        inv_index.upsert(
+            data_dir=self.data_dir, 
+            public_usi_dir=self.public_dir, 
+            dev_slug=t_dev_slug, 
+            inv_slug=t_inv_slug, 
+            inv_id=target_inv_id
+        )
         # Update index for source
-        inv_index.upsert(self.data_dir, self.public_dir, s_dev_slug, s_inv_slug)
+        inv_index.upsert(
+            data_dir=self.data_dir, 
+            public_usi_dir=self.public_dir, 
+            dev_slug=s_dev_slug, 
+            inv_slug=s_inv_slug, 
+            inv_id=source_inv_id
+        )
 
         # Logs
         # Master gets a log entry
@@ -303,7 +315,13 @@ class InvestmentMerger:
                 lf.write(f"[{datetime.now().isoformat()}] Unmerged {s_dev_slug}/{s_inv_slug} ({source_inv_id}).\n")
 
             # Aktualizacja indeksu inwestycji docelowej przy użyciu właściwych slugów z t_res
-            inv_index.upsert(self.data_dir, self.public_dir, t_res["metadata"]["developer_slug"], t_res["metadata"]["investment_slug"])
+            inv_index.upsert(
+                data_dir=self.data_dir, 
+                public_usi_dir=self.public_dir, 
+                dev_slug=t_res["metadata"]["developer_slug"], 
+                inv_slug=t_res["metadata"]["investment_slug"], 
+                inv_id=target_inv_id
+            )
         else:
             logger.error(f"Master file not found at expected location: {master_file_path}")
             return False
@@ -311,7 +329,13 @@ class InvestmentMerger:
         with open(s_usi_file, "w", encoding="utf-8") as f:
             json.dump(s_data, f, indent=2, ensure_ascii=False)
 
-        inv_index.upsert(self.data_dir, self.public_dir, s_dev_slug, s_inv_slug)
+        inv_index.upsert(
+            data_dir=self.data_dir, 
+            public_usi_dir=self.public_dir, 
+            dev_slug=s_dev_slug, 
+            inv_slug=s_inv_slug, 
+            inv_id=source_inv_id
+        )
         log_to_processing_log(s_dev_slug, s_inv_slug, f"Unmerged from master {master_id}")
 
         return True
@@ -347,6 +371,12 @@ class InvestmentMerger:
                 # POPRAWKA: Pobranie zmiennych ze słownika target_entry przed wykonaniem upsert
                 t_dev_slug = target_entry["developer_slug"]
                 t_inv_slug = target_entry["investment_slug"]
-                inv_index.upsert(self.data_dir, self.public_dir, t_dev_slug, t_inv_slug)
+                inv_index.upsert(
+                    data_dir=self.data_dir, 
+                    public_usi_dir=self.public_dir, 
+                    dev_slug=t_dev_slug, 
+                    inv_slug=t_inv_slug, 
+                    inv_id=target_inv_id
+                )
         
         return True
