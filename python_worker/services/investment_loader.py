@@ -263,6 +263,10 @@ class InvestmentLoaderService:
                 if isinstance(src_data, dict) and src_data.get("developer_website"):
                     official_website = src_data["developer_website"]
                     break
+
+        usi_status = usi.get("status", "Brak")
+        if usi_status not in ["Brak", "AI", "Wstępna", "Poszerzona", "Pełna", "Aktualizacja", "Ukończona", "Niedostateczne dane"]:
+            usi_status = "Brak"
                 
         base_data = {
             "slug": f"{dev_slug}/{inv_slug}",
@@ -289,7 +293,7 @@ class InvestmentLoaderService:
             "ceiling_height_min": usi.get("specifications", {}).get("ceiling_height_min"),
             "ceiling_height_max": usi.get("specifications", {}).get("ceiling_height_max"),
             "specifications": usi.get("specifications", {}),
-            "status": usi.get("status", "Brak"),
+            "status": usi_status,
             "amenities": display_amenities,
             "amenities_score": usi.get("amenities_score", 0),
             "amenities_matched": usi.get("amenities_matched", []),

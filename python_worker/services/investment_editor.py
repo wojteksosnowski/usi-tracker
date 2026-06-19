@@ -52,7 +52,8 @@ class InvestmentEditorService:
         if "status" in payload:
             new_status = payload["status"]
             if new_status not in USI_STATUSES:
-                raise ValueError(f"Invalid status: {new_status}")
+                logger.warning(f"Invalid status received from UI: {new_status}. Defaulting to 'Brak'.")
+                new_status = "Brak"
             if existing_ratings.get("status") != new_status:
                 changes.append({"field": "status", "old": existing_ratings.get("status"), "new": new_status})
             existing_ratings["status"] = new_status
