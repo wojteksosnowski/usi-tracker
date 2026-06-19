@@ -7,20 +7,32 @@
     let links = [];
     if (inv.sources && Object.keys(inv.sources).length > 0) {
         links = Object.entries(inv.sources)
-            .filter(([source, data]) => data && data.url && !data.url.endsWith('rynekpierwotny.pl') && !data.url.endsWith('rynekpierwotny.pl/'))
-            .map(([source, data]) => ({ source, url: data.url }));
+            .map(([source, data]) => {
+                let url = data && data.url;
+                if (!url && data) {
+                    if (source === 'oto' && data.agency_id) {
+                        url = 'https://www.otodom.pl/pl/oferta/-ID' + data.agency_id;
+                    } else if (source === 'rp' && data.id) {
+                        url = 'https://rynekpierwotny.pl/oferty/-' + data.id;
+                    } else if (source === 'to' && data.id) {
+                        url = 'https://tabelaofert.pl/i' + data.id;
+                    }
+                }
+                return { source, url };
+            })
+            .filter(link => link.url && !link.url.endsWith('rynekpierwotny.pl') && !link.url.endsWith('rynekpierwotny.pl/'));
     } 
     
     if (links.length === 0 && inv.source_links && inv.source_links.length > 0) {
-        links = inv.source_links;
+        links = inv.source_links.filter(link => link.url && !link.url.endsWith('rynekpierwotny.pl') && !link.url.endsWith('rynekpierwotny.pl/'));
     } 
     
     if (links.length === 0 && inv.source && inv.source_url) {
         links = [{ source: inv.source, url: inv.source_url }];
     }
 
-    if (links.length === 0 && inv.website) {
-        links.push({ source: inv.source || 'oto', url: inv.website });
+    if (links.length === 0 && inv.website && inv.website.includes('otodom')) {
+        links.push({ source: 'oto', url: inv.website });
     }
     
     return (
