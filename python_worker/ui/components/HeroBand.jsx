@@ -5,7 +5,16 @@
 
   const SourceLinks = ({ inv }) => {
     let links = [];
-    if (inv.sources && Object.keys(inv.sources).length > 0) {
+    
+    // Najpierw polegamy na gotowych linkach z backendu, które są najbardziej precyzyjne
+    if (inv.source_links && inv.source_links.length > 0) {
+        links = inv.source_links
+            .map(l => ({ source: (l.source || '').toLowerCase(), url: l.url }))
+            .filter(link => link.url && !link.url.endsWith('rynekpierwotny.pl') && !link.url.endsWith('rynekpierwotny.pl/'));
+    } 
+    
+    // Dopiero jako fallback używamy ręcznego rekonstruowania z ID
+    if (links.length === 0 && inv.sources && Object.keys(inv.sources).length > 0) {
         links = Object.entries(inv.sources)
             .map(([source, data]) => {
                 let url = data && data.url;
@@ -13,7 +22,13 @@
                     if (source.toLowerCase() === 'oto' && data.agency_id) {
                         url = 'https://www.otodom.pl/pl/oferta/-ID' + data.agency_id;
                     } else if (source.toLowerCase() === 'rp' && data.id) {
-                        url = 'https://rynekpierwotny.pl/oferty/-' + data.id;
+                        const dSlug = inv.developer_slug;
+                        const iSlug = inv.investment_slug;
+                        if (dSlug && iSlug) {
+                            url = `https://rynekpierwotny.pl/oferty/${dSlug}/${iSlug}-${data.id}/`;
+                        } else {
+                            url = 'https://rynekpierwotny.pl/oferty/-' + data.id;
+                        }
                     } else if (source.toLowerCase() === 'to' && data.id) {
                         url = 'https://tabelaofert.pl/i' + data.id;
                     }
@@ -21,10 +36,6 @@
                 return { source: source.toLowerCase(), url };
             })
             .filter(link => link.url && !link.url.endsWith('rynekpierwotny.pl') && !link.url.endsWith('rynekpierwotny.pl/'));
-    } 
-    
-    if (links.length === 0 && inv.source_links && inv.source_links.length > 0) {
-        links = inv.source_links.map(l => ({ source: (l.source || '').toLowerCase(), url: l.url })).filter(link => link.url && !link.url.endsWith('rynekpierwotny.pl') && !link.url.endsWith('rynekpierwotny.pl/'));
     } 
     
     if (links.length === 0 && inv.source && inv.source_url) {
