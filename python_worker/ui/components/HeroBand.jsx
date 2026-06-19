@@ -10,25 +10,25 @@
             .map(([source, data]) => {
                 let url = data && data.url;
                 if (!url && data) {
-                    if (source === 'oto' && data.agency_id) {
+                    if (source.toLowerCase() === 'oto' && data.agency_id) {
                         url = 'https://www.otodom.pl/pl/oferta/-ID' + data.agency_id;
-                    } else if (source === 'rp' && data.id) {
+                    } else if (source.toLowerCase() === 'rp' && data.id) {
                         url = 'https://rynekpierwotny.pl/oferty/-' + data.id;
-                    } else if (source === 'to' && data.id) {
+                    } else if (source.toLowerCase() === 'to' && data.id) {
                         url = 'https://tabelaofert.pl/i' + data.id;
                     }
                 }
-                return { source, url };
+                return { source: source.toLowerCase(), url };
             })
             .filter(link => link.url && !link.url.endsWith('rynekpierwotny.pl') && !link.url.endsWith('rynekpierwotny.pl/'));
     } 
     
     if (links.length === 0 && inv.source_links && inv.source_links.length > 0) {
-        links = inv.source_links.filter(link => link.url && !link.url.endsWith('rynekpierwotny.pl') && !link.url.endsWith('rynekpierwotny.pl/'));
+        links = inv.source_links.map(l => ({ source: (l.source || '').toLowerCase(), url: l.url })).filter(link => link.url && !link.url.endsWith('rynekpierwotny.pl') && !link.url.endsWith('rynekpierwotny.pl/'));
     } 
     
     if (links.length === 0 && inv.source && inv.source_url) {
-        links = [{ source: inv.source, url: inv.source_url }];
+        links = [{ source: inv.source.toLowerCase(), url: inv.source_url }];
     }
 
     if (links.length === 0 && inv.website && inv.website.includes('otodom')) {
@@ -36,7 +36,7 @@
     }
     
     return (
-      <div data-component="SourceLinks" className="source-links">
+      <div data-component="SourceLinks" className="source-links usi-m-t-8">
         {links.map((link, i) => (
           <a key={i} className="usi-btn sm ghost" href={link.url} target="_blank" rel="noopener">
             <SourceBadge source={link.source} /> <Icon name="arrow" size={11} />
@@ -76,6 +76,8 @@
             {((inv.financials && inv.financials.price_avg) || inv.price_avg) > 0 ? <span className="usi-mono">{((inv.financials && inv.financials.price_avg) || inv.price_avg).toLocaleString('pl-PL')} zł/m²</span> : <span className="usi-mono">—</span>}
             <span className="usi-mono">{((inv.specifications && (inv.specifications.delivery_date || inv.specifications.delivery_quarter || inv.specifications.delivery_year)) || inv.delivery || '—')}</span>
           </div>
+          
+          <SourceLinks inv={inv} />
         </div>
 
         <div className="hero-band-score-col">

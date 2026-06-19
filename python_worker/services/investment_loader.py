@@ -254,6 +254,15 @@ class InvestmentLoaderService:
         inv_id_canonical = system_id or usi.get("usi_inv_id") or usi.get("master_id")
         if not inv_id_canonical:
             raise ValueError(f"Krytyczny brak identyfikatora strukturalnego w pliku {usi_file}")
+            
+        # Wyszukanie linku do oficjalnej strony WWW w strukturze JSON
+        official_website = usi.get("website") or usi.get("specifications", {}).get("website") or ""
+        if not official_website and isinstance(usi.get("sources"), dict):
+            # Fallback na poszukiwanie w danych źródłowych dewelopera/portalu, jeśli skraper tam go wrzucił
+            for src_data in usi["sources"].values():
+                if isinstance(src_data, dict) and src_data.get("developer_website"):
+                    official_website = src_data["developer_website"]
+                    break
                 
         base_data = {
             "slug": f"{dev_slug}/{inv_slug}",
@@ -300,7 +309,7 @@ class InvestmentLoaderService:
             "photos_to_delete": usi.get("photos_to_delete", 0),
             "folder_path": base_dir_rel,
             "last_updated_ts": usi_file.stat().st_mtime if usi_file else None,
-            "website": "",
+            "website": official_website,
             "sources": usi.get("sources", {}),
             "master_id": master_id,
             "master_usi_inv_id": master_usi_inv_id,
