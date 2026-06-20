@@ -37,10 +37,14 @@ class InvestmentRepository:
         return None
 
     def save_investment_json(self, system_id: str, data: dict, anchor_path: Path = None):
-        """Saves the canonical unified JSON for the investment."""
+        """Saves the canonical unified JSON for the investment atomically."""
         target_file = anchor_path or self._get_anchor_path(system_id)
-        with open(target_file, "w", encoding="utf-8") as f:
+        import tempfile
+        import os
+        fd, temp_path = tempfile.mkstemp(dir=target_file.parent, prefix=".", suffix=".tmp")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
+        os.replace(temp_path, target_file)
 
     def get_ratings(self, system_id: str) -> dict:
         """Gets ratings for the investment."""
@@ -52,6 +56,13 @@ class InvestmentRepository:
                     return json.load(f)
         except FileNotFoundError:
             pass
+        except json.JSONDecodeError as e:
+            logger.error(f"Corrupted ratings.json for {system_id}: {e}. Backing up and starting fresh.")
+            try:
+                import shutil
+                shutil.copy(ratings_file, target_dir / "ratings.json.corrupted")
+            except Exception:
+                pass
         return {}
 
     def save_ratings(self, system_id: str, ratings_data: dict):
@@ -60,8 +71,12 @@ class InvestmentRepository:
             
         ratings_file = target_dir / "ratings.json"
         target_dir.mkdir(parents=True, exist_ok=True)
-        with open(ratings_file, "w", encoding="utf-8") as f:
+        import tempfile
+        import os
+        fd, temp_path = tempfile.mkstemp(dir=target_dir, prefix=".", suffix=".tmp")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(ratings_data, f, indent=2, ensure_ascii=False)
+        os.replace(temp_path, ratings_file)
 
     def get_poi_data(self, system_id: str) -> dict | None:
         """Gets the reports_poi.json file data."""

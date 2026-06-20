@@ -260,7 +260,14 @@ class InvestmentSyncService:
                 return None, None, None
 
             from usi_scrapers.mapping import transform_to_unified
-            unified_data = transform_to_unified(portal, raw_data, "investment")
+            
+            # W scraperach (szczególnie RP i OTO) funkcja refresh zwraca obudowany słownik,
+            # gdzie właściwe dane portalu siedzą pod kluczem 'raw_details'.
+            # Ponieważ load_raw ładuje pliki z dysku, które już są 'raw_details', 
+            # dla spójności musimy zawsze odpakować ten słownik, jeśli istnieje.
+            actual_portal_data = raw_data.get("raw_details") if isinstance(raw_data.get("raw_details"), dict) else raw_data
+            
+            unified_data = transform_to_unified(portal, actual_portal_data, "investment")
 
             # RP-specific post-enrichment: construction_date_upper → specifications.delivery_*
             if portal == "rp":
