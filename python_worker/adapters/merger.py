@@ -143,8 +143,7 @@ class Merger:
             src_info = portal_data.get("sources", {}).get(portal) or {}
             vid = src_info.get("vendor_id") or src_info.get("id") or portal_data.get("id")
             if vid:
-                from python_worker.services.scraper_gateway import ScraperGateway
-                result["sources"][portal] = ScraperGateway.generate_portal_mapping(portal, str(vid))
+                result["sources"][portal] = {"id": str(vid)}
                 if src_info.get("url"):
                     result["sources"][portal]["url"] = src_info["url"]
 
