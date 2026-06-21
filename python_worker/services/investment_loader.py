@@ -320,6 +320,20 @@ class InvestmentLoaderService:
                                 if l_date and l_date != "—":
                                     delivery_dates.add(str(l_date).strip())
                                     
+                                # Agregacja udogodnień (amenities)
+                                l_am_data = linked_usi.get("amenities", {})
+                                l_display_amenities = []
+                                if isinstance(l_am_data, dict):
+                                    l_display_amenities = l_am_data.get("labels", [])
+                                elif isinstance(l_am_data, list):
+                                    l_display_amenities = l_am_data
+                                if not l_display_amenities and linked_usi.get("amenities_matched"):
+                                    l_display_amenities = [m["label"] for m in linked_usi.get("amenities_matched")]
+                                for am in l_display_amenities:
+                                    if am not in display_amenities:
+                                        display_amenities.append(am)
+                                        
+
                                 # Agregacja finansów (średnia ważona)
                                 l_fin = linked_usi.get("financials", {})
                                 l_u_count = linked_usi.get("specifications", {}).get("units_count")
@@ -437,7 +451,6 @@ class InvestmentLoaderService:
             "website": official_website,
             "sources": usi.get("sources", {}),
             "master_id": master_id,
-            "master_primary_id": usi.get("master_primary_id"),  # ID primarynego rekordu grupy
             "master_usi_inv_id": master_usi_inv_id,
             "suggestions": usi.get("suggestions", []),
             "merged_from": merged_from,

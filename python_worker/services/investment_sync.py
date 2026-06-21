@@ -228,7 +228,7 @@ class InvestmentSyncService:
         # Fallback: URL with explicit logging
         portal_url = portal_data.get("url")
         if portal_url:
-            logger.warning(f"[{system_id}] Fallback to URL for {portal_key} - missing numeric ID")
+            logger.warning(f"[{system_id}] Fallback to URL for {portal_key} - missing primary ID")
             return str(portal_url)
             
         return None

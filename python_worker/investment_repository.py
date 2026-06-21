@@ -131,32 +131,16 @@ class InvestmentRepository:
 
     def get_master_data(self, master_id: str, inv_dir: Path) -> tuple[list, str | None]:
         """
-        Wczytuje lokalny rekord scalenia Master (T3) z katalogu inwestycji.
-        Zwraca listę jednostek składowych oraz kanoniczny identyfikator Master.
+        Wczytuje lokalny rekord scalenia Master (T3) przy użyciu globalnego mechanizmu.
+        Zwraca listę jednostek składowych oraz kanoniczny identyfikator Master (primary_id).
         """
-        master_file = inv_dir / f"inv_master_{master_id}.json"
+        from python_worker.investment_merger import InvestmentMerger
+        im = InvestmentMerger(self.data_dir, self.identity)
         
-        if not master_file.exists():
-            # Jeśli pliku nie ma w obecnym katalogu (np. jesteśmy w secondary),
-            # poszukajmy go w katalogu inwestycji primary.
-            primary_id = master_id.replace("MASTER-", "") if master_id.startswith("MASTER-") else master_id
-            try:
-                res = self.identity.get_investment_resources(primary_id)
-                if res and res.get("base_dir"):
-                    primary_master_file = res["base_dir"] / f"inv_master_{master_id}.json"
-                    if primary_master_file.exists():
-                        master_file = primary_master_file
-            except Exception as e:
-                logger.error(f"Error resolving primary dir for master_id {master_id}: {e}")
-                
-        if not master_file.exists():
-            logger.warning(f"Master file not found on disk: {master_file}")
+        # Omijamy primary_id i pozwalamy na wyszukanie w indeksie
+        master_data, master_path = im._load_master_file(master_id)
+        
+        if not master_data:
             return [], None
             
-        try:
-            with open(master_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                return data.get("members", []), data.get("primary_id")
-        except Exception as e:
-            logger.error(f"Failed to read master file {master_file}: {e}")
-            return [], None
+        return master_data.get("members", []), master_data.get("primary_id")

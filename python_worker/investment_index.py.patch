@@ -1,0 +1,46 @@
+--- python_worker/investment_index.py
++++ python_worker/investment_index.py
+@@ -211,8 +211,20 @@
+             usi_files = list(self.data_dir.rglob("usi_*.json"))
+             entries = []
+-            seen_masters = set()
+             
++            # Krok 1: Wczytanie mapowania master_id -> primary_id z plików T3
++            master_to_primary = {}
++            for master_file in self.data_dir.rglob("inv_master_*.json"):
++                try:
++                    with open(master_file, "r") as mf:
++                        mdata = json.load(mf)
++                        mid = mdata.get("master_id")
++                        pid = mdata.get("primary_id")
++                        if mid and pid:
++                            master_to_primary[mid] = pid
++                except:
++                    pass
++
+             for usi_file in usi_files:
+                 if "usi_dev_" in usi_file.name: continue
+                 if usi_file.name.startswith("inv_master_"): continue
+@@ -226,7 +238,8 @@
+                     is_grouped = False
+                     if master_id:
+-                        is_grouped = True
++                        if master_to_primary.get(master_id) != usi_inv_id:
++                            is_grouped = True
+ 
+                     from python_worker.api.utils import _load_investment
+                     entry = _load_investment(
+@@ -242,16 +255,6 @@
+                         entry["is_grouped"] = is_grouped
+                         entries.append(entry)
+                         
+-                        if master_id and master_id not in seen_masters:
+-                            seen_masters.add(master_id)
+-                            master_entry = entry.copy()
+-                            master_entry["usi_inv_id"] = master_id
+-                            master_entry["id"] = master_id
+-                            master_entry["is_grouped"] = False
+-                            master_entry["name"] = f"[Grupa] {entry.get('name')}"
+-                            entries.append(master_entry)
+                 except Exception as e:
+                     logger.error(f"Krytyczny błąd indeksowania inwestycji z pliku {usi_file}: {e}", exc_info=True)

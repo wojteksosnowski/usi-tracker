@@ -1,0 +1,1247 @@
+{
+    "variables": {
+        "data": {
+            "offer_construction_end_date": [
+                {
+                    "value": 0,
+                    "label": "Oddane do użytku"
+                },
+                {
+                    "value": 3,
+                    "label": "Do 3 miesięcy"
+                },
+                {
+                    "value": 6,
+                    "label": "Do 6 miesięcy"
+                },
+                {
+                    "value": 12,
+                    "label": "Do roku"
+                },
+                {
+                    "value": 24,
+                    "label": "Do dwóch lat"
+                },
+                {
+                    "value": 36,
+                    "label": "Do trzech lat"
+                }
+            ],
+            "offer_facilities": [
+                {
+                    "value": 1,
+                    "label": "własny akwen"
+                },
+                {
+                    "value": 2,
+                    "label": "ochrona całodobowa"
+                },
+                {
+                    "value": 3,
+                    "label": "plac zabaw"
+                },
+                {
+                    "value": 4,
+                    "label": "przystań dla łodzi"
+                },
+                {
+                    "value": 5,
+                    "label": "pomieszczenie rekreacyjne"
+                },
+                {
+                    "value": 6,
+                    "label": "monitoring"
+                },
+                {
+                    "value": 7,
+                    "label": "teren ogrodzony"
+                },
+                {
+                    "value": 8,
+                    "label": "usługi concierge"
+                },
+                {
+                    "value": 9,
+                    "label": "basen"
+                },
+                {
+                    "value": 10,
+                    "label": "boisko"
+                },
+                {
+                    "value": 11,
+                    "label": "internet"
+                },
+                {
+                    "value": 12,
+                    "label": "klimatyzacja"
+                },
+                {
+                    "value": 13,
+                    "label": "klub fitness"
+                },
+                {
+                    "value": 14,
+                    "label": "korty tenisowe"
+                },
+                {
+                    "value": 15,
+                    "label": "przystosowane dla niepełnosprawnych"
+                },
+                {
+                    "value": 16,
+                    "label": "recepcja"
+                },
+                {
+                    "value": 17,
+                    "label": "sauna"
+                },
+                {
+                    "value": 18,
+                    "label": "TV kablowa"
+                },
+                {
+                    "value": 19,
+                    "label": "usługi w budynku"
+                },
+                {
+                    "value": 20,
+                    "label": "winda"
+                },
+                {
+                    "value": 21,
+                    "label": "własne ujęcie wody"
+                },
+                {
+                    "value": 22,
+                    "label": "rowerownia"
+                },
+                {
+                    "value": 23,
+                    "label": "inteligentny dom"
+                },
+                {
+                    "value": 24,
+                    "label": "videodomofon"
+                },
+                {
+                    "value": 25,
+                    "label": "własna kotłownia"
+                },
+                {
+                    "value": 26,
+                    "label": "siłownia plenerowa"
+                },
+                {
+                    "value": 27,
+                    "label": "sala fitness"
+                },
+                {
+                    "value": 28,
+                    "label": "wózkarnia"
+                },
+                {
+                    "value": 29,
+                    "label": "patio / dziedziniec"
+                },
+                {
+                    "value": 30,
+                    "label": "instalacja fotowoltaiczna"
+                },
+                {
+                    "value": 31,
+                    "label": "miejsce do ładowania samochodów elektrycznych"
+                },
+                {
+                    "value": 32,
+                    "label": "rekuperacja"
+                },
+                {
+                    "value": 33,
+                    "label": "pompa ciepła"
+                },
+                {
+                    "value": 34,
+                    "label": "miejsca parkingowe dla gości"
+                },
+                {
+                    "value": 35,
+                    "label": "paczkomat"
+                }
+            ],
+            "offer_natural_sites": [
+                {
+                    "value": 1,
+                    "label": "park"
+                },
+                {
+                    "value": 2,
+                    "label": "las"
+                },
+                {
+                    "value": 3,
+                    "label": "jezioro"
+                },
+                {
+                    "value": 4,
+                    "label": "rzeka"
+                },
+                {
+                    "value": 5,
+                    "label": "staw"
+                },
+                {
+                    "value": 6,
+                    "label": "morze"
+                },
+                {
+                    "value": 7,
+                    "label": "rezerwat przyrody"
+                },
+                {
+                    "value": 8,
+                    "label": "góry"
+                },
+                {
+                    "value": 9,
+                    "label": "zalew"
+                }
+            ],
+            "offer_configuration_display_type": [
+                {
+                    "value": 0,
+                    "label": "W przygotowaniu"
+                },
+                {
+                    "value": 1,
+                    "label": "W sprzedaży"
+                },
+                {
+                    "value": 2,
+                    "label": "Sprzedana"
+                },
+                {
+                    "value": 3,
+                    "label": "Wstrzymana"
+                }
+            ],
+            "offer_funds_protection": [
+                {
+                    "value": 1,
+                    "label": "Zamknięty mieszkaniowy rachunek powierniczy"
+                },
+                {
+                    "value": 2,
+                    "label": "Otwarty mieszkaniowy rachunek powierniczy i gwarancję ubezpieczeniową"
+                },
+                {
+                    "value": 3,
+                    "label": "Otwarty mieszkaniowy rachunek powierniczy i gwarancję bankową"
+                },
+                {
+                    "value": 4,
+                    "label": "Otwarty mieszkaniowy rachunek powierniczy"
+                },
+                {
+                    "value": 5,
+                    "label": "Informacja u dewelopera"
+                },
+                {
+                    "value": 6,
+                    "label": "Własna wartość"
+                }
+            ],
+            "offer_standard_description_type": [
+                {
+                    "value": 1,
+                    "label": "Stan surowy"
+                },
+                {
+                    "value": 2,
+                    "label": "Standard deweloperski"
+                },
+                {
+                    "value": 3,
+                    "label": "Standard deweloperski podwyższony"
+                },
+                {
+                    "value": 4,
+                    "label": "Wykończenie pod klucz"
+                }
+            ],
+            "offer_parking_place_type": [
+                {
+                    "value": 1,
+                    "label": "Miejsca postojowe podziemne"
+                },
+                {
+                    "value": 2,
+                    "label": "Miejsca postojowe naziemne"
+                }
+            ],
+            "offer_holiday_location": [
+                {
+                    "value": 1,
+                    "label": "Nad morzem"
+                },
+                {
+                    "value": 2,
+                    "label": "W górach"
+                },
+                {
+                    "value": 3,
+                    "label": "Nad jeziorem"
+                }
+            ],
+            "offer_size": [
+                {
+                    "value": 1,
+                    "label": "Mała (poniżej 51 mieszkań)"
+                },
+                {
+                    "value": 2,
+                    "label": "Średnia (od 51 do 100 mieszkań"
+                },
+                {
+                    "value": 3,
+                    "label": "Duża (od 101 do 200 mieszkań)"
+                },
+                {
+                    "value": 4,
+                    "label": "Bardzo duża (powyżej 200 mieszkań)"
+                }
+            ],
+            "offer_distance": [
+                {
+                    "value": 0,
+                    "label": "0 km"
+                },
+                {
+                    "value": 1,
+                    "label": "+1 km"
+                },
+                {
+                    "value": 2,
+                    "label": "+2 km"
+                },
+                {
+                    "value": 3,
+                    "label": "+3 km"
+                },
+                {
+                    "value": 5,
+                    "label": "+5 km"
+                },
+                {
+                    "value": 8,
+                    "label": "+8 km"
+                },
+                {
+                    "value": 10,
+                    "label": "+10 km"
+                },
+                {
+                    "value": 12,
+                    "label": "+12 km"
+                },
+                {
+                    "value": 15,
+                    "label": "+15 km"
+                },
+                {
+                    "value": 23,
+                    "label": "+23 km"
+                },
+                {
+                    "value": 30,
+                    "label": "+30 km"
+                }
+            ],
+            "offer_display_type": [
+                {
+                    "value": 0,
+                    "label": "W przygotowaniu"
+                },
+                {
+                    "value": 1,
+                    "label": "W sprzedaży"
+                },
+                {
+                    "value": 2,
+                    "label": "Sprzedana"
+                },
+                {
+                    "value": 3,
+                    "label": "Wstrzymana"
+                }
+            ],
+            "offer_price_type": [
+                {
+                    "value": 1,
+                    "label": "netto"
+                },
+                {
+                    "value": 2,
+                    "label": "brutto"
+                }
+            ],
+            "offer_listing_bullets": [
+                {
+                    "value": 1,
+                    "label": "Gwarantowana stopa zwrotu"
+                },
+                {
+                    "value": 2,
+                    "label": "Okres gwarancji najmu"
+                },
+                {
+                    "value": 3,
+                    "label": "Termin oddania"
+                },
+                {
+                    "value": 4,
+                    "label": "Blisko metra"
+                },
+                {
+                    "value": 5,
+                    "label": "Blisko ośrodków akademickich"
+                },
+                {
+                    "value": 6,
+                    "label": "Dobre pod wynajem"
+                },
+                {
+                    "value": 7,
+                    "label": "Minimalna kwota inwestycji"
+                },
+                {
+                    "value": 8,
+                    "label": "Liczba dostępnych lokali"
+                },
+                {
+                    "value": 9,
+                    "label": "Dobre dla studenta"
+                },
+                {
+                    "value": 10,
+                    "label": "Powierzchnia"
+                },
+                {
+                    "value": 11,
+                    "label": "Liczba pokoi"
+                },
+                {
+                    "value": 13,
+                    "label": "Dobrze skomunikowane z centrum miasta"
+                },
+                {
+                    "value": 14,
+                    "label": "Gwarancja odkupienia lokalu"
+                },
+                {
+                    "value": 15,
+                    "label": "Dowolny opis"
+                }
+            ],
+            "offer_listing_bullets_short": [
+                {
+                    "value": 1,
+                    "label": "Stopa zwrotu"
+                },
+                {
+                    "value": 2,
+                    "label": "Okres najmu"
+                },
+                {
+                    "value": 3,
+                    "label": "Termin oddania"
+                },
+                {
+                    "value": 4,
+                    "label": "Blisko metra"
+                },
+                {
+                    "value": 5,
+                    "label": "Blisko uczelni"
+                },
+                {
+                    "value": 6,
+                    "label": "Pod wynajem"
+                },
+                {
+                    "value": 7,
+                    "label": "Min.&nbsp;kwota"
+                },
+                {
+                    "value": 8,
+                    "label": "Liczba lokali"
+                },
+                {
+                    "value": 9,
+                    "label": "Dla studenta"
+                },
+                {
+                    "value": 10,
+                    "label": "Powierzchnia"
+                },
+                {
+                    "value": 11,
+                    "label": "Pokoje"
+                },
+                {
+                    "value": 13,
+                    "label": "Dobra komunikacja"
+                },
+                {
+                    "value": 14,
+                    "label": "Gwarancja odkupu"
+                },
+                {
+                    "value": 15,
+                    "label": "Dowolny opis"
+                }
+            ],
+            "promotion_type": [
+                {
+                    "value": 1,
+                    "label": "Promocja"
+                },
+                {
+                    "value": 2,
+                    "label": "Dni Otwarte"
+                },
+                {
+                    "value": 3,
+                    "label": "Przecena"
+                },
+                {
+                    "value": 4,
+                    "label": "Last Minute"
+                },
+                {
+                    "value": 5,
+                    "label": "Przedsprzedaż"
+                },
+                {
+                    "value": 6,
+                    "label": "Targi Mieszkaniowe"
+                },
+                {
+                    "value": 7,
+                    "label": "Mieszkanie bez wkładu własnego"
+                }
+            ],
+            "property_flat_type": [
+                {
+                    "value": 1,
+                    "label": "Standard"
+                },
+                {
+                    "value": 2,
+                    "label": "Penthouse"
+                },
+                {
+                    "value": 3,
+                    "label": "Apartament"
+                }
+            ],
+            "property_house_type": [
+                {
+                    "value": 1,
+                    "label": "Dom wolnostojący"
+                },
+                {
+                    "value": 2,
+                    "label": "Bliźniak"
+                },
+                {
+                    "value": 3,
+                    "label": "Dom szeregowy"
+                },
+                {
+                    "value": 4,
+                    "label": "Dom z bali"
+                },
+                {
+                    "value": 5,
+                    "label": "Dom dwulokalowy"
+                }
+            ],
+            "property_ownership_form": [
+                {
+                    "value": 1,
+                    "label": "Odrębna własność z użytkowaniem wieczystym gruntu"
+                },
+                {
+                    "value": 2,
+                    "label": "Odrębna własność z własnością gruntu"
+                }
+            ],
+            "property_kitchen_type": [
+                {
+                    "value": 1,
+                    "label": "Zamknięta"
+                },
+                {
+                    "value": 2,
+                    "label": "Otwarta"
+                }
+            ],
+            "property_quarters": [
+                {
+                    "value": 1,
+                    "label": "Wschód"
+                },
+                {
+                    "value": 2,
+                    "label": "Zachód"
+                },
+                {
+                    "value": 3,
+                    "label": "Północ"
+                },
+                {
+                    "value": 4,
+                    "label": "Południe"
+                }
+            ],
+            "property_additional_areas": [
+                {
+                    "value": 1,
+                    "label": "Balkon"
+                },
+                {
+                    "value": 2,
+                    "label": "Loggia"
+                },
+                {
+                    "value": 3,
+                    "label": "Taras"
+                },
+                {
+                    "value": 4,
+                    "label": "Ogródek"
+                },
+                {
+                    "value": 5,
+                    "label": "Garaż"
+                },
+                {
+                    "value": 6,
+                    "label": "Komórka lokatorska"
+                },
+                {
+                    "value": 7,
+                    "label": "Piwnica"
+                },
+                {
+                    "value": 8,
+                    "label": "Miejsce postojowe"
+                },
+                {
+                    "value": 9,
+                    "label": "Miejsce postojowe wewnętrzne"
+                },
+                {
+                    "value": 10,
+                    "label": "Miejsce postojowe zewnętrzne"
+                },
+                {
+                    "value": 11,
+                    "label": "Box"
+                }
+            ],
+            "property_room_area_type": [
+                {
+                    "value": 1,
+                    "label": "Pokój dzienny"
+                },
+                {
+                    "value": 2,
+                    "label": "Sypialnia"
+                },
+                {
+                    "value": 3,
+                    "label": "Jadalnia"
+                },
+                {
+                    "value": 4,
+                    "label": "Pokój"
+                },
+                {
+                    "value": 5,
+                    "label": "Gabinet"
+                },
+                {
+                    "value": 6,
+                    "label": "Kuchnia"
+                },
+                {
+                    "value": 7,
+                    "label": "Łazienka"
+                },
+                {
+                    "value": 8,
+                    "label": "WC"
+                },
+                {
+                    "value": 9,
+                    "label": "Korytarz"
+                },
+                {
+                    "value": 10,
+                    "label": "Schody"
+                },
+                {
+                    "value": 11,
+                    "label": "Garderoba"
+                },
+                {
+                    "value": 12,
+                    "label": "Pomieszczenie gospodarcze"
+                },
+                {
+                    "value": 13,
+                    "label": "Antresola"
+                },
+                {
+                    "value": 14,
+                    "label": "Poddasze"
+                },
+                {
+                    "value": 15,
+                    "label": "Salon z aneksem"
+                }
+            ],
+            "recommendation_stat_label": [
+                {
+                    "value": 1,
+                    "label": "Zadowolonych klientów"
+                },
+                {
+                    "value": 2,
+                    "label": "Oddanych mieszkań i domów"
+                },
+                {
+                    "value": 3,
+                    "label": "Oddanych mieszkań"
+                },
+                {
+                    "value": 4,
+                    "label": "Oddanych domów"
+                },
+                {
+                    "value": 5,
+                    "label": "Lat doświadczenia na rynku"
+                },
+                {
+                    "value": 6,
+                    "label": "Lat obecności na GPW"
+                },
+                {
+                    "value": 7,
+                    "label": "(mln zł) przychodów"
+                },
+                {
+                    "value": 8,
+                    "label": "(mln zł) wartość spółki"
+                },
+                {
+                    "value": 9,
+                    "label": "Ukończonych projektów"
+                },
+                {
+                    "value": 10,
+                    "label": "Projektów w realizacji"
+                },
+                {
+                    "value": 11,
+                    "label": "Planowanych projektów"
+                },
+                {
+                    "value": 12,
+                    "label": "(tys. m2) wybudowanych mieszkań"
+                },
+                {
+                    "value": 13,
+                    "label": "(tys. m2) powierzchni komercyjnej"
+                },
+                {
+                    "value": 14,
+                    "label": "Mieszkań w ofercie"
+                },
+                {
+                    "value": 15,
+                    "label": "Lat doświadczenia w branży budowlanej"
+                }
+            ],
+            "user_type": [
+                {
+                    "value": 1,
+                    "label": "Lokalne"
+                },
+                {
+                    "value": 2,
+                    "label": "Facebook"
+                },
+                {
+                    "value": 3,
+                    "label": "Google"
+                }
+            ],
+            "user_sex": [
+                {
+                    "value": 1,
+                    "label": "mężczyzna"
+                },
+                {
+                    "value": 2,
+                    "label": "kobieta"
+                },
+                {
+                    "value": 3,
+                    "label": "inna"
+                }
+            ],
+            "vendor_office_type": [
+                {
+                    "value": 1,
+                    "label": "Siedziba"
+                },
+                {
+                    "value": 2,
+                    "label": "Biuro regionalne"
+                }
+            ],
+            "vendor_type": [
+                {
+                    "value": 1,
+                    "label": "Deweloper"
+                },
+                {
+                    "value": 2,
+                    "label": "Agencja nieruchomości"
+                }
+            ],
+            "region_type": [
+                {
+                    "value": 1,
+                    "label": "Województwo"
+                },
+                {
+                    "value": 2,
+                    "label": "Region agregacyjny"
+                },
+                {
+                    "value": 3,
+                    "label": "Powiat"
+                },
+                {
+                    "value": 4,
+                    "label": "Miasto"
+                },
+                {
+                    "value": 5,
+                    "label": "Miejscowość"
+                },
+                {
+                    "value": 6,
+                    "label": "Dzielnica"
+                },
+                {
+                    "value": 7,
+                    "label": "Osiedle"
+                },
+                {
+                    "value": 8,
+                    "label": "Region graniczący"
+                }
+            ],
+            "application_meeting_time_preferences": [
+                {
+                    "value": 1,
+                    "label": "Dowolna godzina"
+                },
+                {
+                    "value": 2,
+                    "label": "Przed 15:00"
+                },
+                {
+                    "value": 3,
+                    "label": "Po 15:00"
+                },
+                {
+                    "value": 4,
+                    "label": "Proponowana godzina"
+                }
+            ],
+            "application_source_sections": [
+                {
+                    "value": null,
+                    "label": "Nieznane"
+                },
+                {
+                    "value": 1,
+                    "label": "Modal"
+                },
+                {
+                    "value": 2,
+                    "label": "Panel boczny"
+                },
+                {
+                    "value": 3,
+                    "label": "Dół strony"
+                },
+                {
+                    "value": 4,
+                    "label": "Mapa"
+                },
+                {
+                    "value": 5,
+                    "label": "Model 3D budynku"
+                },
+                {
+                    "value": 6,
+                    "label": "Środek strony"
+                },
+                {
+                    "value": 7,
+                    "label": "Wirtualne spacery"
+                },
+                {
+                    "value": 8,
+                    "label": "Galeria"
+                },
+                {
+                    "value": 9,
+                    "label": "Email"
+                },
+                {
+                    "value": 10,
+                    "label": "Pop-up"
+                },
+                {
+                    "value": 11,
+                    "label": "Nagłówek oferty"
+                },
+                {
+                    "value": 12,
+                    "label": "Moduł ceny prognozowanej góra"
+                },
+                {
+                    "value": 13,
+                    "label": "Moduł ceny prognozowanej dół"
+                },
+                {
+                    "value": 14,
+                    "label": "Multilead"
+                },
+                {
+                    "value": 15,
+                    "label": "Popup podglądu nieruchomości"
+                },
+                {
+                    "value": 16,
+                    "label": "Chatbot"
+                },
+                {
+                    "value": 17,
+                    "label": "Ulubione"
+                },
+                {
+                    "value": 18,
+                    "label": "Tabela"
+                },
+                {
+                    "value": 19,
+                    "label": "Konfigurator mieszkania"
+                },
+                {
+                    "value": 20,
+                    "label": "Zapytanie o mieszkanie z kredytem"
+                },
+                {
+                    "value": 21,
+                    "label": "Multilead Deweloperzy"
+                },
+                {
+                    "value": 22,
+                    "label": "Rolka wideo"
+                },
+                {
+                    "value": 23,
+                    "label": "Pre-Multilead"
+                },
+                {
+                    "value": 200,
+                    "label": "Box nieruchomości - zapytanie wysłane z modala formularza"
+                },
+                {
+                    "value": 201,
+                    "label": "Box nieruchomości - zapytanie wysłane z one click lead"
+                },
+                {
+                    "value": 202,
+                    "label": "Modal nieruchomości - zapytanie wysłane z one click lead"
+                },
+                {
+                    "value": 203,
+                    "label": "Modal nieruchomości - zapytanie wysłane z modala formularza"
+                },
+                {
+                    "value": 204,
+                    "label": "Modal nieruchomości - zapytanie wysłane z mobile modala one click lead"
+                },
+                {
+                    "value": 205,
+                    "label": "Modal nieruchomości - zapytanie wysłane z mobile modala formularza"
+                },
+                {
+                    "value": 206,
+                    "label": "Zapytanie wysłane z one click lead po kliknięciu \"zapytaj o oferte\" na widoku \"Czy chcesz teraz zrobić?\""
+                },
+                {
+                    "value": 207,
+                    "label": "Zapytanie wysłane z one click lead po kliknięciu \"Tak\" na widoku \"Czy chcesz teraz zapytać o tę ofertę?\""
+                },
+                {
+                    "value": 208,
+                    "label": "Zapytanie wysłane z Modala po kliknięciu \"zapytaj o oferte\" na widoku \"Czy chcesz teraz zrobić?\""
+                },
+                {
+                    "value": 209,
+                    "label": "Zapytanie wysłane z Modala po kliknięciu \"Tak\" na widoku \"Czy chcesz teraz zapytać o tę ofertę?\""
+                },
+                {
+                    "value": 210,
+                    "label": "Zapytanie o nieruchomość przez doradcę z systemu ALTAR"
+                },
+                {
+                    "value": 211,
+                    "label": "Zapytanie o inwestycję przez doradcę z systemu ALTAR"
+                }
+            ],
+            "for_investor_search_type": [
+                {
+                    "value": 1,
+                    "label": "Apartament wakacyjny"
+                },
+                {
+                    "value": 2,
+                    "label": "Pod wynajem"
+                },
+                {
+                    "value": 3,
+                    "label": "Condohotel"
+                },
+                {
+                    "value": 4,
+                    "label": "Inwestycja zagraniczna"
+                }
+            ],
+            "country_codes": [
+                {
+                    "value": 48,
+                    "label": "PL"
+                },
+                {
+                    "value": 971,
+                    "label": "AE"
+                },
+                {
+                    "value": 54,
+                    "label": "AR"
+                },
+                {
+                    "value": 43,
+                    "label": "AT"
+                },
+                {
+                    "value": 61,
+                    "label": "AU"
+                },
+                {
+                    "value": 32,
+                    "label": "BE"
+                },
+                {
+                    "value": 359,
+                    "label": "BG"
+                },
+                {
+                    "value": 973,
+                    "label": "BH"
+                },
+                {
+                    "value": 591,
+                    "label": "BO"
+                },
+                {
+                    "value": 55,
+                    "label": "BR"
+                },
+                {
+                    "value": 375,
+                    "label": "BY"
+                },
+                {
+                    "value": 41,
+                    "label": "CH"
+                },
+                {
+                    "value": 56,
+                    "label": "CL"
+                },
+                {
+                    "value": 86,
+                    "label": "CN"
+                },
+                {
+                    "value": 357,
+                    "label": "CY"
+                },
+                {
+                    "value": 420,
+                    "label": "CZ"
+                },
+                {
+                    "value": 49,
+                    "label": "DE"
+                },
+                {
+                    "value": 45,
+                    "label": "DK"
+                },
+                {
+                    "value": 34,
+                    "label": "ES"
+                },
+                {
+                    "value": 358,
+                    "label": "FI"
+                },
+                {
+                    "value": 33,
+                    "label": "FR"
+                },
+                {
+                    "value": 44,
+                    "label": "GB"
+                },
+                {
+                    "value": 30,
+                    "label": "GR"
+                },
+                {
+                    "value": 852,
+                    "label": "HK"
+                },
+                {
+                    "value": 385,
+                    "label": "HR"
+                },
+                {
+                    "value": 36,
+                    "label": "HU"
+                },
+                {
+                    "value": 353,
+                    "label": "IE"
+                },
+                {
+                    "value": 91,
+                    "label": "IN"
+                },
+                {
+                    "value": 964,
+                    "label": "IQ"
+                },
+                {
+                    "value": 98,
+                    "label": "IR"
+                },
+                {
+                    "value": 354,
+                    "label": "IS"
+                },
+                {
+                    "value": 39,
+                    "label": "IT"
+                },
+                {
+                    "value": 81,
+                    "label": "JP"
+                },
+                {
+                    "value": 370,
+                    "label": "LT"
+                },
+                {
+                    "value": 352,
+                    "label": "LU"
+                },
+                {
+                    "value": 371,
+                    "label": "LV"
+                },
+                {
+                    "value": 356,
+                    "label": "MT"
+                },
+                {
+                    "value": 31,
+                    "label": "NL"
+                },
+                {
+                    "value": 47,
+                    "label": "NO"
+                },
+                {
+                    "value": 977,
+                    "label": "NP"
+                },
+                {
+                    "value": 64,
+                    "label": "NZ"
+                },
+                {
+                    "value": 351,
+                    "label": "PT"
+                },
+                {
+                    "value": 40,
+                    "label": "RO"
+                },
+                {
+                    "value": 7,
+                    "label": "RU"
+                },
+                {
+                    "value": 46,
+                    "label": "SE"
+                },
+                {
+                    "value": 65,
+                    "label": "SG"
+                },
+                {
+                    "value": 421,
+                    "label": "SK"
+                },
+                {
+                    "value": 66,
+                    "label": "TH"
+                },
+                {
+                    "value": 380,
+                    "label": "UA"
+                },
+                {
+                    "value": 1,
+                    "label": "US"
+                }
+            ]
+        },
+        "requestState": 2
+    }
+}

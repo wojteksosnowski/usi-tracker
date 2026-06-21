@@ -36,7 +36,8 @@ class InvestmentGroupService:
         
         master_id = src_data.get("master_id") or tgt_data.get("master_id")
         if not master_id:
-            master_id = f"MST-{uuid.uuid4().hex[:8].upper()}"
+            from python_worker.developer_indexer import DeveloperIndexer
+            master_id = DeveloperIndexer(None).generate_usi_id("IM")
             
         for file_path, data in [(src_file, src_data), (tgt_file, tgt_data)]:
             data["master_id"] = master_id

@@ -253,12 +253,7 @@
                         <Icon name="grid" size={12} className="usi-m-r-8"/> Skład rekordu
                     </h3>
                     <div className="usi-flex-col usi-gap-8">
-                        <div className="dev-mini-card" style={{ background: 'var(--usi-surface-3)' }}>
-                            <div className="usi-tiny usi-weight-600">Główny rekord (Target)</div>
-                            <div className="usi-tiny usi-mono">{inv.usi_inv_id}</div>
-                        </div>
                         {localMerged.map(m => {
-                            if (m.usi_inv_id === inv.usi_inv_id) return null; // Skip self
                             return (
                                 <div key={m.usi_inv_id} className="dev-mini-card">
                                     <div className="usi-body usi-weight-600">{m.name || m.inv_slug}</div>

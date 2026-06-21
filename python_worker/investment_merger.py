@@ -102,14 +102,36 @@ class InvestmentMerger:
     def _master_file_path(self, primary_res: dict, master_id: str) -> Path:
         return primary_res["base_dir"] / f"{MASTER_FILE_PREFIX}{master_id}.json"
 
-    def _load_master_file(self, master_id: str, primary_id: str) -> tuple[Optional[dict], Optional[Path]]:
-        """Wczytuje plik master. Zwraca (data, path) lub (None, None)."""
-        res = self._get_resources(primary_id)
-        if not res:
-            return None, None
-        path = self._master_file_path(res, master_id)
-        data = _read_json(path)
-        return data, path
+    def _load_master_file(self, master_id: str, primary_id: str = None) -> tuple[Optional[dict], Optional[Path]]:
+        """Wczytuje plik master sprawdzając foldery wszystkich przypisanych członków z indeksu."""
+        import python_worker.investment_index as inv_index
+        index_data = inv_index.get_investment_index()._index
+        
+        # Znajdź wszystkie rekordy, które mają ten master_id
+        member_folders = [Path(e["folder_path"]) for e in index_data.values() if e.get("master_id") == master_id and e.get("folder_path")]
+        
+        # Jeśli podano primary_id, spróbuj folder z primary_id najpierw (optymalizacja)
+        if primary_id:
+            p_res = self._get_resources(primary_id)
+            if p_res and p_res.get("base_dir"):
+                member_folders.insert(0, p_res["base_dir"])
+                
+        # Sprawdź unikalne foldery w poszukiwaniu pliku
+        seen = set()
+        for folder in member_folders:
+            folder = Path(folder)
+            if folder in seen: continue
+            seen.add(folder)
+            
+            # W środowisku deweloperskim folder_path może być względny
+            if not folder.is_absolute():
+                folder = Path(self.public_dir).parent / folder
+                
+            path = folder / f"{MASTER_FILE_PREFIX}{master_id}.json"
+            if path.exists():
+                return _read_json(path), path
+                
+        return None, None
 
     def _upsert_index(self, inv_id: str) -> None:
         """Aktualizuje gorący indeks RAM + dysk dla jednego rekordu. O(1), bez rglob."""
@@ -143,7 +165,7 @@ class InvestmentMerger:
         if not master_id:
             return [{"usi_inv_id": inv_id, "role": "standalone"}]
 
-        primary_id = data.get("master_primary_id", inv_id)
+        primary_id = inv_id
         master_data, _ = self._load_master_file(master_id, primary_id)
         if not master_data:
             return [{"usi_inv_id": inv_id, "role": "standalone"}]
@@ -191,7 +213,7 @@ class InvestmentMerger:
         # --- Obsługa istniejącego master_id secondary ---
         old_s_master = s_data.get("master_id")
         if old_s_master:
-            old_primary = s_data.get("master_primary_id", secondary_inv_id)
+            old_primary = secondary_inv_id
             if old_s_master != p_data.get("master_id"):
                 logger.info(f"Secondary {secondary_inv_id} was in group {old_s_master}. Removing first.")
                 self._remove_member_from_master(old_s_master, old_primary, secondary_inv_id)
@@ -199,21 +221,26 @@ class InvestmentMerger:
                 s_data = _read_json(s_file) or s_data
 
         # --- Wyznacz lub utwórz master_id ---
-        master_id = p_data.get("master_id") or f"MASTER-{primary_inv_id}"
-        master_path = self._master_file_path(p_res, master_id)
-
-        master_data = _read_json(master_path) if master_path.exists() else None
+        master_id = p_data.get("master_id")
+        if not master_id:
+            from python_worker.developer_indexer import DeveloperIndexer
+            master_id = DeveloperIndexer(None).generate_usi_id("IM")
+            master_data = None
+            master_path = self._master_file_path(p_res, master_id)
+        else:
+            master_data, master_path = self._load_master_file(master_id, primary_inv_id)
+            if not master_path:
+                master_path = self._master_file_path(p_res, master_id)
         if not master_data:
             # Nowa grupa — utwórz plik master
             master_data = {
                 "master_id": master_id,
+                "primary_id": primary_inv_id,
                 "created_at": datetime.now().isoformat(),
                 "updated_at": datetime.now().isoformat(),
-                "primary_id": primary_inv_id,
                 "members": [
                     {
                         "usi_inv_id": primary_inv_id,
-                        "role": "primary",
                         "dev_slug": p_meta.get("developer_slug", ""),
                         "inv_slug": p_meta.get("investment_slug", ""),
                         "added_at": datetime.now().isoformat()
@@ -229,7 +256,6 @@ class InvestmentMerger:
         # --- Dodaj secondary do listy members ---
         master_data["members"].append({
             "usi_inv_id": secondary_inv_id,
-            "role": "secondary",
             "dev_slug": s_meta.get("developer_slug", ""),
             "inv_slug": s_meta.get("investment_slug", ""),
             "added_at": datetime.now().isoformat()
@@ -238,11 +264,9 @@ class InvestmentMerger:
 
         # --- Aktualizuj oba rekordy anchor ---
         p_data["master_id"] = master_id
-        p_data["master_primary_id"] = primary_inv_id
         p_data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
 
         s_data["master_id"] = master_id
-        s_data["master_primary_id"] = primary_inv_id
         s_data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
         s_data["audit"].setdefault("history", []).append({
             "timestamp": datetime.now().isoformat(),
@@ -319,14 +343,9 @@ class InvestmentMerger:
 
     def _remove_member_from_master(self, master_id: str, primary_id: str, member_id: str) -> bool:
         """Usuwa member z pliku master i czyści master_id z pliku anchor member."""
-        p_res = self._get_resources(primary_id)
-        if not p_res:
-            return False
-
-        master_path = self._master_file_path(p_res, master_id)
-        master_data = _read_json(master_path)
+        master_data, master_path = self._load_master_file(master_id, primary_id)
         if not master_data:
-            logger.error(f"Master file not found: {master_path}")
+            logger.error(f"Master file not found for {master_id}")
             return False
 
         before_count = len(master_data["members"])
@@ -342,7 +361,6 @@ class InvestmentMerger:
             m_data = _read_json(m_file)
             if m_data:
                 m_data["master_id"] = None
-                m_data["master_primary_id"] = None
                 m_data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
                 m_data["audit"].setdefault("history", []).append({
                     "timestamp": datetime.now().isoformat(),
@@ -363,7 +381,6 @@ class InvestmentMerger:
                     last_data = _read_json(last_file)
                     if last_data:
                         last_data["master_id"] = None
-                        last_data["master_primary_id"] = None
                         last_data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
                         _atomic_write(last_file, last_data)
                     self._upsert_index(last["usi_inv_id"])

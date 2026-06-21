@@ -30,16 +30,23 @@
           </div>
         </div>
 
-        {(inv.amenities && inv.amenities.length > 0) || (inv.amenities_score > 0) ? (
-          <div data-component="RatingsPanel-Amenities" className="usi-ratings-panel-amenities-section">
-            {inv.amenities && inv.amenities.length > 0 && (
-              <>
-                <div className="usi-tiny usi-m-b-6">Udogodnienia</div>
-                <div className="usi-ratings-panel-amenities-list usi-m-b-12">
-                  {inv.amenities.map(a => <span key={a} className="usi-pill">{a}</span>)}
-                </div>
-              </>
-            )}
+        {(() => {
+          const amenitiesList = Array.isArray(inv.amenities) ? inv.amenities : (inv.amenities?.labels || []);
+          const hasAmenities = amenitiesList.length > 0;
+          const hasScore = inv.amenities_score > 0;
+
+          if (!hasAmenities && !hasScore) return null;
+
+          return (
+            <div data-component="RatingsPanel-Amenities" className="usi-ratings-panel-amenities-section">
+              {hasAmenities && (
+                <>
+                  <div className="usi-tiny usi-m-b-6">Udogodnienia</div>
+                  <div className="usi-ratings-panel-amenities-list usi-m-b-12">
+                    {amenitiesList.map(a => <span key={a} className="usi-pill">{a}</span>)}
+                  </div>
+                </>
+              )}
             {inv.amenities_score > 0 && (
               <>
                 <div className="usi-tiny usi-m-b-4">Wyróżniki</div>
@@ -60,8 +67,7 @@
               </>
             )}
           </div>
-        ) : null}
-
+        ); })()}
         <div data-component="RatingsPanel-Status" className="usi-flex-row usi-gap-12">
           <div className="usi-flex-1">
             <div className="usi-tiny usi-m-b-6">Status</div>
