@@ -310,6 +310,15 @@
   background: var(--usi-accent);
 }
 
+.usi-distance-dot.oto { background: #002C57; }
+[data-dark="1"] .usi-distance-dot.oto { background: #2D5B8A; }
+
+.usi-distance-dot.rp { background: #C0392B; }
+[data-dark="1"] .usi-distance-dot.rp { background: #E66152; }
+
+.usi-distance-dot.to { background: #5A4A2A; }
+[data-dark="1"] .usi-distance-dot.to { background: #967E4D; }
+
 .usi-distance-name {
   flex: 1;
   white-space: nowrap;

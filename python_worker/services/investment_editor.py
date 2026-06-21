@@ -107,6 +107,20 @@ class InvestmentEditorService:
         except Exception as _ie:
             logger.debug(f"Index upsert skipped after ratings save for {system_id}: {_ie}")
 
+        # Propagacja ocen do wszystkich składowych grupy (jeśli rekord jest w grupie)
+        try:
+            from python_worker.investment_merger import InvestmentMerger
+            merger = InvestmentMerger(self.data_dir, self.public_usi_dir)
+            propagated = merger.propagate_ratings(
+                primary_inv_id=system_id,
+                ratings=existing_ratings,
+                status=existing_ratings.get("status")
+            )
+            if propagated:
+                logger.info(f"Ratings propagated from {system_id} to group members: {propagated}")
+        except Exception as e:
+            logger.warning(f"Ratings propagation failed for {system_id} (non-critical): {e}")
+
         return True
 
     def mark_as_reviewed(self, system_id):

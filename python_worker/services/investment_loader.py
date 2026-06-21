@@ -60,17 +60,39 @@ class InvestmentLoaderService:
         elif any(k.startswith("to") for k in sources): source = "TO"
         
         source_links = []
-        # Dynamiczne skanowanie wszystkich kluczy (w tym przemapowanych i scalonych)
+        website = usi_data.get("website", "")
+        
         for k, src_info in sources.items():
-            if not isinstance(src_info, dict) or not src_info.get("url"):
-                continue
+            urls = []
             
-            if k.startswith("rp"):
-                source_links.append({"source": "RP", "url": src_info["url"]})
-            elif k.startswith("oto"):
-                source_links.append({"source": "OTO", "url": src_info["url"]})
-            elif k.startswith("to"):
-                source_links.append({"source": "TO", "url": src_info["url"]})
+            if isinstance(src_info, str):
+                urls = [src_info]
+            elif isinstance(src_info, list):
+                urls = src_info
+            elif isinstance(src_info, dict):
+                u = src_info.get("url")
+                if isinstance(u, list):
+                    urls.extend(u)
+                elif isinstance(u, str):
+                    urls.append(u)
+            
+            # Fallback dla starszych rekordów, które miały url w website zamiast w sources
+            if not urls and website:
+                if k.startswith("rp") and "rynekpierwotny" in website:
+                    urls.append(website)
+                elif k.startswith("oto") and "otodom" in website:
+                    urls.append(website)
+                elif k.startswith("to") and "tabelaofert" in website:
+                    urls.append(website)
+                    
+            for u in urls:
+                if not u: continue
+                if k.startswith("rp"):
+                    source_links.append({"source": "RP", "url": u})
+                elif k.startswith("oto"):
+                    source_links.append({"source": "OTO", "url": u})
+                elif k.startswith("to"):
+                    source_links.append({"source": "TO", "url": u})
         
         source_url = source_links[0]["url"] if source_links else ""
         return source, source_url, source_links
@@ -208,14 +230,46 @@ class InvestmentLoaderService:
         if not display_amenities and usi.get("amenities_matched"):
             display_amenities = [m["label"] for m in usi.get("amenities_matched")]
 
-        source, source_url, source_links = self._resolve_source_data(usi)
         address, city, district, coords = self._extract_location_data(usi)
         master_id, merged_from, master_usi_inv_id = self._load_master_data(usi, inv_dir)
 
-        # --- NOWA LOGIKA: Łączenie list zdjęć dla widoku Master ---
+        # --- NOWA LOGIKA: Łączenie list zdjęć i metadanych dla widoku Master ---
         if master_id:
             all_photos = list(images) # Zaczynamy od zdjęć z obecnego katalogu
             seen_photo_names = {Path(p).name for p in images}
+            
+            combined_sources = dict(usi.get("sources", {}))
+            primary_website = usi.get("website", "")
+            for k, v in combined_sources.items():
+                if isinstance(v, dict) and not v.get("url") and primary_website:
+                    if (k.startswith("rp") and "rynekpierwotny" in primary_website) or \
+                       (k.startswith("oto") and "otodom" in primary_website) or \
+                       (k.startswith("to") and "tabelaofert" in primary_website):
+                        combined_sources[k] = dict(v)
+                        combined_sources[k]["url"] = primary_website
+                        
+            max_units = usi.get("specifications", {}).get("units_count") or 0
+            delivery_dates = set()
+            
+            d_date = usi.get("specifications", {}).get("delivery_date")
+            if d_date and d_date != "—":
+                delivery_dates.add(str(d_date))
+                
+            fin = usi.get("financials", {})
+            u_count = usi.get("specifications", {}).get("units_count")
+            primary_units = int(u_count) if u_count else 1
+            
+            w_sums = {k: 0.0 for k in ["price_min", "price_max", "price_m2_min", "price_m2_max"]}
+            w_counts = {k: 0 for k in ["price_min", "price_max", "price_m2_min", "price_m2_max"]}
+            
+            for key in w_sums.keys():
+                val = fin.get(key)
+                if val is not None:
+                    try:
+                        w_sums[key] += float(val) * primary_units
+                        w_counts[key] += primary_units
+                    except (ValueError, TypeError):
+                        pass
             
             # Przechodzimy przez powiązane zasoby przekazane z repozytorium
             for linked_record in merged_from:
@@ -231,6 +285,55 @@ class InvestmentLoaderService:
                             if linked_anchor and linked_anchor.exists():
                                 linked_usi = json.loads(linked_anchor.read_text(encoding="utf-8"))
                                 
+                                # Agregacja źródeł
+                                l_sources = linked_usi.get("sources", {})
+                                l_website = linked_usi.get("website", "")
+                                
+                                for k, v in l_sources.items():
+                                    if isinstance(v, dict) and not v.get("url") and l_website:
+                                        if (k.startswith("rp") and "rynekpierwotny" in l_website) or \
+                                           (k.startswith("oto") and "otodom" in l_website) or \
+                                           (k.startswith("to") and "tabelaofert" in l_website):
+                                            v = dict(v)
+                                            v["url"] = l_website
+                                            
+                                    if k not in combined_sources:
+                                        combined_sources[k] = v
+
+                                # Agregacja ocen (Ratings) z rekordów pobocznych, jeśli główny nie ma lub poboczny ma lepsze (choć w modelu equal wszystkie są równe)
+                                l_ratings = linked_usi.get("ratings")
+                                if l_ratings and isinstance(l_ratings, dict) and "Gwiazdki" in l_ratings:
+                                    c_ratings = usi.get("ratings", {})
+                                    if not c_ratings or "Gwiazdki" not in c_ratings:
+                                        usi["ratings"] = dict(l_ratings)
+
+                                # Agregacja mieszkań (max)
+                                l_units = linked_usi.get("specifications", {}).get("units_count")
+                                if l_units:
+                                    try:
+                                        max_units = max(int(max_units), int(l_units))
+                                    except ValueError:
+                                        pass
+                                        
+                                # Agregacja dat oddania
+                                l_date = linked_usi.get("specifications", {}).get("delivery_date")
+                                if l_date and l_date != "—":
+                                    delivery_dates.add(str(l_date).strip())
+                                    
+                                # Agregacja finansów (średnia ważona)
+                                l_fin = linked_usi.get("financials", {})
+                                l_u_count = linked_usi.get("specifications", {}).get("units_count")
+                                sec_units = int(l_u_count) if l_u_count else 1
+                                
+                                for key in w_sums.keys():
+                                    val = l_fin.get(key)
+                                    if val is not None:
+                                        try:
+                                            w_sums[key] += float(val) * sec_units
+                                            w_counts[key] += sec_units
+                                        except (ValueError, TypeError):
+                                            pass
+                                
                                 linked_images = resolve_images(linked_usi, inv_dir=linked_res["base_dir"], public_usi_dir=self.public_usi_dir, fast_index=fast_index)
                                 for img_path in linked_images:
                                     if Path(img_path).name not in seen_photo_names:
@@ -238,8 +341,26 @@ class InvestmentLoaderService:
                                         all_photos.append(img_path)
                         except Exception:
                             pass
+                            
             images = all_photos
+            usi["sources"] = combined_sources
+            if "specifications" not in usi:
+                usi["specifications"] = {}
+            usi["specifications"]["units_count"] = max_units
+            
+            if "financials" not in usi:
+                usi["financials"] = {}
+            for k in w_sums.keys():
+                if w_counts[k] > 0:
+                    usi["financials"][k] = round(w_sums[k] / w_counts[k], 2)
+            
+            if delivery_dates:
+                usi["specifications"]["delivery_date"] = " / ".join(sorted(list(delivery_dates)))
+            else:
+                usi["specifications"]["delivery_date"] = "—"
         # -----------------------------------------------------------
+        
+        source, source_url, source_links = self._resolve_source_data(usi)
         ratings_data = usi.get("ratings", {})
 
         base_dir_rel = ""
@@ -316,6 +437,7 @@ class InvestmentLoaderService:
             "website": official_website,
             "sources": usi.get("sources", {}),
             "master_id": master_id,
+            "master_primary_id": usi.get("master_primary_id"),  # ID primarynego rekordu grupy
             "master_usi_inv_id": master_usi_inv_id,
             "suggestions": usi.get("suggestions", []),
             "merged_from": merged_from,

@@ -144,8 +144,9 @@ class Merger:
             vid = src_info.get("vendor_id") or src_info.get("id") or portal_data.get("id")
             if vid:
                 result["sources"][portal] = {"id": str(vid)}
-                if src_info.get("url"):
-                    result["sources"][portal]["url"] = src_info["url"]
+                url = src_info.get("url") or portal_data.get("url")
+                if url:
+                    result["sources"][portal]["url"] = url
 
         # Przywrócenie stanu historycznego z bazy dla brakujących danych sieciowych
         if existing_data:

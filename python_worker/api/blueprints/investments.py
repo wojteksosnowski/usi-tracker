@@ -138,7 +138,7 @@ def list_investments():
             if i.get("ratings") and i.get("usi_inv_id")
         }
         
-        return jsonify({"data": results, "unreviewedCount": unreviewed_count, "ratingsMap": ratings_map}), 200
+        return jsonify({"data": results, "unreviewedCount": unreviewed_count, "ratingsMap": ratings_map, "totalCount": len(all_invs)}), 200
     except Exception as e:
         logger.error(f"Failed to list investments: {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -163,8 +163,8 @@ def get_nearby_investments_api():
         return jsonify({"error": "Coordinates 'lat' and 'lon' must be valid float numbers"}), 400
 
     try:
-        radius = float(request.args.get("radius", 5.0))
-        limit = int(request.args.get("limit", 12))
+        radius = float(request.args.get("radius", 8.0))
+        limit = int(request.args.get("limit", 24))
     except ValueError:
         return jsonify({"error": "Parameter 'radius' must be a float, and 'limit' must be an integer"}), 400
 
@@ -179,11 +179,13 @@ def get_nearby_investments_api():
             limit=limit,
             exclude_id=exclude_id
         )
-        return jsonify({
+        response = jsonify({
             "status": "ok",
             "count": len(results),
             "data": results
-        }), 200
+        })
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        return response, 200
         
     except Exception as e:
         logger.error(f"Spatial query failed for lat={lat}, lon={lon}: {e}", exc_info=True)
@@ -282,12 +284,20 @@ def refresh_investment_route(system_id):
     if not inv:
         abort(404)
     
-    def run_refresh_job(job_id, i_name, system_id):
-        job_manager.update_progress(job_id, 10, f"Rozpoczęto odświeżanie: {i_name}")
+    def run_refresh_job(job_id, i_name, system_id, merged_from):
         try:
-            if investment_service.update_investment(system_id):
-                logger.info(f"Finished background refresh for {i_name}.")
-                job_manager.update_progress(job_id, 100, f"Ukończono odświeżanie: {i_name}")
+            targets = [system_id] + [m.get("usi_inv_id") for m in merged_from if m.get("usi_inv_id")]
+            total = len(targets)
+            
+            success_count = 0
+            for idx, target_id in enumerate(targets):
+                job_manager.update_progress(job_id, int(10 + (idx / total) * 80), f"Odświeżanie [{idx+1}/{total}]: {target_id}")
+                if investment_service.update_investment(target_id):
+                    success_count += 1
+            
+            if success_count > 0:
+                logger.info(f"Finished background refresh for {i_name}. Updated {success_count}/{total} records.")
+                job_manager.update_progress(job_id, 100, f"Ukończono odświeżanie: {i_name} ({success_count}/{total})")
             else:
                 job_manager.update_progress(job_id, 100, f"Brak danych do odświeżenia: {i_name}", status="failed")
         except RuntimeError as e:
@@ -297,7 +307,7 @@ def refresh_investment_route(system_id):
             logger.exception(f"Exception during refresh job for {system_id}: {e}")
             job_manager.update_progress(job_id, 100, f"Wyjątek: {str(e)}", status="failed")
 
-    job_id = job_manager.start_job(f"Refresh: {inv['name']}", run_refresh_job, inv['name'], system_id)
+    job_id = job_manager.start_job(f"Refresh: {inv['name']}", run_refresh_job, inv['name'], system_id, inv.get("merged_from", []))
     return jsonify({"ok": True, "job_id": job_id})
 
 @investments_bp.route("/investment/<system_id>/download-raw", methods=["POST"])
@@ -367,64 +377,6 @@ def list_developers():
     
     return jsonify(devs)
 
-@investments_bp.route("/developer/suggest", methods=["POST"])
-def trigger_suggestions():
-    """Triggers the developer similarity algorithm globally (via Doktor)."""
-    try:
-        from python_worker.daemons import get_doktor
-        doktor = get_doktor()
-        
-        # Jeśli Doktor jest niedostępny, bezpiecznie sprawdzamy alternatywny fallback
-        # uruchomienia analizy deweloperów bezpośrednio z poziomu serwisu deweloperskiego
-        if not doktor:
-            from python_worker.daemons import HAS_CRAWLERS, run_manual_doktor_analysis
-            from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
-            
-            if HAS_CRAWLERS:
-                logger.info("Doktor daemon not found, triggering manual similarity analysis fallback.")
-                def _run_manual():
-                    run_manual_doktor_analysis(Path(USI_DATA_DIR), Path(USI_DEV_DIR))
-                
-                import threading
-                threading.Thread(target=_run_manual, name="manual-dev-similarity-fallback", daemon=True).start()
-                return jsonify({"ok": True, "message": "Uruchomiono analizę podobieństwa deweloperów w tle."})
-            else:
-                logger.warning("Doktor daemon and crawler library both unavailable. Falling back to simple index rebuild.")
-                from python_worker.developer_index import rebuild_master_index
-                
-                def _run_local_fallback():
-                    try:
-                        rebuild_master_index(Path(USI_DEV_DIR))
-                        logger.info("Local fallback developer index rebuild finished.")
-                    except Exception as ex:
-                        logger.error(f"Local fallback developer index rebuild failed: {ex}")
-                
-                import threading
-                threading.Thread(target=_run_local_fallback, name="manual-dev-refresh-fallback", daemon=True).start()
-                return jsonify({"ok": True, "message": "Uruchomiono lokalną przebudowę indeksu deweloperów w tle."})
-
-        # Jeśli doktor istnieje, sprawdzamy bezpiecznie jego metody publiczne
-        # Zapobiegamy wywaleniu aplikacji poprzez rygorystyczny duck-typing i bezpieczny wątek
-        def _safe_doktor_execution():
-            try:
-                if hasattr(doktor, "investigate") and callable(doktor.investigate):
-                    doktor.investigate()
-                elif hasattr(doktor, "refresh") and callable(doktor.refresh):
-                    doktor.refresh()
-                elif hasattr(doktor, "_refresh_index") and callable(doktor._refresh_index):
-                    doktor._refresh_index()
-                else:
-                    logger.error("Doktor daemon does not expose any known refresh or investigate method!")
-            except Exception as thread_err:
-                logger.error(f"Error inside background Doktor thread execution: {thread_err}", exc_info=True)
-
-        import threading
-        threading.Thread(target=_safe_doktor_execution, name="manual-doktor-refresh", daemon=True).start()
-        return jsonify({"ok": True, "message": "Zadanie analizy podobieństwa deweloperów zostało przekazane do demona."})
-
-    except Exception as route_err:
-        logger.error(f"Krytyczny błąd w endpoint /developer/suggest: {route_err}", exc_info=True)
-        return jsonify({"ok": False, "error": str(route_err)}), 500
 
 from python_worker.services.developer_service import DeveloperService
 
@@ -484,61 +436,6 @@ def get_developer_detail(usi_dev_id):
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return response
 
-@investments_bp.route("/developer/<usi_dev_id>/suggest", methods=["POST"])
-def trigger_isolated_developer_suggestions(usi_dev_id):
-    """
-    Uruchamia analizę podobieństwa wyłącznie dla jednego dewelopera.
-    Gwarantuje wykonanie dokładnie 1 operacji zapisu dyskowego (izolacja I/O).
-    """
-    try:
-        from python_worker.algorithms.similarity.engine import DeveloperMatcher
-        from python_worker.daemons import TrackerDoktorDelegate
-        
-        # 1. Pobierz profil dewelopera z dysku
-        target_dev = developer_manager.get_developer_by_id(usi_dev_id)
-        if not target_dev:
-            abort(404)
-            
-        # 2. Załaduj bazę z gotowego indeksu w pamięci RAM (Zero Disk I/O narzutu)
-        delegate = TrackerDoktorDelegate(Path(USI_DATA_DIR), Path(USI_DEV_DIR))
-        all_developers = delegate.get_developers_for_analysis()
-        dismissed = delegate.get_dismissed_cache()
-        
-        # 3. Wylicz powiązania tylko i wyłącznie dla tego jednego dewelopera
-        matcher = DeveloperMatcher()
-        suggestions = matcher.find_suggestions_for_developer(target_dev, all_developers, dismissed)
-        
-        # 4. Rygorystyczny filtr progowy - odcinamy szum o niskim score
-        MIN_SCORE = 0.75
-        filtered_suggestions = [
-            {
-                "usi_dev_id": s["target_id"],
-                "developer_slug": s["target_slug"],
-                "reason": s["reason"],
-                "score": s["score"]
-            }
-            for s in suggestions if s["score"] >= MIN_SCORE
-        ]
-        
-        # 5. Zapis izolowany - modyfikujemy tylko wywołany rekord
-        target_dev["suggestions"] = filtered_suggestions
-        developer_manager.create_developer_file(target_dev)
-        
-        # WYMUSZENIE: Aktualizujemy obiekt w globalnej pamięci podręcznej indeksu (RAM),
-        # aby inne kontrolery i widoki detaliczne natychmiast zobaczyły nowe, poprawne dane.
-        try:
-            import python_worker.developer_index as dev_index
-            # Invalidate global hot index cache to reflect the disk change
-            dev_index.invalidate_cache_for_id(usi_dev_id)
-        except (ImportError, AttributeError):
-            pass
-
-        logger.info(f"[IO_SUCCESS] Izolowany skan dla {usi_dev_id}. Zapisano 1 plik, wykryto {len(filtered_suggestions)} sugestii.")
-        return jsonify({"ok": True, "count": len(filtered_suggestions)})
-        
-    except Exception as e:
-        logger.error(f"Isolated suggest crash: {e}", exc_info=True)
-        return jsonify({"ok": False, "error": str(e)}), 500
 
 @investments_bp.route("/developer/<usi_dev_id>/merge", methods=["POST"])
 def merge_developer(usi_dev_id):
@@ -576,18 +473,6 @@ def unmerge_developer(usi_dev_id):
         logger.exception("unmerge_developer error: %s", e)
         return jsonify({"ok": False, "error": str(e)}), 500
 
-@investments_bp.route("/developer/<usi_dev_id>/dismiss-suggestion", methods=["POST"])
-def dismiss_suggestion(usi_dev_id):
-    from python_worker.developer_manager import DeveloperManager
-    from python_worker.config import USI_DATA_DIR
-    from pathlib import Path
-    payload = request.get_json() or {}
-    suggested_id = payload.get("usi_dev_id")
-    if not suggested_id: abort(400)
-    dm = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
-    if dm.dismiss_suggestion_by_id(usi_dev_id, suggested_id):
-        return jsonify({"ok": True})
-    return jsonify({"ok": False}), 500
 
 @investments_bp.route("/developer/<usi_dev_id>/discover", methods=["POST"])
 def discover_developer_investments(usi_dev_id):
@@ -615,72 +500,46 @@ def discover_developer_investments(usi_dev_id):
 
 @investments_bp.route("/investment/<system_id>/merge", methods=["POST"])
 def merge_investment(system_id):
+    """
+    Łączy secondary_id w grupę primaryną system_id.
+    Zwraca odświeżone dane primarynego rekordu — front NIE przeładowuje strony.
+    """
     payload = request.get_json() or {}
     source_id = payload.get("source_id")
-    if not source_id: abort(400)
-    
+    if not source_id:
+        return jsonify({"ok": False, "error": "Missing source_id"}), 400
+
     from python_worker.investment_merger import InvestmentMerger
-    from python_worker.developer_manager import DeveloperManager
-    from python_worker.config import USI_DATA_DIR
-    from pathlib import Path
-    
     im = InvestmentMerger()
-    dm = DeveloperManager(Path(USI_DATA_DIR))
-    
-    # Pre-fetch entries to check developers before merge updates files
-    target_entry = im._find_index_entry(system_id)
-    source_entry = im._find_index_entry(source_id)
 
-    # 1. Guard clause - jeśli merge się nie udał, wychodzimy natychmiast
-    if not im.merge_by_id(system_id, source_id):
-        return jsonify({"ok": False, "error": "Merge failed"}), 422
+    if not im.merge_by_id(primary_inv_id=system_id, secondary_inv_id=source_id):
+        return jsonify({"ok": False, "error": "Merge failed — check server logs"}), 422
 
-    # 2. Czysta delegacja - zero instrukcji 'if' w prawo
-    dm.suggest_merge_from_investments(target_entry, source_entry)
-    
-    return jsonify({"ok": True})
+    # Zwracamy zaktualizowane dane primarynego, żeby front mógł odświeżyć widok w miejscu
+    updated = investment_service.get_investment(system_id)
+    return jsonify({"ok": True, "updated": updated})
+
 
 @investments_bp.route("/investment/<system_id>/unmerge", methods=["POST"])
 def unmerge_investment(system_id):
+    """
+    Usuwa secondary_id z grupy primarynej system_id.
+    system_id = primary_inv_id, source_id = secondary_inv_id do usunięcia.
+    """
     payload = request.get_json() or {}
     source_id = payload.get("source_id")
-    if not source_id: abort(400)
-    
+    if not source_id:
+        return jsonify({"ok": False, "error": "Missing source_id"}), 400
+
     from python_worker.investment_merger import InvestmentMerger
     im = InvestmentMerger()
-    if im.unmerge_by_id(system_id, source_id):
-        return jsonify({"ok": True})
-    return jsonify({"ok": False, "error": "Unmerge failed"}), 422
 
-@investments_bp.route("/investment/<system_id>/dismiss-suggestion", methods=["POST"])
-def dismiss_investment_suggestion(system_id):
-    payload = request.get_json() or {}
-    suggested_id = payload.get("id") or payload.get("usi_inv_id")
-    if not suggested_id: abort(400)
-    
-    from python_worker.investment_merger import InvestmentMerger
-    im = InvestmentMerger()
-    if im.dismiss_suggestion_by_id(system_id, suggested_id):
-        return jsonify({"ok": True})
-    return jsonify({"ok": False, "error": "Dismiss failed"}), 422
+    if not im.unmerge_by_id(primary_inv_id=system_id, secondary_inv_id=source_id):
+        return jsonify({"ok": False, "error": "Unmerge failed — check server logs"}), 422
 
-@investments_bp.route("/investment/<system_id>/suggest", methods=["POST"])
-def suggest_similar_investments(system_id):
-    inv = investment_service.get_investment(system_id)
-    if not inv:
-        abort(404)
-        
-    from python_worker.jobs import job_manager
-    def run_suggest(job_id, t_id, i_name):
-        from python_worker.detect_similar_invs import detect_similar_invs
-        from python_worker.config import USI_DATA_DIR
-        from pathlib import Path
-        job_manager.update_progress(job_id, 10, message=f"Skanowanie w poszukiwaniu podobnych dla {i_name}...")
-        detect_similar_invs(Path(USI_DATA_DIR), target_inv_id=t_id)
-        job_manager.update_progress(job_id, 100, message="Skanowanie zakończone.")
-        
-    job_manager.start_job(f"Skanuj Podobne: {inv['name']}", run_suggest, system_id, inv['name'])
-    return jsonify({"ok": True, "message": "Rozpoczęto skanowanie podobnych inwestycji."})
+    updated = investment_service.get_investment(system_id)
+    return jsonify({"ok": True, "updated": updated})
+
 
 @investments_bp.route("/investment/<system_id>/review", methods=["POST"])
 def mark_reviewed(system_id):

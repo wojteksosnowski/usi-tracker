@@ -208,7 +208,7 @@
       }, [setVariable]);
 
       if (loading && investments.length === 0) return <div data-component="App" ref={rootRef} className="app-container usi-app"><LoadingScreen /></div>;
-      if (!loading && investments.length === 0) return <div data-component="App" ref={rootRef} className="app-container usi-app"><EmptyScreen onFetch={() => {}} fetching={fetching} fetchCount={fetchCount} /></div>;
+      if (!loading && bus.totalCount === 0) return <div data-component="App" ref={rootRef} className="app-container usi-app"><EmptyScreen onFetch={() => {}} fetching={fetching} fetchCount={fetchCount} /></div>;
 
       const getTitle = () => {
         if (view === 'list') return "Inwestycje";
@@ -354,13 +354,7 @@
                           active={bus.devFilters?.onlyMerged || false}
                           onClick={() => setVariable('devFilters.onlyMerged', v => !v)}
                         />
-                        {(bus.devSuggestionsTotal || 0) > 0 && (
-                          <FilterChip
-                            label={`Sugestie (${bus.devSuggestionsTotal})`}
-                            active={bus.devFilters?.onlySuggestions || false}
-                            onClick={() => setVariable('devFilters.onlySuggestions', v => !v)}
-                          />
-                        )}
+
                         {(bus.pendingTotal || 0) > 0 && (
                           <FilterChip
                             label={`Nowości (${bus.pendingTotal})`}

@@ -124,7 +124,7 @@
 
       if (lat != null && lon != null) {
           const reqFn = window.request || fetch;
-          reqFn(`/api/investments/nearby?lat=${lat}&lon=${lon}`)
+          reqFn(`/api/investments/nearby?lat=${lat}&lon=${lon}&radius=8.0&limit=24`)
             .then(res => (typeof res.json === 'function' ? res.json() : res))
             .then(data => {
                 if (data && data.status === 'ok') {

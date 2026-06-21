@@ -43,7 +43,6 @@ function DeveloperDetail({
   } = window;
   const [developer, setDeveloper] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
-  const [suggesting, setSuggesting] = React.useState(false);
   const [activeJobId, setActiveJobId] = React.useState(null);
   const [filterCity, setFilterCity] = React.useState(null);
   
@@ -72,19 +71,7 @@ function DeveloperDetail({
     }
   }, [load, usi_dev_id, developer?.new_since_review]);
 
-  const handleSuggest = () => {
-    setSuggesting(true);
-    // KRYTYCZNA POPRAWKA FRONTENDU: Uderzamy w endpoint izolowany dla tego konkretnego ID
-    request(`/api/developer/${usi_dev_id}/suggest`, { method: 'POST' })
-      .then(() => {
-        load(true); // Ponowne załadowanie danych profilu (wymusi live-engine)
-        refetch('developers');
-      })
-      .catch(err => {
-        console.error("Błąd żądania sugestii:", err);
-      })
-      .finally(() => setSuggesting(false));
-  };
+
 
   useJobStatus(activeJobId, (finishedJob) => {
     if (finishedJob.status === 'completed') {
@@ -109,13 +96,11 @@ function DeveloperDetail({
   }, [handleUpdate, activeJobId, onRegisterDiscover]);
 
   // Local state for optimistic merge (card jumps immediately without reload)
-  const [localSuggestions, setLocalSuggestions] = React.useState([]);
   const [localMerged, setLocalMerged] = React.useState([]);
   const [arrivingSlug, setArrivingSlug] = React.useState(null);
 
   React.useEffect(() => {
     if (developer) {
-      setLocalSuggestions(developer.suggestions || []);
       setLocalMerged(developer.merged_from || []);
     }
   }, [developer]);
@@ -125,7 +110,6 @@ function DeveloperDetail({
     const source_slug = suggestion.developer_slug;
 
     // Optimistic: move card immediately from suggestions → connected
-    setLocalSuggestions(prev => prev.filter(s => s.usi_dev_id !== source_id));
     const arriving = {
       slug: source_slug,
       name: suggestion.name || source_slug,
@@ -152,13 +136,11 @@ function DeveloperDetail({
       } else {
         // Revert optimistic update
         setLocalMerged(prev => prev.filter(m => m.usi_dev_id !== source_id));
-        setLocalSuggestions(prev => [suggestion, ...prev]);
         setVariable('appStatus', { type: 'error', msg: 'Błąd podczas łączenia.' });
       }
     })
     .catch(() => {
       setLocalMerged(prev => prev.filter(m => m.usi_dev_id !== source_id));
-      setLocalSuggestions(prev => [suggestion, ...prev]);
       setVariable('appStatus', { type: 'error', msg: 'Błąd sieci podczas łączenia.' });
     });
   };
@@ -189,18 +171,7 @@ function DeveloperDetail({
   };
 
 
-  const handleDismiss = (suggested_id) => {
-    const dismissed = localSuggestions.find(s => s.usi_dev_id === suggested_id);
-    setLocalSuggestions(prev => prev.filter(s => s.usi_dev_id !== suggested_id));
-    request(`/api/developer/${usi_dev_id}/dismiss-suggestion`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ target_id: usi_dev_id, usi_dev_id: suggested_id })
-    })
-    .catch(() => {
-      if (dismissed) setLocalSuggestions(prev => [...prev, dismissed]);
-    });
-  };
+
 
   if (loading) {
     return (
@@ -260,13 +231,6 @@ function DeveloperDetail({
           </section>
 
           <aside className="developer-sidebar">
-            <DeveloperSuggestions
-                suggestions={localSuggestions}
-                onMerge={handleMerge}
-                onDismiss={handleDismiss}
-                onSuggest={handleSuggest}
-                loading={suggesting}
-            />
             <MergedMembersPanel dev={developer} members={localMerged} arrivingSlug={arrivingSlug} onUnmerge={handleUnmerge} />
             <DeveloperStats dev={developer} onCityClick={setFilterCity} activeCity={filterCity} />
             <MaintenanceStatus dev={developer} /> {/* Oczyszczone z terminologii crawlerów */}
@@ -488,64 +452,7 @@ function DevMiniCard({ name, slug, usiId, portalMapping = {}, originalPortalMapp
   );
 }
 
-function DeveloperSuggestions({ suggestions, onMerge, onDismiss, onSuggest, loading }) {
-  const { Icon, Spinner } = window;
-  if (!suggestions) return null;
 
-  return (
-    <div className="usi-card usi-p-16 suggestions-card">
-      <div className="usi-flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: suggestions.length > 0 ? 12 : 0 }}>
-        <h3 className="dev-panel-header usi-text-accent" style={{ marginBottom: 0 }}>
-          <Icon name="sparkle" size={12} /> Sugerowane powiązania
-        </h3>
-        <button 
-          className="usi-btn sm ghost" 
-          onClick={onSuggest} 
-          disabled={loading}
-          title="Szukaj podobnych deweloperów"
-        >
-          {loading ? <Spinner size={12} /> : <Icon name="search" size={12} />}
-        </button>
-      </div>
-
-      <div className="usi-flex-col usi-gap-8">
-        {suggestions.map(s => (
-          <DevMiniCard
-            key={s.usi_dev_id}
-            name={s.name || s.developer_slug}
-            slug={s.developer_slug}
-            usiId={s.usi_dev_id}
-            portalMapping={s.portal_mapping || {}}
-            website={s.website}
-            invCount={s.investments_count}
-            sub={s.reason}
-            footer={
-              <div className="usi-flex-row usi-gap-6">
-                <button
-                  className="usi-btn sm usi-flex-1"
-                  onClick={() => onMerge(s)}
-                >
-                  Połącz
-                </button>
-                <button
-                  className="usi-btn sm ghost"
-                  onClick={() => onDismiss(s.usi_dev_id)}
-                  title="Ignoruj sugestię"
-                >
-                  <Icon name="x" size={12} />
-                </button>
-              </div>
-            }
-          />
-        ))}
-      </div>
-      
-      {suggestions.length === 0 && !loading && (
-        <div className="usi-tiny usi-text-secondary" style={{ marginTop: 8 }}>Brak aktywnych sugestii.</div>
-      )}
-    </div>
-  );
-}
 
 function MergedMembersPanel({ dev, members, arrivingSlug, onUnmerge }) {
   if (!dev) return null;

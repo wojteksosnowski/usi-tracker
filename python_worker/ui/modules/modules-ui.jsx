@@ -147,47 +147,94 @@
 
   function NearbyInvestmentsModule({ items = [], onSelectInv, bus }) {
     const { USI_CATEGORIES } = window;
-    if (items.length === 0) return <div className="usi-small" style={{ color: 'var(--usi-ink-4)' }}>Brak innych inwestycji w promieniu 5km.</div>;
+    const [merging, setMerging] = React.useState(null); // ID trwającego merge
+
+    const currentInvestment = bus && bus.currentInvestment;
+    const currentId = currentInvestment && (currentInvestment.usi_inv_id || currentInvestment.id);
+    // ID wszystkich rekordów już w tej samej grupie (by oznaczyć je badge'em)
+    const currentMasterMembers = React.useMemo(() => {
+      const members = new Set();
+      if (currentInvestment && currentInvestment.master_id) {
+        // Szukamy w bus.investments rekordów z tym samym master_id
+        (bus && bus.investments || []).forEach(inv => {
+          if (inv.master_id === currentInvestment.master_id) {
+            members.add(inv.usi_inv_id);
+          }
+        });
+      }
+      return members;
+    }, [currentInvestment && currentInvestment.master_id, bus && bus.investments]);
 
     const handleLinkClick = async (e, investment) => {
       if (e.altKey) {
         e.preventDefault();
         e.stopPropagation();
-        const currentInvestment = bus && bus.currentInvestment;
-        if (!currentInvestment || currentInvestment.id === investment.id) return;
+        if (!currentInvestment || !currentId) return;
+        const targetId = investment.usi_inv_id || investment.id;
+        if (!targetId || targetId === currentId) return;
 
-        const confirmMerge = window.confirm(
-          `Czy chcesz połączyć inwestycję "${investment.name}" z obecną "${currentInvestment.name}" w grupę masterską?`
-        );
-
-        if (confirmMerge) {
+        // Sprawdź czy nie jest już w grupie
+        if (currentMasterMembers.has(targetId)) {
+          const confirmUnmerge = window.confirm(
+            `"${investment.name}" jest już w tej grupie.\nCzy chcesz ją z niej USUNĄĆ?`
+          );
+          if (!confirmUnmerge) return;
+          setMerging(targetId);
           try {
-            const response = await fetch('/api/investments/group-records', {
+            const res = await fetch(`/api/investment/${currentId}/unmerge`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                source_id: currentInvestment.id || currentInvestment.usi_inv_id,
-                target_id: investment.id || investment.usi_inv_id
-              })
+              body: JSON.stringify({ source_id: targetId })
             });
-            
-            if (response.ok) {
-              alert('Pomyślnie zgrupowano rekordy. Odświeżam indeks...');
-              window.location.reload();
+            const data = await res.json();
+            if (data.ok) {
+              // Odśwież bieżącą inwestycję w miejscu bez przeładowania strony
+              if (data.updated && bus && bus.setCurrentInvestment) {
+                bus.setCurrentInvestment(data.updated);
+              }
             } else {
-              const err = await response.json();
-              alert(`Błąd: ${err.error}`);
+              alert(`Błąd: ${data.error}`);
             }
-          } catch (error) {
-            console.error('Group link failed', error);
+          } catch (err) {
+            console.error('Unmerge failed', err);
+          } finally {
+            setMerging(null);
           }
+          return;
+        }
+
+        const confirmMerge = window.confirm(
+          `Połączyć "${investment.name}" z "${currentInvestment.name}"?\n\nOceny zostaną przekazane do nowego rekordu składowego.`
+        );
+        if (!confirmMerge) return;
+
+        setMerging(targetId);
+        try {
+          const res = await fetch(`/api/investment/${currentId}/merge`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ source_id: targetId })
+          });
+          const data = await res.json();
+          if (data.ok) {
+            // Odśwież bieżącą inwestycję w miejscu
+            if (data.updated && bus && bus.setCurrentInvestment) {
+              bus.setCurrentInvestment(data.updated);
+            }
+          } else {
+            alert(`Błąd: ${data.error}`);
+          }
+        } catch (err) {
+          console.error('Merge failed', err);
+        } finally {
+          setMerging(null);
         }
       } else {
-         if (onSelectInv) onSelectInv(investment);
+        if (onSelectInv) onSelectInv(investment);
       }
     };
-    
-    // Stwórzmy szybki lookup po id
+
+    // Szybki lookup po id
     const fastIndex = React.useMemo(() => {
       const map = {};
       if (bus && bus.investments) {
@@ -196,38 +243,67 @@
         });
       }
       return map;
-    }, [bus?.investments]);
+    }, [bus && bus.investments]);
+
+    if (items.length === 0) return <div className="usi-small" style={{ color: 'var(--usi-ink-4)' }}>Brak innych inwestycji w promieniu 8km.</div>;
 
     return (
       <div className="usi-distance-list">
-        {items.slice(0, 10).map(i => {
-          // Szukamy ocen w nowym indeksie `bus.investments` lub jako fallback w obiekcie
-          const indexInv = fastIndex[i.usi_inv_id || i.id];
+        {items.map(i => {
+          const targetId = i.usi_inv_id || i.id;
+          const indexInv = fastIndex[targetId];
           let ratings = (indexInv && indexInv.ratings) ? indexInv.ratings : null;
           if (!ratings && bus && bus.ratingsMap) {
-            ratings = bus.ratingsMap[i.usi_inv_id || i.id];
+            ratings = bus.ratingsMap[targetId];
           }
-          if (!ratings) {
-            ratings = (i.ratings || {});
-          }
-          
-          // Uznajemy za brak oceny tylko wartości null/undefined spośród dozwolonych kategorii
+          if (!ratings) ratings = (i.ratings || {});
+
           const hasAnyRating = USI_CATEGORIES.some(cat => {
             const v = ratings[cat.key];
             return v !== null && v !== undefined;
           });
-          
+
+          const srcStr = i.source || (indexInv && indexInv.source);
+          const sourceCls = srcStr === 'OTO' || srcStr === 'oto' || srcStr === 'otodom' ? 'oto'
+            : (srcStr === 'RP' || srcStr === 'rp' ? 'rp' : (srcStr ? 'to' : ''));
+
+          const itemStatus = i.status || (indexInv && indexInv.status);
+          const isAi = itemStatus === 'AI';
+          const isMerging = merging === targetId;
+
+          // Badge: czy ten rekord jest już w grupie bieżącej inwestycji?
+          const isGroupMember = currentMasterMembers.has(targetId);
+          // Czy to ten sam rekord co bieżący (self)?
+          const isSelf = targetId === currentId;
+
           return (
-            <div 
-              key={i.slug} 
-              className="usi-distance-item" 
-              style={{ cursor: onSelectInv ? 'pointer' : 'default' }}
+            <div
+              key={targetId || i.slug}
+              className="usi-distance-item"
+              style={{ cursor: 'pointer', opacity: isMerging ? 0.5 : 1 }}
               onClick={(e) => handleLinkClick(e, indexInv || i)}
-              title="Kliknij by otworzyć, Alt+Click by zgrupować w masterską grupę"
+              title={isSelf ? 'To jest bieżąca inwestycja' : isGroupMember
+                ? 'Alt+Click by usunąć z grupy'
+                : 'Kliknij by otworzyć · Alt+Click by dodać do grupy'}
             >
-              <div className="usi-distance-dot" />
-              <div className="usi-distance-name" style={{ flex: 1 }}>{i.name}</div>
-              
+              <div className={`usi-distance-dot ${sourceCls}`} />
+              <div className="usi-distance-name" style={{ flex: 1 }}>
+                {i.name}
+                {isGroupMember && !isSelf && (
+                  <span style={{
+                    marginLeft: 5,
+                    fontSize: '0.6rem',
+                    fontWeight: 600,
+                    color: 'var(--usi-accent)',
+                    border: '1px solid var(--usi-accent)',
+                    borderRadius: 3,
+                    padding: '0 3px',
+                    verticalAlign: 'middle',
+                    opacity: 0.85
+                  }}>GRP</span>
+                )}
+              </div>
+
               <div className="usi-flex-row usi-gap-4" style={{ marginRight: 12 }}>
                 {!hasAnyRating ? (
                   <span className="usi-small" style={{ color: 'var(--usi-ink-4)', fontSize: '0.75rem' }}>Brak oceny</span>
@@ -236,20 +312,21 @@
                     const val = ratings[cat.key];
                     if (val === null || val === undefined) return null;
                     return (
-                      <div 
-                        key={cat.key} 
+                      <div
+                        key={cat.key}
                         title={`${cat.key}: ${val}`}
                         style={{
-                          width: 12, 
-                          height: 12, 
-                          borderRadius: '50%', 
+                          width: 12,
+                          height: 12,
+                          borderRadius: '50%',
                           background: cat.color,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           color: '#fff',
                           fontSize: '0.55rem',
-                          fontWeight: 'bold'
+                          fontWeight: 'bold',
+                          opacity: isAi ? 0.4 : 1
                         }}
                       >
                         {val}
@@ -258,7 +335,7 @@
                   })
                 )}
               </div>
-              
+
               <div className="usi-mono usi-distance-km">{i.distance.toFixed(1)}km</div>
             </div>
           );

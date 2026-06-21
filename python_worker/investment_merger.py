@@ -1,382 +1,460 @@
+"""
+investment_merger.py — Zarządzanie grupami inwestycji (Master Groups)
+
+Architektura grupy:
+  - Każdy rekord `usi_*.json` może zawierać klucz `"master_id"` wskazujący na ID grupy.
+  - Plik `inv_master_{MASTER_ID}.json` leży w katalogu PRIMARYNEJ inwestycji.
+  - "Primaryna" to ta, która ma `role: "primary"` w pliku master.
+  - Oceny zapisywane przez użytkownika są propagowane do WSZYSTKICH składowych grupy.
+  - Merge i unmerge aktualizują tylko znane ID — zero rglob.
+"""
+
 import json
 import logging
+import os
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 from python_worker.config import USI_DATA_DIR, PUBLIC_USI_DIR
-from python_worker.developer_manager import DeveloperManager
-import python_worker.investment_index as inv_index
 from python_worker.services.investment_identity import InvestmentIdentityResolver
 from python_worker.logger_utils import log_to_processing_log
 
 logger = logging.getLogger(__name__)
 
+MASTER_FILE_PREFIX = "inv_master_"
+
+
+def _atomic_write(path: Path, data: dict) -> None:
+    """Atomowy zapis JSON — bezpieczny przy synchronizacji Dropbox."""
+    content = json.dumps(data, indent=2, ensure_ascii=False)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.replace(tmp, path)
+    except Exception:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+
+
+def _read_json(path: Path) -> Optional[dict]:
+    if not path or not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        logger.error(f"JSON read error {path}: {e}")
+        return None
+
+
 class InvestmentMerger:
+    """
+    Zarządza grupami inwestycji (wiele rekordów z różnych portali = jeden obiekt).
+
+    Plik master JSON (inv_master_{ID}.json) w katalogu primarynej inwestycji:
+    {
+        "master_id": "MASTER-INV-XXXXX",
+        "created_at": "ISO",
+        "updated_at": "ISO",
+        "primary_id": "INV-XXXXX",          # ID primarynej inwestycji
+        "members": [                          # wszyscy członkowie (włącznie z primarynym)
+            {
+                "usi_inv_id": "INV-XXXXX",
+                "role": "primary",
+                "dev_slug": "...",
+                "inv_slug": "...",
+                "added_at": "ISO"
+            },
+            {
+                "usi_inv_id": "INV-YYYYY",
+                "role": "secondary",
+                "dev_slug": "...",
+                "inv_slug": "...",
+                "added_at": "ISO"
+            }
+        ]
+    }
+    """
+
     def __init__(self, data_dir: Path = None, public_dir: Path = None):
         self.data_dir = data_dir or Path(USI_DATA_DIR)
         self.public_dir = public_dir or Path(PUBLIC_USI_DIR)
-        self.dm = DeveloperManager(self.data_dir)
         self.identity = InvestmentIdentityResolver(self.data_dir, self.public_dir)
 
-    def _load_json(self, path: Path) -> dict:
-        if not path.exists() or not path.is_file():
-            return {}
-        return json.loads(path.read_text(encoding="utf-8"))
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
 
-    def aggregate_data(self, anchors: list[dict]) -> dict:
-        """Agreguje dane z wielu kotwic (Anchor/T2) w jeden obiekt Master (T3)."""
-        if not anchors:
-            return {}
-
-        first = anchors[0]
-        # Generate stable Master ID from system ID
-        system_id = first.get("id") or f"{first.get('portal', 'legacy')}_{first.get('portal_id', 'legacy')}"
-        master_id = f"MASTER-{system_id}"
-        
-        master = {
-            "master_id": master_id,
-            "master_usi_inv_id": master_id, # for backwards compatibility or just use master_id
-            "merged_from": [a["portal_id"] for a in anchors],
-            "portals": [a["portal"] for a in anchors],
-            "last_updated": datetime.now().isoformat(),
-            "unified_data": {}
-        }
-
-        # Aggregate data from T0 (Raw) and T1 (Meta)
-        for anchor in anchors:
-            raw_path = self.public_dir / "USIdata" / anchor.get("raw_file", "")
-            meta_path = self.public_dir / "USIdata" / anchor.get("meta_file", "")
-            
-            raw_data = self._load_json(raw_path)
-            meta_data = self._load_json(meta_path)
-            
-            # Simple merge: prefer meta, then raw
-            master["unified_data"][anchor["portal"]] = {
-                "raw": raw_data,
-                "meta": meta_data
-            }
-            
-        return master
-
-    def sync_master(self, inv_id: str, anchors: list[dict]):
-        """Tworzy lub aktualizuje rekord Master (T3) dla zestawu kotwic."""
-        master = self.aggregate_data(anchors)
-        master_path = self.public_dir / "USIdata" / f"inv_master_{master['master_id']}.json"
-        
-        # Ensure directory exists
-        master_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Atomic write: write to temp then rename
-        temp_path = master_path.with_suffix(".tmp")
-        temp_path.write_text(json.dumps(master, indent=2, ensure_ascii=False))
-        temp_path.replace(master_path)
-        
-        logger.info(f"Sync complete: Master {master['master_id']} persisted.")
+    def _get_resources(self, inv_id: str):
+        res = self.identity.get_investment_resources(inv_id)
+        if not res:
+            logger.error(f"Cannot resolve resources for {inv_id}")
+        return res
 
     def _find_index_entry(self, usi_inv_id: str) -> Optional[dict]:
-        index_data = inv_index.load(self.data_dir)
-        if not index_data:
-            return None
-        for entry in index_data:
-            if entry.get("usi_inv_id") == usi_inv_id:
-                return entry
-        return None
+        """Szybkie O(1) wyszukanie w gorącym indeksie RAM."""
+        import python_worker.investment_index as inv_index
+        return inv_index.get_entry_by_id(usi_inv_id)
 
-    def merge_by_id(self, target_inv_id: str, source_inv_id: str) -> bool:
-        if target_inv_id == source_inv_id:
+    def _master_file_path(self, primary_res: dict, master_id: str) -> Path:
+        return primary_res["base_dir"] / f"{MASTER_FILE_PREFIX}{master_id}.json"
+
+    def _load_master_file(self, master_id: str, primary_id: str) -> tuple[Optional[dict], Optional[Path]]:
+        """Wczytuje plik master. Zwraca (data, path) lub (None, None)."""
+        res = self._get_resources(primary_id)
+        if not res:
+            return None, None
+        path = self._master_file_path(res, master_id)
+        data = _read_json(path)
+        return data, path
+
+    def _upsert_index(self, inv_id: str) -> None:
+        """Aktualizuje gorący indeks RAM + dysk dla jednego rekordu. O(1), bez rglob."""
+        import python_worker.investment_index as inv_index
+        from python_worker.api.utils import _load_investment
+        entry = _load_investment(system_id=inv_id, fast_index=True)
+        if entry:
+            entry.pop("image_urls", None)
+            entry.pop("nearby_investments", None)
+            inv_index.get_investment_index().add_or_update(inv_id, entry)
+
+    def _invalidate_service_cache(self, inv_id: str) -> None:
+        try:
+            from python_worker.services.investment_service import investment_service
+            investment_service.invalidate_cache(inv_id)
+        except Exception as e:
+            logger.debug(f"Cache invalidation skipped for {inv_id}: {e}")
+
+    def get_group_members(self, inv_id: str) -> list[dict]:
+        """
+        Dla danego ID inwestycji zwraca listę wszystkich członków jej grupy.
+        Jeśli inwestycja nie jest w grupie, zwraca listę z samym sobą.
+        """
+        res = self._get_resources(inv_id)
+        if not res:
+            return []
+        data = _read_json(res["files"].get("anchor"))
+        if not data:
+            return []
+        master_id = data.get("master_id")
+        if not master_id:
+            return [{"usi_inv_id": inv_id, "role": "standalone"}]
+
+        primary_id = data.get("master_primary_id", inv_id)
+        master_data, _ = self._load_master_file(master_id, primary_id)
+        if not master_data:
+            return [{"usi_inv_id": inv_id, "role": "standalone"}]
+        return master_data.get("members", [])
+
+    # ------------------------------------------------------------------
+    # Merge
+    # ------------------------------------------------------------------
+
+    def merge_by_id(self, primary_inv_id: str, secondary_inv_id: str) -> bool:
+        """
+        Łączy secondary_inv_id w grupę primaryną primary_inv_id.
+
+        Reguły:
+        - Jeśli primary ma już master_id, secondary jest dodawany do tej samej grupy.
+        - Jeśli secondary ma już master_id w INNEJ grupie, jest wpierw z niej wyłączany.
+        - Oceny primarynego są propagowane do wszystkich składowych grupy.
+        - Zapis atomowy dla każdego pliku.
+        - Tylko `upsert` O(1) — zero `rebuild()`.
+        """
+        if primary_inv_id == secondary_inv_id:
             logger.error("Cannot merge investment into itself.")
             return False
 
-        target_entry = self._find_index_entry(target_inv_id)
-        source_entry = self._find_index_entry(source_inv_id)
-
-        if not target_entry or not source_entry:
-            logger.error("Target or Source investment not found in index.")
+        p_res = self._get_resources(primary_inv_id)
+        s_res = self._get_resources(secondary_inv_id)
+        if not p_res or not s_res:
             return False
 
-        t_dev_slug = target_entry["developer_slug"]
-        t_inv_slug = target_entry["investment_slug"]
-        s_dev_slug = source_entry["developer_slug"]
-        s_inv_slug = source_entry["investment_slug"]
-
-        t_res = self.identity.get_investment_resources(target_inv_id)
-        s_res = self.identity.get_investment_resources(source_inv_id)
-
-        if not t_res or not s_res:
-            logger.error("Target or Source resource mapping could not be resolved.")
+        p_file = p_res["files"].get("anchor")
+        s_file = s_res["files"].get("anchor")
+        if not p_file or not s_file:
+            logger.error("Anchor files not found.")
             return False
 
-        t_inv_dir = t_res["base_dir"]
-        s_inv_dir = s_res["base_dir"]
-        t_usi_file = t_res["files"].get("anchor")
-        s_usi_file = s_res["files"].get("anchor")
-
-        if not t_usi_file or not s_usi_file:
-            logger.error("Underlying USI JSON files not found.")
+        p_data = _read_json(p_file)
+        s_data = _read_json(s_file)
+        if p_data is None or s_data is None:
+            logger.error("Failed to read anchor files.")
             return False
 
-        # Load Source
-        with open(s_usi_file, "r", encoding="utf-8") as f:
-            s_data = json.load(f)
+        p_meta = p_res["metadata"]
+        s_meta = s_res["metadata"]
 
-        # Ensure target is not already merged into something else
-        # Actually, target_entry could already have a master_id if it's merged
-        with open(t_usi_file, "r", encoding="utf-8") as f:
-            t_data = json.load(f)
+        # --- Obsługa istniejącego master_id secondary ---
+        old_s_master = s_data.get("master_id")
+        if old_s_master:
+            old_primary = s_data.get("master_primary_id", secondary_inv_id)
+            if old_s_master != p_data.get("master_id"):
+                logger.info(f"Secondary {secondary_inv_id} was in group {old_s_master}. Removing first.")
+                self._remove_member_from_master(old_s_master, old_primary, secondary_inv_id)
+                # Reload after removal
+                s_data = _read_json(s_file) or s_data
 
-        if t_data.get("master_id"):
-            logger.warning(f"Target investment {target_inv_id} is already merged into {t_data.get('master_id')}. Redirecting merge.")
-            # Merge into the existing master instead
-            target_master_id = t_data.get("master_id")
-            # For simplicity, we can just reject or we could recurse. Reject for now.
-            logger.error("Target is already a child. Cannot merge into a child.")
-            return False
+        # --- Wyznacz lub utwórz master_id ---
+        master_id = p_data.get("master_id") or f"MASTER-{primary_inv_id}"
+        master_path = self._master_file_path(p_res, master_id)
 
-        # Find or create master file for target
-        # The master file will be inv_master_{IM_ID}.json in target's directory
-        master_file_path = None
-        master_id = None
-        master_data = {}
-
-        for mf in t_inv_dir.glob("inv_master_*.json"):
-            master_file_path = mf
-            master_id = mf.name.replace("inv_master_", "").replace(".json", "")
-            with open(mf, "r", encoding="utf-8") as f:
-                master_data = json.load(f)
-            break
-
-        if not master_file_path:
-            master_id = f"MASTER-{target_inv_id}"
-            master_file_path = t_inv_dir / f"inv_master_{master_id}.json"
+        master_data = _read_json(master_path) if master_path.exists() else None
+        if not master_data:
+            # Nowa grupa — utwórz plik master
             master_data = {
-                "inv_master_id": master_id,
-                "master_usi_inv_id": target_inv_id,
-                "master_slug": f"{t_dev_slug}/{t_inv_slug}",
-                "merged_from": [],
-                "dismissed": [],
-                "ratings": {}, # Master can collect combined ratings
-                "audit": {
-                    "created_at": datetime.now().isoformat()
-                }
+                "master_id": master_id,
+                "created_at": datetime.now().isoformat(),
+                "updated_at": datetime.now().isoformat(),
+                "primary_id": primary_inv_id,
+                "members": [
+                    {
+                        "usi_inv_id": primary_inv_id,
+                        "role": "primary",
+                        "dev_slug": p_meta.get("developer_slug", ""),
+                        "inv_slug": p_meta.get("investment_slug", ""),
+                        "added_at": datetime.now().isoformat()
+                    }
+                ]
             }
 
-        # Check if source is already merged
-        old_master_id = s_data.get("master_id")
-        if old_master_id == master_id:
-            logger.info("Source is already merged into this target.")
+        # --- Sprawdź czy secondary już jest w grupie ---
+        if any(m["usi_inv_id"] == secondary_inv_id for m in master_data["members"]):
+            logger.info(f"{secondary_inv_id} already in group {master_id}.")
             return True
 
-        if old_master_id:
-            logger.warning(f"Source {source_inv_id} was merged into {old_master_id}. Removing from old master.")
-            self.unmerge_by_id(old_master_id, source_inv_id)
-            # reload source data as unmerge modifies it
-            with open(s_usi_file, "r", encoding="utf-8") as f:
-                s_data = json.load(f)
-
-        # Add target itself to merged_from if not already there, so we have a full list of sources
-        target_in_list = any(m.get("usi_inv_id") == target_inv_id for m in master_data["merged_from"])
-        if not target_in_list:
-            master_data["merged_from"].append({
-                "usi_inv_id": target_inv_id,
-                "dev_slug": t_dev_slug,
-                "inv_slug": t_inv_slug,
-                "merged_at": datetime.now().isoformat(),
-                "role": "primary"
-            })
-
-        # Add source
-        master_data["merged_from"].append({
-            "usi_inv_id": source_inv_id,
-            "dev_slug": s_dev_slug,
-            "inv_slug": s_inv_slug,
-            "merged_at": datetime.now().isoformat()
+        # --- Dodaj secondary do listy members ---
+        master_data["members"].append({
+            "usi_inv_id": secondary_inv_id,
+            "role": "secondary",
+            "dev_slug": s_meta.get("developer_slug", ""),
+            "inv_slug": s_meta.get("investment_slug", ""),
+            "added_at": datetime.now().isoformat()
         })
-        master_data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
+        master_data["updated_at"] = datetime.now().isoformat()
 
-        # Update source
+        # --- Aktualizuj oba rekordy anchor ---
+        p_data["master_id"] = master_id
+        p_data["master_primary_id"] = primary_inv_id
+        p_data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
+
         s_data["master_id"] = master_id
+        s_data["master_primary_id"] = primary_inv_id
         s_data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
         s_data["audit"].setdefault("history", []).append({
             "timestamp": datetime.now().isoformat(),
-            "event": "Merged",
-            "changes": [{"field": "master_id", "old": None, "new": master_id}]
+            "event": "Merged into group",
+            "changes": [{"field": "master_id", "old": old_s_master, "new": master_id}]
         })
 
-        # Także daj targetowi master_id pointing to the same master!
-        if not t_data.get("master_id"):
-            t_data["master_id"] = master_id
-            t_data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
+        # --- Atomowe zapisy ---
+        _atomic_write(master_path, master_data)
+        _atomic_write(p_file, p_data)
+        _atomic_write(s_file, s_data)
 
-        # NOWY BLOK: Propagacja i unifikacja słowników sources z obsługą duplikatów portali
-        if "sources" not in t_data:
-            t_data["sources"] = {}
+        # --- Propagacja ocen primarynego do secondary ---
+        primary_ratings = p_data.get("ratings", {})
+        if primary_ratings:
+            self._propagate_ratings_to_member(s_file, s_data, primary_ratings)
 
-        for src_k, src_v in s_data.get("sources", {}).items():
-            if src_k in t_data["sources"]:
-                # Jeśli klucz portalu już istnieje (np. oba to 'oto'), tworzymy unikalny klucz powiązania
-                unique_key = f"{src_k}_merged_{source_inv_id}"
-                t_data["sources"][unique_key] = src_v
-            else:
-                t_data["sources"][src_k] = src_v
+        # --- Automatyczne scalenie deweloperów (konsekwencja łączenia inwestycji) ---
+        self._try_merge_developers(p_data.get("usi_dev_id"), s_data.get("usi_dev_id"), primary_inv_id, secondary_inv_id)
 
-        with open(t_usi_file, "w", encoding="utf-8") as f:
-            json.dump(t_data, f, indent=2, ensure_ascii=False)
+        # Kolejność kluczowa: 1) secondary — usuwa się z indeksu, 2) primary — odświeża z pełnymi merged_from
+        self._upsert_index(secondary_inv_id)
+        self._upsert_index(primary_inv_id)
+        self._invalidate_service_cache(secondary_inv_id)
+        self._invalidate_service_cache(primary_inv_id)
 
-        # Save files
-        with open(master_file_path, "w", encoding="utf-8") as f:
-            json.dump(master_data, f, indent=2, ensure_ascii=False)
-
-        with open(s_usi_file, "w", encoding="utf-8") as f:
-            json.dump(s_data, f, indent=2, ensure_ascii=False)
-
-        # Always update index for target because merged_from has changed
-        inv_index.upsert(
-            data_dir=self.data_dir, 
-            public_usi_dir=self.public_dir, 
-            dev_slug=t_dev_slug, 
-            inv_slug=t_inv_slug, 
-            inv_id=target_inv_id
+        log_to_processing_log(
+            s_meta.get("developer_slug", "unknown"),
+            s_meta.get("investment_slug", "unknown"),
+            f"Merged into group {master_id} (primary: {primary_inv_id})"
         )
-        # Update index for source
-        inv_index.upsert(
-            data_dir=self.data_dir, 
-            public_usi_dir=self.public_dir, 
-            dev_slug=s_dev_slug, 
-            inv_slug=s_inv_slug, 
-            inv_id=source_inv_id
-        )
-
-        # Logs
-        # Master gets a log entry
-        log_path = t_inv_dir / f"inv_master_log_{master_id}.txt"
-        with open(log_path, "a", encoding="utf-8") as lf:
-            lf.write(f"[{datetime.now().isoformat()}] Merged {s_dev_slug}/{s_inv_slug} ({source_inv_id}) into this master.\n")
-
-        # Source isolated log
-        log_to_processing_log(s_dev_slug, s_inv_slug, f"Merged into master {master_id} (Target: {target_inv_id})")
-
+        logger.info(f"Merge OK: {secondary_inv_id} -> group {master_id} (primary: {primary_inv_id})")
         return True
 
-    def unmerge_by_id(self, master_id: str, source_inv_id: str) -> bool:
-        source_entry = self._find_index_entry(source_inv_id)
-        if not source_entry:
-            logger.error("Source investment not found in index.")
+    # ------------------------------------------------------------------
+    # Unmerge
+    # ------------------------------------------------------------------
+
+    def unmerge_by_id(self, primary_inv_id: str, secondary_inv_id: str) -> bool:
+        """
+        Usuwa secondary_inv_id z grupy primarynej.
+        Jeśli po usunięciu zostaje tylko 1 member, rozwiązuje całą grupę.
+        """
+        p_res = self._get_resources(primary_inv_id)
+        s_res = self._get_resources(secondary_inv_id)
+        if not p_res or not s_res:
             return False
 
-        s_dev_slug = source_entry["developer_slug"]
-        s_inv_slug = source_entry["investment_slug"]
-        s_inv_dir = self.data_dir / s_dev_slug / s_inv_slug
-        s_res = self.identity.get_investment_resources(source_inv_id)
-        s_usi_file = s_res["files"].get("anchor") if s_res else None
-
-        if not s_usi_file:
+        s_file = s_res["files"].get("anchor")
+        s_data = _read_json(s_file)
+        if s_data is None:
             return False
 
-        with open(s_usi_file, "r", encoding="utf-8") as f:
-            s_data = json.load(f)
-
-        if s_data.get("master_id") != master_id:
-            logger.error("Source is not merged into the specified master.")
+        master_id = s_data.get("master_id")
+        if not master_id:
+            logger.warning(f"{secondary_inv_id} is not in any group.")
             return False
 
-        s_data["master_id"] = None
-        s_data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
-        s_data["audit"].setdefault("history", []).append({
-            "timestamp": datetime.now().isoformat(),
-            "event": "Unmerged",
-            "changes": [{"field": "master_id", "old": master_id, "new": None}]
-        })
+        removed = self._remove_member_from_master(master_id, primary_inv_id, secondary_inv_id)
 
-        # POPRAWKA: Rekonstrukcja identyfikatora docelowego z master_id i poprawne mapowanie zasobów
-        target_inv_id = master_id.replace("MASTER-", "")
-        t_res = self.identity.get_investment_resources(target_inv_id)
-        
-        if not t_res:
-            logger.error(f"Target investment resources for ID {target_inv_id} could not be resolved.")
-            return False
-            
-        t_inv_dir = t_res["base_dir"]
-        master_file_path = t_inv_dir / f"inv_master_{master_id}.json"
-
-        if master_file_path.exists():
-            with open(master_file_path, "r", encoding="utf-8") as f:
-                master_data = json.load(f)
-
-            master_data["merged_from"] = [m for m in master_data.get("merged_from", []) if m.get("usi_inv_id") != source_inv_id]
-            master_data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
-
-            with open(master_file_path, "w", encoding="utf-8") as f:
-                json.dump(master_data, f, indent=2, ensure_ascii=False)
-
-            # Logowanie do pliku master_log w katalogu inwestycji docelowej
-            log_path = t_inv_dir / f"inv_master_log_{master_id}.txt"
-            with open(log_path, "a", encoding="utf-8") as lf:
-                lf.write(f"[{datetime.now().isoformat()}] Unmerged {s_dev_slug}/{s_inv_slug} ({source_inv_id}).\n")
-
-            # Aktualizacja indeksu inwestycji docelowej przy użyciu właściwych slugów z t_res
-            inv_index.upsert(
-                data_dir=self.data_dir, 
-                public_usi_dir=self.public_dir, 
-                dev_slug=t_res["metadata"]["developer_slug"], 
-                inv_slug=t_res["metadata"]["investment_slug"], 
-                inv_id=target_inv_id
+        if removed:
+            s_meta = s_res["metadata"]
+            # Kolejność: primary odświeżony (bez byłego membera), secondary wstawiony z powrotem
+            self._upsert_index(primary_inv_id)   # zaktualizuj primary w indeksie
+            self._upsert_index(secondary_inv_id) # wstaw secondary z powrotem (master_id=null -> nie jest już secondary)
+            self._invalidate_service_cache(primary_inv_id)
+            self._invalidate_service_cache(secondary_inv_id)
+            log_to_processing_log(
+                s_meta.get("developer_slug", "unknown"),
+                s_meta.get("investment_slug", "unknown"),
+                f"Unmerged from group {master_id}"
             )
-        else:
-            logger.error(f"Master file not found at expected location: {master_file_path}")
+        return removed
+
+    def _remove_member_from_master(self, master_id: str, primary_id: str, member_id: str) -> bool:
+        """Usuwa member z pliku master i czyści master_id z pliku anchor member."""
+        p_res = self._get_resources(primary_id)
+        if not p_res:
             return False
 
-        with open(s_usi_file, "w", encoding="utf-8") as f:
-            json.dump(s_data, f, indent=2, ensure_ascii=False)
+        master_path = self._master_file_path(p_res, master_id)
+        master_data = _read_json(master_path)
+        if not master_data:
+            logger.error(f"Master file not found: {master_path}")
+            return False
 
-        inv_index.upsert(
-            data_dir=self.data_dir, 
-            public_usi_dir=self.public_dir, 
-            dev_slug=s_dev_slug, 
-            inv_slug=s_inv_slug, 
-            inv_id=source_inv_id
-        )
-        log_to_processing_log(s_dev_slug, s_inv_slug, f"Unmerged from master {master_id}")
+        before_count = len(master_data["members"])
+        master_data["members"] = [m for m in master_data["members"] if m["usi_inv_id"] != member_id]
+        after_count = len(master_data["members"])
+        was_removed = after_count < before_count
+        master_data["updated_at"] = datetime.now().isoformat()
 
-        return True
+        # Wyczyść master_id z pliku anchor tego membera
+        m_res = self._get_resources(member_id)
+        if m_res:
+            m_file = m_res["files"].get("anchor")
+            m_data = _read_json(m_file)
+            if m_data:
+                m_data["master_id"] = None
+                m_data["master_primary_id"] = None
+                m_data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
+                m_data["audit"].setdefault("history", []).append({
+                    "timestamp": datetime.now().isoformat(),
+                    "event": "Unmerged from group",
+                    "changes": [{"field": "master_id", "old": master_id, "new": None}]
+                })
+                _atomic_write(m_file, m_data)
 
-    def dismiss_suggestion_by_id(self, target_inv_id: str, suggested_inv_id: str) -> bool:
-        # Central dismissed pairs logic
-        dismiss_file = self.data_dir / "dismissed_inv_pairs.jsonl"
-        entry = json.dumps({
-            "dismisser_id": target_inv_id,
-            "dismissed_id": suggested_inv_id,
-            "at": datetime.now().isoformat()
-        }, ensure_ascii=False)
-        
-        with open(dismiss_file, "a", encoding="utf-8") as f:
-            f.write(entry + "\n")
-            
-        # Also remove from local suggestions
-        target_entry = self._find_index_entry(target_inv_id)
-        if target_entry:
-            t_res = self.identity.get_investment_resources(target_inv_id)
-            if not t_res:
-                return False
-                
-            t_inv_dir = t_res["base_dir"]
-            t_usi_file = t_res["files"].get("anchor")
-            if t_usi_file:
-                with open(t_usi_file, "r", encoding="utf-8") as f:
-                    t_data = json.load(f)
-                suggestions = t_data.get("suggestions", [])
-                t_data["suggestions"] = [s for s in suggestions if s.get("usi_inv_id") != suggested_inv_id]
-                with open(t_usi_file, "w", encoding="utf-8") as f:
-                    json.dump(t_data, f, indent=2, ensure_ascii=False)
-                # POPRAWKA: Pobranie zmiennych ze słownika target_entry przed wykonaniem upsert
-                t_dev_slug = target_entry["developer_slug"]
-                t_inv_slug = target_entry["investment_slug"]
-                inv_index.upsert(
-                    data_dir=self.data_dir, 
-                    public_usi_dir=self.public_dir, 
-                    dev_slug=t_dev_slug, 
-                    inv_slug=t_inv_slug, 
-                    inv_id=target_inv_id
-                )
-        
-        return True
+        # Jeśli zostało <= 1 member, rozwiąż grupę całkowicie
+        remaining = master_data["members"]
+        if len(remaining) <= 1:
+            logger.info(f"Group {master_id} dissolved (only {len(remaining)} member left).")
+            # Wyczyść master_id z ostatniego membera
+            for last in remaining:
+                last_res = self._get_resources(last["usi_inv_id"])
+                if last_res:
+                    last_file = last_res["files"].get("anchor")
+                    last_data = _read_json(last_file)
+                    if last_data:
+                        last_data["master_id"] = None
+                        last_data["master_primary_id"] = None
+                        last_data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
+                        _atomic_write(last_file, last_data)
+                    self._upsert_index(last["usi_inv_id"])
+            # Usuń plik master
+            if master_path.exists():
+                master_path.unlink()
+        else:
+            _atomic_write(master_path, master_data)
+
+        return was_removed
+
+    # ------------------------------------------------------------------
+    # Propagacja ocen
+    # ------------------------------------------------------------------
+
+    def propagate_ratings(self, primary_inv_id: str, ratings: dict, status: Optional[str] = None) -> list[str]:
+        """
+        Propaguje oceny do wszystkich secondary members grupy.
+        Zwraca listę ID inwestycji, do których propagacja się powiodła.
+
+        Wywołaj to po każdym zapisie ocen dla rekordu primarynego.
+        """
+        members = self.get_group_members(primary_inv_id)
+        updated = []
+
+        for member in members:
+            mid = member.get("usi_inv_id")
+            if not mid or mid == primary_inv_id or member.get("role") == "primary":
+                continue
+
+            m_res = self._get_resources(mid)
+            if not m_res:
+                continue
+            m_file = m_res["files"].get("anchor")
+            m_data = _read_json(m_file)
+            if m_data is None:
+                continue
+
+            self._propagate_ratings_to_member(m_file, m_data, ratings, status)
+            self._upsert_index(mid)
+            self._invalidate_service_cache(mid)
+            updated.append(mid)
+
+        return updated
+
+    def _propagate_ratings_to_member(
+        self, m_file: Path, m_data: dict, ratings: dict, status: Optional[str] = None
+    ) -> None:
+        """Zapisuje oceny primarynego do jednego rekordu secondary (atomowo)."""
+        if not ratings and status is None:
+            return
+
+        existing = m_data.get("ratings", {})
+        changed = False
+
+        for k, v in ratings.items():
+            if k not in ("status", "komentarz") and existing.get(k) != v:
+                existing[k] = v
+                changed = True
+
+        # Status propagujemy tylko jeśli jest ustawiony
+        if status is not None and existing.get("status") != status:
+            existing["status"] = status
+            changed = True
+            m_data["status"] = status
+
+        if changed:
+            m_data["ratings"] = existing
+            m_data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
+            _atomic_write(m_file, m_data)
+
+    # ------------------------------------------------------------------
+    # Automatyczne scalanie deweloperów
+    # ------------------------------------------------------------------
+
+    def _try_merge_developers(self, primary_dev_id: str, secondary_dev_id: str,
+                               primary_inv_id: str, secondary_inv_id: str) -> None:
+        """Opcjonalne automatyczne scalenie deweloperów jeśli są różni."""
+        if not primary_dev_id or not secondary_dev_id or primary_dev_id == secondary_dev_id:
+            return
+        try:
+            from python_worker.developer_manager import DeveloperManager
+            from python_worker.developer_merge_manager import DeveloperMergeManager
+            import python_worker.developer_index as dev_index
+
+            dev_dir = self.data_dir.parent / "USIdev"
+            dev_manager = DeveloperManager(str(self.data_dir), dev_dir)
+            merge_mgr = DeveloperMergeManager(dev_manager, dev_index)
+            success = merge_mgr.merge_by_id(target_id=primary_dev_id, source_id=secondary_dev_id)
+            if success:
+                logger.info(f"[DEV_MERGE] Scalono deweloperów {secondary_dev_id} -> {primary_dev_id}")
+                dev_manager.invalidate_identifiers_cache()
+        except Exception as e:
+            logger.warning(f"Auto dev merge failed (non-critical): {e}")

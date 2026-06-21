@@ -94,7 +94,7 @@ class InvestmentService:
             self._cache.clear()
             # POPRAWKA: Usunięto destrukcyjne, samobójcze wywołanie get_investment_index().rebuild()
 
-    def list_nearby_by_coordinates(self, lat: float, lon: float, max_dist_km: float = 5.0, limit: int = 12, exclude_id: str = None) -> list[dict]:
+    def list_nearby_by_coordinates(self, lat: float, lon: float, max_dist_km: float = 8.0, limit: int = 24, exclude_id: str = None) -> list[dict]:
         """Pobiera inwestycje z indeksu na podstawie dynamicznego filtra przestrzennego z wykluczeniem ID."""
         # Pobieramy limit + 1 na wypadek, gdyby szukana inwestycja była na liście wyników
         raw_results = get_investment_index().get_near_coordinates(lat, lon, max_dist_km, limit + 1)

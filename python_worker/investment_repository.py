@@ -135,6 +135,20 @@ class InvestmentRepository:
         Zwraca listę jednostek składowych oraz kanoniczny identyfikator Master.
         """
         master_file = inv_dir / f"inv_master_{master_id}.json"
+        
+        if not master_file.exists():
+            # Jeśli pliku nie ma w obecnym katalogu (np. jesteśmy w secondary),
+            # poszukajmy go w katalogu inwestycji primary.
+            primary_id = master_id.replace("MASTER-", "") if master_id.startswith("MASTER-") else master_id
+            try:
+                res = self.identity.get_investment_resources(primary_id)
+                if res and res.get("base_dir"):
+                    primary_master_file = res["base_dir"] / f"inv_master_{master_id}.json"
+                    if primary_master_file.exists():
+                        master_file = primary_master_file
+            except Exception as e:
+                logger.error(f"Error resolving primary dir for master_id {master_id}: {e}")
+                
         if not master_file.exists():
             logger.warning(f"Master file not found on disk: {master_file}")
             return [], None
@@ -142,7 +156,7 @@ class InvestmentRepository:
         try:
             with open(master_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                return data.get("merged_from", []), data.get("master_usi_inv_id")
+                return data.get("members", []), data.get("primary_id")
         except Exception as e:
             logger.error(f"Failed to read master file {master_file}: {e}")
             return [], None

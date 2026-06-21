@@ -120,9 +120,13 @@ function DataGrid({
 
   if (data.length === 0) {
     return (
-      <div className="usi-empty-state usi-datagrid-empty">
-        <div className="usi-datagrid-empty-icon">🔍</div>
-        <div className="usi-small">{emptyMessage}</div>
+      <div data-component="DataGrid"
+           ref={containerRef}
+           className="usi-scroll usi-datagrid-container">
+        <div className="usi-empty-state usi-datagrid-empty">
+          <div className="usi-datagrid-empty-icon">🔍</div>
+          <div className="usi-small">{emptyMessage}</div>
+        </div>
       </div>
     );
   }

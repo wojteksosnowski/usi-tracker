@@ -101,18 +101,16 @@ class DeveloperManager:
     # Merge Manager Delegation
     def merge_by_id(self, *args, **kwargs): return self.merger.merge_by_id(*args, **kwargs)
     def unmerge_by_id(self, *args, **kwargs): return self.merger.unmerge_by_id(*args, **kwargs)
-    def add_suggestion(self, *args, **kwargs): return self.merger.add_suggestion(*args, **kwargs)
-    def dismiss_suggestion_by_id(self, *args, **kwargs): return self.merger.dismiss_suggestion_by_id(*args, **kwargs)
 
-    def suggest_merge_from_investments(self, target_entry: dict, source_entry: dict) -> None:
-        """Ocenia i opcjonalnie sugeruje połączenie deweloperów na podstawie połączonych inwestycji."""
+    def auto_merge_from_investments(self, target_entry: dict, source_entry: dict) -> None:
+        """Automatycznie scala deweloperów na podstawie połączonych inwestycji."""
         if not target_entry or not source_entry:
             return
 
         t_dev_id = target_entry.get("usi_dev_id")
         s_dev_id = source_entry.get("usi_dev_id")
         
-        # Jeśli identyfikatory są identyczne lub któregoś brakuje – brak podstaw do sugestii
+        # Jeśli identyfikatory są identyczne lub któregoś brakuje – brak podstaw do łączenia
         if not t_dev_id or not s_dev_id or t_dev_id == s_dev_id:
             return
 
@@ -125,6 +123,7 @@ class DeveloperManager:
         t_master = t_dev.get("master_id") or t_dev_id
         s_master = s_dev.get("master_id") or s_dev_id
         
-        # Jeśli nie mają wspólnego mianownika (mastera) – dodaj sugestię
+        # Jeśli nie mają wspólnego mianownika (mastera) – wykonaj automatyczne złączenie!
         if t_master != s_master:
-            self.add_suggestion(t_dev_id, s_dev_id, "Połączono ich inwestycje")
+            logger.info(f"Automatyczne łączenie deweloperów {t_dev_id} <- {s_dev_id} z powodu scalenia ich inwestycji.")
+            self.merge_by_id(t_dev_id, s_dev_id)

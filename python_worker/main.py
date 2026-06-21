@@ -293,13 +293,6 @@ def main():
     parser_rebuild_all = subparsers.add_parser("rebuild-all", help="Build usi_*.json from local raw files for every investment in USIdata")
     parser_rebuild_all.add_argument("--force", action="store_true", help="Rebuild even if usi_*.json already exists")
 
-    # Command: suggest
-    parser_suggest = subparsers.add_parser("suggest", help="Run the developer suggestion algorithm (similarity & location)")
-
-    # Command: suggest-invs
-    parser_suggest_invs = subparsers.add_parser("suggest-invs", help="Run the investment suggestion algorithm")
-    parser_suggest_invs.add_argument("--dev", type=str, help="Developer slug to scan within")
-    parser_suggest_invs.add_argument("--inv", type=str, help="Specific investment USI ID to scan for")
 
 
     # Command: rebuild-index
@@ -502,40 +495,7 @@ def main():
                 logger.info(f"Progress: {built} built, {failed} failed, {skipped} skipped...")
         logger.info(f"rebuild-all finished: {built} built, {failed} failed, {skipped} skipped.")
 
-    elif args.command == "suggest":
-        from python_worker.daemons import TrackerDoktorDelegate
-        delegate = TrackerDoktorDelegate(USI_DATA_DIR, USI_DEV_DIR)
-        try:
-            from python_worker.algorithms.similarity.engine import calculate_similarities
-            devs = delegate.get_developers_for_analysis()
-            dismissed = delegate.get_dismissed_cache()
-            suggestions = calculate_similarities(devs, dismissed)
-            
-            # Deduplicate by (source_id, target_id)
-            unique_suggestions = {}
-            for s in suggestions:
-                key = (s["source_id"], s["target_id"])
-                if key not in unique_suggestions or s["score"] > unique_suggestions[key]["score"]:
-                    unique_suggestions[key] = s
-            
-            grouped = {}
-            for s in unique_suggestions.values():
-                grouped.setdefault(s["source_id"], []).append({
-                    "target_id": s["target_id"],
-                    "target_slug": s["target_slug"],
-                    "reason": s["reason"],
-                    "score": s["score"]
-                })
-            for dev_id, sugs in grouped.items():
-                delegate.save_suggestions(dev_id, sugs)
-            logger.info(f"Suggestion algorithm finished. Found {len(unique_suggestions)} unique pairs.")
-        except Exception as e:
-            logger.error(f"Similarity algorithm failed: {e}")
 
-    elif args.command == "suggest-invs":
-        from .detect_similar_invs import detect_similar_invs
-        detect_similar_invs(Path(USI_DATA_DIR), args.dev, args.inv)
-        logger.info("Suggestion algorithm finished.")
 
 
     elif args.command == "rebuild-index":

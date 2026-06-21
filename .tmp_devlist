@@ -7,7 +7,7 @@ function DeveloperListGrid({
   const { bus, setVariable } = useDataBus();
   const { developers = [], filters = {}, devFilters = {}, devListMode = 'grid' } = bus;
   const { search = '', sources = new Set() } = filters;
-  const { onlyActive = false, onlyMerged = false, onlyPending = false } = devFilters;
+  const { onlyActive = false, onlySuggestions = false, onlyMerged = false, onlyPending = false } = devFilters;
 
   const TWELVE_MONTHS_AGO = Date.now() / 1000 - 365 * 24 * 3600;
 
@@ -34,19 +34,28 @@ function DeveloperListGrid({
         const hasMapping = !!(pm.rp || pm.oto || pm.to);
         if (!(hasChildren || hasMapping)) return false;
       }
-
+      if (onlySuggestions) {
+        if (!dev.suggestions || dev.suggestions.length === 0) return false;
+      }
       if (onlyPending) {
         if (!dev.unregistered_count || dev.unregistered_count <= 0) return false;
       }
       return true;
     });
-  }, [developers, search, sources, onlyActive, onlyMerged, onlyPending]);
+  }, [developers, search, sources, onlyActive, onlySuggestions, onlyMerged, onlyPending]);
 
   React.useEffect(() => {
     setVariable('visibleDevelopers', filteredDevelopers);
   }, [filteredDevelopers]);
 
+  const suggestionsTotal = React.useMemo(
+    () => developers.reduce((n, d) => n + (d.suggestions?.length || 0), 0),
+    [developers]
+  );
 
+  React.useEffect(() => {
+    setVariable('devSuggestionsTotal', suggestionsTotal);
+  }, [suggestionsTotal]);
 
   const devColumns = [
     {
@@ -159,7 +168,11 @@ function DeveloperCard({ dev, onSelect }) {
               +{dev.new_since_review} nowe
             </div>
           )}
-
+          {dev.suggestions && dev.suggestions.length > 0 && (
+            <div className="usi-pill outline info usi-mono usi-tiny">
+              Sugestie: {dev.suggestions.length}
+            </div>
+          )}
         </>
       }
     />

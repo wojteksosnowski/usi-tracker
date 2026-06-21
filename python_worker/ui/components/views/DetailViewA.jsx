@@ -155,7 +155,7 @@
               height={400}
               // PODMIANA TUTAJ: Przekazujemy nasz interceptor zamiast surowej metody nawigacji
               onSelectInv={handleNearbySelect} 
-              bus={bus}
+              bus={{...bus, setCurrentInvestment: (inv) => setVariable('currentInvestment', inv)}}
               headerAction={
                 <button 
                   className="usi-btn ghost sm" 
@@ -222,49 +222,12 @@
     const { request } = useApi ? useApi() : { request: window.fetch };
     const { refetch, setVariable } = useDataBus ? useDataBus() : { refetch: ()=>{}, setVariable: ()=>{} };
 
-    const [suggesting, setSuggesting] = React.useState(false);
-    const [localSuggestions, setLocalSuggestions] = React.useState(inv.suggestions || []);
     const [localMerged, setLocalMerged] = React.useState(inv.merged_from || []);
 
     React.useEffect(() => {
-        setLocalSuggestions(inv.suggestions || []);
         setLocalMerged(inv.merged_from || []);
     }, [inv]);
 
-    const handleSuggest = () => {
-        setSuggesting(true);
-        request(`/api/investment/${inv.usi_inv_id}/suggest`, { 
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ target_id: inv.usi_inv_id })
-        })
-        .then(res => {
-            setVariable('appStatus', { type: 'info', msg: 'Rozpoczęto skanowanie...' });
-            if (onUpdateInv) setTimeout(onUpdateInv, 5000); // Wait for job then refresh
-        })
-        .finally(() => setSuggesting(false));
-    };
-
-    const handleMerge = (suggestion) => {
-        const source_id = suggestion.usi_inv_id;
-        setLocalSuggestions(prev => prev.filter(s => s.usi_inv_id !== source_id));
-        setLocalMerged(prev => [{
-            usi_inv_id: source_id,
-            dev_slug: suggestion.developer_slug,
-            inv_slug: suggestion.investment_slug,
-            name: suggestion.name
-        }, ...prev]);
-
-        request(`/api/investment/${inv.usi_inv_id}/merge`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ source_id, target_id: inv.usi_inv_id })
-        })
-        .then(() => {
-            if (onUpdateInv) onUpdateInv();
-            refetch('investments');
-        });
-    };
 
     const handleUnmerge = (memberId) => {
         setLocalMerged(prev => prev.filter(m => m.usi_inv_id !== memberId));
@@ -279,46 +242,10 @@
         });
     };
 
-    const handleDismiss = (suggested_id) => {
-        setLocalSuggestions(prev => prev.filter(s => s.usi_inv_id !== suggested_id));
-        request(`/api/investment/${inv.usi_inv_id}/dismiss-suggestion`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ usi_inv_id: suggested_id, target_id: inv.usi_inv_id })
-        });
-    };
+
 
     return (
         <div className="usi-flex-col usi-gap-16">
-            <div className="usi-card usi-p-16 suggestions-card">
-                <div className="usi-flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: localSuggestions.length > 0 ? 12 : 0 }}>
-                    <h3 className="dev-panel-header usi-text-accent" style={{ margin: 0, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                        <Icon name="sparkle" size={12} className="usi-m-r-8"/> Sugestie złączeń
-                    </h3>
-                    <button className="usi-btn sm ghost" onClick={handleSuggest} disabled={suggesting}>
-                        {suggesting ? <Spinner size={12}/> : <Icon name="search" size={12}/>}
-                    </button>
-                </div>
-                {localSuggestions.length > 0 ? (
-                    <div className="usi-flex-col usi-gap-8">
-                        {localSuggestions.map(s => (
-                            <div key={s.usi_inv_id} className="dev-mini-card">
-                                <div className="usi-body usi-weight-600">{s.name || s.investment_slug}</div>
-                                <div className="usi-tiny usi-text-secondary">{s.developer_slug}/{s.investment_slug}</div>
-                                <div className="usi-tiny usi-text-secondary usi-m-b-8">{s.reason} ({s.score})</div>
-                                <div className="usi-flex-row usi-gap-6">
-                                    <button className="usi-btn sm usi-flex-1" onClick={() => handleMerge(s)}>Połącz</button>
-                                    <button className="usi-btn sm ghost" onClick={() => handleDismiss(s.usi_inv_id)}>
-                                        <Icon name="x" size={12} />
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <div className="usi-tiny usi-text-secondary" style={{ marginTop: 8 }}>Brak sugestii.</div>
-                )}
-            </div>
 
             {localMerged.length > 0 && (
                 <div className="usi-card usi-p-16">

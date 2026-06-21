@@ -174,6 +174,7 @@ function DataBusProvider({ children }) {
       if (data && typeof data === 'object' && data.data) {
         setVariable('unreviewedCount', data.unreviewedCount || 0);
         if (data.ratingsMap) setVariable('ratingsMap', data.ratingsMap);
+        if (data.totalCount !== undefined) setVariable('totalCount', data.totalCount);
         return Array.isArray(data.data) ? data.data : [];
       }
       return Array.isArray(data) ? data : [];

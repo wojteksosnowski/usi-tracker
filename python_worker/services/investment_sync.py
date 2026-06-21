@@ -254,8 +254,12 @@ class InvestmentSyncService:
                 res = method(portal, identifier)
                 raw_data = res if (res and "error" not in res) else None
                 if not raw_data:
-                    return None, None, f"{portal_name} ({res.get('error', 'Unknown error') if res else 'Empty response'})"
-                    
+                    err_msg = res.get('error', 'Unknown error') if res else 'Empty response'
+                    logger.warning(f"Fetch failed for {portal}/{identifier} ({err_msg}). Falling back to local raw data.")
+                    raw_data = self.gateway.load_raw(portal, str(identifier))
+                    if not raw_data:
+                        return None, None, f"{portal_name} ({err_msg} and NO local raw fallback)"
+                        
             if not raw_data:
                 return None, None, None
 
@@ -648,10 +652,25 @@ class InvestmentSyncService:
                 # Upewniamy się, że podstawowe identyfikatory są nienaruszone
                 usi_file_data["usi_inv_id"] = usi_inv_id
                 
-                # Zabezpieczenie przed pobieraniem zdjęć w szybkim batchu (zależnie od implementacji można użyć flagi skip_images)
-                if "image_paths" not in usi_file_data:
-                    usi_file_data["image_paths"] = m_temp.get("image_paths", [])
+                # Synchronizacja zdjęć: upewnij się, że zdjęcia pobrane w batch_ingest zostaną prawidłowo podpięte
+                resources = self.identity.get_investment_resources(usi_inv_id)
+                if not resources:
+                    resources = self._resolve_resources_manually(usi_inv_id, {
+                        "sources": {portal: {"id": item_id}},
+                        "developer_slug": dev_slug,
+                        "investment_slug": inv_slug
+                    })
                 
+                all_urls = usi_file_data.get("image_urls", [])
+                self.image_sync.sync_investment_images(
+                    usi_inv_id, 
+                    usi_file_data, 
+                    all_urls, 
+                    skip_images=False, 
+                    usi_data=existing_data or {}, 
+                    resources=resources
+                )
+
                 # Wyznaczenie ścieżki i zapis pliku
                 if dest_dir:
                     dest_dir.mkdir(parents=True, exist_ok=True)

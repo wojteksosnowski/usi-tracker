@@ -47,8 +47,8 @@ class InvestmentIndex:
         self, 
         lat: float, 
         lon: float, 
-        max_dist_km: float = 5.0, 
-        limit: int = 12
+        max_dist_km: float = 8.0, 
+        limit: int = 24
     ) -> List[Dict[str, Any]]:
         """
         Wyszukuje inwestycje w pobliżu wskazanych współrzędnych geograficznych.
@@ -93,6 +93,8 @@ class InvestmentIndex:
                     "investment_slug": inv.get("investment_slug"),
                     "city": inv.get("city"),
                     "coords": coords,
+                    "source": inv.get("source"),
+                    "status": inv.get("status"),
                     "ratings": inv.get("ratings", {})
                 })
 
@@ -138,6 +140,7 @@ class InvestmentIndex:
                     "name": other.get("name"),
                     "developer": other.get("developer"),
                     "slug": other.get("slug"),
+                    "source": other.get("source"),
                     "ratings": other.get("ratings", {})
                 })
 
@@ -217,6 +220,12 @@ class InvestmentIndex:
                     if not usi_inv_id:
                         continue
 
+                    is_secondary = False
+                    master_id = data.get("master_id")
+                    master_primary_id = data.get("master_primary_id")
+                    if master_id and master_primary_id and master_primary_id != usi_inv_id:
+                        is_secondary = True
+
                     from python_worker.api.utils import _load_investment
                     entry = _load_investment(
                         data_dir=self.data_dir, 
@@ -228,6 +237,7 @@ class InvestmentIndex:
                     if entry:
                         entry.pop("image_urls", None)
                         entry.pop("nearby_investments", None)
+                        entry["is_secondary"] = is_secondary
                         entries.append(entry)
                 except Exception as e:
                     logger.error(f"Krytyczny błąd indeksowania inwestycji z pliku {usi_file}: {e}", exc_info=True)
@@ -252,20 +262,27 @@ class InvestmentIndex:
     def add_or_update(self, usi_id: str, metadata: dict) -> None:
         """
         INCREMENTAL UPDATE O(1) in memory.
-        No rglob! Just updates the dictionary and performs an atomic flush.
+        Jeśli rekord jest secondary (ma master_id ale nie jest primarynym),
+        jest USUWANY z indeksu zamiast wstawiany — indeks zawiera tylko primaryne.
         """
         # Ensure latest data is loaded (if changed externally)
         self._load_from_disk()
-        
-        entry = metadata.copy()
-        entry["usi_inv_id"] = usi_id
-        if not entry.get("investment_slug"):
-            entry["investment_slug"] = usi_id
-        if not entry.get("folder_path"):
-            entry["folder_path"] = f"Public/USIdata/{metadata.get('developer_slug', 'unknown')}/{usi_id}"
-        entry["updated_at"] = datetime.now().isoformat()
+
+        # Sprawdź czy to secondary member grupy — jeśli tak, usuń z indeksu
+        master_id = metadata.get("master_id")
+        master_primary_id = metadata.get("master_primary_id") or metadata.get("master_usi_inv_id")
+        is_secondary = bool(master_id and master_primary_id and master_primary_id != usi_id)
 
         with self._index_lock:
+            entry = metadata.copy()
+            entry["usi_inv_id"] = usi_id
+            entry["is_secondary"] = is_secondary
+            if not entry.get("investment_slug"):
+                entry["investment_slug"] = usi_id
+            if not entry.get("folder_path"):
+                entry["folder_path"] = f"Public/USIdata/{metadata.get('developer_slug', 'unknown')}/{usi_id}"
+            entry["updated_at"] = datetime.now().isoformat()
+
             self._index[usi_id] = entry
             dev_slug = entry.get("developer_slug")
             inv_slug = entry.get("investment_slug")
@@ -295,7 +312,7 @@ class InvestmentIndex:
 
     def get_all(self) -> List[Dict]:
         self._load_from_disk()
-        return list(self._index.values())
+        return [e for e in self._index.values() if not e.get("is_secondary")]
 
     def get_by_id(self, inv_id: str) -> Optional[Dict]:
         self._load_from_disk()
