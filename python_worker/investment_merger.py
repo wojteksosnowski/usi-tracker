@@ -51,6 +51,113 @@ def _read_json(path: Path) -> Optional[dict]:
 
 
 class InvestmentMerger:
+
+    def _build_and_save_master(self, master_id: str, primary_inv_id: str, secondary_inv_id: str):
+        # Znajdź wszystkie pliki z tym master_id
+        from python_worker.investment_index import get_investment_index
+        index = get_investment_index()
+        # Odświeżamy indeks żeby zobaczyć nowe master_id dodane przez wywołanie _atomic_write wcześniej
+        p_entry = index.get_by_id(primary_inv_id) or {}
+        p_entry["master_id"] = master_id
+        index.add_or_update(primary_inv_id, p_entry)
+        
+        s_entry = index.get_by_id(secondary_inv_id) or {}
+        s_entry["master_id"] = master_id
+        index.add_or_update(secondary_inv_id, s_entry)
+        
+        member_ids = []
+        for e in index.get_all():
+            # it might not return is_grouped so we check internal
+            pass
+            
+        # Właściwie, members = index._index
+        with index._index_lock:
+            for uid, e in index._index.items():
+                if e.get("master_id") == master_id:
+                    member_ids.append(uid)
+                    
+        # Teraz budujemy pełny plik T3
+        from python_worker.services.investment_identity import InvestmentIdentityResolver
+        identity = InvestmentIdentityResolver(self.data_dir)
+        
+        master_record = {
+            "usi_inv_id": master_id,
+            "location": {},
+            "financials": {},
+            "specifications": {"units_count": 0},
+            "amenities_matched": [],
+            "image_paths": [],
+            "sources": {},
+            "developer_slug": None,
+            "investment_slug": master_id
+        }
+        
+        min_price = float('inf')
+        max_price = 0
+        min_price_m2 = float('inf')
+        max_price_m2 = 0
+        
+        seen_images = set()
+        seen_amenities = set()
+        
+        # Ensure the primary is processed first to grab location
+        if primary_inv_id in member_ids:
+            member_ids.remove(primary_inv_id)
+            member_ids.insert(0, primary_inv_id)
+            
+        for idx, mid in enumerate(member_ids):
+            res = identity.get_investment_resources(mid)
+            if not res or not res["files"].get("anchor"): continue
+            try:
+                import json
+                data = json.loads(res["files"]["anchor"].read_text())
+            except:
+                continue
+                
+            if idx == 0:
+                master_record["location"] = data.get("location", {})
+                master_record["developer_slug"] = res["metadata"].get("developer_slug")
+                
+            # Merge financials
+            fin = data.get("financials", {})
+            if fin.get("price_min"): min_price = min(min_price, float(fin["price_min"]))
+            if fin.get("price_max"): max_price = max(max_price, float(fin["price_max"]))
+            if fin.get("price_m2_min"): min_price_m2 = min(min_price_m2, float(fin["price_m2_min"]))
+            if fin.get("price_m2_max"): max_price_m2 = max(max_price_m2, float(fin["price_m2_max"]))
+            
+            # Merge units
+            units = data.get("specifications", {}).get("units_count")
+            if units: master_record["specifications"]["units_count"] += int(units)
+            
+            # Merge amenities
+            for am in data.get("amenities_matched", []):
+                if am["code"] not in seen_amenities:
+                    seen_amenities.add(am["code"])
+                    master_record["amenities_matched"].append(am)
+                    
+            # Merge images
+            for img in data.get("image_paths", []):
+                if img not in seen_images:
+                    seen_images.add(img)
+                    master_record["image_paths"].append(img)
+                    
+            # Merge sources
+            master_record["sources"].update(data.get("sources", {}))
+
+        if min_price != float('inf'): master_record["financials"]["price_min"] = min_price
+        if max_price != 0: master_record["financials"]["price_max"] = max_price
+        if min_price_m2 != float('inf'): master_record["financials"]["price_m2_min"] = min_price_m2
+        if max_price_m2 != 0: master_record["financials"]["price_m2_max"] = max_price_m2
+        
+        # Save it
+        master_dir = self.data_dir.parent / "USImaster"
+        master_dir.mkdir(parents=True, exist_ok=True)
+        out_path = master_dir / f"usi_{master_id}.json"
+        
+        _atomic_write(out_path, master_record)
+        # Notify index of new master!
+        index.add_or_update(master_id, master_record)
+
     """
     Zarządza grupami inwestycji (wiele rekordów z różnych portali = jeden obiekt).
 
@@ -225,42 +332,6 @@ class InvestmentMerger:
         if not master_id:
             from python_worker.developer_indexer import DeveloperIndexer
             master_id = DeveloperIndexer(None).generate_usi_id("IM")
-            master_data = None
-            master_path = self._master_file_path(p_res, master_id)
-        else:
-            master_data, master_path = self._load_master_file(master_id, primary_inv_id)
-            if not master_path:
-                master_path = self._master_file_path(p_res, master_id)
-        if not master_data:
-            # Nowa grupa — utwórz plik master
-            master_data = {
-                "master_id": master_id,
-                "primary_id": primary_inv_id,
-                "created_at": datetime.now().isoformat(),
-                "updated_at": datetime.now().isoformat(),
-                "members": [
-                    {
-                        "usi_inv_id": primary_inv_id,
-                        "dev_slug": p_meta.get("developer_slug", ""),
-                        "inv_slug": p_meta.get("investment_slug", ""),
-                        "added_at": datetime.now().isoformat()
-                    }
-                ]
-            }
-
-        # --- Sprawdź czy secondary już jest w grupie ---
-        if any(m["usi_inv_id"] == secondary_inv_id for m in master_data["members"]):
-            logger.info(f"{secondary_inv_id} already in group {master_id}.")
-            return True
-
-        # --- Dodaj secondary do listy members ---
-        master_data["members"].append({
-            "usi_inv_id": secondary_inv_id,
-            "dev_slug": s_meta.get("developer_slug", ""),
-            "inv_slug": s_meta.get("investment_slug", ""),
-            "added_at": datetime.now().isoformat()
-        })
-        master_data["updated_at"] = datetime.now().isoformat()
 
         # --- Aktualizuj oba rekordy anchor ---
         p_data["master_id"] = master_id
@@ -275,9 +346,11 @@ class InvestmentMerger:
         })
 
         # --- Atomowe zapisy ---
-        _atomic_write(master_path, master_data)
         _atomic_write(p_file, p_data)
         _atomic_write(s_file, s_data)
+        
+        # Build master
+        self._build_and_save_master(master_id, primary_inv_id, secondary_inv_id)
 
         # --- Propagacja ocen primarynego do secondary ---
         primary_ratings = p_data.get("ratings", {})

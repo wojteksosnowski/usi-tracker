@@ -1,3 +1,13 @@
+## Wersja 0.9.99 — Architektura Płaska (Flat Master Records) — 2026-06-22
+
+### Zmieniono
+- **Grupowanie Inwestycji**: Zlikwidowano sztuczną hierarchię i wirtualne "główne rekordy". Zamiast tego system generuje od razu gotowy, spłaszczony, w pełni skompilowany plik `usi_IM-XXXX.json` i zapisuje go w natywnym katalogu `USImaster/`. Rekordy potomne otrzymują wyłącznie klucz `master_id`.
+- **Indeksowanie**: `InvestmentIndex` automatycznie skanuje katalog `USImaster/` na równi z `USIdata/`. Usunięto niepotrzebną flagę `is_grouped` z logiki indeksu.
+- **Integracja w API**: Przebudowano `InvestmentLoaderService`, który teraz domyślnie ładuje gotowy rekord `IM-XXXX` prosto z dysku, co drastycznie redukuje zużycie RAM podczas przeglądania zagregowanych projektów.
+
+### Naprawiono
+- **Odporność na ścieżki**: Naprawiono ewaluację ścieżek (`folder_path` / `base_dir_rel`) dla plików odczytywanych bezpośrednio z katalogu `USImaster/`.
+
 ## Wersja 0.9.98 — Hotfixy optymalizacyjne i architektoniczne — 2026-06-16
 
 - Usunięto identyfikację po slugu w `developer_manager.py` domykając w pełni wymóg *ID-Only Architecture* także dla portalów grupy Otodom.

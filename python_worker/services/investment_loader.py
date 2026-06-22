@@ -169,8 +169,12 @@ class InvestmentLoaderService:
 
         if not inv_dir:
             inv_dir = usi_file.parent
-            inv_slug = inv_dir.name
-            dev_slug = inv_dir.parent.name
+            if inv_dir.name == "USImaster":
+                inv_slug = system_id or usi_file.stem.replace("usi_", "")
+                dev_slug = "unknown"
+            else:
+                inv_slug = inv_dir.name
+                dev_slug = inv_dir.parent.name
             
         try:
             usi = json.loads(usi_file.read_text(encoding="utf-8"))
@@ -384,7 +388,10 @@ class InvestmentLoaderService:
             except ValueError:
                 base_dir_rel = str(resources["base_dir"])
         else:
-            base_dir_rel = f"Public/USIdata/{dev_slug}/{inv_slug}"
+            if inv_dir and inv_dir.name == "USImaster":
+                base_dir_rel = "Public/USImaster"
+            else:
+                base_dir_rel = f"Public/USIdata/{dev_slug}/{inv_slug}"
             
         inv_id_canonical = system_id or usi.get("usi_inv_id") or usi.get("master_id")
         if not inv_id_canonical:

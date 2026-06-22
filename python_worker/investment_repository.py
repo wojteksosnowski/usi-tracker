@@ -135,7 +135,7 @@ class InvestmentRepository:
         Zwraca listę jednostek składowych oraz kanoniczny identyfikator Master (primary_id).
         """
         from python_worker.investment_merger import InvestmentMerger
-        im = InvestmentMerger(self.data_dir, self.identity)
+        im = InvestmentMerger(self.data_dir)
         
         # Omijamy primary_id i pozwalamy na wyszukanie w indeksie
         master_data, master_path = im._load_master_file(master_id)
@@ -143,4 +143,6 @@ class InvestmentRepository:
         if not master_data:
             return [], None
             
-        return master_data.get("members", []), master_data.get("primary_id")
+        members = master_data.get("members", [])
+        master_usi_inv_id = members[0].get("usi_inv_id") if members else None
+        return members, master_usi_inv_id

@@ -208,23 +208,16 @@ class InvestmentIndex:
             logger.info(f"Initial index build: Scanning {self.data_dir} via rglob...")
             start_t = datetime.now()
             
-            usi_files = list(self.data_dir.rglob("usi_*.json"))
+            import itertools
+            from python_worker.config import DROPBOX_PATH
+            master_dir = DROPBOX_PATH / "Public" / "USImaster"
+            scan_iters = [self.data_dir.rglob("usi_*.json")]
+            if master_dir.exists():
+                scan_iters.append(master_dir.rglob("usi_*.json"))
+                
             entries = []
-            seen_masters = set()
-            # Krok 1: Wczytanie mapowania master_id -> primary_id z plików T3
-            master_to_primary = {}
-            for master_file in self.data_dir.rglob("inv_master_*.json"):
-                try:
-                    with open(master_file, "r", encoding="utf-8") as mf:
-                        mdata = json.load(mf)
-                        mid = mdata.get("master_id")
-                        pid = mdata.get("primary_id")
-                        if mid and pid:
-                            master_to_primary[mid] = pid
-                except:
-                    pass
 
-            for usi_file in usi_files:
+            for usi_file in itertools.chain(*scan_iters):
                 if "usi_dev_" in usi_file.name: continue
                 if usi_file.name.startswith("inv_master_"): continue
                 try:
@@ -232,25 +225,16 @@ class InvestmentIndex:
                     usi_inv_id = data.get("usi_inv_id") or data.get("usi_id")
                     if not usi_inv_id:
                         continue
-                        
-                    master_id = data.get("master_id")
-                    is_grouped = False
-                    if master_id:
-                        if master_to_primary.get(master_id) != usi_inv_id:
-                            is_grouped = True
-
+                    
                     from python_worker.api.utils import _load_investment
                     entry = _load_investment(
-                        data_dir=self.data_dir, 
-                        public_usi_dir=self.public_usi_dir, 
-                        system_id=usi_inv_id, 
-                        usi_file=usi_file, 
+                        system_id=usi_inv_id,
+                        usi_file=usi_file,
                         fast_index=True
                     )
                     if entry:
                         entry.pop("image_urls", None)
                         entry.pop("nearby_investments", None)
-                        entry["is_grouped"] = is_grouped
                         entries.append(entry)
                 except Exception as e:
                     logger.error(f"Krytyczny błąd indeksowania inwestycji z pliku {usi_file}: {e}", exc_info=True)
@@ -286,21 +270,7 @@ class InvestmentIndex:
             entry["usi_inv_id"] = usi_id
             
             master_id = metadata.get("master_id")
-            if master_id:
-                # Odszukanie master_file aby sprawdzić primary_id
-                # (W trybie hot-reload to rzadkie zjawisko, więc możemy bezpiecznie poszukać)
-                master_file = list(self.data_dir.rglob(f"inv_master_{master_id}.json"))
-                is_grouped = True
-                if master_file:
-                    try:
-                        with open(master_file[0], "r", encoding="utf-8") as mf:
-                            if json.load(mf).get("primary_id") == usi_id:
-                                is_grouped = False
-                    except: pass
-                entry["is_grouped"] = is_grouped
-            else:
-                entry["is_grouped"] = False
-                
+            
             if not entry.get("investment_slug"):
                 entry["investment_slug"] = usi_id
             if not entry.get("folder_path"):
@@ -336,7 +306,7 @@ class InvestmentIndex:
 
     def get_all(self) -> List[Dict]:
         self._load_from_disk()
-        return [e for e in self._index.values() if not e.get("is_grouped")]
+        return [e for e in self._index.values() if not e.get("master_id")]
 
     def get_by_id(self, inv_id: str) -> Optional[Dict]:
         self._load_from_disk()

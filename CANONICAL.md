@@ -30,6 +30,9 @@ LOKALIZACJA_BAZY_DANYCH/ (np. DROPBOX_PATH/Public/ lub public_dir/)
 │           ├── usi_stage_stub.json                               ← Placeholder dla etapu wieloetapowego RP
 │           └── usi_{portal}_{portal_id}.json                     ← Unified Record (Główny plik produkcyjny)
 │
+├── USImaster/                      # W pełni wygenerowane, połączone rekordy T3 (Super-Inwestycje)
+│   └── usi_{IM-ID}.json            ← Pełnoprawny, samodzielny plik inwestycji sklejony z członków
+│
 └── USIdev/                         # Dane JSON deweloperów
     └── {dev_slug}/
         ├── usi_dev_{portal}_{portal_id}.json       ← Level 2: Rekord portalu dewelopera (1 na portal)
