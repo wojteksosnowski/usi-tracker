@@ -306,7 +306,17 @@ class InvestmentIndex:
 
     def get_all(self) -> List[Dict]:
         self._load_from_disk()
-        return [e for e in self._index.values() if not e.get("master_id")]
+        seen_masters = set()
+        result = []
+        for e in self._index.values():
+            m_id = e.get("master_id")
+            if not m_id:
+                result.append(e)
+            else:
+                if m_id not in seen_masters:
+                    seen_masters.add(m_id)
+                    result.append(e)
+        return result
 
     def get_by_id(self, inv_id: str) -> Optional[Dict]:
         self._load_from_disk()

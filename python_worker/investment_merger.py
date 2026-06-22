@@ -117,6 +117,15 @@ class InvestmentMerger:
             if idx == 0:
                 master_record["location"] = data.get("location", {})
                 master_record["developer_slug"] = res["metadata"].get("developer_slug")
+                master_record["name"] = data.get("name")
+                master_record["developer"] = data.get("developer")
+                master_record["status"] = data.get("status")
+                master_record["city"] = data.get("city")
+                master_record["coords"] = data.get("coords")
+                master_record["segment"] = data.get("segment")
+                master_record["ratings"] = data.get("ratings", {})
+                master_record["usi_dev_id"] = data.get("usi_dev_id")
+                master_record["merged_from"] = []
                 
             # Merge financials
             fin = data.get("financials", {})
@@ -143,6 +152,14 @@ class InvestmentMerger:
                     
             # Merge sources
             master_record["sources"].update(data.get("sources", {}))
+            
+            # Add to merged_from
+            master_record["merged_from"].append({
+                "usi_inv_id": mid,
+                "name": data.get("name"),
+                "developer": data.get("developer"),
+                "portal": data.get("portal")
+            })
 
         if min_price != float('inf'): master_record["financials"]["price_min"] = min_price
         if max_price != 0: master_record["financials"]["price_max"] = max_price
@@ -153,6 +170,8 @@ class InvestmentMerger:
         master_dir = self.data_dir.parent / "USImaster"
         master_dir.mkdir(parents=True, exist_ok=True)
         out_path = master_dir / f"usi_{master_id}.json"
+        
+        master_record["folder_path"] = "Public/USImaster"
         
         _atomic_write(out_path, master_record)
         # Notify index of new master!
