@@ -250,20 +250,21 @@
             {localMerged.length > 0 && (
                 <div className="usi-card usi-p-16">
                     <h3 className="dev-panel-header" style={{ margin: 0, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>
-                        <Icon name="grid" size={12} className="usi-m-r-8"/> Skład rekordu
+                        <Icon name="grid" size={12} className="usi-m-r-8"/> Skład grupy ({localMerged.length})
                     </h3>
                     <div className="usi-flex-col usi-gap-8">
-                        {localMerged.map(m => {
-                            return (
-                                <div key={m.usi_inv_id} className="dev-mini-card">
-                                    <div className="usi-body usi-weight-600">{m.name || m.inv_slug}</div>
-                                    <div className="usi-tiny usi-mono">{m.usi_inv_id}</div>
-                                    <button className="usi-btn ghost sm" onClick={() => handleUnmerge(m.usi_inv_id)} style={{ marginTop: 8 }}>
-                                        Odłącz
-                                    </button>
+                        {localMerged.map(m => (
+                            <div key={m.usi_inv_id} className="dev-mini-card">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    {m.portal && <SourceBadge source={m.portal} />}
+                                    <div className="usi-body usi-weight-600">{m.name || m.investment_slug || m.usi_inv_id}</div>
                                 </div>
-                            );
-                        })}
+                                <div className="usi-tiny usi-mono">{m.usi_inv_id}</div>
+                                <button className="usi-btn ghost sm" onClick={() => handleUnmerge(m.usi_inv_id)} style={{ marginTop: 8 }}>
+                                    Odłącz
+                                </button>
+                            </div>
+                        ))}
                     </div>
                 </div>
             )}
@@ -272,3 +273,4 @@
   }
 
 })();
+

@@ -1,3 +1,13 @@
+## Wersja 0.10.0 — Architektura Płaska (Refaktoryzacja) — 2026-06-22
+
+### Zmieniono
+- **Grupowanie Inwestycji**: Zlikwidowano koncepcje `primary` i `secondary` w logice łączenia inwestycji. System funkcjonuje teraz na bazie płaskiej architektury, traktując wszystkie inwestycje w ramach grupy jako równorzędne elementy (members).
+- **Investment Merger**: Oczyszczono mechanizm tworzenia i rozwiązywania grup (metody `merge_by_id` oraz `unmerge_by_id`). Zastąpiono zmienne `primary_inv_id` neutralnymi `target_id` i `source_id`.
+- **Zasady (Rules)**: Usunięto ukryte błędy sugerujące hierarchię. Jeśli docelowy rekord nie jest grupą (`IM-XXXX`), system automatycznie wykreuje nową grupę i dołączy do niej oba obiekty.
+
+### Wnioski ze zmian
+- **Płaska architektura (Flat-Architecture)**: Brak jawnego wyróżniania głównego elementu zapobiega narastającym problemom ze stanem i ułatwia asynchroniczne odświeżanie poszczególnych elementów, minimalizując ryzyko zablokowania rekordu mastera przez błędy w jednym z członków.
+
 ## Wersja 0.9.99 — Architektura Płaska (Flat Master Records) — 2026-06-22
 
 ### Zmieniono

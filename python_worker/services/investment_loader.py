@@ -131,25 +131,38 @@ class InvestmentLoaderService:
         return None
 
     def load_investment(
-        self, 
-        system_id: Optional[str] = None, 
-        usi_file: Optional[Path] = None, 
+        self,
+        system_id: Optional[str] = None,
+        usi_file: Optional[Path] = None,
         fast_index: bool = True
     ) -> Optional[Dict[str, Any]]:
         """
         Unified loader for investment data.
-        Combines usi_*.json with photos scan, ratings, and location enrichment.
+        - IM-XXXX: ładuje bezpośrednio z USImaster/ (self-contained, zero agregacji)
+        - INV-XXXXX z master_id: przekierowuje do mastera
+        - INV-XXXXX bez master_id: standardowy ładunek z USIdata/
         """
         start_t = time.time()
-        
-        resources = None
-        inv_dir = None
-        dev_slug = None
-        inv_slug = None
 
         if not usi_file and not system_id:
             logger.error("load_investment: Neither system_id nor usi_file provided.")
             return None
+
+        # IM-XXXX: bezpośrednio z USImaster/
+        if system_id and system_id.startswith("IM-") and not usi_file:
+            resources = self.identity.get_investment_resources(system_id)
+            if not resources:
+                logger.error(f"load_investment: Master {system_id} not found.")
+                return None
+            usi_file = resources["files"].get("anchor")
+            if not usi_file or not usi_file.exists():
+                logger.error(f"load_investment: Master file missing for {system_id}.")
+                return None
+
+        resources = None
+        inv_dir = None
+        dev_slug = None
+        inv_slug = None
 
         if not usi_file and system_id:
             resources = self.identity.get_investment_resources(system_id)
@@ -170,17 +183,28 @@ class InvestmentLoaderService:
         if not inv_dir:
             inv_dir = usi_file.parent
             if inv_dir.name == "USImaster":
-                inv_slug = system_id or usi_file.stem.replace("usi_", "")
-                dev_slug = "unknown"
+                inv_slug = system_id or usi_file.stem.replace("inv_master_", "").replace("usi_", "")
+                dev_slug = "USImaster"
             else:
                 inv_slug = inv_dir.name
                 dev_slug = inv_dir.parent.name
-            
+
         try:
             usi = json.loads(usi_file.read_text(encoding="utf-8"))
+
+            # INV-XXXXX z master_id — przekieruj ładowanie do mastera
+            master_id_in_file = usi.get("master_id")
+            if master_id_in_file and system_id and not system_id.startswith("IM-"):
+                logger.debug(f"Redirecting {system_id} → master {master_id_in_file}")
+                return self.load_investment(system_id=master_id_in_file, fast_index=fast_index)
+
             if resources and not usi.get("usi_inv_id"):
                 usi["usi_inv_id"] = resources["id"]
-                
+
+            # Dla masterów: usi_inv_id = master_id
+            if not usi.get("usi_inv_id") and usi.get("master_id"):
+                usi["usi_inv_id"] = usi["master_id"]
+
             if not usi.get("portal") or not usi.get("portal_id"):
                 if resources and "metadata" in resources:
                     usi.setdefault("portal", resources["metadata"].get("portal"))
@@ -192,7 +216,7 @@ class InvestmentLoaderService:
                             usi.setdefault("portal", p)
                             usi.setdefault("portal_id", str(sources[p]["id"]))
                             break
-                    
+
             if not usi.get("usi_dev_id"):
                 usi["usi_dev_id"] = self._resolve_usi_dev_id(usi)
         except Exception as e:
@@ -235,149 +259,30 @@ class InvestmentLoaderService:
             display_amenities = [m["label"] for m in usi.get("amenities_matched")]
 
         address, city, district, coords = self._extract_location_data(usi)
-        master_id, merged_from, master_usi_inv_id = self._load_master_data(usi, inv_dir)
 
-        # --- NOWA LOGIKA: Łączenie list zdjęć i metadanych dla widoku Master ---
-        if master_id:
-            all_photos = list(images) # Zaczynamy od zdjęć z obecnego katalogu
-            seen_photo_names = {Path(p).name for p in images}
-            
-            combined_sources = dict(usi.get("sources", {}))
-            primary_website = usi.get("website", "")
-            for k, v in combined_sources.items():
-                if isinstance(v, dict) and not v.get("url") and primary_website:
-                    if (k.startswith("rp") and "rynekpierwotny" in primary_website) or \
-                       (k.startswith("oto") and "otodom" in primary_website) or \
-                       (k.startswith("to") and "tabelaofert" in primary_website):
-                        combined_sources[k] = dict(v)
-                        combined_sources[k]["url"] = primary_website
-                        
-            max_units = usi.get("specifications", {}).get("units_count") or 0
-            delivery_dates = set()
-            
-            d_date = usi.get("specifications", {}).get("delivery_date")
-            if d_date and d_date != "—":
-                delivery_dates.add(str(d_date))
-                
-            fin = usi.get("financials", {})
-            u_count = usi.get("specifications", {}).get("units_count")
-            primary_units = int(u_count) if u_count else 1
-            
-            w_sums = {k: 0.0 for k in ["price_min", "price_max", "price_m2_min", "price_m2_max"]}
-            w_counts = {k: 0 for k in ["price_min", "price_max", "price_m2_min", "price_m2_max"]}
-            
-            for key in w_sums.keys():
-                val = fin.get(key)
-                if val is not None:
-                    try:
-                        w_sums[key] += float(val) * primary_units
-                        w_counts[key] += primary_units
-                    except (ValueError, TypeError):
-                        pass
-            
-            # Przechodzimy przez powiązane zasoby przekazane z repozytorium
-            for linked_record in merged_from:
-                linked_id = linked_record.get("usi_inv_id")
-                
-                # Check for strict exclusion against current system_id
-                if linked_id and linked_id != system_id:
-                    linked_res = self.identity.get_investment_resources(linked_id)
-                    if linked_res:
-                        try:
-                            # Pobieramy i filtrujemy listę zdjęć z powiązanego folderu
-                            linked_anchor = linked_res["files"].get("anchor")
-                            if linked_anchor and linked_anchor.exists():
-                                linked_usi = json.loads(linked_anchor.read_text(encoding="utf-8"))
-                                
-                                # Agregacja źródeł
-                                l_sources = linked_usi.get("sources", {})
-                                l_website = linked_usi.get("website", "")
-                                
-                                for k, v in l_sources.items():
-                                    if isinstance(v, dict) and not v.get("url") and l_website:
-                                        if (k.startswith("rp") and "rynekpierwotny" in l_website) or \
-                                           (k.startswith("oto") and "otodom" in l_website) or \
-                                           (k.startswith("to") and "tabelaofert" in l_website):
-                                            v = dict(v)
-                                            v["url"] = l_website
-                                            
-                                    if k not in combined_sources:
-                                        combined_sources[k] = v
+        # Members i master_id — bezpośrednio z pliku (dla IM-XXXX już zagregowane)
+        master_id = usi.get("master_id")
+        raw_members = usi.get("members", [])
+        # Wzbogać members o name/portal z indeksu RAM
+        merged_from = []
+        if master_id and raw_members:
+            from python_worker.investment_index import get_entry_by_id
+            for m in raw_members:
+                uid = m.get("usi_inv_id") if isinstance(m, dict) else m
+                if not uid:
+                    continue
+                entry = get_entry_by_id(uid)
+                merged_from.append({
+                    "usi_inv_id": uid,
+                    "name": (entry or {}).get("name") or uid,
+                    "portal": (entry or {}).get("source") or (entry or {}).get("portal"),
+                    "investment_slug": (entry or {}).get("investment_slug"),
+                })
+        master_usi_inv_id = master_id  # master_id IS the canonical ID
 
-                                # Agregacja ocen (Ratings) z rekordów pobocznych, jeśli główny nie ma lub poboczny ma lepsze (choć w modelu equal wszystkie są równe)
-                                l_ratings = linked_usi.get("ratings")
-                                if l_ratings and isinstance(l_ratings, dict) and "Gwiazdki" in l_ratings:
-                                    c_ratings = usi.get("ratings", {})
-                                    if not c_ratings or "Gwiazdki" not in c_ratings:
-                                        usi["ratings"] = dict(l_ratings)
+        # Dla masterów i samodzielnych inwestycji: zdjęcia bezpośrednio z pliku
+        # (nie ma potrzeby agregacji — master ma już image_paths ze wszystkich members)
 
-                                # Agregacja mieszkań (max)
-                                l_units = linked_usi.get("specifications", {}).get("units_count")
-                                if l_units:
-                                    try:
-                                        max_units = max(int(max_units), int(l_units))
-                                    except ValueError:
-                                        pass
-                                        
-                                # Agregacja dat oddania
-                                l_date = linked_usi.get("specifications", {}).get("delivery_date")
-                                if l_date and l_date != "—":
-                                    delivery_dates.add(str(l_date).strip())
-                                    
-                                # Agregacja udogodnień (amenities)
-                                l_am_data = linked_usi.get("amenities", {})
-                                l_display_amenities = []
-                                if isinstance(l_am_data, dict):
-                                    l_display_amenities = l_am_data.get("labels", [])
-                                elif isinstance(l_am_data, list):
-                                    l_display_amenities = l_am_data
-                                if not l_display_amenities and linked_usi.get("amenities_matched"):
-                                    l_display_amenities = [m["label"] for m in linked_usi.get("amenities_matched")]
-                                for am in l_display_amenities:
-                                    if am not in display_amenities:
-                                        display_amenities.append(am)
-                                        
-
-                                # Agregacja finansów (średnia ważona)
-                                l_fin = linked_usi.get("financials", {})
-                                l_u_count = linked_usi.get("specifications", {}).get("units_count")
-                                sec_units = int(l_u_count) if l_u_count else 1
-                                
-                                for key in w_sums.keys():
-                                    val = l_fin.get(key)
-                                    if val is not None:
-                                        try:
-                                            w_sums[key] += float(val) * sec_units
-                                            w_counts[key] += sec_units
-                                        except (ValueError, TypeError):
-                                            pass
-                                
-                                linked_images = resolve_images(linked_usi, inv_dir=linked_res["base_dir"], public_usi_dir=self.public_usi_dir, fast_index=fast_index)
-                                for img_path in linked_images:
-                                    if Path(img_path).name not in seen_photo_names:
-                                        seen_photo_names.add(Path(img_path).name)
-                                        all_photos.append(img_path)
-                        except Exception:
-                            pass
-                            
-            images = all_photos
-            usi["sources"] = combined_sources
-            if "specifications" not in usi:
-                usi["specifications"] = {}
-            usi["specifications"]["units_count"] = max_units
-            
-            if "financials" not in usi:
-                usi["financials"] = {}
-            for k in w_sums.keys():
-                if w_counts[k] > 0:
-                    usi["financials"][k] = round(w_sums[k] / w_counts[k], 2)
-            
-            if delivery_dates:
-                usi["specifications"]["delivery_date"] = " / ".join(sorted(list(delivery_dates)))
-            else:
-                usi["specifications"]["delivery_date"] = "—"
-        # -----------------------------------------------------------
-        
         source, source_url, source_links = self._resolve_source_data(usi)
         ratings_data = usi.get("ratings", {})
 

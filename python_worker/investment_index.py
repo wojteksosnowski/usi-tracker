@@ -207,50 +207,74 @@ class InvestmentIndex:
         try:
             logger.info(f"Initial index build: Scanning {self.data_dir} via rglob...")
             start_t = datetime.now()
-            
-            import itertools
+
             from python_worker.config import DROPBOX_PATH
             master_dir = DROPBOX_PATH / "Public" / "USImaster"
-            scan_iters = [self.data_dir.rglob("usi_*.json")]
-            if master_dir.exists():
-                scan_iters.append(master_dir.rglob("usi_*.json"))
-                
-            entries = []
 
-            for usi_file in itertools.chain(*scan_iters):
-                if "usi_dev_" in usi_file.name: continue
-                if usi_file.name.startswith("inv_master_"): continue
+            entries = []
+            from python_worker.api.utils import _load_investment
+
+            # 1. Skanuj inv_master_*.json z USImaster/ — mastery zastępują members na liście
+            if master_dir.exists():
+                for mf in master_dir.glob("inv_master_*.json"):
+                    try:
+                        raw = json.loads(mf.read_text(encoding="utf-8"))
+                        master_id = raw.get("master_id") or raw.get("usi_inv_id")
+                        if not master_id or not master_id.startswith("IM-"):
+                            continue
+                        # Upewnij się że plik ma usi_inv_id ustawiony na master_id
+                        raw["usi_inv_id"] = master_id
+                        entry = _load_investment(system_id=master_id, usi_file=mf, fast_index=True)
+                        if entry:
+                            entry.pop("image_urls", None)
+                            entry.pop("nearby_investments", None)
+                            entries.append(entry)
+                    except Exception as e:
+                        logger.error(f"Błąd indeksowania mastera {mf}: {e}")
+
+            # IDs masterów — żeby pominąć ich members
+            master_member_ids: set[str] = set()
+            for e in entries:
+                for m in e.get("members") or e.get("merged_from") or []:
+                    uid = m.get("usi_inv_id") if isinstance(m, dict) else None
+                    if uid:
+                        master_member_ids.add(uid)
+
+            # 2. Skanuj USIdata/ — pomijaj members grup
+            for usi_file in self.data_dir.rglob("usi_*.json"):
+                if "usi_dev_" in usi_file.name:
+                    continue
                 try:
-                    data = json.loads(usi_file.read_text())
+                    data = json.loads(usi_file.read_text(encoding="utf-8"))
                     usi_inv_id = data.get("usi_inv_id") or data.get("usi_id")
                     if not usi_inv_id:
                         continue
-                    
-                    from python_worker.api.utils import _load_investment
-                    entry = _load_investment(
-                        system_id=usi_inv_id,
-                        usi_file=usi_file,
-                        fast_index=True
-                    )
+                    # Pomiń members grup
+                    if usi_inv_id in master_member_ids or data.get("master_id"):
+                        continue
+                    entry = _load_investment(system_id=usi_inv_id, usi_file=usi_file, fast_index=True)
                     if entry:
                         entry.pop("image_urls", None)
                         entry.pop("nearby_investments", None)
                         entries.append(entry)
                 except Exception as e:
-                    logger.error(f"Krytyczny błąd indeksowania inwestycji z pliku {usi_file}: {e}", exc_info=True)
-                    continue
+                    logger.error(f"Błąd indeksowania {usi_file}: {e}", exc_info=True)
 
-            # Update state
-            new_index = {e["usi_inv_id"]: e for e in entries}
-            new_slug_map = {f"{e['developer_slug']}/{e['investment_slug']}": e for e in entries if e.get("developer_slug") and e.get("investment_slug")}
-            
+            # Aktualizuj stan
+            new_index = {e["usi_inv_id"]: e for e in entries if e.get("usi_inv_id")}
+            new_slug_map = {
+                f"{e['developer_slug']}/{e['investment_slug']}": e
+                for e in entries
+                if e.get("developer_slug") and e.get("investment_slug")
+            }
+
             with self._index_lock:
                 self._index = new_index
                 self._slug_map = new_slug_map
                 self._save_to_disk()
-            
+
             duration = (datetime.now() - start_t).total_seconds()
-            logger.info(f"Index rebuilt: {len(entries)} entries in {duration:.2f}s")
+            logger.info(f"Index rebuilt: {len(entries)} entries in {duration:.2f}s (masters: {sum(1 for e in entries if str(e.get('usi_inv_id','')).startswith('IM-'))})")
             self._notify_change()
             return len(entries)
         finally:
@@ -259,32 +283,40 @@ class InvestmentIndex:
     def add_or_update(self, usi_id: str, metadata: dict) -> None:
         """
         INCREMENTAL UPDATE O(1) in memory.
-        Jeśli rekord jest secondary (ma master_id ale nie jest primarynym),
-        jest USUWANY z indeksu zamiast wstawiany — indeks zawiera tylko primaryne.
+        Rekordy z master_id (members grup) są USUWANE z indeksu —
+        indeks zawiera tylko samodzielne inwestycje i mastery (IM-XXXX).
         """
-        # Ensure latest data is loaded (if changed externally)
         self._load_from_disk()
 
         with self._index_lock:
-            entry = metadata.copy()
-            entry["usi_inv_id"] = usi_id
-            
             master_id = metadata.get("master_id")
-            
-            if not entry.get("investment_slug"):
-                entry["investment_slug"] = usi_id
-            if not entry.get("folder_path"):
-                entry["folder_path"] = f"Public/USIdata/{metadata.get('developer_slug', 'unknown')}/{usi_id}"
-            entry["updated_at"] = datetime.now().isoformat()
 
-            self._index[usi_id] = entry
-            dev_slug = entry.get("developer_slug")
-            inv_slug = entry.get("investment_slug")
-            if dev_slug and inv_slug:
-                self._slug_map[f"{dev_slug}/{inv_slug}"] = entry
-            
-            self._save_to_disk()
-        
+            if master_id and not usi_id.startswith("IM-"):
+                # To jest member grupy — usuń go z indeksu (master go zastępuje)
+                self._index.pop(usi_id, None)
+                ds = metadata.get("developer_slug")
+                is_ = metadata.get("investment_slug")
+                if ds and is_:
+                    self._slug_map.pop(f"{ds}/{is_}", None)
+                self._save_to_disk()
+            else:
+                entry = metadata.copy()
+                entry["usi_inv_id"] = usi_id
+                if not entry.get("investment_slug"):
+                    entry["investment_slug"] = usi_id
+                if not entry.get("folder_path"):
+                    if usi_id.startswith("IM-"):
+                        entry["folder_path"] = "Public/USImaster"
+                    else:
+                        entry["folder_path"] = f"Public/USIdata/{metadata.get('developer_slug', 'unknown')}/{usi_id}"
+                entry["updated_at"] = datetime.now().isoformat()
+                self._index[usi_id] = entry
+                ds = entry.get("developer_slug")
+                is_ = entry.get("investment_slug")
+                if ds and is_:
+                    self._slug_map[f"{ds}/{is_}"] = entry
+                self._save_to_disk()
+
         self._notify_change()
 
     def _save_to_disk(self):
@@ -305,18 +337,9 @@ class InvestmentIndex:
             logger.error(f"Failed to persist index to disk: {e}")
 
     def get_all(self) -> List[Dict]:
+        """Zwraca wszystkie indeksowane inwestycje — mastery zamiast ich memberów."""
         self._load_from_disk()
-        seen_masters = set()
-        result = []
-        for e in self._index.values():
-            m_id = e.get("master_id")
-            if not m_id:
-                result.append(e)
-            else:
-                if m_id not in seen_masters:
-                    seen_masters.add(m_id)
-                    result.append(e)
-        return result
+        return list(self._index.values())
 
     def get_by_id(self, inv_id: str) -> Optional[Dict]:
         self._load_from_disk()

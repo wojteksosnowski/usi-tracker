@@ -298,6 +298,9 @@ def main():
     # Command: rebuild-index
     subparsers.add_parser("rebuild-index", help="Rebuild the investment list index (_index.json in USIdata)")
 
+    # Command: rebuild-masters
+    subparsers.add_parser("rebuild-masters", help="Rebuild all inv_master_*.json files with aggregated data from members")
+
     # Command: rebuild-dev-index
     subparsers.add_parser("rebuild-dev-index", help="Rebuild the developer list index (_dev_index.json in USIdev)")
 
@@ -497,6 +500,11 @@ def main():
 
 
 
+
+    elif args.command == "rebuild-masters":
+        from .investment_merger import rebuild_all_masters
+        count = rebuild_all_masters()
+        print(f"Rebuilt {count} master files.")
 
     elif args.command == "rebuild-index":
         from .investment_index import rebuild as rebuild_index

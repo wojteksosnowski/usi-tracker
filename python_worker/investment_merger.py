@@ -1,11 +1,19 @@
 """
 investment_merger.py — Zarządzanie grupami inwestycji (Master Groups)
 
-Architektura grupy:
-  - Każdy rekord `usi_*.json` może zawierać klucz `"master_id"` wskazujący na ID grupy.
-  - Plik `inv_master_{MASTER_ID}.json` leży w katalogu PRIMARYNEJ inwestycji.
-  - "Primaryna" to ta, która ma `role: "primary"` w pliku master.
-  - Oceny zapisywane przez użytkownika są propagowane do WSZYSTKICH składowych grupy.
+Architektura grupy (ID-only, płaska):
+  - Każdy rekord usi_*.json może zawierać klucz "master_id" wskazujący na ID grupy.
+  - Plik master ZAWSZE leży w Public/USImaster/inv_master_{IM-XXXX}.json
+  - Struktura pliku master jest prosta i płaska:
+      {
+          "master_id": "IM-XXXX",
+          "members": [
+              {"usi_inv_id": "INV-AAAAA"},
+              {"usi_inv_id": "INV-BBBBB"}
+          ]
+      }
+  - BRAK primary_id, secondary_id, roli, slugów. Tylko ID.
+  - Oceny propagowane są do WSZYSTKICH składowych grupy.
   - Merge i unmerge aktualizują tylko znane ID — zero rglob.
 """
 
@@ -50,159 +58,15 @@ def _read_json(path: Path) -> Optional[dict]:
         return None
 
 
+def _usi_master_dir() -> Path:
+    """Zwraca bezwzględną ścieżkę do Public/USImaster/."""
+    return Path(PUBLIC_USI_DIR).parent.parent / "Public" / "USImaster"
+
+
 class InvestmentMerger:
-
-    def _build_and_save_master(self, master_id: str, primary_inv_id: str, secondary_inv_id: str):
-        # Znajdź wszystkie pliki z tym master_id
-        from python_worker.investment_index import get_investment_index
-        index = get_investment_index()
-        # Odświeżamy indeks żeby zobaczyć nowe master_id dodane przez wywołanie _atomic_write wcześniej
-        p_entry = index.get_by_id(primary_inv_id) or {}
-        p_entry["master_id"] = master_id
-        index.add_or_update(primary_inv_id, p_entry)
-        
-        s_entry = index.get_by_id(secondary_inv_id) or {}
-        s_entry["master_id"] = master_id
-        index.add_or_update(secondary_inv_id, s_entry)
-        
-        member_ids = []
-        for e in index.get_all():
-            # it might not return is_grouped so we check internal
-            pass
-            
-        # Właściwie, members = index._index
-        with index._index_lock:
-            for uid, e in index._index.items():
-                if e.get("master_id") == master_id:
-                    member_ids.append(uid)
-                    
-        # Teraz budujemy pełny plik T3
-        from python_worker.services.investment_identity import InvestmentIdentityResolver
-        identity = InvestmentIdentityResolver(self.data_dir)
-        
-        master_record = {
-            "usi_inv_id": master_id,
-            "location": {},
-            "financials": {},
-            "specifications": {"units_count": 0},
-            "amenities_matched": [],
-            "image_paths": [],
-            "sources": {},
-            "developer_slug": None,
-            "investment_slug": master_id
-        }
-        
-        min_price = float('inf')
-        max_price = 0
-        min_price_m2 = float('inf')
-        max_price_m2 = 0
-        
-        seen_images = set()
-        seen_amenities = set()
-        
-        # Ensure the primary is processed first to grab location
-        if primary_inv_id in member_ids:
-            member_ids.remove(primary_inv_id)
-            member_ids.insert(0, primary_inv_id)
-            
-        for idx, mid in enumerate(member_ids):
-            res = identity.get_investment_resources(mid)
-            if not res or not res["files"].get("anchor"): continue
-            try:
-                import json
-                data = json.loads(res["files"]["anchor"].read_text())
-            except:
-                continue
-                
-            if idx == 0:
-                master_record["location"] = data.get("location", {})
-                master_record["developer_slug"] = res["metadata"].get("developer_slug")
-                master_record["name"] = data.get("name")
-                master_record["developer"] = data.get("developer")
-                master_record["status"] = data.get("status")
-                master_record["city"] = data.get("city")
-                master_record["coords"] = data.get("coords")
-                master_record["segment"] = data.get("segment")
-                master_record["ratings"] = data.get("ratings", {})
-                master_record["usi_dev_id"] = data.get("usi_dev_id")
-                master_record["merged_from"] = []
-                
-            # Merge financials
-            fin = data.get("financials", {})
-            if fin.get("price_min"): min_price = min(min_price, float(fin["price_min"]))
-            if fin.get("price_max"): max_price = max(max_price, float(fin["price_max"]))
-            if fin.get("price_m2_min"): min_price_m2 = min(min_price_m2, float(fin["price_m2_min"]))
-            if fin.get("price_m2_max"): max_price_m2 = max(max_price_m2, float(fin["price_m2_max"]))
-            
-            # Merge units
-            units = data.get("specifications", {}).get("units_count")
-            if units: master_record["specifications"]["units_count"] += int(units)
-            
-            # Merge amenities
-            for am in data.get("amenities_matched", []):
-                if am["code"] not in seen_amenities:
-                    seen_amenities.add(am["code"])
-                    master_record["amenities_matched"].append(am)
-                    
-            # Merge images
-            for img in data.get("image_paths", []):
-                if img not in seen_images:
-                    seen_images.add(img)
-                    master_record["image_paths"].append(img)
-                    
-            # Merge sources
-            master_record["sources"].update(data.get("sources", {}))
-            
-            # Add to merged_from
-            master_record["merged_from"].append({
-                "usi_inv_id": mid,
-                "name": data.get("name"),
-                "developer": data.get("developer"),
-                "portal": data.get("portal")
-            })
-
-        if min_price != float('inf'): master_record["financials"]["price_min"] = min_price
-        if max_price != 0: master_record["financials"]["price_max"] = max_price
-        if min_price_m2 != float('inf'): master_record["financials"]["price_m2_min"] = min_price_m2
-        if max_price_m2 != 0: master_record["financials"]["price_m2_max"] = max_price_m2
-        
-        # Save it
-        master_dir = self.data_dir.parent / "USImaster"
-        master_dir.mkdir(parents=True, exist_ok=True)
-        out_path = master_dir / f"usi_{master_id}.json"
-        
-        master_record["folder_path"] = "Public/USImaster"
-        
-        _atomic_write(out_path, master_record)
-        # Notify index of new master!
-        index.add_or_update(master_id, master_record)
-
     """
     Zarządza grupami inwestycji (wiele rekordów z różnych portali = jeden obiekt).
-
-    Plik master JSON (inv_master_{ID}.json) w katalogu primarynej inwestycji:
-    {
-        "master_id": "MASTER-INV-XXXXX",
-        "created_at": "ISO",
-        "updated_at": "ISO",
-        "primary_id": "INV-XXXXX",          # ID primarynej inwestycji
-        "members": [                          # wszyscy członkowie (włącznie z primarynym)
-            {
-                "usi_inv_id": "INV-XXXXX",
-                "role": "primary",
-                "dev_slug": "...",
-                "inv_slug": "...",
-                "added_at": "ISO"
-            },
-            {
-                "usi_inv_id": "INV-YYYYY",
-                "role": "secondary",
-                "dev_slug": "...",
-                "inv_slug": "...",
-                "added_at": "ISO"
-            }
-        ]
-    }
+    Plik master: Public/USImaster/inv_master_{IM-XXXX}.json
     """
 
     def __init__(self, data_dir: Path = None, public_dir: Path = None):
@@ -225,39 +89,182 @@ class InvestmentMerger:
         import python_worker.investment_index as inv_index
         return inv_index.get_entry_by_id(usi_inv_id)
 
-    def _master_file_path(self, primary_res: dict, master_id: str) -> Path:
-        return primary_res["base_dir"] / f"{MASTER_FILE_PREFIX}{master_id}.json"
+    def _master_dir(self) -> Path:
+        """Public/USImaster/ — jedyne miejsce przechowywania plików master."""
+        d = _usi_master_dir()
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def _master_path(self, master_id: str) -> Path:
+        """Bezwzględna ścieżka do pliku master."""
+        return self._master_dir() / f"{MASTER_FILE_PREFIX}{master_id}.json"
 
     def _load_master_file(self, master_id: str, primary_id: str = None) -> tuple[Optional[dict], Optional[Path]]:
-        """Wczytuje plik master sprawdzając foldery wszystkich przypisanych członków z indeksu."""
-        import python_worker.investment_index as inv_index
-        index_data = inv_index.get_investment_index()._index
-        
-        # Znajdź wszystkie rekordy, które mają ten master_id
-        member_folders = [Path(e["folder_path"]) for e in index_data.values() if e.get("master_id") == master_id and e.get("folder_path")]
-        
-        # Jeśli podano primary_id, spróbuj folder z primary_id najpierw (optymalizacja)
-        if primary_id:
-            p_res = self._get_resources(primary_id)
-            if p_res and p_res.get("base_dir"):
-                member_folders.insert(0, p_res["base_dir"])
-                
-        # Sprawdź unikalne foldery w poszukiwaniu pliku
+        """
+        Wczytuje plik master z USImaster/.
+        Argument primary_id zachowany dla kompatybilności wstecznej — ignorowany.
+        """
+        path = self._master_path(master_id)
+        data = _read_json(path)
+        return data, path if data else None
+
+    def _save_master(self, master_id: str, member_ids: list[str]) -> Path:
+        """
+        Buduje i zapisuje pełny rekord mastera w USImaster/.
+        Agreguje dane wszystkich memberów — master jest self-contained.
+        """
         seen = set()
-        for folder in member_folders:
-            folder = Path(folder)
-            if folder in seen: continue
-            seen.add(folder)
-            
-            # W środowisku deweloperskim folder_path może być względny
-            if not folder.is_absolute():
-                folder = Path(self.public_dir).parent / folder
-                
-            path = folder / f"{MASTER_FILE_PREFIX}{master_id}.json"
-            if path.exists():
-                return _read_json(path), path
-                
-        return None, None
+        members = []
+        for uid in member_ids:
+            if uid and uid not in seen:
+                seen.add(uid)
+                members.append({"usi_inv_id": uid})
+
+        # Agregacja danych z memberów
+        master = {
+            "usi_inv_id": master_id,
+            "master_id": master_id,
+            "members": members,
+            "name": None,
+            "developer": None,
+            "location": {},
+            "financials": {},
+            "specifications": {},
+            "sources": {},
+            "image_paths": [],
+            "ratings": {},
+            "status": "Brak",
+            "usi_dev_id": None,
+        }
+
+        seen_images: set[str] = set()
+        seen_amenities: set[str] = set()
+        amenities_matched: list = []
+        w_sums = {"price_min": 0.0, "price_max": 0.0, "price_m2_min": 0.0, "price_m2_max": 0.0}
+        w_counts = {k: 0 for k in w_sums}
+        delivery_dates: set[str] = set()
+
+        # Preferuj dane z RP (portal hierarchia: rp > oto > to)
+        portal_priority = {"rp": 0, "oto": 1, "to": 2}
+
+        for uid in [m["usi_inv_id"] for m in members]:
+            m_res = self._get_resources(uid)
+            if not m_res:
+                continue
+            anchor = m_res["files"].get("anchor")
+            if not anchor or not anchor.exists():
+                continue
+            try:
+                d = json.loads(anchor.read_text(encoding="utf-8"))
+            except Exception as e:
+                logger.warning(f"Cannot read member {uid}: {e}")
+                continue
+
+            # Podstawowe pola — bierz jeśli brak lub z portalu wyżej w hierarchii
+            d_portal = (d.get("portal") or "").lower()
+            cur_portal = (master.get("_anchor_portal") or "zzz").lower()
+            is_better_portal = portal_priority.get(d_portal, 99) < portal_priority.get(cur_portal, 99)
+
+            if not master["name"] or is_better_portal:
+                if d.get("name"):
+                    master["name"] = d["name"]
+                    master["_anchor_portal"] = d_portal
+
+            if not master["developer"] or (is_better_portal and d.get("developer")):
+                if d.get("developer") and d["developer"] != "Nieznany deweloper":
+                    master["developer"] = d["developer"]
+
+            if (not master["location"].get("city")) or is_better_portal:
+                if d.get("location") and d["location"].get("city"):
+                    master["location"] = d["location"]
+
+            if not master["usi_dev_id"] and d.get("usi_dev_id"):
+                master["usi_dev_id"] = d["usi_dev_id"]
+
+            # Status — bierz najlepszy (nie-Brak)
+            d_status = d.get("status") or d.get("ratings", {}).get("status") or "Brak"
+            if master["status"] == "Brak" and d_status != "Brak":
+                master["status"] = d_status
+
+            # Segment — preferuj Polish string
+            d_seg = d.get("specifications", {}).get("segment") or d.get("segment", "")
+            cur_seg = master["specifications"].get("segment", "")
+            if d_seg and (not cur_seg or cur_seg in ("apartments", "houses", "commercial")):
+                master["specifications"]["segment"] = d_seg
+
+            # Ceiling height
+            d_spec = d.get("specifications", {})
+            for hkey in ("ceiling_height_min", "ceiling_height_max", "units_count", "delivery_date"):
+                if d_spec.get(hkey) and not master["specifications"].get(hkey):
+                    master["specifications"][hkey] = d_spec[hkey]
+            if d_spec.get("delivery_date") and d_spec["delivery_date"] != "—":
+                delivery_dates.add(str(d_spec["delivery_date"]))
+
+            # Units — max
+            try:
+                d_units = int(d_spec.get("units_count") or 0)
+                cur_units = int(master["specifications"].get("units_count") or 0)
+                master["specifications"]["units_count"] = max(cur_units, d_units)
+            except (ValueError, TypeError):
+                pass
+
+            # Ratings — bierz jeśli własne puste
+            d_rat = d.get("ratings", {})
+            if d_rat and "Gwiazdki" in d_rat and "Gwiazdki" not in master["ratings"]:
+                master["ratings"] = dict(d_rat)
+
+            # Sources — merge
+            for k, v in d.get("sources", {}).items():
+                if k not in master["sources"]:
+                    master["sources"][k] = v
+
+            # Financials — średnia ważona, tylko >0
+            d_fin = d.get("financials", {})
+            d_units_w = int(d_spec.get("units_count") or 1)
+            for key in w_sums:
+                val = d_fin.get(key)
+                if val is not None:
+                    try:
+                        fval = float(val)
+                        if fval > 0:
+                            w_sums[key] += fval * d_units_w
+                            w_counts[key] += d_units_w
+                    except (ValueError, TypeError):
+                        pass
+
+            # Amenities
+            d_am = d.get("amenities_matched", [])
+            for am in d_am:
+                code = am.get("code") if isinstance(am, dict) else am
+                if code and code not in seen_amenities:
+                    seen_amenities.add(code)
+                    amenities_matched.append(am)
+
+            # Images
+            for img in d.get("image_paths", []):
+                from pathlib import PurePath
+                fname = PurePath(img).name
+                if fname not in seen_images:
+                    seen_images.add(fname)
+                    master["image_paths"].append(img)
+
+        # Finanse — zapisz wyniki agregacji
+        for key in w_sums:
+            if w_counts[key] > 0:
+                master["financials"][key] = round(w_sums[key] / w_counts[key], 2)
+
+        # Delivery date
+        if delivery_dates:
+            master["specifications"]["delivery_date"] = " / ".join(sorted(delivery_dates))
+
+        master["amenities_matched"] = amenities_matched
+        master.pop("_anchor_portal", None)
+
+        path = self._master_path(master_id)
+        _atomic_write(path, master)
+        logger.info(f"Master saved: {path.name} → {[m['usi_inv_id'] for m in members]}")
+        return path
+
 
     def _upsert_index(self, inv_id: str) -> None:
         """Aktualizuje gorący indeks RAM + dysk dla jednego rekordu. O(1), bez rglob."""
@@ -279,7 +286,7 @@ class InvestmentMerger:
     def get_group_members(self, inv_id: str) -> list[dict]:
         """
         Dla danego ID inwestycji zwraca listę wszystkich członków jej grupy.
-        Jeśli inwestycja nie jest w grupie, zwraca listę z samym sobą.
+        Jeśli inwestycja nie jest w grupie, zwraca pustą listę.
         """
         res = self._get_resources(inv_id)
         if not res:
@@ -289,122 +296,135 @@ class InvestmentMerger:
             return []
         master_id = data.get("master_id")
         if not master_id:
-            return [{"usi_inv_id": inv_id, "role": "standalone"}]
+            return []
 
-        primary_id = inv_id
-        master_data, _ = self._load_master_file(master_id, primary_id)
+        master_data, _ = self._load_master_file(master_id)
         if not master_data:
-            return [{"usi_inv_id": inv_id, "role": "standalone"}]
+            return []
         return master_data.get("members", [])
 
     # ------------------------------------------------------------------
     # Merge
     # ------------------------------------------------------------------
 
-    def merge_by_id(self, primary_inv_id: str, secondary_inv_id: str) -> bool:
+    def merge_by_id(self, target_id: str, source_id: str) -> bool:
         """
-        Łączy secondary_inv_id w grupę primaryną primary_inv_id.
+        Dołącza source_id do grupy wskazanej przez target_id (lub tworzy nową grupę).
 
-        Reguły:
-        - Jeśli primary ma już master_id, secondary jest dodawany do tej samej grupy.
-        - Jeśli secondary ma już master_id w INNEJ grupie, jest wpierw z niej wyłączany.
-        - Oceny primarynego są propagowane do wszystkich składowych grupy.
+        Reguły (płaska struktura):
+        - Brak primary/secondary. Wszystkie dodane inwestycje są równe (members).
+        - Jeśli target_id to IM-XXXX, dodaje source_id do tej grupy.
+        - Jeśli target_id to INV-XXXX należące już do grupy, dodaje source_id do tej samej grupy.
+        - Jeśli target_id to INV-XXXX bez grupy, tworzy nową grupę IM-XXXX dla obu.
         - Zapis atomowy dla każdego pliku.
-        - Tylko `upsert` O(1) — zero `rebuild()`.
+        - Tylko upsert O(1) — zero rebuild().
         """
-        if primary_inv_id == secondary_inv_id:
+        if target_id == source_id:
             logger.error("Cannot merge investment into itself.")
             return False
 
-        p_res = self._get_resources(primary_inv_id)
-        s_res = self._get_resources(secondary_inv_id)
-        if not p_res or not s_res:
+        s_res = self._get_resources(source_id)
+        if not s_res:
             return False
 
-        p_file = p_res["files"].get("anchor")
         s_file = s_res["files"].get("anchor")
-        if not p_file or not s_file:
-            logger.error("Anchor files not found.")
-            return False
-
-        p_data = _read_json(p_file)
         s_data = _read_json(s_file)
-        if p_data is None or s_data is None:
-            logger.error("Failed to read anchor files.")
+        if s_data is None:
             return False
 
-        p_meta = p_res["metadata"]
         s_meta = s_res["metadata"]
 
-        # --- Obsługa istniejącego master_id secondary ---
+        # --- Ustalanie docelowego master_id ---
+        master_id = None
+        target_dev_id = None
+        target_ratings = {}
+
+        if target_id.startswith("IM-"):
+            master_id = target_id
+            m_data, _ = self._load_master_file(master_id)
+            if not m_data:
+                logger.error(f"Target master {target_id} not found.")
+                return False
+            target_dev_id = m_data.get("usi_dev_id")
+            target_ratings = m_data.get("ratings", {})
+        else:
+            t_res = self._get_resources(target_id)
+            if not t_res:
+                return False
+            t_file = t_res["files"].get("anchor")
+            t_data = _read_json(t_file)
+            if t_data is None:
+                return False
+            
+            master_id = t_data.get("master_id")
+            if not master_id:
+                # Tworzymy nową grupę
+                from python_worker.developer_indexer import DeveloperIndexer
+                master_id = DeveloperIndexer(None).generate_usi_id("IM")
+                t_data["master_id"] = master_id
+                _atomic_write(t_file, t_data)
+                
+            target_dev_id = t_data.get("usi_dev_id")
+            target_ratings = t_data.get("ratings", {})
+
+        # --- Obsługa istniejącego master_id u dołączanego obiektu ---
         old_s_master = s_data.get("master_id")
-        if old_s_master:
-            old_primary = secondary_inv_id
-            if old_s_master != p_data.get("master_id"):
-                logger.info(f"Secondary {secondary_inv_id} was in group {old_s_master}. Removing first.")
-                self._remove_member_from_master(old_s_master, old_primary, secondary_inv_id)
-                # Reload after removal
-                s_data = _read_json(s_file) or s_data
+        if old_s_master and old_s_master != master_id:
+            logger.info(f"Source {source_id} was in group {old_s_master}. Removing first.")
+            self._remove_member_from_master(old_s_master, source_id)
+            s_data = _read_json(s_file) or s_data
 
-        # --- Wyznacz lub utwórz master_id ---
-        master_id = p_data.get("master_id")
-        if not master_id:
-            from python_worker.developer_indexer import DeveloperIndexer
-            master_id = DeveloperIndexer(None).generate_usi_id("IM")
+        # --- Zbierz wszystkich dotychczasowych memberów nowej grupy ---
+        existing_master_data, _ = self._load_master_file(master_id)
+        existing_member_ids = [m["usi_inv_id"] for m in (existing_master_data or {}).get("members", [])]
 
-        # --- Aktualizuj oba rekordy anchor ---
-        p_data["master_id"] = master_id
-        p_data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
+        # Dodaj source_id i ewentualnie target_id
+        all_member_ids = list(set(existing_member_ids + [source_id, target_id if not target_id.startswith("IM-") else source_id]))
 
+        # --- Aktualizuj source anchor ---
         s_data["master_id"] = master_id
-        s_data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
-        s_data["audit"].setdefault("history", []).append({
-            "timestamp": datetime.now().isoformat(),
-            "event": "Merged into group",
-            "changes": [{"field": "master_id", "old": old_s_master, "new": master_id}]
-        })
-
-        # --- Atomowe zapisy ---
-        _atomic_write(p_file, p_data)
         _atomic_write(s_file, s_data)
-        
-        # Build master
-        self._build_and_save_master(master_id, primary_inv_id, secondary_inv_id)
 
-        # --- Propagacja ocen primarynego do secondary ---
-        primary_ratings = p_data.get("ratings", {})
-        if primary_ratings:
-            self._propagate_ratings_to_member(s_file, s_data, primary_ratings)
+        # --- Zapisz plik master ---
+        self._save_master(master_id, all_member_ids)
 
-        # --- Automatyczne scalenie deweloperów (konsekwencja łączenia inwestycji) ---
-        self._try_merge_developers(p_data.get("usi_dev_id"), s_data.get("usi_dev_id"), primary_inv_id, secondary_inv_id)
+        # --- Propagacja ocen (jeśli istnieją) ---
+        if target_ratings:
+            self._propagate_ratings_to_member(s_file, s_data, target_ratings)
 
-        # Kolejność kluczowa: 1) secondary — usuwa się z indeksu, 2) primary — odświeża z pełnymi merged_from
-        self._upsert_index(secondary_inv_id)
-        self._upsert_index(primary_inv_id)
-        self._invalidate_service_cache(secondary_inv_id)
-        self._invalidate_service_cache(primary_inv_id)
+        # --- Automatyczne scalenie deweloperów ---
+        self._try_merge_developers(
+            target_dev_id, s_data.get("usi_dev_id"),
+            target_id, source_id
+        )
+
+        # Odśwież indeksy — master zastępuje members w indeksie
+        self._upsert_index(master_id)
+        self._upsert_index(source_id)
+        if not target_id.startswith("IM-"):
+            self._upsert_index(target_id)
+        self._invalidate_service_cache(master_id)
+        self._invalidate_service_cache(source_id)
 
         log_to_processing_log(
             s_meta.get("developer_slug", "unknown"),
             s_meta.get("investment_slug", "unknown"),
-            f"Merged into group {master_id} (primary: {primary_inv_id})"
+            f"Merged into group {master_id}"
         )
-        logger.info(f"Merge OK: {secondary_inv_id} -> group {master_id} (primary: {primary_inv_id})")
+        logger.info(f"Merge OK: {source_id} → group {master_id}")
         return True
+
 
     # ------------------------------------------------------------------
     # Unmerge
-    # ------------------------------------------------------------------
-
-    def unmerge_by_id(self, primary_inv_id: str, secondary_inv_id: str) -> bool:
+    def unmerge_by_id(self, target_id: str, source_id: str) -> bool:
         """
-        Usuwa secondary_inv_id z grupy primarynej.
+        Usuwa source_id z grupy wskazanej przez target_id.
+        (Jeśli target_id sam w sobie jest grupą, usuwa z niego; jeśli jest INV-XXXX należącym do grupy, usuwa z jego grupy).
         Jeśli po usunięciu zostaje tylko 1 member, rozwiązuje całą grupę.
         """
-        p_res = self._get_resources(primary_inv_id)
-        s_res = self._get_resources(secondary_inv_id)
-        if not p_res or not s_res:
+        s_res = self._get_resources(source_id)
+        if not s_res:
             return False
 
         s_file = s_res["files"].get("anchor")
@@ -414,28 +434,29 @@ class InvestmentMerger:
 
         master_id = s_data.get("master_id")
         if not master_id:
-            logger.warning(f"{secondary_inv_id} is not in any group.")
+            logger.warning(f"{source_id} is not in any group.")
             return False
 
-        removed = self._remove_member_from_master(master_id, primary_inv_id, secondary_inv_id)
+        removed = self._remove_member_from_master(master_id, source_id)
 
         if removed:
             s_meta = s_res["metadata"]
-            # Kolejność: primary odświeżony (bez byłego membera), secondary wstawiony z powrotem
-            self._upsert_index(primary_inv_id)   # zaktualizuj primary w indeksie
-            self._upsert_index(secondary_inv_id) # wstaw secondary z powrotem (master_id=null -> nie jest już secondary)
-            self._invalidate_service_cache(primary_inv_id)
-            self._invalidate_service_cache(secondary_inv_id)
+            if not target_id.startswith("IM-"):
+                self._upsert_index(target_id)
+            self._upsert_index(source_id)
+            self._invalidate_service_cache(target_id)
+            self._invalidate_service_cache(source_id)
             log_to_processing_log(
                 s_meta.get("developer_slug", "unknown"),
                 s_meta.get("investment_slug", "unknown"),
                 f"Unmerged from group {master_id}"
             )
-        return removed
+            return True
+        return False
 
-    def _remove_member_from_master(self, master_id: str, primary_id: str, member_id: str) -> bool:
-        """Usuwa member z pliku master i czyści master_id z pliku anchor member."""
-        master_data, master_path = self._load_master_file(master_id, primary_id)
+    def _remove_member_from_master(self, master_id: str, member_id: str) -> bool:
+        """Usuwa member z pliku master i czyści master_id z jego pliku anchor."""
+        master_data, master_path = self._load_master_file(master_id)
         if not master_data:
             logger.error(f"Master file not found for {master_id}")
             return False
@@ -444,7 +465,6 @@ class InvestmentMerger:
         master_data["members"] = [m for m in master_data["members"] if m["usi_inv_id"] != member_id]
         after_count = len(master_data["members"])
         was_removed = after_count < before_count
-        master_data["updated_at"] = datetime.now().isoformat()
 
         # Wyczyść master_id z pliku anchor tego membera
         m_res = self._get_resources(member_id)
@@ -453,19 +473,12 @@ class InvestmentMerger:
             m_data = _read_json(m_file)
             if m_data:
                 m_data["master_id"] = None
-                m_data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
-                m_data["audit"].setdefault("history", []).append({
-                    "timestamp": datetime.now().isoformat(),
-                    "event": "Unmerged from group",
-                    "changes": [{"field": "master_id", "old": master_id, "new": None}]
-                })
                 _atomic_write(m_file, m_data)
 
         # Jeśli zostało <= 1 member, rozwiąż grupę całkowicie
         remaining = master_data["members"]
         if len(remaining) <= 1:
             logger.info(f"Group {master_id} dissolved (only {len(remaining)} member left).")
-            # Wyczyść master_id z ostatniego membera
             for last in remaining:
                 last_res = self._get_resources(last["usi_inv_id"])
                 if last_res:
@@ -473,12 +486,11 @@ class InvestmentMerger:
                     last_data = _read_json(last_file)
                     if last_data:
                         last_data["master_id"] = None
-                        last_data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
                         _atomic_write(last_file, last_data)
                     self._upsert_index(last["usi_inv_id"])
-            # Usuń plik master
-            if master_path.exists():
+            if master_path and master_path.exists():
                 master_path.unlink()
+                logger.info(f"Master file {master_path.name} deleted.")
         else:
             _atomic_write(master_path, master_data)
 
@@ -490,17 +502,15 @@ class InvestmentMerger:
 
     def propagate_ratings(self, primary_inv_id: str, ratings: dict, status: Optional[str] = None) -> list[str]:
         """
-        Propaguje oceny do wszystkich secondary members grupy.
+        Propaguje oceny do wszystkich innych członków grupy.
         Zwraca listę ID inwestycji, do których propagacja się powiodła.
-
-        Wywołaj to po każdym zapisie ocen dla rekordu primarynego.
         """
         members = self.get_group_members(primary_inv_id)
         updated = []
 
         for member in members:
             mid = member.get("usi_inv_id")
-            if not mid or mid == primary_inv_id or member.get("role") == "primary":
+            if not mid or mid == primary_inv_id:
                 continue
 
             m_res = self._get_resources(mid)
@@ -521,7 +531,7 @@ class InvestmentMerger:
     def _propagate_ratings_to_member(
         self, m_file: Path, m_data: dict, ratings: dict, status: Optional[str] = None
     ) -> None:
-        """Zapisuje oceny primarynego do jednego rekordu secondary (atomowo)."""
+        """Zapisuje oceny do jednego rekordu (atomowo)."""
         if not ratings and status is None:
             return
 
@@ -533,7 +543,6 @@ class InvestmentMerger:
                 existing[k] = v
                 changed = True
 
-        # Status propagujemy tylko jeśli jest ustawiony
         if status is not None and existing.get("status") != status:
             existing["status"] = status
             changed = True
@@ -541,7 +550,6 @@ class InvestmentMerger:
 
         if changed:
             m_data["ratings"] = existing
-            m_data.setdefault("audit", {})["updated_at"] = datetime.now().isoformat()
             _atomic_write(m_file, m_data)
 
     # ------------------------------------------------------------------
@@ -563,7 +571,51 @@ class InvestmentMerger:
             merge_mgr = DeveloperMergeManager(dev_manager, dev_index)
             success = merge_mgr.merge_by_id(target_id=primary_dev_id, source_id=secondary_dev_id)
             if success:
-                logger.info(f"[DEV_MERGE] Scalono deweloperów {secondary_dev_id} -> {primary_dev_id}")
+                logger.info(f"[DEV_MERGE] Scalono deweloperów {secondary_dev_id} → {primary_dev_id}")
                 dev_manager.invalidate_identifiers_cache()
         except Exception as e:
             logger.warning(f"Auto dev merge failed (non-critical): {e}")
+
+
+def rebuild_all_masters() -> int:
+    """
+    Przebudowuje wszystkie istniejące pliki inv_master_*.json nasycając je
+    zagregowanymi danymi ze składowych memberów.
+    Używane po migracji lub zmianie formatu mastera.
+    Zwraca liczbę przebudowanych masterów.
+    """
+    master_dir = _usi_master_dir()
+    if not master_dir.exists():
+        logger.warning("USImaster/ directory not found.")
+        return 0
+
+    merger = InvestmentMerger()
+    count = 0
+    errors = 0
+
+    master_files = sorted(master_dir.glob("inv_master_*.json"))
+    logger.info(f"Rebuilding {len(master_files)} master files...")
+
+    for mf in master_files:
+        try:
+            raw = _read_json(mf)
+            if not raw:
+                continue
+            master_id = raw.get("master_id") or raw.get("usi_inv_id")
+            if not master_id or not master_id.startswith("IM-"):
+                logger.warning(f"Skipping {mf.name}: no valid master_id")
+                continue
+            members = raw.get("members", [])
+            member_ids = [m["usi_inv_id"] for m in members if isinstance(m, dict) and m.get("usi_inv_id")]
+            if not member_ids:
+                logger.warning(f"Skipping {mf.name}: no members")
+                continue
+            merger._save_master(master_id, member_ids)
+            count += 1
+            logger.info(f"  ✓ {master_id} ({len(member_ids)} members)")
+        except Exception as e:
+            errors += 1
+            logger.error(f"  ✗ {mf.name}: {e}")
+
+    logger.info(f"Rebuild complete: {count} OK, {errors} errors.")
+    return count

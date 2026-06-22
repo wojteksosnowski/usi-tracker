@@ -131,18 +131,37 @@ class InvestmentRepository:
 
     def get_master_data(self, master_id: str, inv_dir: Path) -> tuple[list, str | None]:
         """
-        Wczytuje lokalny rekord scalenia Master (T3) przy użyciu globalnego mechanizmu.
-        Zwraca listę jednostek składowych oraz kanoniczny identyfikator Master (primary_id).
+        Wczytuje plik master z USImaster/ i zwraca wzbogaconą listę members.
+        Każdy member: {usi_inv_id, name, portal} — dane z gorącego indeksu RAM.
         """
         from python_worker.investment_merger import InvestmentMerger
         im = InvestmentMerger(self.data_dir)
-        
-        # Omijamy primary_id i pozwalamy na wyszukanie w indeksie
-        master_data, master_path = im._load_master_file(master_id)
-        
+        master_data, _ = im._load_master_file(master_id)
+
         if not master_data:
             return [], None
-            
-        members = master_data.get("members", [])
-        master_usi_inv_id = members[0].get("usi_inv_id") if members else None
-        return members, master_usi_inv_id
+
+        raw_members = master_data.get("members", [])
+        if not raw_members:
+            return [], None
+
+        # Wzbogacenie o name/portal z gorącego indeksu RAM (O(1) per member)
+        from python_worker.investment_index import get_investment_index
+        idx = get_investment_index()
+
+        enriched = []
+        for m in raw_members:
+            uid = m.get("usi_inv_id")
+            if not uid:
+                continue
+            entry = idx.get_by_id(uid) or {}
+            enriched.append({
+                "usi_inv_id": uid,
+                "name": entry.get("name") or uid,
+                "portal": entry.get("portal"),
+                "investment_slug": entry.get("investment_slug"),
+            })
+
+        master_usi_inv_id = enriched[0]["usi_inv_id"] if enriched else None
+        return enriched, master_usi_inv_id
+

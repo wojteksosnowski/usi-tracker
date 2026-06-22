@@ -30,19 +30,40 @@ class InvestmentIdentityResolver:
         return f"{portal}_{item_id}"
 
     def get_investment_resources(self, inv_id: str) -> Optional[Dict[str, Any]]:
+        # Master ID — bezpośrednia ścieżka do USImaster/
+        if inv_id and inv_id.startswith("IM-"):
+            from python_worker.investment_merger import _usi_master_dir, MASTER_FILE_PREFIX
+            master_path = _usi_master_dir() / f"{MASTER_FILE_PREFIX}{inv_id}.json"
+            if master_path.exists():
+                return {
+                    "id": inv_id,
+                    "type": "master",
+                    "base_dir": master_path.parent,
+                    "files": {"anchor": master_path, "meta": None, "logs": []},
+                    "images_dir": None,
+                    "metadata": {
+                        "portal": None,
+                        "portal_id": None,
+                        "developer_slug": "USImaster",
+                        "investment_slug": inv_id,
+                        "slug": f"USImaster/{inv_id}",
+                    },
+                }
+            return None
+
         from python_worker.investment_index import get_entry_by_id
         entry = get_entry_by_id(inv_id)
-        
+
         if not entry:
-            # Fallback if hot index is not yet populated or ID is new
             from python_worker.investment_index import load as load_index
             index = load_index(self.data_dir)
             entry = next((e for e in index if e.get("usi_inv_id") == inv_id), None)
-            
+
         if not entry:
             return None
 
         return self._map_resources_from_entry(entry)
+
 
     def _map_resources_from_entry(self, entry: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         usi_inv_id = entry.get("usi_inv_id")
