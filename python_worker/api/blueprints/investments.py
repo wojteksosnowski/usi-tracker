@@ -501,8 +501,8 @@ def discover_developer_investments(usi_dev_id):
 @investments_bp.route("/investment/<system_id>/merge", methods=["POST"])
 def merge_investment(system_id):
     """
-    Łączy secondary_id w grupę primaryną system_id.
-    Zwraca odświeżone dane primarynego rekordu — front NIE przeładowuje strony.
+    Dołącza source_id do grupy system_id.
+    Zwraca odświeżone dane rekordu — front NIE przeładowuje strony.
     """
     payload = request.get_json() or {}
     source_id = payload.get("source_id")
@@ -512,10 +512,10 @@ def merge_investment(system_id):
     from python_worker.investment_merger import InvestmentMerger
     im = InvestmentMerger()
 
-    if not im.merge_by_id(primary_inv_id=system_id, secondary_inv_id=source_id):
+    if not im.merge_by_id(target_id=system_id, source_id=source_id):
         return jsonify({"ok": False, "error": "Merge failed — check server logs"}), 422
 
-    # Zwracamy zaktualizowane dane primarynego, żeby front mógł odświeżyć widok w miejscu
+    # Zwracamy zaktualizowane dane, żeby front mógł odświeżyć widok w miejscu
     updated = investment_service.get_investment(system_id)
     return jsonify({"ok": True, "updated": updated})
 
@@ -523,8 +523,7 @@ def merge_investment(system_id):
 @investments_bp.route("/investment/<system_id>/unmerge", methods=["POST"])
 def unmerge_investment(system_id):
     """
-    Usuwa secondary_id z grupy primarynej system_id.
-    system_id = primary_inv_id, source_id = secondary_inv_id do usunięcia.
+    Usuwa source_id z grupy wskazanej przez system_id.
     """
     payload = request.get_json() or {}
     source_id = payload.get("source_id")
@@ -534,7 +533,7 @@ def unmerge_investment(system_id):
     from python_worker.investment_merger import InvestmentMerger
     im = InvestmentMerger()
 
-    if not im.unmerge_by_id(primary_inv_id=system_id, secondary_inv_id=source_id):
+    if not im.unmerge_by_id(target_id=system_id, source_id=source_id):
         return jsonify({"ok": False, "error": "Unmerge failed — check server logs"}), 422
 
     updated = investment_service.get_investment(system_id)

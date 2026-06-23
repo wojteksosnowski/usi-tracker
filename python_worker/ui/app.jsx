@@ -407,7 +407,6 @@
                       <div className="usi-divider-v" />
                     </>
                   )}
-                  {window.SourceLinks && <window.SourceLinks inv={selectedInv} />}
                   <div className="usi-divider-v" />
                   <div className="mode-switch">
                     <button

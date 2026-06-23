@@ -1,3 +1,12 @@
+## Wersja 0.10.1 — Master Record Rendering Fix — 2026-06-23
+
+### Naprawiono
+- **Indeks memberów grup**: Naprawiono krytyczny błąd, w którym rekordy składowe (INV-XXXXX należące do grupy IM-XXXX) były pomijane podczas budowania `_index.json`. Indeksowanie przekierowywało natychmiast do mastera (przez `fast_index + master_id redirect`), co uniemożliwiało `_save_master` dostęp do danych memberów i skutkowało pustymi plikami `inv_master_*.json`.
+- **Agregacja metadanych mastera**: Poprawiono odczyt nazwy, dewelopera, lokalizacji, źródeł, specyfikacji i udogodnień dla plików `IM-XXXX`. Plik mastera jest teraz prawidłowo zasilany z pełnych danych wszystkich memberów.
+- **Agregacja udogodnień**: `_save_master` poprawnie deduplikuje i scala `amenities.labels`, `amenities.raw_codes` oraz `amenities_score` ze wszystkich rekordów składowych.
+- **SourceLinks w ActionBar**: Usunięto niepotrzebne przyciski URL portali z paska akcji (`ActionBar`). Przyciski portali wyświetlane są wyłącznie w `HeroBand`.
+- **`rebuild-masters`**: Przebudowano wszystkie 20 plików masterów, zasilając je poprawnymi metadanymi.
+
 ## Wersja 0.10.0 — Architektura Płaska (Refaktoryzacja) — 2026-06-22
 
 ### Zmieniono

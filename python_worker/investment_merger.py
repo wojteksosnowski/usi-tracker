@@ -135,10 +135,14 @@ class InvestmentMerger:
             "ratings": {},
             "status": "Brak",
             "usi_dev_id": None,
+            "amenities": {"labels": [], "raw_codes": []},
+            "amenities_score": 0,
         }
 
         seen_images: set[str] = set()
         seen_amenities: set[str] = set()
+        seen_amenity_labels: set[str] = set()
+        seen_amenity_codes: set[str] = set()
         amenities_matched: list = []
         w_sums = {"price_min": 0.0, "price_max": 0.0, "price_m2_min": 0.0, "price_m2_max": 0.0}
         w_counts = {k: 0 for k in w_sums}
@@ -232,13 +236,28 @@ class InvestmentMerger:
                     except (ValueError, TypeError):
                         pass
 
-            # Amenities
+            # Amenities matched
             d_am = d.get("amenities_matched", [])
             for am in d_am:
                 code = am.get("code") if isinstance(am, dict) else am
                 if code and code not in seen_amenities:
                     seen_amenities.add(code)
                     amenities_matched.append(am)
+
+            # Amenities
+            d_am_obj = d.get("amenities", {})
+            for label in d_am_obj.get("labels", []):
+                if label not in seen_amenity_labels:
+                    seen_amenity_labels.add(label)
+                    master["amenities"]["labels"].append(label)
+            for raw_code in d_am_obj.get("raw_codes", []):
+                if raw_code not in seen_amenity_codes:
+                    seen_amenity_codes.add(raw_code)
+                    master["amenities"]["raw_codes"].append(raw_code)
+            
+            # Amenities score
+            if "amenities_score" in d:
+                master["amenities_score"] = max(master["amenities_score"], d["amenities_score"])
 
             # Images
             for img in d.get("image_paths", []):

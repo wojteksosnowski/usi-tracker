@@ -192,9 +192,9 @@ class InvestmentLoaderService:
         try:
             usi = json.loads(usi_file.read_text(encoding="utf-8"))
 
-            # INV-XXXXX z master_id — przekieruj ładowanie do mastera
+            # INV-XXXXX z master_id — przekieruj ładowanie do mastera, CHYBA ŻE budujemy indeks (fast_index)
             master_id_in_file = usi.get("master_id")
-            if master_id_in_file and system_id and not system_id.startswith("IM-"):
+            if master_id_in_file and system_id and not system_id.startswith("IM-") and not fast_index:
                 logger.debug(f"Redirecting {system_id} → master {master_id_in_file}")
                 return self.load_investment(system_id=master_id_in_file, fast_index=fast_index)
 

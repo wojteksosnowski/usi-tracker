@@ -249,9 +249,6 @@ class InvestmentIndex:
                     usi_inv_id = data.get("usi_inv_id") or data.get("usi_id")
                     if not usi_inv_id:
                         continue
-                    # Pomiń members grup
-                    if usi_inv_id in master_member_ids or data.get("master_id"):
-                        continue
                     entry = _load_investment(system_id=usi_inv_id, usi_file=usi_file, fast_index=True)
                     if entry:
                         entry.pop("image_urls", None)
@@ -289,33 +286,22 @@ class InvestmentIndex:
         self._load_from_disk()
 
         with self._index_lock:
-            master_id = metadata.get("master_id")
-
-            if master_id and not usi_id.startswith("IM-"):
-                # To jest member grupy — usuń go z indeksu (master go zastępuje)
-                self._index.pop(usi_id, None)
-                ds = metadata.get("developer_slug")
-                is_ = metadata.get("investment_slug")
-                if ds and is_:
-                    self._slug_map.pop(f"{ds}/{is_}", None)
-                self._save_to_disk()
-            else:
-                entry = metadata.copy()
-                entry["usi_inv_id"] = usi_id
-                if not entry.get("investment_slug"):
-                    entry["investment_slug"] = usi_id
-                if not entry.get("folder_path"):
-                    if usi_id.startswith("IM-"):
-                        entry["folder_path"] = "Public/USImaster"
-                    else:
-                        entry["folder_path"] = f"Public/USIdata/{metadata.get('developer_slug', 'unknown')}/{usi_id}"
-                entry["updated_at"] = datetime.now().isoformat()
-                self._index[usi_id] = entry
-                ds = entry.get("developer_slug")
-                is_ = entry.get("investment_slug")
-                if ds and is_:
-                    self._slug_map[f"{ds}/{is_}"] = entry
-                self._save_to_disk()
+            entry = metadata.copy()
+            entry["usi_inv_id"] = usi_id
+            if not entry.get("investment_slug"):
+                entry["investment_slug"] = usi_id
+            if not entry.get("folder_path"):
+                if usi_id.startswith("IM-"):
+                    entry["folder_path"] = "Public/USImaster"
+                else:
+                    entry["folder_path"] = f"Public/USIdata/{metadata.get('developer_slug', 'unknown')}/{usi_id}"
+            entry["updated_at"] = datetime.now().isoformat()
+            self._index[usi_id] = entry
+            ds = entry.get("developer_slug")
+            is_ = entry.get("investment_slug")
+            if ds and is_:
+                self._slug_map[f"{ds}/{is_}"] = entry
+            self._save_to_disk()
 
         self._notify_change()
 
@@ -339,7 +325,10 @@ class InvestmentIndex:
     def get_all(self) -> List[Dict]:
         """Zwraca wszystkie indeksowane inwestycje — mastery zamiast ich memberów."""
         self._load_from_disk()
-        return list(self._index.values())
+        return [
+            v for v in self._index.values() 
+            if not (v.get("master_id") and not str(v.get("usi_inv_id", "")).startswith("IM-"))
+        ]
 
     def get_by_id(self, inv_id: str) -> Optional[Dict]:
         self._load_from_disk()
