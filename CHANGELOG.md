@@ -1,4 +1,4 @@
-## Wersja 0.10.5 — DB I/O Optimization — 2026-06-23
+## Wersja 0.10.6 — Architecture & Atomicity Refactoring — 2026-06-23
 
 ### Usunięto
 - **Usunięto `db.py`**: Zlikwidowano pseudo-O(1) moduł bazy danych, który rzekomo gwarantował szybki lookup, a pod maską przy każdym wywołaniu parsująco ładował z dysku cały plik `_index.json`.
