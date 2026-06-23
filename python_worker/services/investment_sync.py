@@ -153,6 +153,9 @@ class InvestmentSyncService:
                 p = Path(resolved)
                 dev_slug = dev_slug or p.parent.name
                 inv_slug = inv_slug or p.name
+            else:
+                dev_slug = dev_slug or "unknown"
+                inv_slug = inv_slug or f"inv-{item_id}"
         
         if not dev_slug or not inv_slug:
             raise ValueError(f"Nie udało się wyznaczyć slugów dla {portal}/{item_id}")

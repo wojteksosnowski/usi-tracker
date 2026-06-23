@@ -1,3 +1,11 @@
+## Wersja 0.10.7 — Strict ID Fallback Rule Enforcement — 2026-06-23
+
+### Dodano
+- **Test wymuszający regułę ID-only**: Dodano `tests/test_id_strictness_violation.py`, który weryfikuje twardy kontrakt biznesowy: jeśli wyszukiwanie po ID nie powiedzie się, inwestycja musi zostać przeniesiona do folderu `unknown/`, a nie dopasowywana na podstawie heurystyki nazwy dewelopera (tzw. No Name-based Developer Fallback).
+
+### Zmieniono
+- **Zabezpieczenie przed slugify()**: W serwisie synchronizacji inwestycji (`investment_sync.py`) usunięto próbę generowania paska dewelopera z użyciem funkcji `slugify()`. Użyto bezpiecznego, opartego na ID rozwiązania zastępczego (`inv-{item_id}`), zgodnie z architektonicznymi dyrektywami `slug-police`.
+
 ## Wersja 0.10.6 — Architecture & Atomicity Refactoring — 2026-06-23
 
 ### Usunięto
