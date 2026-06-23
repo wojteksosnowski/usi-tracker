@@ -1,5 +1,10 @@
-## Wersja 0.10.3 — Test Cleanup & Index Fix — 2026-06-23
+## Wersja 0.10.4 — UI Fixes — 2026-06-23
 
+### Naprawiono
+- **Widok szczegółowy (UI)**: Naprawiono błąd znikających metadanych i minimapki podczas ładowania dużych galerii zdjęć. Stan komponentu poprawnie łączy teraz zahasowane pola indeksu z surowymi danymi z API (`{ ...prev, ...data }`).
+- **Skład grupy (Master UI)**: Wzbogacono tablicę `members` w `InvestmentMerger` o nazwy portali, nazwy osiedli i slug, co pozwala widokowi głównemu Mastera na prawidłowe renderowanie komponentów z oznaczeniami portali (badge) i odnośnikami.
+
+## Wersja 0.10.3 — Test Cleanup & Index Fix — 2026-06-23
 ### Naprawiono
 - Poprawiono odniesienie do usuniętego pola `folder_path` w `InvestmentIdentityResolver` na prawidłowe `file_path`, zgodne z nowym indeksem zapisanym w _index.json. 
 
