@@ -109,75 +109,63 @@ def update_developer_profile(dev_slug: str):
 def backfill_usi_ids():
     """
     Scans all developers and investments, assigning missing usi_dev_id and usi_inv_id.
-    Strictly follows the ID-only rule, ignoring slugs for identity mapping.
+    Strictly follows the ID-only rule, utilizing official repositories and resolvers.
     """
-    dm = DeveloperManager(USI_DATA_DIR, USI_DEV_DIR)
+    from python_worker.developer_manager import DeveloperManager
+    from python_worker.config import get_shared_repository
     
-    # 1. Backfill Developers
+    dm = DeveloperManager(USI_DATA_DIR, USI_DEV_DIR)
+    repo = get_shared_repository()
+    
     logger.info("Backfilling developer IDs...")
     dev_count = 0
-    # Mapping structure: portal -> portal_id -> usi_dev_id
     id_map = {
         "rp": {},  # vendor_id -> usi_dev_id
         "oto": {}, # agency_id -> usi_dev_id
         "to": {}   # developer_id -> usi_dev_id
     }
     
-    # Use rglob to find files in subdirectories (new canonical structure)
-    for dev_file in USI_DEV_DIR.rglob("usi_dev_*.json"):
-        try:
-            with open(dev_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
+    devs = dm.list_developers()
+    for dev in devs:
+        dev_id = dev.get("usi_dev_id")
+        updated = False
+        if not dev_id:
+            dev_id = dm.generate_usi_id("DEV")
+            dev["usi_dev_id"] = dev_id
+            updated = True
+        
+        pm = dev.get("portal_mapping", {})
+        
+        rp_p = pm.get("rp") or {}
+        if rp_p.get("id"): id_map["rp"][str(rp_p["id"])] = dev_id
+        
+        oto_p = pm.get("oto") or {}
+        agency_ids = oto_p.get("agency_ids") or ([oto_p.get("agency_id")] if oto_p.get("agency_id") else [])
+        for aid in agency_ids:
+            if aid: id_map["oto"][str(aid)] = dev_id
             
-            updated = False
-            if "usi_dev_id" not in data:
-                data["usi_dev_id"] = dm.generate_usi_id("DEV")
-                updated = True
-            
-            dev_id = data["usi_dev_id"]
-            pm = data.get("portal_mapping", {})
-            
-            # Map RP IDs
-            rp_p = pm.get("rp") or {}
-            rp_id = rp_p.get("id")
-            if rp_id: id_map["rp"][str(rp_id)] = dev_id
-            
-            # Map Otodom IDs
-            oto_p = pm.get("oto") or {}
-            agency_ids = oto_p.get("agency_ids") or ([oto_p.get("agency_id")] if oto_p.get("agency_id") else [])
-            for aid in agency_ids:
-                if aid: id_map["oto"][str(aid)] = dev_id
-                
-            # Map TO IDs
-            to_p = pm.get("to") or {}
-            to_id = to_p.get("id")
-            if to_id: id_map["to"][str(to_id)] = dev_id
-            
-            if updated:
-                with open(dev_file, "w", encoding="utf-8") as f:
-                    json.dump(data, f, indent=2, ensure_ascii=False)
-                dev_count += 1
-        except Exception as e:
-            logger.error(f"Error backfilling developer {dev_file}: {e}")
+        to_p = pm.get("to") or {}
+        if to_p.get("id"): id_map["to"][str(to_p["id"])] = dev_id
+
+        if updated:
+            dm.repo.create_developer_file(dev)
+            dev_count += 1
             
     logger.info(f"Updated {dev_count} developer records with new USI IDs.")
 
-    # 2. Backfill Investments
     logger.info("Backfilling investment IDs...")
     inv_count = 0
-    for inv_file in USI_DATA_DIR.rglob("usi_*.json"):
-        if inv_file.name.startswith("usi_dev_"):
-            continue
-            
+    
+    all_inv_ids = repo.get_all_system_ids()
+    for inv_id in all_inv_ids:
         try:
-            with open(inv_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            data = repo.get_investment_json(inv_id)
+            if not data: continue
             
             updated = False
             sources = data.get("sources", {})
             matched_dev_id = None
             
-            # Attempt to find developer ID via portal IDs (ID-only priority)
             if "rp" in sources:
                 vendor_id = sources["rp"].get("vendor_id")
                 if vendor_id and str(vendor_id) in id_map["rp"]:
@@ -189,25 +177,23 @@ def backfill_usi_ids():
                     matched_dev_id = id_map["oto"][str(agency_id)]
                     
             if not matched_dev_id and "to" in sources:
-                dev_id = sources["to"].get("developer_id")
-                if dev_id and str(dev_id) in id_map["to"]:
-                    matched_dev_id = id_map["to"][str(dev_id)]
+                dev_to_id = sources["to"].get("developer_id")
+                if dev_to_id and str(dev_to_id) in id_map["to"]:
+                    matched_dev_id = id_map["to"][str(dev_to_id)]
             
             if matched_dev_id and data.get("usi_dev_id") != matched_dev_id:
                 data["usi_dev_id"] = matched_dev_id
                 updated = True
             
-            # Backfill Investment ID (MANDATORY)
             if "usi_inv_id" not in data:
                 data["usi_inv_id"] = dm.generate_usi_id("INV")
                 updated = True
             
             if updated:
-                with open(inv_file, "w", encoding="utf-8") as f:
-                    json.dump(data, f, indent=2, ensure_ascii=False)
+                repo.save_investment_json(inv_id, data)
                 inv_count += 1
         except Exception as e:
-            logger.error(f"Error backfilling investment {inv_file}: {e}")
+            logger.error(f"Error backfilling investment {inv_id}: {e}")
             
     logger.info(f"Updated {inv_count} investment records with new USI IDs.")
 
