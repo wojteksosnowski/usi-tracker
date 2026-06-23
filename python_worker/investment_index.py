@@ -173,7 +173,17 @@ class InvestmentIndex:
             if abs(lat2 - lat) > delta_lat or abs(lon2 - lon) > delta_lon:
                 continue
 
-            # KROK 2: Dokładne obliczenie odległości (tylko dla obiektów wewnątrz pudełka)
+            master_id = inv.get("master_id")
+            
+            # Jeśli to element grupy, podmień status i oceny na te z mastera (single source of truth)
+            inv_status = inv.get("status")
+            inv_ratings = inv.get("ratings", {})
+            if master_id and str(master_id).startswith("IM-"):
+                master_inv = self.get_by_id(master_id)
+                if master_inv:
+                    inv_status = master_inv.get("status", inv_status)
+                    inv_ratings = master_inv.get("ratings", inv_ratings)
+
             dist = _calculate_distance(lat, lon, lat2, lon2)
             if dist <= max_dist_km:
                 nearby.append({
@@ -186,8 +196,9 @@ class InvestmentIndex:
                     "city": inv.get("city"),
                     "coords": coords,
                     "source": inv.get("source"),
-                    "status": inv.get("status"),
-                    "ratings": inv.get("ratings", {})
+                    "status": inv_status,
+                    "master_id": master_id,
+                    "ratings": inv_ratings
                 })
 
         # Sortowanie według dystansu i nałożenie limitu

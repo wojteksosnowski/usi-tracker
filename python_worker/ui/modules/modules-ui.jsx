@@ -252,6 +252,7 @@
         {items.map(i => {
           const targetId = i.usi_inv_id || i.id;
           const indexInv = fastIndex[targetId];
+
           let ratings = (indexInv && indexInv.ratings) ? indexInv.ratings : null;
           if (!ratings && bus && bus.ratingsMap) {
             ratings = bus.ratingsMap[targetId];
@@ -267,7 +268,7 @@
           const sourceCls = srcStr === 'OTO' || srcStr === 'oto' || srcStr === 'otodom' ? 'oto'
             : (srcStr === 'RP' || srcStr === 'rp' ? 'rp' : (srcStr ? 'to' : ''));
 
-          const itemStatus = i.status || (indexInv && indexInv.status);
+          const itemStatus = (indexInv && indexInv.status) || i.status;
           const isAi = itemStatus === 'AI';
           const isMerging = merging === targetId;
 
