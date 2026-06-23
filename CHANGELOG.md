@@ -4,6 +4,7 @@
 - **Usunięto `db.py`**: Zlikwidowano pseudo-O(1) moduł bazy danych, który rzekomo gwarantował szybki lookup, a pod maską przy każdym wywołaniu parsująco ładował z dysku cały plik `_index.json`.
 
 ### Zmieniono
+- **SRP w `DeveloperRepository`**: Usunięto antywzorzec wstrzykiwania `DeveloperService` oraz skanowania katalogów (`unregistered_count`) z głębinowej metody `_enrich_with_master`. Logika ta, powodująca I/O thrashing na liście deweloperów, została wyodrębniona i przypięta poprawnie w warstwie biznesowej do `DeveloperService.get_developer_enriched`.
 - **Atomowy zapis JSON (DRY)**: Wydzielono logikę atomowego zapisu (via `tempfile.mkstemp` i `os.replace`) do uniwersalnego modułu `python_worker/utils.py` jako funkcję `write_json_atomically`. Zastosowano w całym repozytorium (m.in. `investment_repository.py` dla plików inwestycji, ratingów i poi), zapobiegając ucięciu plików.
 - **Bezpieczeństwo danych deweloperów**: Naprawiono niebezpieczne, bezpośrednie nadpisywanie plików dewelopera w `developer_repository.py` (brakowało atomowości przy zapisach poziomu Master oraz plików portalowych). Teraz używają one `write_json_atomically`.
 - Wszystkie procesy i endpointy API (dotychczas polegające na `db.load_investment`) zostały przeniesione na natywne korzystanie z `InvestmentRepository` (współdzielonego globalnie przez `python_worker/config.py`). Eliminuje to katastrofalny narzut I/O i odciąża CPU przy operacjach odczytu pojedynczych plików.

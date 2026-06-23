@@ -75,6 +75,20 @@ class DeveloperService:
         crawler["next_visit"] = "Wymaga uwagi" if maintenance_score > 500 else "Zintegrowany"
         dev["maintenance_overdue_score"] = maintenance_score
 
+        # Unregistered count calculation
+        try:
+            identifiers = self.dm.indexer.get_existing_identifiers()
+            dev_slug = dev.get("developer_slug", "")
+            dev_data_dir = self.data_dir / dev_slug
+            if dev_data_dir.is_dir():
+                unreg_count = self.dm.get_unregistered_count_from_dir(dev_data_dir, identifiers)
+            else:
+                unreg_count = self.dm.get_unregistered_count(dev_slug, identifiers)
+            dev["unregistered_count"] = unreg_count
+        except Exception as e:
+            logger.warning(f"Failed to calculate unregistered_count for {dev.get('developer_slug')}: {e}")
+            dev["unregistered_count"] = 0
+
         # Merged members
         base_pm = (dev.get("original_portal_mapping") or dev.get("portal_mapping") or {}).copy()
         valid_members = []

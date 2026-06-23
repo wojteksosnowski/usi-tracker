@@ -691,31 +691,9 @@ class DeveloperRepository:
         # 3. Crawler & Discovery stats
         dev["new_since_review"] = dev.get("new_since_review", 0)
         
-        # 4. Maintenance Score (Pre-compute for index)
-        try:
-            from python_worker.services.developer_service import DeveloperService
-            if not hasattr(self, "_dev_svc"):
-                self._dev_svc = DeveloperService(self.data_dir, self.dev_dir)
-            dev["maintenance_overdue_score"] = self._dev_svc.get_maintenance_overdue_score(dev)
-        except Exception:
-            dev["maintenance_overdue_score"] = 0
-
-        try:
-            if not hasattr(self, "_dev_mgr"):
-                from python_worker.developer_manager import DeveloperManager
-                self._dev_mgr = DeveloperManager(self.data_dir)
-            
-            if identifiers is None:
-                identifiers = {}
-                
-            dev_dir = self.data_dir / base_slug
-            if dev_dir.is_dir():
-                dev["unregistered_count"] = self._dev_mgr.get_unregistered_count_from_dir(dev_dir, identifiers)
-            else:
-                dev["unregistered_count"] = self._dev_mgr.get_unregistered_count(base_slug, identifiers)
-        except Exception as e:
-            logger.warning(f"Failed to get unregistered_count for {base_slug}: {e}")
-            dev["unregistered_count"] = 0
+        # 4. Maintenance Score (Przeniesione do DeveloperService)
+        dev["maintenance_overdue_score"] = 0
+        dev["unregistered_count"] = 0
 
         return dev
 
