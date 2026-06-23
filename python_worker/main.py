@@ -197,10 +197,21 @@ def backfill_usi_ids():
             
     logger.info(f"Updated {inv_count} investment records with new USI IDs.")
 
+def _resolve_system_id_from_slugs(dev_slug: str, inv_slug: str) -> str | None:
+    """Pobiera ID inwestycji z gorącego indeksu RAM bez dotykania dysku w pętli."""
+    from python_worker.investment_index import get_investment_index
+    try:
+        # get_investment_index() zwraca instancję managera indeksu
+        all_entries = get_investment_index().get_all()
+        for entry in all_entries:
+            if entry.get("developer_slug") == dev_slug and entry.get("investment_slug") == inv_slug:
+                return entry.get("usi_inv_id")
+    except Exception as e:
+        logger.error(f"Błąd podczas odczytu indeksu pamięci dla {dev_slug}/{inv_slug}: {e}")
+    return None
+
 def update_investment(dev_slug, inv_slug, use_local_raw=False):
     from python_worker.services.investment_service import InvestmentService
-    from python_worker.config import USI_DATA_DIR
-    import json
     import logging
     service = InvestmentService()
     
@@ -208,17 +219,7 @@ def update_investment(dev_slug, inv_slug, use_local_raw=False):
     if dev_slug.startswith("INV-"):
         return service.update_investment(dev_slug, use_local_raw=use_local_raw)
         
-    # Resolve system_id from index
-    index_path = USI_DATA_DIR / "_index.json"
-    system_id = None
-    if index_path.exists():
-        with open(index_path, "r", encoding="utf-8") as f:
-            index = json.load(f)
-            for entry in index.get("entries", []):
-                if entry.get("developer_slug") == dev_slug and entry.get("investment_slug") == inv_slug:
-                    system_id = entry.get("usi_inv_id")
-                    break
-                    
+    system_id = _resolve_system_id_from_slugs(dev_slug, inv_slug)
     if not system_id:
         logging.getLogger(__name__).error(f"Could not find USI ID for {dev_slug}/{inv_slug} in index")
         return False
@@ -353,10 +354,7 @@ def main():
             sys.exit(1)
             
         # Resolve ID from slugs via index
-        from .investment_index import load as load_index
-        index = load_index(USI_DATA_DIR)
-        entry = next((e for e in index if e.get("developer_slug") == dev_slug and e.get("investment_slug") == inv_slug), None)
-        system_id = entry.get("usi_inv_id") if entry else None
+        system_id = _resolve_system_id_from_slugs(dev_slug, inv_slug)
         
         if not system_id:
             logger.error(f"Could not find USI ID for {args.inv_path} in index")
