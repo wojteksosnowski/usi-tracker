@@ -305,10 +305,15 @@ class InvestmentMerger:
                 seen_photo_names.add(fname)
                 # Buduj URL API: /api/image/{dev_slug}/{inv_slug}/{filename}
                 try:
-                    rel = p.relative_to(public_usi)
-                    api_photos.append(f"/api/image/{rel.as_posix()}")
-                except ValueError:
-                    # Jeśli ścieżka jest absolutna i nie pasuje — pomiń
+                    parts = p.parts
+                    if 'USI' in parts:
+                        idx = parts.index('USI')
+                        rel = PurePath(*parts[idx+1:])
+                        api_photos.append(f"/api/image/{rel.as_posix()}")
+                    else:
+                        # Fallback for paths that don't explicitly have 'USI' as a folder part
+                        api_photos.append(f"/api/image/{p.parent.parent.name}/{p.parent.name}/{fname}")
+                except Exception:
                     pass
             except Exception:
                 pass
