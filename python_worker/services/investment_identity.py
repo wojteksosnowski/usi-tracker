@@ -114,16 +114,26 @@ class InvestmentIdentityResolver:
 
         inv_dir = None
         images_dir = None
-        folder_path = entry.get("folder_path")
         
-        if folder_path:
-            # Rozwiązanie ścieżki (folder_path np. 'Public/USIdata/slug')
+        file_path = entry.get("file_path")
+        if file_path:
+            # Rozwiązanie ścieżki (file_path to ścieżka do pliku od DROPBOX_PATH np. 'Public/USIdata/slug/usi_x.json')
             project_root = self.data_dir.parent.parent
-            candidate_dir = project_root / folder_path if not Path(folder_path).is_absolute() else Path(folder_path)
+            candidate_file = project_root / file_path if not Path(file_path).is_absolute() else Path(file_path)
+            candidate_dir = candidate_file.parent
             if candidate_dir.exists():
                 inv_dir = candidate_dir
                 # Zgodnie z GEMINI.md: struktury USIdata oraz USI muszą być spójne
                 images_dir = Path(str(candidate_dir).replace("USIdata", "USI"))
+        else:
+            # Fallback backward compatibility or when parsed directly from disk
+            folder_path = entry.get("folder_path")
+            if folder_path:
+                project_root = self.data_dir.parent.parent
+                candidate_dir = project_root / folder_path if not Path(folder_path).is_absolute() else Path(folder_path)
+                if candidate_dir.exists():
+                    inv_dir = candidate_dir
+                    images_dir = Path(str(candidate_dir).replace("USIdata", "USI"))
 
         if not inv_dir and self.tech_manager and portal and portal_id:
             inv_dir = self.tech_manager.get_investment_path(portal, str(portal_id))

@@ -44,6 +44,7 @@ def test_env(tmp_path):
     (img_dir / "photo.jpg").write_text("fake-image-data")
     
     return {
+        "base_dir": tmp_path,
         "public_dir": public_dir,
         "usi_data": usi_data,
         "usi_dev": usi_dev,
@@ -57,14 +58,17 @@ def client(test_env, monkeypatch):
     """Configures the Flask client with the test environment."""
     # Monkeypatch config in all relevant places
     dirs = {
-        "python_worker.config.USI_DATA_DIR": str(test_env["usi_data"]),
-        "python_worker.config.PUBLIC_USI_DIR": str(test_env["public_dir"]),
-        "python_worker.config.USI_DEV_DIR": str(test_env["usi_dev"]),
-        "python_worker.api.blueprints.investments.USI_DATA_DIR": str(test_env["usi_data"]),
-        "python_worker.api.blueprints.investments.PUBLIC_USI_DIR": str(test_env["public_dir"]),
-        "python_worker.api.blueprints.investments.USI_DEV_DIR": str(test_env["usi_dev"]),
-        "python_worker.investment_index.USI_DATA_DIR": str(test_env["usi_data"]),
-        "python_worker.investment_index.PUBLIC_USI_DIR": str(test_env["public_dir"]),
+        "python_worker.config.DROPBOX_PATH": test_env["base_dir"],
+        "python_worker.config.USI_DATA_DIR": test_env["usi_data"],
+        "python_worker.config.PUBLIC_USI_DIR": test_env["public_dir"],
+        "python_worker.config.USI_DEV_DIR": test_env["usi_dev"],
+        "python_worker.api.blueprints.investments.USI_DATA_DIR": test_env["usi_data"],
+        "python_worker.api.blueprints.investments.PUBLIC_USI_DIR": test_env["public_dir"],
+        "python_worker.api.blueprints.investments.USI_DEV_DIR": test_env["usi_dev"],
+        "python_worker.investment_index.USI_DATA_DIR": test_env["usi_data"],
+        "python_worker.investment_index.PUBLIC_USI_DIR": test_env["public_dir"],
+        "python_worker.db._BASE_PATH": test_env["base_dir"],
+        "python_worker.db._INDEX_PATH": test_env["usi_data"] / "_index.json",
     }
     for k, v in dirs.items():
         try:
@@ -84,11 +88,9 @@ def client(test_env, monkeypatch):
     from python_worker.api.blueprints import investments
     from python_worker.developer_manager import DeveloperManager
     from python_worker.services.developer_service import DeveloperService
-    from python_worker.services.investment_service import InvestmentService
     
     investments.developer_manager = DeveloperManager(test_env["usi_data"], test_env["usi_dev"])
     investments.developer_service = DeveloperService(test_env["usi_data"], test_env["usi_dev"])
-    investments.investment_service = InvestmentService(data_dir=test_env["usi_data"])
     
     # Also update the index references if they are used internally by services
     investments.inv_index.USI_DATA_DIR = test_env["usi_data"]

@@ -1,3 +1,11 @@
+## Wersja 0.10.3 — Test Cleanup & Index Fix — 2026-06-23
+
+### Naprawiono
+- Poprawiono odniesienie do usuniętego pola `folder_path` w `InvestmentIdentityResolver` na prawidłowe `file_path`, zgodne z nowym indeksem zapisanym w _index.json. 
+
+### Usunięto
+- Usunięto przestarzałe pliki z testami weryfikujące martwy kod oraz warstwy usług i algorytmów usunięte w wersjach 0.10.2 oraz starszych (np. stary `DeveloperMatcher` ładujący wszystko do RAMu, `InvestmentService`).
+
 ## Wersja 0.10.2 — Radykalne uproszczenie stosu danych — 2026-06-23
 
 ### Usunięto
