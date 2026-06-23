@@ -13,9 +13,8 @@ from python_worker.jobs import job_manager
 from python_worker.api.utils import _valid_slug, _valid_filename, get_anchor_path, update_anchor_json, filter_investments
 import python_worker.developer_index as dev_index
 import python_worker.investment_index as inv_index
-from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR, USI_DEV_DIR, get_shared_config, get_shared_fetcher, get_shared_tech_manager
+from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR, USI_DEV_DIR, get_shared_config, get_shared_fetcher, get_shared_tech_manager, get_shared_repository
 from usi_scrapers import api as scraper_api
-import python_worker.db as db
 
 logger = logging.getLogger(__name__)
 
@@ -197,7 +196,7 @@ def get_investment_data(system_id):
     """Pobiera dane inwestycji. O(1) — bezpośredni odczyt pliku JSON z indeksu."""
     if not system_id:
         abort(400)
-    entry = db.load_investment(system_id)
+    entry = get_shared_repository().get_investment_json(system_id)
     if entry:
         response = jsonify(entry)
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
@@ -222,7 +221,7 @@ def save_deletion_list(system_id):
     if not isinstance(paths, list):
         abort(400, "paths must be a list")
 
-    data = db.load_investment(system_id)
+    data = get_shared_repository().get_investment_json(system_id)
     if not data:
         abort(404, "Investment not found")
 
@@ -231,8 +230,11 @@ def save_deletion_list(system_id):
     data["photos"] = [p for p in data.get("photos", []) if p not in paths_set]
     data.pop("photos_to_delete", None)  # usuń legacy pole
 
-    if not db.save_investment(system_id, data):
-        abort(500, "Failed to save")
+    try:
+        get_shared_repository().save_investment_json(system_id, data)
+    except Exception as e:
+        logger.error(f"Failed to save investment {system_id}: {e}")
+        return jsonify({"error": "Failed to save data"}), 500
 
     inv_index.upsert(USI_DATA_DIR, None, inv_id=system_id)
     removed = original_count - len(data["photos"])
@@ -244,12 +246,12 @@ def reload_investment(system_id):
     if not success:
         return jsonify({"ok": False, "error": "Failed to update"}), 500
     inv_index.upsert(USI_DATA_DIR, None, inv_id=system_id)
-    updated_inv = db.load_investment(system_id)
+    updated_inv = get_shared_repository().get_investment_json(system_id)
     return jsonify({"ok": True, "investment": updated_inv})
 
 @investments_bp.route("/investment/<system_id>/recalc-nearby", methods=["POST"])
 def recalc_nearby(system_id):
-    inv = db.load_investment(system_id)
+    inv = get_shared_repository().get_investment_json(system_id)
     if not inv:
         abort(404)
     return jsonify({"ok": True, "investment": inv})
@@ -270,7 +272,7 @@ def open_investment_folder(system_id):
 
 @investments_bp.route("/investment/<system_id>/refresh", methods=["POST"])
 def refresh_investment_route(system_id):
-    inv = db.load_investment(system_id)
+    inv = get_shared_repository().get_investment_json(system_id)
     if not inv:
         abort(404)
 
@@ -298,7 +300,7 @@ def refresh_investment_route(system_id):
 @investments_bp.route("/investment/<system_id>/download-raw", methods=["POST"])
 def download_raw_route(system_id):
     try:
-        data = db.load_investment(system_id)
+        data = get_shared_repository().get_investment_json(system_id)
         if not data:
             abort(404)
         sources = data.get("sources", {})
@@ -493,7 +495,7 @@ def merge_investment(system_id):
     im = InvestmentMerger()
     if not im.merge_by_id(target_id=system_id, source_id=source_id):
         return jsonify({"ok": False, "error": "Merge failed — check server logs"}), 422
-    updated = db.load_investment(system_id)
+    updated = get_shared_repository().get_investment_json(system_id)
     return jsonify({"ok": True, "updated": updated})
 
 
@@ -507,7 +509,7 @@ def unmerge_investment(system_id):
     im = InvestmentMerger()
     if not im.unmerge_by_id(target_id=system_id, source_id=source_id):
         return jsonify({"ok": False, "error": "Unmerge failed — check server logs"}), 422
-    updated = db.load_investment(system_id)
+    updated = get_shared_repository().get_investment_json(system_id)
     return jsonify({"ok": True, "updated": updated})
 
 

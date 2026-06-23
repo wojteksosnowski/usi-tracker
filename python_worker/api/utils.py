@@ -19,10 +19,10 @@ def load_json(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 def _load_investment(system_id: str = None, *args, **kwargs):
-    """Wrapper kompatybilności — deleguje do db.load_investment()."""
-    import python_worker.db as db
+    """Wrapper kompatybilności — deleguje do InvestmentRepository."""
+    from python_worker.config import get_shared_repository
     sid = system_id or kwargs.get("system_id")
-    return db.load_investment(sid) if sid else None
+    return get_shared_repository().get_investment_json(sid) if sid else None
 
 def _valid_slug(s: str) -> bool:
     return bool(s) and bool(re.match(r"^[a-zA-Z0-9_-]+$", s))

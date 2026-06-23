@@ -1,5 +1,12 @@
-## Wersja 0.10.4 — UI Fixes — 2026-06-23
+## Wersja 0.10.5 — DB I/O Optimization — 2026-06-23
 
+### Usunięto
+- **Usunięto `db.py`**: Zlikwidowano pseudo-O(1) moduł bazy danych, który rzekomo gwarantował szybki lookup, a pod maską przy każdym wywołaniu parsująco ładował z dysku cały plik `_index.json`.
+
+### Zmieniono
+- Wszystkie procesy i endpointy API (dotychczas polegające na `db.load_investment`) zostały przeniesione na natywne korzystanie z `InvestmentRepository` (współdzielonego globalnie przez `python_worker/config.py`). Eliminuje to katastrofalny narzut I/O i odciąża CPU przy operacjach odczytu pojedynczych plików.
+
+## Wersja 0.10.4 — UI Fixes — 2026-06-23
 ### Naprawiono
 - **Widok szczegółowy (UI)**: Naprawiono błąd znikających metadanych i minimapki podczas ładowania dużych galerii zdjęć. Stan komponentu poprawnie łączy teraz zahasowane pola indeksu z surowymi danymi z API (`{ ...prev, ...data }`).
 - **Skład grupy (Master UI)**: Wzbogacono tablicę `members` w `InvestmentMerger` o nazwy portali, nazwy osiedli i slug, co pozwala widokowi głównemu Mastera na prawidłowe renderowanie komponentów z oznaczeniami portali (badge) i odnośnikami.

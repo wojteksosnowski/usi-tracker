@@ -135,3 +135,14 @@ def get_shared_scraper_gateway():
         from python_worker.services.scraper_gateway import ScraperGateway
         _cached_gateway = ScraperGateway(get_shared_config(), get_shared_fetcher())
     return _cached_gateway
+
+_cached_repo = None
+
+def get_shared_repository():
+    global _cached_repo
+    if _cached_repo is None:
+        from python_worker.services.investment_identity import InvestmentIdentityResolver
+        from python_worker.investment_repository import InvestmentRepository
+        identity = InvestmentIdentityResolver(USI_DATA_DIR, Path(PUBLIC_USI_DIR).parent / "USI")
+        _cached_repo = InvestmentRepository(identity, USI_DATA_DIR)
+    return _cached_repo
