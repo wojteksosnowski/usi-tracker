@@ -151,7 +151,8 @@ class InvestmentMerger:
         # Preferuj dane z RP (portal hierarchia: rp > oto > to)
         portal_priority = {"rp": 0, "oto": 1, "to": 2}
 
-        for uid in [m["usi_inv_id"] for m in members]:
+        for member_meta in master["members"]:
+            uid = member_meta["usi_inv_id"]
             m_res = self._get_resources(uid)
             if not m_res:
                 continue
@@ -160,6 +161,10 @@ class InvestmentMerger:
                 continue
             try:
                 d = json.loads(anchor.read_text(encoding="utf-8"))
+                # Wzbogać meta o dane do podglądu składowych w UI
+                member_meta["portal"] = d.get("portal") or next(iter(d.get("sources", {}).keys()), None)
+                member_meta["name"] = d.get("name")
+                member_meta["investment_slug"] = d.get("investment_slug")
             except Exception as e:
                 logger.warning(f"Cannot read member {uid}: {e}")
                 continue
