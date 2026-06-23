@@ -235,20 +235,32 @@ class InvestmentService:
     # ---------------------------------------------------------
     def save_ratings(self, system_id, payload):
         success = self.editor.save_ratings(system_id, payload)
-        if success: self.invalidate_cache(system_id)
+        if success:
+            self.invalidate_cache(system_id)
+            import python_worker.investment_index as inv_index
+            inv_index.upsert(self.data_dir, self.public_usi_dir, inv_id=system_id)
         return success
 
     def mark_as_reviewed(self, system_id):
         success = self.editor.mark_as_reviewed(system_id)
-        if success: self.invalidate_cache(system_id)
+        if success:
+            self.invalidate_cache(system_id)
+            import python_worker.investment_index as inv_index
+            inv_index.upsert(self.data_dir, self.public_usi_dir, inv_id=system_id)
         return success
 
     def add_report(self, system_id, note):
         success = self.editor.add_report(system_id, note)
-        if success: self.invalidate_cache(system_id)
+        if success:
+            self.invalidate_cache(system_id)
+            import python_worker.investment_index as inv_index
+            inv_index.upsert(self.data_dir, self.public_usi_dir, inv_id=system_id)
         return success
 
     def mark_deleted_photos(self, system_id, paths):
         success = self.editor.mark_deleted_photos(system_id, paths)
-        if success: self.invalidate_cache(system_id)
+        if success:
+            self.invalidate_cache(system_id)
+            import python_worker.investment_index as inv_index
+            inv_index.upsert(self.data_dir, self.public_usi_dir, inv_id=system_id)
         return success
