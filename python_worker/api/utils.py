@@ -18,13 +18,11 @@ def load_json(path: Path):
     if not path or not path.exists(): return {}
     return json.loads(path.read_text(encoding="utf-8"))
 
-def _load_investment(*args, **kwargs):
-    # Support positional arg for system_id
-    if len(args) == 1:
-        kwargs['system_id'] = args[0]
-    
-    from python_worker.services.investment_loader import load_investment
-    return load_investment(**kwargs)
+def _load_investment(system_id: str = None, *args, **kwargs):
+    """Wrapper kompatybilności — deleguje do db.load_investment()."""
+    import python_worker.db as db
+    sid = system_id or kwargs.get("system_id")
+    return db.load_investment(sid) if sid else None
 
 def _valid_slug(s: str) -> bool:
     return bool(s) and bool(re.match(r"^[a-zA-Z0-9_-]+$", s))

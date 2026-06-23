@@ -279,28 +279,70 @@ class InvestmentMerger:
         master["amenities_matched"] = amenities_matched
         master.pop("_anchor_portal", None)
 
+        # Płaskie pola odczytywane bezpośrednio przez db.load_investment() i _build_index_entry()
+        # — żaden loader nie powinien ich interpretować w locie
+        loc = master.get("location", {})
+        master["city"] = loc.get("city")
+        master["district"] = loc.get("district") or loc.get("region")
+        master["address"] = loc.get("address")
+        master["coords"] = loc.get("coords") or (
+            [loc["latitude"], loc["longitude"]]
+            if loc.get("latitude") and loc.get("longitude") else None
+        )
+
+        # photos: gotowe URL API (identyczne jak w plikach member usi_*.json)
+        from python_worker.config import PUBLIC_USI_DIR
+        public_usi = PUBLIC_USI_DIR  # .../Public/USI
+        api_photos = []
+        seen_photo_names: set = set()
+        for img_path in master.get("image_paths", []):
+            try:
+                from pathlib import PurePath, Path as _Path
+                p = _Path(img_path)
+                fname = p.name
+                if fname in seen_photo_names:
+                    continue
+                seen_photo_names.add(fname)
+                # Buduj URL API: /api/image/{dev_slug}/{inv_slug}/{filename}
+                try:
+                    rel = p.relative_to(public_usi)
+                    api_photos.append(f"/api/image/{rel.as_posix()}")
+                except ValueError:
+                    # Jeśli ścieżka jest absolutna i nie pasuje — pomiń
+                    pass
+            except Exception:
+                pass
+        master["photos"] = api_photos
+
+        # Agenci indeksu potrzebują slug-ów do budowy file_path
+        # Bierzemy je z pierwszego membera, który je posiada
+        if not master.get("developer_slug") or not master.get("investment_slug"):
+            for uid in [m["usi_inv_id"] for m in members]:
+                m_res = self._get_resources(uid)
+                if m_res and m_res.get("metadata"):
+                    meta = m_res["metadata"]
+                    if not master.get("developer_slug"):
+                        master["developer_slug"] = meta.get("developer_slug")
+                    if not master.get("investment_slug"):
+                        master["investment_slug"] = meta.get("investment_slug")
+                    if master.get("developer_slug") and master.get("investment_slug"):
+                        break
+
         path = self._master_path(master_id)
         _atomic_write(path, master)
         logger.info(f"Master saved: {path.name} → {[m['usi_inv_id'] for m in members]}")
         return path
 
-
     def _upsert_index(self, inv_id: str) -> None:
-        """Aktualizuje gorący indeks RAM + dysk dla jednego rekordu. O(1), bez rglob."""
+        """Aktualizuje indeks RAM + dysk dla jednego rekordu."""
         import python_worker.investment_index as inv_index
-        from python_worker.api.utils import _load_investment
-        entry = _load_investment(system_id=inv_id, fast_index=True)
-        if entry:
-            entry.pop("image_urls", None)
-            entry.pop("nearby_investments", None)
-            inv_index.get_investment_index().add_or_update(inv_id, entry)
+        from python_worker.config import USI_DATA_DIR
+        inv_index.upsert(USI_DATA_DIR, None, inv_id=inv_id)
 
     def _invalidate_service_cache(self, inv_id: str) -> None:
-        try:
-            from python_worker.services.investment_service import investment_service
-            investment_service.invalidate_cache(inv_id)
-        except Exception as e:
-            logger.debug(f"Cache invalidation skipped for {inv_id}: {e}")
+        # Nie ma już cache serwisu — indeks jest źródłem prawdy
+        pass
+
 
     def get_group_members(self, inv_id: str) -> list[dict]:
         """

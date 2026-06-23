@@ -9,32 +9,45 @@ from urllib.parse import unquote
 from flask import Blueprint, jsonify, abort, request, send_file, redirect, send_from_directory
 from werkzeug.utils import safe_join
 
-from python_worker.services.investment_service import InvestmentService
 from python_worker.jobs import job_manager
 from python_worker.api.utils import _valid_slug, _valid_filename, get_anchor_path, update_anchor_json, filter_investments
 import python_worker.developer_index as dev_index
 import python_worker.investment_index as inv_index
 from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR, USI_DEV_DIR, get_shared_config, get_shared_fetcher, get_shared_tech_manager
 from usi_scrapers import api as scraper_api
+import python_worker.db as db
 
 logger = logging.getLogger(__name__)
 
-# Przeniesione z wnętrza funkcji stałe globalne (Zgodność z PEP 8)
 _PLACEHOLDER_DIR = Path(__file__).parent.parent.parent / "ui" / "assets"
 _PLACEHOLDER_FILE = _PLACEHOLDER_DIR / "image-placeholder.svg"
-
 
 investments_bp = Blueprint('investments', __name__)
 from python_worker.developer_manager import DeveloperManager
 from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
 from python_worker.services.developer_service import DeveloperService
 
-investment_service = InvestmentService()
 developer_manager = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
 developer_service = DeveloperService(Path(USI_DATA_DIR), Path(USI_DATA_DIR).parent / "USIdev")
 
-# Rejestracja po zmianie będzie bezpieczna - wyczyści tylko słownik RAM serwisu
-inv_index.on_change(investment_service.invalidate_cache)
+# Lazy-loaded sync service (tylko do rejestracji, odświeżeń, batch)
+def _get_sync():
+    from python_worker.services.investment_sync import InvestmentSyncService
+    from python_worker.services.investment_identity import InvestmentIdentityResolver
+    from python_worker.developer_manager import DeveloperManager
+    from python_worker.investment_repository import InvestmentRepository
+    identity = InvestmentIdentityResolver(Path(USI_DATA_DIR), Path(PUBLIC_USI_DIR).parent / "USI")
+    dm = DeveloperManager(USI_DATA_DIR)
+    repo = InvestmentRepository(identity, Path(USI_DATA_DIR))
+    return InvestmentSyncService(identity, Path(USI_DATA_DIR), Path(PUBLIC_USI_DIR).parent / "USI", dm, repo)
+
+def _get_editor():
+    from python_worker.services.investment_editor import InvestmentEditorService
+    from python_worker.services.investment_identity import InvestmentIdentityResolver
+    from python_worker.investment_repository import InvestmentRepository
+    identity = InvestmentIdentityResolver(Path(USI_DATA_DIR), Path(PUBLIC_USI_DIR).parent / "USI")
+    repo = InvestmentRepository(identity, Path(USI_DATA_DIR))
+    return InvestmentEditorService(identity, Path(USI_DATA_DIR), Path(PUBLIC_USI_DIR).parent / "USI", repo)
 
 _list_dev_cache = {} # Map full_path -> {"data": result, "timestamp": ts}
 _list_dev_lock = threading.Lock()
@@ -119,25 +132,18 @@ def _parse_investment_filters(req) -> dict:
 
 @investments_bp.route("/investments", methods=["GET"])
 def list_investments():
-    from python_worker.services.investment_service import InvestmentService
-    service = InvestmentService()
-    
     filters = _parse_investment_filters(request)
     print(f"DEBUG FILTERS: {filters}")
     try:
-        results = service.list_investments_filtered(**filters)
-        
-        # Odtworzenie struktury wymaganej przez data.jsx
         all_invs = inv_index.load(Path(USI_DATA_DIR)) or []
+        results = filter_investments(all_invs, filters) if any(filters.values()) else all_invs
+
         unreviewed_count = sum(1 for inv in all_invs if inv.get("reviewed") is False)
-        
-        # Build ratingsMap for nearby investments fallback when filtered
         ratings_map = {
             i.get("usi_inv_id"): i.get("ratings")
             for i in all_invs
             if i.get("ratings") and i.get("usi_inv_id")
         }
-        
         return jsonify({"data": results, "unreviewedCount": unreviewed_count, "ratingsMap": ratings_map, "totalCount": len(all_invs)}), 200
     except Exception as e:
         logger.error(f"Failed to list investments: {e}")
@@ -145,48 +151,30 @@ def list_investments():
 
 @investments_bp.route("/investments/nearby", methods=["GET"])
 def get_nearby_investments_api():
-    """
-    Zwraca inwestycje w pobliżu współrzędnych podanych w Query String.
-    Parametry: lat (wymagany), lon (wymagany), radius (opcjonalny), limit (opcjonalny), exclude_id (opcjonalny).
-    """
     lat_raw = request.args.get("lat")
     lon_raw = request.args.get("lon")
     exclude_id = request.args.get("exclude_id") or request.args.get("current_id")
 
     if not lat_raw or not lon_raw:
         return jsonify({"error": "Missing required float parameters: 'lat' and 'lon'"}), 400
-
     try:
         lat = float(lat_raw)
         lon = float(lon_raw)
     except ValueError:
         return jsonify({"error": "Coordinates 'lat' and 'lon' must be valid float numbers"}), 400
-
     try:
         radius = float(request.args.get("radius", 8.0))
         limit = int(request.args.get("limit", 24))
     except ValueError:
         return jsonify({"error": "Parameter 'radius' must be a float, and 'limit' must be an integer"}), 400
-
     if radius <= 0 or limit <= 0:
         return jsonify({"error": "Parameters 'radius' and 'limit' must be strictly positive values"}), 400
-
     try:
-        results = investment_service.list_nearby_by_coordinates(
-            lat=lat, 
-            lon=lon, 
-            max_dist_km=radius, 
-            limit=limit,
-            exclude_id=exclude_id
-        )
-        response = jsonify({
-            "status": "ok",
-            "count": len(results),
-            "data": results
-        })
+        raw_results = inv_index.get_investment_index().get_near_coordinates(lat, lon, radius, limit + 1)
+        results = [inv for inv in raw_results if inv.get("usi_inv_id") != exclude_id][:limit]
+        response = jsonify({"status": "ok", "count": len(results), "data": results})
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         return response, 200
-        
     except Exception as e:
         logger.error(f"Spatial query failed for lat={lat}, lon={lon}: {e}", exc_info=True)
         return jsonify({"error": "Internal server error during spatial processing"}), 500
@@ -197,30 +185,23 @@ def rebuild_index():
     def _run_rebuild(job_id):
         try:
             job_manager.update_job(job_id, status="running", message="Budowanie indeksu inwestycji...")
-            count = investment_service.rebuild_index()
+            count = inv_index.get_investment_index().rebuild()
             job_manager.update_job(job_id, status="done", message=f"Indeks gotowy: {count} inwestycji")
         except Exception as e:
             job_manager.update_job(job_id, status="error", message=str(e))
-
     job_id = job_manager.start_job("rebuild-index", _run_rebuild)
     return jsonify({"job_id": job_id})
 
 @investments_bp.route("/investment/<system_id>/data")
 def get_investment_data(system_id):
-    """Pobiera pełne dane inwestycji. O(1) z gorącego indeksu RAM."""
+    """Pobiera dane inwestycji. O(1) — bezpośredni odczyt pliku JSON z indeksu."""
     if not system_id:
         abort(400)
-
-    try:
-        # Pobieramy zunifikowane dane (agregacja, zdjęcia, oceny) via Service
-        entry = investment_service.get_investment(system_id)
-        if entry:
-            response = jsonify(entry)
-            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-            return response
-    except Exception as e:
-        logger.error(f"Failed to fetch investment {system_id}: {e}")
-
+    entry = db.load_investment(system_id)
+    if entry:
+        response = jsonify(entry)
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        return response
     abort(404)
 
 @investments_bp.route("/investment/<system_id>/ratings", methods=["POST"])
@@ -228,38 +209,47 @@ def save_ratings(system_id):
     payload = request.get_json(silent=True) or {}
     if not payload:
         return jsonify({"error": "Missing payload"}), 400
-        
-    success = investment_service.save_ratings(system_id, payload)
+    success = _get_editor().save_ratings(system_id, payload)
     if not success:
         return jsonify({"error": f"Investment {system_id} not found or save failed"}), 404
-        
     return jsonify({"ok": True, "status": "success"}), 200
 
 @investments_bp.route("/investment/<system_id>/mark-delete", methods=["POST"])
 def save_deletion_list(system_id):
+    """Usuwa zdjęcia z tablicy photos bezpośrednio w pliku JSON."""
     payload = request.get_json(silent=True) or {}
     paths = payload.get("paths", [])
     if not isinstance(paths, list):
         abort(400, "paths must be a list")
-        
-    success = investment_service.mark_deleted_photos(system_id, paths)
-    if success:
-        return jsonify({"ok": True, "count": len(paths)})
-    abort(404, "Failed to mark photos as deleted")
+
+    data = db.load_investment(system_id)
+    if not data:
+        abort(404, "Investment not found")
+
+    paths_set = set(paths)
+    original_count = len(data.get("photos", []))
+    data["photos"] = [p for p in data.get("photos", []) if p not in paths_set]
+    data.pop("photos_to_delete", None)  # usuń legacy pole
+
+    if not db.save_investment(system_id, data):
+        abort(500, "Failed to save")
+
+    inv_index.upsert(USI_DATA_DIR, None, inv_id=system_id)
+    removed = original_count - len(data["photos"])
+    return jsonify({"ok": True, "removed": removed, "remaining": len(data["photos"])})
 
 @investments_bp.route("/investment/<system_id>/reload", methods=["POST"])
 def reload_investment(system_id):
-    success = investment_service.update_investment(system_id)
+    success = _get_sync().update_investment(system_id)
     if not success:
         return jsonify({"ok": False, "error": "Failed to update"}), 500
-    
-    updated_inv = investment_service.get_investment(system_id)
+    inv_index.upsert(USI_DATA_DIR, None, inv_id=system_id)
+    updated_inv = db.load_investment(system_id)
     return jsonify({"ok": True, "investment": updated_inv})
 
 @investments_bp.route("/investment/<system_id>/recalc-nearby", methods=["POST"])
 def recalc_nearby(system_id):
-    # Backward compatibility endpoint - nearby investments are now calculated dynamically in the frontend UI.
-    inv = investment_service.get_investment(system_id)
+    inv = db.load_investment(system_id)
     if not inv:
         abort(404)
     return jsonify({"ok": True, "investment": inv})
@@ -280,49 +270,44 @@ def open_investment_folder(system_id):
 
 @investments_bp.route("/investment/<system_id>/refresh", methods=["POST"])
 def refresh_investment_route(system_id):
-    inv = investment_service.get_investment(system_id)
+    inv = db.load_investment(system_id)
     if not inv:
         abort(404)
-    
-    def run_refresh_job(job_id, i_name, system_id, merged_from):
+
+    def run_refresh_job(job_id, i_name, system_id, members):
         try:
-            targets = [system_id] + [m.get("usi_inv_id") for m in merged_from if m.get("usi_inv_id")]
+            sync = _get_sync()
+            targets = [system_id] + [m.get("usi_inv_id") for m in members if m.get("usi_inv_id")]
             total = len(targets)
-            
             success_count = 0
-            for idx, target_id in enumerate(targets):
-                job_manager.update_progress(job_id, int(10 + (idx / total) * 80), f"Odświeżanie [{idx+1}/{total}]: {target_id}")
-                if investment_service.update_investment(target_id):
+            for idx_i, target_id in enumerate(targets):
+                job_manager.update_progress(job_id, int(10 + (idx_i / total) * 80), f"Odświeżanie [{idx_i+1}/{total}]: {target_id}")
+                if sync.update_investment(target_id):
                     success_count += 1
-            
             if success_count > 0:
-                logger.info(f"Finished background refresh for {i_name}. Updated {success_count}/{total} records.")
                 job_manager.update_progress(job_id, 100, f"Ukończono odświeżanie: {i_name} ({success_count}/{total})")
             else:
                 job_manager.update_progress(job_id, 100, f"Brak danych do odświeżenia: {i_name}", status="failed")
-        except RuntimeError as e:
-            logger.error(f"Refresh job failed for {system_id}: {e}")
-            job_manager.update_progress(job_id, 100, str(e), status="failed")
         except Exception as e:
             logger.exception(f"Exception during refresh job for {system_id}: {e}")
             job_manager.update_progress(job_id, 100, f"Wyjątek: {str(e)}", status="failed")
 
-    job_id = job_manager.start_job(f"Refresh: {inv['name']}", run_refresh_job, inv['name'], system_id, inv.get("merged_from", []))
+    job_id = job_manager.start_job(f"Refresh: {inv.get('name', system_id)}", run_refresh_job, inv.get('name', system_id), system_id, inv.get("members", []))
     return jsonify({"ok": True, "job_id": job_id})
 
 @investments_bp.route("/investment/<system_id>/download-raw", methods=["POST"])
 def download_raw_route(system_id):
     try:
-        data = investment_service.get_investment(system_id)
+        data = db.load_investment(system_id)
         if not data:
             abort(404)
-            
         sources = data.get("sources", {})
+        sync = _get_sync()
         success = False
         for p in ["rp", "oto", "to"]:
             if p in sources:
                 identifier = sources[p].get("id") or sources[p].get("url")
-                if identifier and investment_service.download_raw_json(p, identifier, system_id):
+                if identifier and sync.download_raw_json(p, identifier, system_id):
                     success = True
         return jsonify({"ok": success})
     except Exception as e:
@@ -500,49 +485,35 @@ def discover_developer_investments(usi_dev_id):
 
 @investments_bp.route("/investment/<system_id>/merge", methods=["POST"])
 def merge_investment(system_id):
-    """
-    Dołącza source_id do grupy system_id.
-    Zwraca odświeżone dane rekordu — front NIE przeładowuje strony.
-    """
     payload = request.get_json() or {}
     source_id = payload.get("source_id")
     if not source_id:
         return jsonify({"ok": False, "error": "Missing source_id"}), 400
-
     from python_worker.investment_merger import InvestmentMerger
     im = InvestmentMerger()
-
     if not im.merge_by_id(target_id=system_id, source_id=source_id):
         return jsonify({"ok": False, "error": "Merge failed — check server logs"}), 422
-
-    # Zwracamy zaktualizowane dane, żeby front mógł odświeżyć widok w miejscu
-    updated = investment_service.get_investment(system_id)
+    updated = db.load_investment(system_id)
     return jsonify({"ok": True, "updated": updated})
 
 
 @investments_bp.route("/investment/<system_id>/unmerge", methods=["POST"])
 def unmerge_investment(system_id):
-    """
-    Usuwa source_id z grupy wskazanej przez system_id.
-    """
     payload = request.get_json() or {}
     source_id = payload.get("source_id")
     if not source_id:
         return jsonify({"ok": False, "error": "Missing source_id"}), 400
-
     from python_worker.investment_merger import InvestmentMerger
     im = InvestmentMerger()
-
     if not im.unmerge_by_id(target_id=system_id, source_id=source_id):
         return jsonify({"ok": False, "error": "Unmerge failed — check server logs"}), 422
-
-    updated = investment_service.get_investment(system_id)
+    updated = db.load_investment(system_id)
     return jsonify({"ok": True, "updated": updated})
 
 
 @investments_bp.route("/investment/<system_id>/review", methods=["POST"])
 def mark_reviewed(system_id):
-    if investment_service.mark_as_reviewed(system_id):
+    if _get_editor().mark_as_reviewed(system_id):
         return jsonify({"ok": True})
     abort(404, "Investment update failed")
 
@@ -552,8 +523,7 @@ def add_report(system_id):
     note = payload.get("note")
     if not note:
         abort(400, "note is required")
-
-    success = investment_service.add_report(system_id, note)
+    success = _get_editor().add_report(system_id, note)
     if success:
         return jsonify({"ok": True})
     abort(404, "Failed to add report")
@@ -565,7 +535,6 @@ def register_bulk():
         portal = ScraperGateway.normalize_portal_name(payload.get("portal", ""))
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
-        
     investments = payload.get("investments", [])
     if not investments:
         return jsonify({"error": "Missing investments list"}), 400
@@ -575,9 +544,8 @@ def register_bulk():
             msg = report.get("message", "Przetwarzanie danych...")
             percent = report.get("progress_percent", 0)
             job_manager.update_progress(job_id, percent, msg)
-            
         try:
-            investment_service.process_batch(p, invs, on_progress_callback=progress_wrapper)
+            _get_sync().process_batch(p, invs, on_progress_callback=progress_wrapper)
             job_manager.update_progress(job_id, 100, f"Zakończono pobieranie zbiorcze ({len(invs)} pozycji)")
         except Exception as e:
             logger.error(f"Bulk job error: {e}")
@@ -590,14 +558,19 @@ def register_bulk():
 def register():
     payload = request.get_json() or {}
     raw_portal = payload.get("portal", "")
-    
     try:
         from python_worker.services.scraper_gateway import ScraperGateway
         portal = ScraperGateway.normalize_portal_name(raw_portal)
-        
-        result = investment_service.register_investment(portal=portal, payload=payload)
-        return jsonify(result), 200
-        
+        sync = _get_sync()
+        dev_name = payload.get("developer_name")
+        if dev_name and dev_name.lower() in ("nieznany deweloper", "unknown", ""):
+            dev_name = None
+        dev_slug, inv_slug, usi_inv_id, data, path = sync.register_investment(
+            portal=portal, developer_name=dev_name, name=payload.get("name"),
+            item_id=payload.get("id"), url=payload.get("url"),
+            vendor_id=payload.get("vendor_id"), allow_existing=True
+        )
+        return jsonify({"ok": True, "usi_inv_id": usi_inv_id, "slug": f"{dev_slug}/{inv_slug}", "message": "Rejestracja zakończona sukcesem"}), 200
     except ValueError as e:
         logger.warning(f"Registration failed - bad input: {e}")
         return jsonify({"error": str(e)}), 400
@@ -610,10 +583,8 @@ def group_records():
     data = request.get_json() or {}
     source_id = data.get('source_id')
     target_id = data.get('target_id')
-    
     if not source_id or not target_id:
         return jsonify({"error": "Missing source_id or target_id"}), 400
-        
     try:
         from python_worker.services.investment_group_service import InvestmentGroupService
         group_service = InvestmentGroupService()

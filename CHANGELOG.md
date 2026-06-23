@@ -1,3 +1,24 @@
+## Wersja 0.10.2 — Radykalne uproszczenie stosu danych — 2026-06-23
+
+### Usunięto
+- **Zależność od `InvestmentService.get_investment()`** w całym blueprint `/api/blueprints/investments.py`. Zastąpiono przez `db.load_investment()`.
+- **Singleton `investment_service`** z modułu blueprint. Zastąpiono przez dwie czyste, lazy funkcje `_get_sync()` i `_get_editor()` wywoływane tylko gdy rzeczywiście potrzebne (update, register, batch).
+- **`deletion_list.json`** — plik pomocniczy dynamicznego patchowania zdjęć. Endpoint `/mark-delete` teraz bezpośrednio usuwa wpisy z tablicy `photos` w pliku `usi_*.json` i zapisuje atomowo.
+- **Agregacja w locie (`_load_investment` z serwisu)** — `investment_index.rebuild()` nie wywołuje już `InvestmentLoaderService`; czyta bezpośrednio JSON z dysku przez `_build_index_entry()`.
+
+### Dodano
+- **`python_worker/db.py`** — czysty moduł dostępu do danych: `load_investment(id)` i `save_investment(id, data)`. Zero klas, zero wzorców GOF. Indeks (`_index.json`) jest słownikiem `entries_map[id → file_path]`.
+- **`_build_index_entry(raw, file_path, base_path)`** — helper w `investment_index.py` budujący wpis indeksu bezpośrednio z JSON pliku bez żadnej interpretacji w locie.
+- **`entries_map`** w `_index.json` — O(1) lookup używany przez `db.load_investment()`.
+- **Płaskie pola w `inv_master_*.json`**: `city`, `district`, `address`, `coords`, `photos` (gotowe URL API), `developer_slug`, `investment_slug` — zapisywane przez `_save_master()` w mergerze, bez potrzeby runtime-agregacji.
+- **Fallback rglob w `InvestmentIdentityResolver`** dla memberów grup (nie indeksowanych z definicji). Preferuje pliki z `master_id` przy kolizji ID.
+
+### Zmieniono
+- **`investment_index.rebuild()`** — nie używa już `_load_investment`; skanuje `USImaster/` i `USIdata/` bezpośrednio przez `json.loads`.
+- **`_load_investment` w `api/utils.py`** — jest teraz cienkim wrapperem delegującym do `db.load_investment()`.
+- **`_upsert_index` w `InvestmentMerger`** — używa `inv_index.upsert()`, nie `_load_investment`.
+- **`_invalidate_service_cache` w `InvestmentMerger`** — no-op (nie ma już cache serwisu; indeks jest źródłem prawdy).
+
 ## Wersja 0.10.1 — Master Record Rendering Fix — 2026-06-23
 
 ### Naprawiono

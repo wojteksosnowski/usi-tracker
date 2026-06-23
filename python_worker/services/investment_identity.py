@@ -55,9 +55,33 @@ class InvestmentIdentityResolver:
         entry = get_entry_by_id(inv_id)
 
         if not entry:
-            from python_worker.investment_index import load as load_index
-            index = load_index(self.data_dir)
-            entry = next((e for e in index if e.get("usi_inv_id") == inv_id), None)
+            # Fallback: szukaj bezpośrednio na dysku (dla memberów grup, których nie ma w indeksie)
+            # Preferuj plik z master_id (czyli właściwy member grupy)
+            candidates = []
+            for usi_file in self.data_dir.rglob("usi_*.json"):
+                if "usi_dev_" in usi_file.name:
+                    continue
+                try:
+                    raw = json.loads(usi_file.read_text(encoding="utf-8"))
+                    if raw.get("usi_inv_id") == inv_id or raw.get("usi_id") == inv_id:
+                        has_master = bool(raw.get("master_id"))
+                        candidates.append((has_master, usi_file, raw))
+                except Exception:
+                    continue
+
+            if candidates:
+                # Sortuj: najpierw z master_id=True (właściwe members), potem reszta
+                candidates.sort(key=lambda x: (not x[0],))
+                _, best_file, best_raw = candidates[0]
+                entry = {
+                    "usi_inv_id": inv_id,
+                    "developer_slug": best_raw.get("developer_slug"),
+                    "investment_slug": best_raw.get("investment_slug"),
+                    "folder_path": str(best_file.parent.relative_to(self.data_dir.parent.parent)),
+                    "sources": best_raw.get("sources", {}),
+                    "portal": best_raw.get("portal"),
+                    "portal_id": best_raw.get("portal_id"),
+                }
 
         if not entry:
             return None
