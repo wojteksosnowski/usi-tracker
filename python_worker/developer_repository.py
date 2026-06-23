@@ -6,6 +6,7 @@ from pathlib import Path
 from datetime import datetime
 from python_worker.slug_utils import slugify
 from usi_scrapers import api as scraper_api
+from python_worker.utils import write_json_atomically
 
 _counter_lock = threading.Lock()
 logger = logging.getLogger(__name__)
@@ -80,8 +81,7 @@ class DeveloperRepository:
 
     def _save_dev_master(self, master: dict, master_slug: str) -> None:
         path = self._dev_master_path(master["dev_master_id"], master_slug)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(master, indent=2, ensure_ascii=False), encoding="utf-8")
+        write_json_atomically(path, master)
         
         from python_worker import developer_index
         developer_index.upsert_master(self.dev_dir, master, master_slug)
@@ -277,7 +277,7 @@ class DeveloperRepository:
             portal_id = p_data.get("id") or p_data.get("agency_id") or "unknown"
         
         file_path = subdir / f"usi_dev_{portal}_{portal_id}.json"
-        file_path.write_text(json.dumps(developer_data, indent=2, ensure_ascii=False), encoding="utf-8")
+        write_json_atomically(file_path, developer_data)
 
         # Clean up any files with the same USI ID but different portal/portal_id in the same directory
         # (Since we just saved the authoritative record for this portal)
