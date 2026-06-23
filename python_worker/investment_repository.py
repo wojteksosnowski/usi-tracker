@@ -39,6 +39,12 @@ class InvestmentRepository:
 
     def save_investment_json(self, system_id: str, data: dict, anchor_path: Path = None):
         """Saves the canonical unified JSON for the investment atomically."""
+        # Podstawowa walidacja (symulacja walidacji JSonschema dla najważniejszych kluczy)
+        required_keys = ["usi_inv_id", "investment_slug", "developer_slug"]
+        for key in required_keys:
+            if key not in data:
+                raise ValueError(f"Błąd walidacji schematu: brakuje wymaganego pola '{key}'")
+                
         target_file = anchor_path or self._get_anchor_path(system_id)
         write_json_atomically(target_file, data)
 

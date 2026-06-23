@@ -418,6 +418,9 @@ class InvestmentSyncService:
         # 6. Persistence
         if "usi_inv_id" not in new_unified or not new_unified["usi_inv_id"]:
             new_unified["usi_inv_id"] = system_id
+        new_unified["developer_slug"] = new_unified.get("developer_slug") or dev_slug
+        new_unified["investment_slug"] = new_unified.get("investment_slug") or inv_slug
+        
         self.repo.save_investment_json(system_id, new_unified, anchor_path=actual_file)
         
         if not skip_index:

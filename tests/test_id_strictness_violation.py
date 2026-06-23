@@ -15,19 +15,39 @@ def test_registration_must_fail_to_unknown_folder_when_id_matching_is_absent(tmp
     monkeypatch.setattr(config, "USI_DATA_DIR", data_dir)
     monkeypatch.setattr(config, "DROPBOX_PATH", tmp_path)
     monkeypatch.setattr(config, "PUBLIC_USI_DIR", public_dir / "USI")
+    config._cached_tech_manager = None
+    config._cached_config = None
     
     import python_worker.investment_index as idx_mod
     idx_mod._index = None
+    idx_mod._slug_map = None
+    idx_mod._is_rebuilding = False
     
+    import python_worker.services.scraper_gateway as gw_mod
+    gw_mod._shared_scraper_gateway = None
     from python_worker.services.scraper_gateway import ScraperGateway
     
     def fake_refresh(*args, **kwargs):
         # Symulujemy pomyślne pobranie payloadu, żeby przejść do logiki mapowania ścieżki
         import json
         inv_dir = data_dir / "unknown" / "inv-99999"
-        inv_dir.mkdir(parents=True, exist_ok=True)
-        (inv_dir / "raw_rp_99999.json").write_text(json.dumps({"id": 99999, "name": "Apartamenty Widmo"}))
-        
+    # Zamieniamy metody tak, by w ogóle nie dotykać biblioteki usi_scrapers
+    from python_worker.services.investment_sync import InvestmentSyncService
+    
+    def fake_fetch(*args, **kwargs):
+        # Symulacja zwróconych danych unified (zminimalizowanych)
+        unified = {
+            "usi_inv_id": "rp_99999",
+            "name": "Apartamenty Widmo",
+            "developer_slug": "widmo-dev",
+            "investment_slug": "widmo-inv",
+            "sources": {"rp": {"id": "99999"}},
+        }
+        return unified, "RynekPierwotny", None
+
+    monkeypatch.setattr(InvestmentSyncService, "_fetch_and_transform_portal_data", fake_fetch)
+    
+    def fake_ingest(*args, **kwargs):
         return {
             "id": 99999,
             "name": "Apartamenty Widmo",
@@ -36,8 +56,7 @@ def test_registration_must_fail_to_unknown_folder_when_id_matching_is_absent(tmp
             "vendor_id": 88888,
             "raw_details": {"id": 99999, "name": "Apartamenty Widmo"}
         }
-    monkeypatch.setattr(ScraperGateway, "refresh_investment_by_id", fake_refresh)
-    monkeypatch.setattr(ScraperGateway, "ingest_investment_by_url", fake_refresh)
+    monkeypatch.setattr(ScraperGateway, "ingest_investment_by_url", fake_ingest)
     
     service = InvestmentService(data_dir=data_dir)
     

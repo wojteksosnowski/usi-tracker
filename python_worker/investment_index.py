@@ -481,7 +481,10 @@ def upsert(data_dir, public_usi_dir, dev_slug=None, inv_slug=None, portal=None, 
 
     # Szukaj pliku po ID w istniejącym indeksie
     existing = idx.get_by_id(inv_id)
-    if existing and existing.get("file_path"):
+    
+    if inv_id and inv_id.startswith("IM-"):
+        file_path = DROPBOX_PATH / "Public" / "USImaster" / f"inv_master_{inv_id}.json"
+    elif existing and existing.get("file_path"):
         file_path = DROPBOX_PATH / existing["file_path"]
     elif dev_slug and inv_slug and portal and inv_id:
         file_path = Path(data_dir) / dev_slug / inv_slug / f"usi_{portal}_{inv_id}.json"
