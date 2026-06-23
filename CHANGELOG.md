@@ -1,3 +1,12 @@
+## Wersja 0.10.8 — UI Improvements & Realtime Rating Sync — 2026-06-24
+
+### Zmieniono
+- **Odświeżanie danych (UI)**: Przeniesiono przycisk odświeżania inwestycji do globalnego paska `ActionBar`, poprawiając ergonomię i czyniąc go dostępnym niezależnie od przewinięcia widoku.
+- **Synchronizacja ocen**: Powiązano edycję ocen (`InvestmentEditorService`) z globalnym mechanizmem indeksowania pamięci RAM (`InvestmentIndex.upsert()`). Moduły analityczne i "W okolicy" prezentują od teraz natychmiastowo zaktualizowane wartości ocen bez konieczności resetowania serwera.
+
+### Dodano
+- **Szybki dostęp (UI)**: Do kolumny metadanych w widoku pojedynczej inwestycji dodano bezpośredni przycisk ("Otwórz katalog danych na dysku") odwołujący się do `/api/investment/{id}/open-folder`.
+
 ## Wersja 0.10.7 — Strict ID Fallback Rule Enforcement — 2026-06-23
 
 ### Dodano
