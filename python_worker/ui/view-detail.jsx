@@ -81,6 +81,7 @@
                             if (data.usi_inv_id !== inv.usi_inv_id) return prev;
 
                             return {
+                                ...prev,
                                 ...data,
                                 // Keep index photos visible until full list arrives; prefer fetched if richer
                                 photos: (data.photos && data.photos.length > 0) ? data.photos : prev.photos,
