@@ -221,7 +221,7 @@ def update_investment(dev_slug, inv_slug, use_local_raw=False):
         
     system_id = _resolve_system_id_from_slugs(dev_slug, inv_slug)
     if not system_id:
-        logging.getLogger(__name__).error(f"Could not find USI ID for {dev_slug}/{inv_slug} in index")
+        logging.getLogger(__name__).error(f"Nie znaleziono USI ID dla {dev_slug}/{inv_slug} w indeksie.")
         return False
         
     return service.update_investment(system_id, use_local_raw=use_local_raw)
@@ -350,14 +350,14 @@ def main():
         try:
             dev_slug, inv_slug = args.inv_path.split("/")
         except ValueError:
-            logger.error("Investment path must be in format dev_slug/inv_slug")
+            logger.error("Format ścieżki musi to: dev_slug/inv_slug")
             sys.exit(1)
             
         # Resolve ID from slugs via index
         system_id = _resolve_system_id_from_slugs(dev_slug, inv_slug)
         
         if not system_id:
-            logger.error(f"Could not find USI ID for {args.inv_path} in index")
+            logger.error(f"Nie znaleziono USI ID dla {args.inv_path} w indeksie.")
             sys.exit(1)
             
         svc = InvestmentService()
