@@ -87,9 +87,11 @@ def filter_investments(investments: list, filters: dict) -> list:
     filtered = []
     
     # Pre-process filters to handle both string (from request.args) and direct types
-    search = str(filters.get("search", "")).lower()
-    only_unreviewed = str(filters.get("onlyUnreviewed")).lower() == "true"
-    only_no_photos = str(filters.get("onlyNoPhotos")).lower() == "true"
+    raw_search = filters.get("search")
+    search = str(raw_search).lower() if raw_search else ""
+    
+    only_unreviewed = str(filters.get("onlyUnreviewed", "")).lower() == "true"
+    only_no_photos = str(filters.get("onlyNoPhotos", "")).lower() == "true"
     status = filters.get("status")
     dev_slug = filters.get("dev") or filters.get("developer_slug")
     
