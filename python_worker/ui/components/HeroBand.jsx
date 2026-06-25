@@ -6,38 +6,43 @@
   const SourceLinks = ({ inv }) => {
     let links = [];
     
-    // Najpierw polegamy na gotowych linkach z backendu, które są najbardziej precyzyjne
+    // Najpierw source_links z backendu (wypełniony przez nowy _save_master lub backfill w API)
     if (inv.source_links && inv.source_links.length > 0) {
         links = inv.source_links
             .map(l => ({ source: (l.source || '').toLowerCase(), url: l.url }))
-            .filter(link => link.url && !link.url.endsWith('rynekpierwotny.pl') && !link.url.endsWith('rynekpierwotny.pl/'));
-    } 
+            .filter(link => link.url);
+    }
     
-    // Dopiero jako fallback używamy ręcznego rekonstruowania z ID
+    // Fallback — buduj z inv.sources (stare mastery bez source_links)
     if (links.length === 0 && inv.sources && Object.keys(inv.sources).length > 0) {
+        const isMaster = inv.usi_inv_id && inv.usi_inv_id.startsWith('IM-');
+        // Dla masterów dev_slug/inv_slug mogą być USImaster/IM-XXXX — nie nadają się do URL RP
+        const devSlug = isMaster ? null : inv.developer_slug;
+        const invSlug = isMaster ? null : inv.investment_slug;
+        
         links = Object.entries(inv.sources)
             .map(([source, data]) => {
                 let url = data && data.url;
                 if (!url && data) {
-                    if (source.toLowerCase() === 'oto' && data.agency_id) {
-                        url = 'https://www.otodom.pl/pl/oferta/-ID' + data.agency_id;
-                    } else if (source.toLowerCase() === 'rp' && data.id) {
-                        const dSlug = inv.developer_slug;
-                        const iSlug = inv.investment_slug;
-                        if (dSlug && iSlug) {
-                            url = `https://rynekpierwotny.pl/oferty/${dSlug}/${iSlug}-${data.id}/`;
+                    const pid = data.id;
+                    if (source.toLowerCase() === 'oto' && pid) {
+                        url = 'https://www.otodom.pl/pl/inwestycja/-ID' + pid;
+                    } else if (source.toLowerCase() === 'rp' && pid) {
+                        if (devSlug && invSlug) {
+                            url = `https://rynekpierwotny.pl/oferty/${devSlug}/${invSlug}-${pid}/`;
                         } else {
-                            url = 'https://rynekpierwotny.pl/oferty/-' + data.id;
+                            url = 'https://rynekpierwotny.pl/oferty/-' + pid;
                         }
-                    } else if (source.toLowerCase() === 'to' && data.id) {
-                        url = 'https://tabelaofert.pl/i' + data.id;
+                    } else if (source.toLowerCase() === 'to' && pid) {
+                        url = 'https://tabelaofert.pl/i' + pid;
                     }
                 }
                 return { source: source.toLowerCase(), url };
             })
-            .filter(link => link.url && !link.url.endsWith('rynekpierwotny.pl') && !link.url.endsWith('rynekpierwotny.pl/'));
-    } 
+            .filter(link => link.url);
+    }
     
+    // Ostatni fallback — source + source_url
     if (links.length === 0 && inv.source && inv.source_url) {
         links = [{ source: inv.source.toLowerCase(), url: inv.source_url }];
     }

@@ -51,28 +51,39 @@ class InvestmentRepository:
     def get_ratings(self, system_id: str) -> dict:
         """Gets ratings for the investment."""
         try:
-            target_dir = self._get_dir_from_system_id(system_id)
-            ratings_file = target_dir / "ratings.json"
-            if ratings_file.exists():
-                with open(ratings_file, "r", encoding="utf-8") as f:
-                    return json.load(f)
-        except FileNotFoundError:
-            pass
-        except json.JSONDecodeError as e:
-            logger.error(f"Corrupted ratings.json for {system_id}: {e}. Backing up and starting fresh.")
-            try:
-                import shutil
-                shutil.copy(ratings_file, target_dir / "ratings.json.corrupted")
-            except Exception:
-                pass
+            res = self.identity.get_investment_resources(system_id)
+            if res and res.get("files", {}).get("meta"):
+                meta_file = res["files"]["meta"]
+                if meta_file and meta_file.exists():
+                    with open(meta_file, "r", encoding="utf-8") as f:
+                        return json.load(f)
+        except Exception as e:
+            logger.error(f"Error reading meta file for {system_id}: {e}.")
         return {}
 
     def save_ratings(self, system_id: str, ratings_data: dict):
         """Saves ratings for the investment."""
-        target_dir = self._get_dir_from_system_id(system_id)
+        if system_id.startswith("IM-"):
+            # Master records store ratings inline in inv_master_IM-*.json via save_investment_json.
+            # There is no separate meta_*.json file for master records.
+            return
             
-        ratings_file = target_dir / "ratings.json"
-        write_json_atomically(ratings_file, ratings_data)
+        res = self.identity.get_investment_resources(system_id)
+        if not res:
+            logger.error(f"Cannot save ratings: Investment {system_id} not found.")
+            return
+            
+        meta_file = res.get("files", {}).get("meta")
+        if not meta_file:
+            anchor = res.get("files", {}).get("anchor")
+            if anchor:
+                meta_name = anchor.name.replace("usi_", "meta_")
+                meta_file = anchor.parent / meta_name
+            else:
+                logger.error(f"Cannot determine meta filename for {system_id}")
+                return
+                
+        write_json_atomically(meta_file, ratings_data)
 
     def get_poi_data(self, system_id: str) -> dict | None:
         """Gets the reports_poi.json file data."""

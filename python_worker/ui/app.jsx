@@ -394,6 +394,15 @@
                 null
               ) : view === 'detail' && selectedInv ? (
                 <div className="usi-flex-row usi-gap-16 usi-align-center">
+                  <button 
+                      className="usi-btn ghost sm" 
+                      onClick={() => window._usiRefreshData && window._usiRefreshData()}
+                      disabled={bus.isRefreshing}
+                  >
+                      <Icon name="sparkle" size={14} className="usi-m-r-8" />
+                      {bus.refreshLabel || 'Odśwież dane'}
+                  </button>
+                  <div className="usi-divider-v" />
                   {(bus.markedPhotos && bus.markedPhotos.size > 0) && (
                     <>
                       <button

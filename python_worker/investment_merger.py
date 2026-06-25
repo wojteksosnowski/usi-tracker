@@ -131,13 +131,23 @@ class InvestmentMerger:
             "financials": {},
             "specifications": {},
             "sources": {},
+            "source_links": [],
             "image_paths": [],
-            "ratings": {},
+            "ratings": {
+                "status": "Brak",
+                "Gwiazdki": None, "Balkony": None, "Fasady": None,
+                "Wnętrza": None, "Teren": None, "Mieszkania": None,
+                "Udogodnienia": None, "komentarz": None, "Segment": None, "ocenaLog": 0.0
+            },
             "status": "Brak",
             "usi_dev_id": None,
             "amenities": {"labels": [], "raw_codes": []},
             "amenities_score": 0,
         }
+        
+        STATUS_ORDER = {"Brak": 0, "Niedostateczne dane": 1, "AI": 2, "Wstępna": 3, "Poszerzona": 4, "Aktualizacja": 5, "Ukończona": 6}
+        def get_status_val(st): return STATUS_ORDER.get(st, 0)
+        cat_status = {k: "Brak" for k in master["ratings"]}
 
         seen_images: set[str] = set()
         seen_amenities: set[str] = set()
@@ -161,6 +171,7 @@ class InvestmentMerger:
                 continue
             try:
                 d = json.loads(anchor.read_text(encoding="utf-8"))
+                d_meta = m_res.get("metadata", {})
                 # Wzbogać meta o dane do podglądu składowych w UI
                 member_meta["portal"] = d.get("portal") or next(iter(d.get("sources", {}).keys()), None)
                 member_meta["name"] = d.get("name")
@@ -190,10 +201,12 @@ class InvestmentMerger:
             if not master["usi_dev_id"] and d.get("usi_dev_id"):
                 master["usi_dev_id"] = d["usi_dev_id"]
 
-            # Status — bierz najlepszy (nie-Brak)
-            d_status = d.get("status") or d.get("ratings", {}).get("status") or "Brak"
-            if master["status"] == "Brak" and d_status != "Brak":
+            # Status i oceny — bierz z najwyższym statusem
+            d_rat = d.get("ratings", {})
+            d_status = d.get("status") or d_rat.get("status") or "Brak"
+            if get_status_val(d_status) > get_status_val(master["status"]):
                 master["status"] = d_status
+                master["ratings"]["status"] = d_status
 
             # Segment — preferuj Polish string
             d_seg = d.get("specifications", {}).get("segment") or d.get("segment", "")
@@ -217,15 +230,38 @@ class InvestmentMerger:
             except (ValueError, TypeError):
                 pass
 
-            # Ratings — bierz jeśli własne puste
-            d_rat = d.get("ratings", {})
-            if d_rat and "Gwiazdki" in d_rat and "Gwiazdki" not in master["ratings"]:
-                master["ratings"] = dict(d_rat)
+            # Zaktualizuj poszczególne kategorie ocen
+            for cat in ["Gwiazdki", "Balkony", "Fasady", "Wnętrza", "Teren", "Mieszkania", "Udogodnienia", "Segment", "komentarz", "ocenaLog"]:
+                val = d_rat.get(cat)
+                if val is not None and val != "":
+                    curr_val = master["ratings"].get(cat)
+                    if curr_val is None or curr_val == "" or get_status_val(d_status) > get_status_val(cat_status.get(cat, "Brak")):
+                        master["ratings"][cat] = val
+                        cat_status[cat] = d_status
 
             # Sources — merge
             for k, v in d.get("sources", {}).items():
                 if k not in master["sources"]:
                     master["sources"][k] = v
+                
+                url = v.get("url")
+                if not url:
+                    if k.lower() == 'oto' and v.get("id"):
+                        url = f"https://www.otodom.pl/pl/oferta/-ID{v['id']}"
+                    elif k.lower() == 'rp' and v.get("id"):
+                        dSlug = d.get("developer_slug") or d_meta.get("developer_slug") if d_meta else None
+                        iSlug = d.get("investment_slug") or d_meta.get("investment_slug") if d_meta else None
+                        if dSlug and iSlug:
+                            url = f"https://rynekpierwotny.pl/oferty/{dSlug}/{iSlug}-{v['id']}/"
+                        else:
+                            url = f"https://rynekpierwotny.pl/oferty/-{v['id']}"
+                    elif k.lower() == 'to' and v.get("id"):
+                        url = f"https://tabelaofert.pl/i{v['id']}"
+                        
+                if url:
+                    # Sprawdź duplikaty
+                    if not any(link["url"] == url for link in master["source_links"]):
+                        master["source_links"].append({"source": k, "url": url})
 
             # Financials — średnia ważona, tylko >0
             d_fin = d.get("financials", {})
@@ -447,7 +483,16 @@ class InvestmentMerger:
 
         # --- Zbierz wszystkich dotychczasowych memberów nowej grupy ---
         existing_master_data, _ = self._load_master_file(master_id)
+        if existing_master_data is None:
+            # Użyj danych z poprzedniego ładowania (m_data lub t_data)
+            if target_id.startswith("IM-"):
+                existing_master_data = m_data
+            else:
+                # To nowa grupa, members są puste
+                existing_master_data = {}
+                
         existing_member_ids = [m["usi_inv_id"] for m in (existing_master_data or {}).get("members", [])]
+
 
         # Dodaj source_id i ewentualnie target_id
         all_member_ids = list(set(existing_member_ids + [source_id, target_id if not target_id.startswith("IM-") else source_id]))
@@ -593,7 +638,6 @@ class InvestmentMerger:
                 continue
 
             self._propagate_ratings_to_member(m_file, m_data, ratings, status)
-            self._upsert_index(mid)
             self._invalidate_service_cache(mid)
             updated.append(mid)
 

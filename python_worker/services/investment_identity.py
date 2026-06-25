@@ -148,8 +148,15 @@ class InvestmentIdentityResolver:
             if candidates:
                 anchor_file = sorted(candidates)[0]
 
-        # POPRAWKA: Nazwa pliku meta ściśle według CANONICAL.md sekcja 3.2
+        # Wyszukaj meta_{portal}_{portal_id}.json zgodnie z CANONICAL.md
         meta_file = inv_dir / f"meta_{portal}_{portal_id}.json"
+        if not meta_file.exists():
+            # Legacy fallback
+            legacy_meta = inv_dir / f"ratings_{usi_inv_id}.json"
+            if legacy_meta.exists():
+                meta_file = legacy_meta
+            else:
+                meta_file = None
 
         return {
             "id": usi_inv_id,
@@ -157,7 +164,7 @@ class InvestmentIdentityResolver:
             "base_dir": inv_dir,
             "files": {
                 "anchor": anchor_file if anchor_file.exists() else None,
-                "meta": meta_file if meta_file.exists() else None,
+                "meta": meta_file,
                 "logs": [inv_dir / "deletion_list.json"] if (inv_dir / "deletion_list.json").exists() else []
             },
             "images_dir": images_dir,

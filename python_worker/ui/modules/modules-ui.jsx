@@ -234,16 +234,8 @@
       }
     };
 
-    // Szybki lookup po id
-    const fastIndex = React.useMemo(() => {
-      const map = {};
-      if (bus && bus.investments) {
-        bus.investments.forEach(inv => {
-          if (inv.usi_inv_id) map[inv.usi_inv_id] = inv;
-        });
-      }
-      return map;
-    }, [bus && bus.investments]);
+    // No longer needed as API returns full index records
+    // const fastIndex = React.useMemo(() => { ... }, [bus && bus.investments]);
 
     if (items.length === 0) return <div className="usi-small" style={{ color: 'var(--usi-ink-4)' }}>Brak innych inwestycji w promieniu 8km.</div>;
 
@@ -251,24 +243,20 @@
       <div className="usi-distance-list">
         {items.map(i => {
           const targetId = i.usi_inv_id || i.id;
-          const indexInv = fastIndex[targetId];
 
-          let ratings = (indexInv && indexInv.ratings) ? indexInv.ratings : null;
-          if (!ratings && bus && bus.ratingsMap) {
-            ratings = bus.ratingsMap[targetId];
-          }
-          if (!ratings) ratings = (i.ratings || {});
+          const ratings = i.ratings || {};
 
           const hasAnyRating = USI_CATEGORIES.some(cat => {
             const v = ratings[cat.key];
             return v !== null && v !== undefined;
           });
 
-          const srcStr = i.source || (indexInv && indexInv.source);
-          const sourceCls = srcStr === 'OTO' || srcStr === 'oto' || srcStr === 'otodom' ? 'oto'
-            : (srcStr === 'RP' || srcStr === 'rp' ? 'rp' : (srcStr ? 'to' : ''));
+          const srcStr = i.source;
+          const sourceCls = (targetId && targetId.startsWith('IM-')) ? 'master'
+            : (srcStr === 'OTO' || srcStr === 'oto' || srcStr === 'otodom' ? 'oto'
+            : (srcStr === 'RP' || srcStr === 'rp' ? 'rp' : (srcStr ? 'to' : '')));
 
-          const itemStatus = (indexInv && indexInv.status) || i.status;
+          const itemStatus = i.status;
           const isAi = itemStatus === 'AI';
           const isMerging = merging === targetId;
 
@@ -282,7 +270,7 @@
               key={targetId || i.slug}
               className="usi-distance-item"
               style={{ cursor: 'pointer', opacity: isMerging ? 0.5 : 1 }}
-              onClick={(e) => handleLinkClick(e, indexInv || i)}
+              onClick={(e) => handleLinkClick(e, i)}
               title={isSelf ? 'To jest bieżąca inwestycja' : isGroupMember
                 ? 'Alt+Click by usunąć z grupy'
                 : 'Kliknij by otworzyć · Alt+Click by dodać do grupy'}

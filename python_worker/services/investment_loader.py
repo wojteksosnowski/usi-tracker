@@ -61,6 +61,8 @@ class InvestmentLoaderService:
         
         source_links = []
         website = usi_data.get("website", "")
+        dev_slug = usi_data.get("developer_slug")
+        inv_slug = usi_data.get("investment_slug")
         
         for k, src_info in sources.items():
             urls = []
@@ -75,6 +77,19 @@ class InvestmentLoaderService:
                     urls.extend(u)
                 elif isinstance(u, str):
                     urls.append(u)
+                
+                # Dynamic generation fallback
+                if not urls:
+                    if k.startswith("rp") and src_info.get("id"):
+                        if dev_slug and inv_slug:
+                            urls.append(f"https://rynekpierwotny.pl/oferty/{dev_slug}/{inv_slug}-{src_info['id']}/")
+                        else:
+                            urls.append(f"https://rynekpierwotny.pl/oferty/-{src_info['id']}")
+                    elif k.startswith("oto") and (src_info.get("agency_id") or src_info.get("id")):
+                        oid = src_info.get("agency_id") or src_info.get("id")
+                        urls.append(f"https://www.otodom.pl/pl/oferta/-ID{oid}")
+                    elif k.startswith("to") and src_info.get("id"):
+                        urls.append(f"https://tabelaofert.pl/i{src_info['id']}")
             
             # Fallback dla starszych rekordów, które miały url w website zamiast w sources
             if not urls and website:
@@ -272,12 +287,25 @@ class InvestmentLoaderService:
                 if not uid:
                     continue
                 entry = get_entry_by_id(uid)
+                if not entry:
+                    # Fallback dla rekordów pomijanych w indeksie RAM (np. members)
+                    entry = self.load_investment(system_id=uid, fast_index=True)
+                    
                 merged_from.append({
                     "usi_inv_id": uid,
-                    "name": (entry or {}).get("name") or uid,
-                    "portal": (entry or {}).get("source") or (entry or {}).get("portal"),
-                    "investment_slug": (entry or {}).get("investment_slug"),
+                    "name": (entry or {}).get("name") or (m.get("name") if isinstance(m, dict) else uid),
+                    "portal": (entry or {}).get("source") or (entry or {}).get("portal") or (m.get("portal") if isinstance(m, dict) else "?"),
+                    "investment_slug": (entry or {}).get("investment_slug") or (m.get("investment_slug") if isinstance(m, dict) else ""),
+                    "source_url": (entry or {}).get("source_url"),
                 })
+                
+                if entry:
+                    member_links = entry.get("source_links") or []
+                    if not member_links and entry.get("source_url"):
+                        member_links = [{"source": entry.get("source") or entry.get("portal") or "?", "url": entry.get("source_url")}]
+                    for sl in member_links:
+                        if sl not in source_links:
+                            source_links.append(sl)
         master_usi_inv_id = master_id  # master_id IS the canonical ID
 
         # Dla masterów i samodzielnych inwestycji: zdjęcia bezpośrednio z pliku

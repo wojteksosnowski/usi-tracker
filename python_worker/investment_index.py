@@ -50,11 +50,12 @@ def _build_index_entry(raw: dict, file_path: Path, base_path: Path) -> Optional[
     for portal_key, pdata in sources.items():
         if not isinstance(pdata, dict):
             continue
+        if not source:
+            source = portal_key.upper()
         url = pdata.get("url", "")
         if url:
             source_links.append({"source": portal_key.upper(), "url": url})
-            if not source:
-                source = portal_key.upper()
+            if not source_url:
                 source_url = url
 
     return {
@@ -186,20 +187,11 @@ class InvestmentIndex:
 
             dist = _calculate_distance(lat, lon, lat2, lon2)
             if dist <= max_dist_km:
-                nearby.append({
-                    "usi_inv_id": inv.get("usi_inv_id"),
-                    "distance": round(dist, 2),
-                    "name": inv.get("name"),
-                    "developer": inv.get("developer"),
-                    "developer_slug": inv.get("developer_slug"),
-                    "investment_slug": inv.get("investment_slug"),
-                    "city": inv.get("city"),
-                    "coords": coords,
-                    "source": inv.get("source"),
-                    "status": inv_status,
-                    "master_id": master_id,
-                    "ratings": inv_ratings
-                })
+                inv_copy = inv.copy()
+                inv_copy["distance"] = round(dist, 2)
+                inv_copy["status"] = inv_status
+                inv_copy["ratings"] = inv_ratings
+                nearby.append(inv_copy)
 
         # Sortowanie według dystansu i nałożenie limitu
         nearby.sort(key=lambda x: x["distance"])
@@ -427,6 +419,14 @@ class InvestmentIndex:
         return [
             v for v in self._index.values() 
             if not (v.get("master_id") and not str(v.get("usi_inv_id", "")).startswith("IM-"))
+        ]
+
+    def get_members(self, master_id: str) -> List[Dict]:
+        """Zwraca wszystkie rekordy cząstkowe, które należą do wskazanej grupy master_id."""
+        self._load_from_disk()
+        return [
+            v for v in self._index.values()
+            if v.get("master_id") == master_id and not str(v.get("usi_inv_id", "")).startswith("IM-")
         ]
 
     def get_by_id(self, inv_id: str) -> Optional[Dict]:

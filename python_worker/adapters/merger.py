@@ -173,9 +173,10 @@ class Merger:
                     result[field] = existing_data[field]
 
             ex_amen = existing_data.get("amenities") or {}
-            if ex_amen.get("labels"):
+            if isinstance(ex_amen, list):
+                all_labels.update(ex_amen)
+            elif isinstance(ex_amen, dict) and ex_amen.get("labels"):
                 all_labels.update(ex_amen["labels"])
-
         # Zapisanie kolekcji
         result["image_urls"] = sorted(list(all_image_urls))
         result["amenities"]["labels"] = list(all_labels)

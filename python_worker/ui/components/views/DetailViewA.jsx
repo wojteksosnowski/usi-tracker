@@ -11,10 +11,6 @@
     // KROK 1: Wyciągamy 'refetch' z szyny danych do odświeżenia listy głównej po złączeniu
     const { bus, setVariable, refetch } = useDataBus();
     
-    const [refreshing, setRefreshing] = React.useState(false);
-    const [refreshLabel, setRefreshLabel] = React.useState('Odśwież dane');
-    const pollRef = React.useRef(null);
-
     // KROK 2: Wydajna kontrola klawisza Alt przez referencję (O(1) re-render overhead)
     const altPressedRef = React.useRef(false);
 
@@ -67,58 +63,7 @@
         }
     };
 
-    // Cleanup poll on unmount
-    React.useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
-    const handleRefresh = async () => {
-        if (!inv.usi_inv_id) return;
-        setRefreshing(true);
-        setRefreshLabel('Uruchamianie…');
-        setVariable('appStatus', { type: 'info', msg: 'Odświeżanie danych…' });
-
-        let jobId = null;
-        try {
-            const res = await fetch(`/api/investment/${inv.usi_inv_id}/refresh`, { method: 'POST' });
-            const data = await res.json();
-            if (!data.ok) {
-                setVariable('appStatus', { type: 'error', msg: 'Błąd startu: ' + (data.error || 'nieznany błąd') });
-                setRefreshing(false);
-                setRefreshLabel('Odśwież dane');
-                return;
-            }
-            jobId = data.job_id;
-        } catch (err) {
-            setVariable('appStatus', { type: 'error', msg: 'Błąd sieci: ' + err.message });
-            setRefreshing(false);
-            setRefreshLabel('Odśwież dane');
-            return;
-        }
-
-        // Poll job status every 2s until completed or failed
-        pollRef.current = setInterval(async () => {
-            try {
-                const r = await fetch(`/api/jobs/${jobId}`);
-                if (!r.ok) return;
-                const job = await r.json();
-                if (job.message) setRefreshLabel(job.message.slice(0, 40));
-
-                if (job.status === 'completed') {
-                    clearInterval(pollRef.current);
-                    pollRef.current = null;
-                    setRefreshing(false);
-                    setRefreshLabel('Odśwież dane');
-                    setVariable('appStatus', { type: 'success', msg: job.message || 'Zaktualizowano pomyślnie.' });
-                    if (onUpdateInv) onUpdateInv();
-                } else if (job.status === 'failed') {
-                    clearInterval(pollRef.current);
-                    pollRef.current = null;
-                    setRefreshing(false);
-                    setRefreshLabel('Odśwież dane');
-                    setVariable('appStatus', { type: 'error', msg: job.message || 'Błąd odświeżania.' });
-                }
-            } catch (_) { /* sieć chwilowo niedostępna — czekamy na następny tick */ }
-        }, 2000);
-    };
     
     return (
       <div data-component="DetailsA" className="detail-grid">
@@ -183,14 +128,15 @@
         </div>
 
         <div className="detail-meta-column usi-scroll usi-p-16">
-           <button 
-              className="usi-btn usi-btn-outline usi-w-full usi-m-b-16" 
-              onClick={handleRefresh}
-              disabled={refreshing}
-           >
-              <Icon name="sparkle" size={14} className="usi-m-r-8" />
-              {refreshLabel}
-           </button>
+           {inv.usi_inv_id && (
+             <button 
+                className="usi-btn usi-btn-outline usi-w-full usi-m-b-16" 
+                onClick={(e) => { e.preventDefault(); fetch(`/api/investment/${inv.usi_inv_id}/open-folder`, { method: 'POST' }).catch(() => {}) }}
+             >
+                 <Icon name="folder" size={14} className="usi-m-r-8" />
+                 Otwórz katalog danych na dysku
+             </button>
+           )}
            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
               {inv.master_id && (
                 <span className="badge master-group-badge" style={{
@@ -222,10 +168,10 @@
     const { request } = useApi ? useApi() : { request: window.fetch };
     const { refetch, setVariable } = useDataBus ? useDataBus() : { refetch: ()=>{}, setVariable: ()=>{} };
 
-    const [localMerged, setLocalMerged] = React.useState(inv.merged_from || []);
+    const [localMerged, setLocalMerged] = React.useState(inv.members || []);
 
     React.useEffect(() => {
-        setLocalMerged(inv.merged_from || []);
+        setLocalMerged(inv.members || []);
     }, [inv]);
 
 
@@ -256,7 +202,7 @@
                         {localMerged.map(m => (
                             <div key={m.usi_inv_id} className="dev-mini-card">
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    {m.portal && <SourceBadge source={m.portal} />}
+                                    {m.portal && <SourceBadge source={m.portal} url={m.source_url} />}
                                     <div className="usi-body usi-weight-600">{m.name || m.investment_slug || m.usi_inv_id}</div>
                                 </div>
                                 <div className="usi-tiny usi-mono">{m.usi_inv_id}</div>

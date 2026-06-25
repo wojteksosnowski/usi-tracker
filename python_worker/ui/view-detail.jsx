@@ -63,6 +63,68 @@
     const [fullInv, setFullInv] = React.useState(inv);
     const { ratings, handleRating, comment, handleComment, status, handleStatus, segment, handleSegment, saved } = useRatings(fullInv);
 
+    const [refreshing, setRefreshing] = React.useState(false);
+    const [refreshLabel, setRefreshLabel] = React.useState('Odśwież dane');
+    const pollRef = React.useRef(null);
+    React.useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+    const handleRefresh = React.useCallback(async () => {
+        if (!inv.usi_inv_id) return;
+        setRefreshing(true);
+        setRefreshLabel('Uruchamianie…');
+        setVariable('appStatus', { type: 'info', msg: 'Odświeżanie danych…' });
+
+        let jobId = null;
+        try {
+            const res = await request(`/api/investment/${inv.usi_inv_id}/refresh`, { method: 'POST' });
+            if (res && res.error) {
+                setVariable('appStatus', { type: 'error', msg: 'Błąd startu: ' + (res.error || 'nieznany błąd') });
+                setRefreshing(false);
+                setRefreshLabel('Odśwież dane');
+                return;
+            }
+            jobId = res ? res.job_id : null;
+        } catch (err) {
+            setVariable('appStatus', { type: 'error', msg: 'Błąd sieci: ' + err.message });
+            setRefreshing(false);
+            setRefreshLabel('Odśwież dane');
+            return;
+        }
+
+        if (!jobId) return;
+
+        pollRef.current = setInterval(async () => {
+            try {
+                const r = await fetch(`/api/jobs/${jobId}`);
+                if (!r.ok) return;
+                const job = await r.json();
+                if (job.message) setRefreshLabel(job.message.slice(0, 40));
+
+                if (job.status === 'completed') {
+                    clearInterval(pollRef.current);
+                    pollRef.current = null;
+                    setRefreshing(false);
+                    setRefreshLabel('Odśwież dane');
+                    setVariable('appStatus', { type: 'success', msg: job.message || 'Zaktualizowano pomyślnie.' });
+                    if (onUpdateInv) onUpdateInv();
+                } else if (job.status === 'failed') {
+                    clearInterval(pollRef.current);
+                    pollRef.current = null;
+                    setRefreshing(false);
+                    setRefreshLabel('Odśwież dane');
+                    setVariable('appStatus', { type: 'error', msg: job.message || 'Błąd odświeżania.' });
+                }
+            } catch (_) { }
+        }, 2000);
+    }, [inv.usi_inv_id, onUpdateInv, request]);
+
+    React.useEffect(() => {
+        window._usiRefreshData = handleRefresh;
+        setVariable('isRefreshing', refreshing);
+        setVariable('refreshLabel', refreshLabel);
+        return () => { delete window._usiRefreshData; };
+    }, [handleRefresh, refreshing, refreshLabel]);
+
     React.useEffect(() => {
         // Sync Guard (06.02.02): Reset fullInv immediately to prevent stale photos/metadata
         if (fullInv.usi_inv_id !== inv.usi_inv_id) {

@@ -304,8 +304,8 @@
 }
 
 .usi-distance-dot {
-  width: 6px;
-  height: 6px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: var(--usi-accent);
 }
@@ -318,6 +318,9 @@
 
 .usi-distance-dot.to { background: #5A4A2A; }
 [data-dark="1"] .usi-distance-dot.to { background: #967E4D; }
+
+.usi-distance-dot.master { background: #295456; }
+[data-dark="1"] .usi-distance-dot.master { background: #51a4a8; }
 
 .usi-distance-name {
   flex: 1;

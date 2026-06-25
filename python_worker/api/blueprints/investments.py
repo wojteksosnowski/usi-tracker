@@ -148,6 +148,19 @@ def list_investments():
         logger.error(f"Failed to list investments: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
+@investments_bp.route("/investment/<master_id>/members", methods=["GET"])
+def get_master_members(master_id):
+    if not master_id.startswith("IM-"):
+        return jsonify({"error": "Invalid master ID format"}), 400
+    try:
+        from python_worker.investment_index import get_investment_index
+        idx = get_investment_index()
+        members = idx.get_members(master_id)
+        return jsonify(members), 200
+    except Exception as e:
+        logger.error(f"Failed to get members for {master_id}: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
 @investments_bp.route("/investments/nearby", methods=["GET"])
 def get_nearby_investments_api():
     lat_raw = request.args.get("lat")
@@ -198,6 +211,29 @@ def get_investment_data(system_id):
         abort(400)
     entry = get_shared_repository().get_investment_json(system_id)
     if entry:
+        # Jeśli source_links nie istnieje lub jest puste, zbuduj je z sources (backfill dla starych masterów)
+        if not entry.get("source_links"):
+            source_links = []
+            dev_slug = entry.get("developer_slug", "")
+            inv_slug = entry.get("investment_slug", "")
+            for portal, v in (entry.get("sources") or {}).items():
+                if not isinstance(v, dict):
+                    continue
+                url = v.get("url")
+                if not url:
+                    pid = v.get("id")
+                    if portal == "oto" and pid:
+                        url = f"https://www.otodom.pl/pl/inwestycja/-ID{pid}"
+                    elif portal == "rp" and pid:
+                        if dev_slug and inv_slug:
+                            url = f"https://rynekpierwotny.pl/oferty/{dev_slug}/{inv_slug}-{pid}/"
+                        else:
+                            url = f"https://rynekpierwotny.pl/oferty/-{pid}"
+                    elif portal == "to" and pid:
+                        url = f"https://tabelaofert.pl/i{pid}"
+                if url:
+                    source_links.append({"source": portal, "url": url})
+            entry["source_links"] = source_links
         response = jsonify(entry)
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         return response
