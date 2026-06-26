@@ -458,6 +458,15 @@ function GlobalSearch({ value, onChange, placeholder = 'Szukaj...', onKeyDown })
         onChange={e => onChange(e.target.value)}
         onKeyDown={onKeyDown}
       />
+      {value && (
+        <span 
+          className="usi-global-search-clear" 
+          onClick={() => onChange('')} 
+          style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0 8px', color: 'var(--usi-ink-3)' }}
+        >
+          <Icon name="close" size={14} />
+        </span>
+      )}
     </div>
   );
 }window.usiRegister('GlobalSearch', GlobalSearch);

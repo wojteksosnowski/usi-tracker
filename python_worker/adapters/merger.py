@@ -179,7 +179,7 @@ class Merger:
                 all_labels.update(ex_amen["labels"])
         # Zapisanie kolekcji
         result["image_urls"] = sorted(list(all_image_urls))
-        result["amenities"]["labels"] = list(all_labels)
+        result["amenities"]["labels"] = [lbl for lbl in all_labels if not (isinstance(lbl, str) and lbl.isdigit())]
         result["amenities"]["raw_codes"] = list(all_codes)
 
         # Wymóg biznesowy: Nadpisanie segmentu przez Meta Ratings (Najwyższy priorytet)

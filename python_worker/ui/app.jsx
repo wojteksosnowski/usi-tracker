@@ -326,18 +326,18 @@
                           Brak zdjęć
                         </label>
                       </FilterGroup>
-                      <FilterGroup label="Miasta">
-                        {MAIN_CITIES.map(city => (
-                          <FilterChip key={city} label={city} active={activeCities.has(city)} onClick={(isShift) => toggleCity(city, isShift)} />
-                        ))}
-                      </FilterGroup>
-                      {config?.segments?.length > 0 && (
-                        <FilterGroup label="Segmenty">
-                          {config.segments.map(seg => (
-                            <FilterChip key={seg} label={seg} active={activeSegments.has(seg)} onClick={(isShift) => toggleSegment(seg, isShift)} />
-                          ))}
-                        </FilterGroup>
-                      )}
+                      <div className="usi-flex-row usi-gap-8 usi-align-center">
+                        <select className="usi-input sm usi-w-150" value={Array.from(activeCities)[0] || ""} onChange={e => setVariable('filters.cities', e.target.value ? new Set([e.target.value]) : new Set())}>
+                          <option value="">Miasta: Wszystkie</option>
+                          {MAIN_CITIES.map(city => <option key={city} value={city}>{city}</option>)}
+                        </select>
+                        {config?.segments?.length > 0 && (
+                          <select className="usi-input sm usi-w-150" value={Array.from(activeSegments)[0] || ""} onChange={e => setVariable('filters.segments', e.target.value ? new Set([e.target.value]) : new Set())}>
+                            <option value="">Segmenty: Wszystkie</option>
+                            {config.segments.map(seg => <option key={seg} value={seg}>{seg}</option>)}
+                          </select>
+                        )}
+                      </div>
                     </>
                   )}
                   {view === 'developers' && (
@@ -381,10 +381,6 @@
             right={
               view === 'list' ? (
                 <div className="usi-flex-row usi-gap-8">
-                  <select className="usi-input sm usi-w-150" value={filterDev} onChange={e => setVariable('filters.dev', e.target.value)}>
-                    <option value="">Deweloperzy</option>
-                    {developers.map(d => <option key={d.developer_slug} value={d.developer_slug}>{d.name}</option>)}
-                  </select>
                   <select className="usi-input sm usi-w-120" value={filterStatus} onChange={e => setVariable('filters.status', e.target.value)}>
                     <option value="">Statusy</option>
                     {USI_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
