@@ -680,6 +680,16 @@ class InvestmentSyncService:
                     resources=resources
                 )
 
+                self.developer_resolver.backfill_developer_mapping(usi_inv_id, usi_file_data)
+                self._enrich_with_derived_data(
+                    usi_file_data, 
+                    dest_dir, 
+                    resources, 
+                    existing_data or {}, 
+                    fast_mode=True, 
+                    cached_index=None
+                )
+
                 # Wyznaczenie ścieżki i zapis pliku
                 if dest_dir:
                     dest_dir.mkdir(parents=True, exist_ok=True)

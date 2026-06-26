@@ -1,3 +1,6 @@
+# v0.10.10
+- **Bulk Import Data Enrichment Fix**: Naprawiono błąd w procedurze `process_batch` (używanej m.in. przez masowy import), który powodował omijanie wywołania `_enrich_with_derived_data` przed zapisem. W rezultacie nowe rekordy nie miały wygenerowanych czystych ścieżek do zdjęć w kluczu `photos` (wymaganych przez frontend UI), co skutkowało brakiem miniaturek w interfejsie graficznym po zaimportowaniu pomimo fizycznej obecności plików na dysku.
+
 # v0.10.9
 - **Image Sync Fix (Ingestion Pipeline)**: Naprawiono błąd powodujący, że procesy rejestracji nowych inwestycji przez scraper API gubiły lokalne ścieżki pobranych obrazów (`image_paths`). Obrazy są teraz bezpośrednio przekazywane do adaptera scalającego (Merger) i zapisywane z rekordem już podczas początkowego zapisu, eliminując luki po imporcie oraz omijając zapytywanie o niegotowy indeks.
 - **ScraperGateway Optimization**: Funkcja `save_images` w bramie tracker'a opcjonalnie przyjmuje teraz ścieżkę zapisu by zminimalizować poleganie na wewnątrzpamięciowym resolverze przy synchronizacjach opóźnionych.
