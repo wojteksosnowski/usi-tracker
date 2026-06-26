@@ -178,6 +178,9 @@ class InvestmentSyncService:
             "usi_dev_id": (self.dm.find_developer_by_id(portal, str(vendor_id)) or {}).get("usi_dev_id") if vendor_id else None
         }
         
+        if "image_paths" in raw_data:
+            initial_data["image_paths"] = raw_data["image_paths"]
+        
         success = self.update_investment(
             usi_inv_id, 
             use_local_raw=True, 
@@ -636,8 +639,8 @@ class InvestmentSyncService:
                     }
                     
                 # Copy image paths if provided by scraper in live fetch
-                if isinstance(raw_payload, dict) and "image_paths" in raw_payload:
-                    unified_data["image_paths"] = raw_payload["image_paths"]
+                if isinstance(data, dict) and "image_paths" in data:
+                    unified_data["image_paths"] = data["image_paths"]
 
                 target_file = dest_dir / f"usi_{usi_inv_id}.json"
                 existing_data = None

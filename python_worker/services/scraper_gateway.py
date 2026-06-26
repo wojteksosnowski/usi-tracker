@@ -106,11 +106,12 @@ class ScraperGateway:
         else:
             return scraper_api.discover_to_investments(self._config, self._fetcher, identifier=identifier, limit=limit)
 
-    def save_images(self, urls: List[str], portal: str, portal_id: str) -> List[str]:
+    def save_images(self, urls: List[str], portal: str, portal_id: str, target_dir: Path = None) -> List[str]:
         from usi_scrapers.utils.images import save_images as lib_save_images
-        from usi_scrapers.manager import TechnicalDataManager
-        tech_manager = TechnicalDataManager(self._config)
-        target_dir = tech_manager.get_image_path(portal, str(portal_id))
+        if not target_dir:
+            from usi_scrapers.manager import TechnicalDataManager
+            tech_manager = TechnicalDataManager(self._config)
+            target_dir = tech_manager.get_image_path(portal, str(portal_id))
         if not target_dir:
             return []
         target_dir.mkdir(parents=True, exist_ok=True)

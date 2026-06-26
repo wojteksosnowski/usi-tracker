@@ -1,3 +1,7 @@
+# v0.10.9
+- **Image Sync Fix (Ingestion Pipeline)**: Naprawiono błąd powodujący, że procesy rejestracji nowych inwestycji przez scraper API gubiły lokalne ścieżki pobranych obrazów (`image_paths`). Obrazy są teraz bezpośrednio przekazywane do adaptera scalającego (Merger) i zapisywane z rekordem już podczas początkowego zapisu, eliminując luki po imporcie oraz omijając zapytywanie o niegotowy indeks.
+- **ScraperGateway Optimization**: Funkcja `save_images` w bramie tracker'a opcjonalnie przyjmuje teraz ścieżkę zapisu by zminimalizować poleganie na wewnątrzpamięciowym resolverze przy synchronizacjach opóźnionych.
+
 ## Wersja 0.10.8 — UI Improvements & Realtime Rating Sync — 2026-06-24
 
 ### Zmieniono

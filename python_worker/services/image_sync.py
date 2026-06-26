@@ -47,7 +47,7 @@ class ImageSyncService:
 
         if all_urls:
             logger.info(f"Synchronizing images for {system_id} ({len(all_urls)} URLs)")
-            saved_filenames = self.gateway.save_images(all_urls, portal, str(item_id))
+            saved_filenames = self.gateway.save_images(all_urls, portal, str(item_id), target_dir=target_image_dir)
 
             rel_dir = target_image_dir.relative_to(self.public_usi_dir)
             new_paths = [f"/Public/USI/{rel_dir}/{fname}" for fname in saved_filenames if fname]
