@@ -10,7 +10,7 @@ from flask import Blueprint, jsonify, abort, request, send_file, redirect, send_
 from werkzeug.utils import safe_join
 
 from python_worker.jobs import job_manager
-from python_worker.api.utils import _valid_slug, _valid_filename, get_anchor_path, update_anchor_json, filter_investments
+from python_worker.api.utils import _valid_slug, _valid_filename, get_anchor_path, update_anchor_json
 import python_worker.developer_index as dev_index
 import python_worker.investment_index as inv_index
 from python_worker.config import PUBLIC_USI_DIR, USI_DATA_DIR, USI_DEV_DIR, get_shared_config, get_shared_fetcher, get_shared_tech_manager, get_shared_repository
@@ -28,6 +28,9 @@ from python_worker.services.developer_service import DeveloperService
 
 developer_manager = DeveloperManager(USI_DATA_DIR, Path(USI_DATA_DIR).parent / "USIdev")
 developer_service = DeveloperService(Path(USI_DATA_DIR), Path(USI_DATA_DIR).parent / "USIdev")
+
+from python_worker.services.investment_service import InvestmentService
+investment_service_facade = InvestmentService(Path(USI_DATA_DIR), Path(PUBLIC_USI_DIR))
 
 # Lazy-loaded sync service (tylko do rejestracji, odświeżeń, batch)
 def _get_sync():
@@ -132,20 +135,27 @@ def _parse_investment_filters(req) -> dict:
 @investments_bp.route("/investments", methods=["GET"])
 def list_investments():
     filters = _parse_investment_filters(request)
-    print(f"DEBUG FILTERS: {filters}")
     try:
-        all_invs = inv_index.load(Path(USI_DATA_DIR)) or []
-        results = filter_investments(all_invs, filters) if any(filters.values()) else all_invs
-
+        results = investment_service_facade.list_investments_filtered(**filters)
+        
+        all_invs = inv_index.get_investment_index().get_all() or []
         unreviewed_count = sum(1 for inv in all_invs if inv.get("reviewed") is False)
+        
         ratings_map = {
             i.get("usi_inv_id"): i.get("ratings")
             for i in all_invs
             if i.get("ratings") and i.get("usi_inv_id")
         }
-        return jsonify({"data": results, "unreviewedCount": unreviewed_count, "ratingsMap": ratings_map, "totalCount": len(all_invs)}), 200
+        
+        return jsonify({
+            "data": results, 
+            "unreviewedCount": unreviewed_count, 
+            "ratingsMap": ratings_map, 
+            "totalCount": len(all_invs)
+        }), 200
+        
     except Exception as e:
-        logger.error(f"Failed to list investments: {e}")
+        logger.error(f"Failed to list investments via unified service: {e}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
 
 @investments_bp.route("/investment/<master_id>/members", methods=["GET"])
@@ -495,6 +505,23 @@ def unmerge_developer(usi_dev_id):
     except Exception as e:
         logger.exception("unmerge_developer error: %s", e)
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@investments_bp.route("/developer/<usi_dev_id>/toggle-virtual", methods=["POST"])
+def toggle_virtual_developer(usi_dev_id):
+    dev = developer_manager.get_developer_by_id(usi_dev_id)
+    if not dev:
+        return jsonify({"ok": False, "error": "Not found"}), 404
+        
+    dev["is_virtual"] = not dev.get("is_virtual", False)
+    developer_manager.create_developer_file(dev)
+    
+    # Wymuś reindeksację w locie
+    import python_worker.developer_index as dev_index
+    if hasattr(dev_index.indexer, "rebuild_developer_index_entry"):
+        dev_index.indexer.rebuild_developer_index_entry(usi_dev_id)
+    
+    return jsonify({"ok": True, "is_virtual": dev["is_virtual"]})
 
 
 @investments_bp.route("/developer/<usi_dev_id>/discover", methods=["POST"])

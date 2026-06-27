@@ -42,13 +42,13 @@ function DeveloperListGrid({
     });
   }, [developers, search, sources, onlyActive, onlyMerged, onlyPending]);
 
+  const devIds = filteredDevelopers.map(d => d.usi_dev_id).join(',');
   React.useEffect(() => {
     setVariable('visibleDevelopers', filteredDevelopers);
-  }, [filteredDevelopers]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [devIds, setVariable]);
 
-
-
-  const devColumns = [
+  const devColumns = React.useMemo(() => [
     {
       key: 'name',
       label: 'Deweloper',
@@ -76,6 +76,7 @@ function DeveloperListGrid({
       label: 'Inwest.',
       width: 80,
       align: 'right',
+      sortable: true,
       render: (val) => <span className="usi-body usi-weight-600">{val || 0}</span>
     },
     {
@@ -96,7 +97,7 @@ function DeveloperListGrid({
         ? <span className="usi-pill solid warning usi-tiny">+{val}</span>
         : <span className="usi-text-secondary">—</span>
     },
-  ];
+  ], [SourceBadge]);
 
   return (
     <div data-component="DeveloperListGrid"
@@ -110,6 +111,8 @@ function DeveloperListGrid({
         onRowClick={onSelectDev}
         renderCard={(dev) => <DeveloperCard dev={dev} onSelect={() => onSelectDev(dev)} />}
         emptyMessage="Brak deweloperów pasujących do filtrów"
+        defaultSortKey="investments_count"
+        defaultSortDir="desc"
       />
     </div>
   );

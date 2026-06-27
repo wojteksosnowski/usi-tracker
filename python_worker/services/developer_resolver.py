@@ -121,16 +121,26 @@ class DeveloperResolver:
             pid = pdata.get("vendor_id") or pdata.get("agency_id") or pdata.get("developer_id")
             if not pid: continue
             
-            if not pm.get(portal):
-                pm[portal] = ScraperGateway.generate_portal_mapping(portal, pid)
-                needs_update = True
-            elif portal == "oto":
-                # Handle existing 'oto' merging
-                mapping = pm["oto"]
-                if pid not in mapping.get("agency_ids", []):
-                    mapping.setdefault("agency_ids", []).append(str(pid))
-                    mapping["agency_id"] = str(pid)
+            existing_child_dev = self.dm.find_developer_by_id(portal, str(pid))
+            if existing_child_dev and existing_child_dev.get("usi_dev_id") != target_dev.get("usi_dev_id"):
+                # Wykryto dwóch różnych deweloperów w jednej zmergowanej inwestycji!
+                # Konieczne jest wywołanie oficjalnego mechanizmu Merge Manager.
+                from python_worker.developer_merge_manager import DeveloperMergeManager
+                merge_mgr = DeveloperMergeManager(self.dm.repo, self.dm.indexer)
+                
+                logger.info(f"Wykryto konflikt deweloperów przy merge inwestycji. Łączenie systemowe: {target_dev['usi_dev_id']} <- {existing_child_dev['usi_dev_id']}")
+                merge_mgr.merge_by_id(target_dev["usi_dev_id"], existing_child_dev["usi_dev_id"])
+            else:
+                if not pm.get(portal):
+                    pm[portal] = ScraperGateway.generate_portal_mapping(portal, pid)
                     needs_update = True
+                elif portal == "oto":
+                    # Handle existing 'oto' merging
+                    mapping = pm["oto"]
+                    if pid not in mapping.get("agency_ids", []):
+                        mapping.setdefault("agency_ids", []).append(str(pid))
+                        mapping["agency_id"] = str(pid)
+                        needs_update = True
 
         if needs_update:
             self.dm.create_developer_file(target_dev)

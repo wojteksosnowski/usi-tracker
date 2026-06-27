@@ -12,7 +12,54 @@ LAT_BOUND_THRESHOLD = 0.06
 LON_BOUND_THRESHOLD = 0.1
 
 
-def _build_index_entry(raw: dict, file_path: Path, base_path: Path) -> Optional[dict]:
+def _resolve_usi_dev_id_for_raw(raw: dict, base_path: Path, dev_id_map: dict = None) -> Optional[str]:
+    import re
+    sources = raw.get("sources", {})
+    if not sources:
+        return None
+
+    def clean_id(portal, pid):
+        if not pid:
+            return ""
+        cid = str(pid).strip()
+        if portal == "oto":
+            cid = re.sub(r"^ID", "", cid)
+        return cid
+
+    # 1. Sprawdź szybką mapę (głównie przy rebuildzie)
+    for portal, pdata in sources.items():
+        if not isinstance(pdata, dict):
+            continue
+        pid = pdata.get("vendor_id") or pdata.get("agency_id") or pdata.get("developer_id") or pdata.get("id")
+        if not pid:
+            continue
+        cid = clean_id(portal, pid)
+        if dev_id_map and (portal, cid) in dev_id_map:
+            return dev_id_map[(portal, cid)]
+
+    # 2. Fallback do DeveloperManager (przy pojedynczych update-ach)
+    try:
+        from python_worker.developer_manager import DeveloperManager
+        from python_worker.config import USI_DATA_DIR
+        dev_dir = base_path / "Public" / "USIdev"
+        dev_mgr = DeveloperManager(Path(USI_DATA_DIR), dev_dir)
+        
+        for portal, pdata in sources.items():
+            if not isinstance(pdata, dict):
+                continue
+            pid = pdata.get("vendor_id") or pdata.get("agency_id") or pdata.get("developer_id") or pdata.get("id")
+            if not pid:
+                continue
+            dev_record = dev_mgr.find_developer_by_id(portal, str(pid))
+            if dev_record and dev_record.get("usi_dev_id"):
+                return dev_record["usi_dev_id"]
+    except Exception as e:
+        logger.debug(f"Failed fallback developer resolution: {e}")
+
+    return None
+
+
+def _build_index_entry(raw: dict, file_path: Path, base_path: Path, dev_id_map: dict = None) -> Optional[dict]:
     """
     Buduje wpis indeksu bezpośrednio z raw JSON pliku inwestycji.
     Zero agregacji w locie — tylko przepisanie gotowych pól.
@@ -21,6 +68,14 @@ def _build_index_entry(raw: dict, file_path: Path, base_path: Path) -> Optional[
     usi_inv_id = raw.get("usi_inv_id") or raw.get("usi_id") or raw.get("master_id")
     if not usi_inv_id:
         return None
+
+    usi_dev_id = raw.get("usi_dev_id")
+    if not usi_dev_id:
+        usi_dev_id = _resolve_usi_dev_id_for_raw(raw, base_path, dev_id_map)
+        if usi_dev_id:
+            raw["usi_dev_id"] = usi_dev_id
+            from python_worker.utils import write_json_atomically
+            write_json_atomically(file_path, raw)
 
     loc = raw.get("location", {})
     coords_from_loc = loc.get("coords") or (
@@ -92,7 +147,7 @@ def _build_index_entry(raw: dict, file_path: Path, base_path: Path) -> Optional[
         "images_count": len(raw.get("photos", []) or raw.get("image_paths", [])),
         "amenities": amenity_labels,
         "amenities_score": raw.get("amenities_score", 0),
-        "usi_dev_id": raw.get("usi_dev_id"),
+        "usi_dev_id": usi_dev_id,
         "portal": raw.get("portal"),
         "portal_id": raw.get("portal_id"),
         "master_id": raw.get("master_id"),
@@ -307,6 +362,38 @@ class InvestmentIndex:
             from python_worker.config import DROPBOX_PATH
             master_dir = DROPBOX_PATH / "Public" / "USImaster"
 
+            # Prebuild developer lookup map for fast O(1) resolution during indexing
+            dev_id_map = {}
+            try:
+                import re
+                from python_worker.developer_manager import DeveloperManager
+                dev_mgr = DeveloperManager(self.data_dir, DROPBOX_PATH / "Public" / "USIdev")
+                for dev in dev_mgr.list_developers(only_merged=False):
+                    dev_id = dev.get("usi_dev_id")
+                    if not dev_id:
+                        continue
+                    pm = dev.get("portal_mapping", {})
+                    for portal, p_data in pm.items():
+                        if not p_data:
+                            continue
+                        
+                        def clean_id(portal, pid):
+                            if not pid:
+                                return ""
+                            cid = str(pid).strip()
+                            if portal == "oto":
+                                cid = re.sub(r"^ID", "", cid)
+                            return cid
+
+                        p_id = p_data.get("id") or p_data.get("agency_id")
+                        if p_id:
+                            dev_id_map[(portal, clean_id(portal, p_id))] = dev_id
+                        for aid in p_data.get("agency_ids", []):
+                            if aid:
+                                dev_id_map[(portal, clean_id(portal, aid))] = dev_id
+            except Exception as e:
+                logger.error(f"Błąd budowania mapy deweloperów do indeksu: {e}", exc_info=True)
+
             entries = []
             master_member_ids: set = set()
 
@@ -322,25 +409,22 @@ class InvestmentIndex:
                             uid = m.get("usi_inv_id") if isinstance(m, dict) else None
                             if uid:
                                 master_member_ids.add(uid)
-                        entry = _build_index_entry(raw, mf, DROPBOX_PATH)
+                        entry = _build_index_entry(raw, mf, DROPBOX_PATH, dev_id_map)
                         if entry:
                             entries.append(entry)
                     except Exception as e:
                         logger.error(f"Błąd indeksowania mastera {mf}: {e}")
 
-            # 2. USIdata/ — pomijaj members grup
+            # 2. USIdata/
             for usi_file in self.data_dir.rglob("usi_*.json"):
                 if "usi_dev_" in usi_file.name:
                     continue
                 try:
                     raw = json.loads(usi_file.read_text(encoding="utf-8"))
                     usi_inv_id = raw.get("usi_inv_id") or raw.get("usi_id")
-                    if not usi_inv_id or usi_inv_id in master_member_ids:
+                    if not usi_inv_id:
                         continue
-                    # Pomiń members grup (mają master_id)
-                    if raw.get("master_id"):
-                        continue
-                    entry = _build_index_entry(raw, usi_file, DROPBOX_PATH)
+                    entry = _build_index_entry(raw, usi_file, DROPBOX_PATH, dev_id_map)
                     if entry:
                         entries.append(entry)
                 except Exception as e:

@@ -106,30 +106,41 @@ class InvestmentService:
         return raw_results[:limit]
 
     def list_investments_filtered(self, **kwargs) -> list[dict]:
-        """Filters all investments using the global index with Single-Pass Multi-Predicate strategy."""
+        """
+        Główne i jedyne źródło filtrowania inwestycji w systemie.
+        Wykorzystuje strategię Single-Pass Multi-Predicate.
+        """
         index = get_investment_index()
-        all_invs = index.get_all()
+        all_invs = index.get_all() or []
         if not kwargs:
             return all_invs
 
-        # Definicja predykatów mapujących klucz na funkcję filtrującą
+        # Definicja bezwzględnych warunków filtrowania
         predicates = {
             'onlyUnreviewed': lambda i, v: not i.get('reviewed', False) if v else True,
             'onlyNoPhotos': lambda i, v: (not i.get('photos') or len(i.get('photos', [])) == 0) if v else True,
             'dev': lambda i, v: i.get('developer_slug') == v,
+            'developer_slug': lambda i, v: i.get('developer_slug') == v,
             'search': lambda i, v: str(v).lower() in str(i.get('name') or '').lower() or str(v).lower() in str(i.get('developer') or '').lower(),
             'sources': lambda i, v: any(str(p).lower() in [str(s).lower() for s in v] for p in i.get('sources', {}).keys()) if v else True,
             'segments': lambda i, v: i.get('segment') in v if v else True,
             'cities': lambda i, v: str(i.get('city') or '').lower() in [str(c).lower() for c in v] if v else True,
-            'reviewed': lambda i, v: i.get('reviewed') == v,
-            'developer_slug': lambda i, v: i.get('developer_slug') == v,
             'portal': lambda i, v: i.get('portal') == v,
             'status': lambda i, v: i.get('status') == v,
+            'usi_dev_id': lambda i, v: i.get('usi_dev_id') == v,
+            'valid_dev_ids': lambda i, v: i.get('usi_dev_id') in v if isinstance(v, (set, list, dict)) else i.get('usi_dev_id') == v,
         }
 
-        active_filters = [(predicates[k], v) for k, v in kwargs.items() if k in predicates and v is not None and v != "" and v != []]
+        # Oczyszczanie filtrów z pustych wartości (None, "", [])
+        active_filters = [
+            (predicates[k], v) for k, v in kwargs.items() 
+            if k in predicates and v is not None and v != "" and v != []
+        ]
 
-        # Jedno przejście przez pętlę zamiast wielokrotnego klonowania tablicy
+        if not active_filters:
+            return all_invs
+
+        # Jedno przejście O(N) przez kolekcję
         return [
             inv for inv in all_invs 
             if all(predicate(inv, value) for predicate, value in active_filters)

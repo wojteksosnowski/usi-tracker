@@ -194,12 +194,26 @@ class InvestmentMerger:
                 if d.get("developer") and d["developer"] != "Nieznany deweloper":
                     master["developer"] = d["developer"]
 
-            if (not master["location"].get("city")) or is_better_portal:
-                if d.get("location") and d["location"].get("city"):
+            if (not master["location"].get("coords") and not master["location"].get("city")) or is_better_portal:
+                if d.get("location") and (d["location"].get("city") or d["location"].get("coords")):
                     master["location"] = d["location"]
 
-            if not master["usi_dev_id"] and d.get("usi_dev_id"):
-                master["usi_dev_id"] = d["usi_dev_id"]
+            dev_id = d.get("usi_dev_id")
+            if dev_id:
+                from python_worker.developer_manager import DeveloperManager
+                dev_dir = self.data_dir.parent / "USIdev"
+                dev_manager = DeveloperManager(str(self.data_dir), dev_dir)
+                dev_entry = dev_manager.get_developer_by_id(dev_id)
+                is_virtual = dev_entry.get("is_virtual", False) if dev_entry else False
+                
+                current_dev_id = master.get("usi_dev_id")
+                current_is_virtual = False
+                if current_dev_id:
+                    curr_entry = dev_manager.get_developer_by_id(current_dev_id)
+                    current_is_virtual = curr_entry.get("is_virtual", False) if curr_entry else False
+                
+                if not current_dev_id or (current_is_virtual and not is_virtual):
+                    master["usi_dev_id"] = dev_id
 
             # Status i oceny — bierz z najwyższym statusem
             d_rat = d.get("ratings", {})
@@ -312,6 +326,17 @@ class InvestmentMerger:
         for key in w_sums:
             if w_counts[key] > 0:
                 master["financials"][key] = round(w_sums[key] / w_counts[key], 2)
+
+        # Ustal spójną nazwę dewelopera i slug na podstawie wybranego usi_dev_id
+        final_dev_id = master.get("usi_dev_id")
+        if final_dev_id:
+            from python_worker.developer_manager import DeveloperManager
+            dev_dir = self.data_dir.parent / "USIdev"
+            dev_manager = DeveloperManager(str(self.data_dir), dev_dir)
+            dev_entry = dev_manager.get_developer_by_id(final_dev_id)
+            if dev_entry:
+                master["developer"] = dev_entry.get("name") or master.get("developer")
+                master["developer_slug"] = dev_entry.get("developer_slug") or master.get("developer_slug")
 
         # Delivery date
         if delivery_dates:
@@ -695,42 +720,33 @@ class InvestmentMerger:
 def rebuild_all_masters() -> int:
     """
     Przebudowuje wszystkie istniejące pliki inv_master_*.json nasycając je
-    zagregowanymi danymi ze składowych memberów.
-    Używane po migracji lub zmianie formatu mastera.
-    Zwraca liczbę przebudowanych masterów.
+    zagregowanymi danymi ze składowych memberów pobranych z indeksu (zero rglob/glob).
     """
-    master_dir = _usi_master_dir()
-    if not master_dir.exists():
-        logger.warning("USImaster/ directory not found.")
-        return 0
+    from python_worker.investment_index import get_investment_index
+    idx = get_investment_index()
+
+    # Grupowanie członków po master_id na podstawie indeksu
+    master_members = {}
+    for entry in idx._index.values():
+        m_id = entry.get("master_id")
+        inv_id = entry.get("usi_inv_id")
+        if m_id and inv_id and m_id.startswith("IM-") and not inv_id.startswith("IM-"):
+            master_members.setdefault(m_id, set()).add(inv_id)
 
     merger = InvestmentMerger()
     count = 0
     errors = 0
 
-    master_files = sorted(master_dir.glob("inv_master_*.json"))
-    logger.info(f"Rebuilding {len(master_files)} master files...")
+    logger.info(f"Rebuilding {len(master_members)} master files from index...")
 
-    for mf in master_files:
+    for master_id, member_ids in sorted(master_members.items()):
         try:
-            raw = _read_json(mf)
-            if not raw:
-                continue
-            master_id = raw.get("master_id") or raw.get("usi_inv_id")
-            if not master_id or not master_id.startswith("IM-"):
-                logger.warning(f"Skipping {mf.name}: no valid master_id")
-                continue
-            members = raw.get("members", [])
-            member_ids = [m["usi_inv_id"] for m in members if isinstance(m, dict) and m.get("usi_inv_id")]
-            if not member_ids:
-                logger.warning(f"Skipping {mf.name}: no members")
-                continue
-            merger._save_master(master_id, member_ids)
+            merger._save_master(master_id, sorted(list(member_ids)))
             count += 1
             logger.info(f"  ✓ {master_id} ({len(member_ids)} members)")
         except Exception as e:
             errors += 1
-            logger.error(f"  ✗ {mf.name}: {e}")
+            logger.error(f"  ✗ {master_id}: {e}")
 
     logger.info(f"Rebuild complete: {count} OK, {errors} errors.")
     return count

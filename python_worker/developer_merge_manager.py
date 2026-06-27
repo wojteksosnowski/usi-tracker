@@ -44,6 +44,11 @@ class DeveloperMergeManager:
         target_slug = target_dev.get("developer_slug", "")
         source_slug = source_dev.get("developer_slug", "")
 
+        # BEZWZGLĘDNA BLOKADA WIRTUALNYCH HUBÓW
+        if target_dev.get("is_virtual") or source_dev.get("is_virtual"):
+            logger.error(f"Krytyczna blokada merge: Jeden z deweloperów jest oznaczony jako WIRTUALNY (Hub agencji). Target: {target_slug}, Source: {source_slug}")
+            return False
+
         if not target_id:
             logger.error(f"_do_merge: target has no usi_dev_id (slug={target_slug})")
             return False
@@ -102,8 +107,16 @@ class DeveloperMergeManager:
             "master_id": dm_id,
         })
 
+        # REKURENCYJNA AKTUALIZACJA LICZNIKÓW PO MERGE
+        target_dev["investments_count"] = target_dev.get("investments_count", 0) + source_dev.get("investments_count", 0)
+
         self.repo.create_developer_file(target_dev)
         self.repo.create_developer_file(source_dev)
+
+        # Wymuszenie aktualizacji indeksu pamięciowego i plikowego
+        if hasattr(self.indexer, "rebuild_developer_index_entry"):
+            self.indexer.rebuild_developer_index_entry(target_id)
+            self.indexer.rebuild_developer_index_entry(source_id)
 
         # Remove any legacy USIdata dev file for source
         for lp in [self.repo.data_dir / source_slug / f"usi_dev_{source_slug}.json"]:
@@ -161,8 +174,17 @@ class DeveloperMergeManager:
             "source_name": source_dev.get("name", source_slug),
         })
 
+        # REKURENCYJNA AKTUALIZACJA LICZNIKÓW PO UNMERGE
+        target_dev["investments_count"] = max(0, target_dev.get("investments_count", 0) - source_dev.get("investments_count", 0))
+
         self.repo.create_developer_file(target_dev)
         self.repo.create_developer_file(source_dev)
+
+        # Wymuszenie aktualizacji indeksu pamięciowego i plikowego
+        if hasattr(self.indexer, "rebuild_developer_index_entry"):
+            target_id = target_dev.get("usi_dev_id")
+            self.indexer.rebuild_developer_index_entry(target_id)
+            self.indexer.rebuild_developer_index_entry(source_id)
 
         logger.info(f"Unmerged {source_slug} ({source_id}) from {target_slug}")
         return True

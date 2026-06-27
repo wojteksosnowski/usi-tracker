@@ -359,10 +359,53 @@ function PropertyRow({ label, value, mono }) {
 }
 
 function DeveloperMetadata({ dev }) {
+  const { React, useApi, useDataBus } = window;
   const meta = dev.metadata || {};
+  const [isVirtual, setIsVirtual] = React.useState(!!dev.is_virtual);
+  const { request } = useApi();
+  const { refetch } = useDataBus();
+
+  const handleToggleVirtual = (shouldBeVirtual) => {
+    if (shouldBeVirtual === isVirtual) return;
+    request(`/api/developer/${dev.usi_dev_id}/toggle-virtual`, { method: 'POST' })
+      .then(res => {
+        if (res.ok) {
+          setIsVirtual(res.is_virtual);
+          refetch('developers'); // Odśwież globalną listę, by uwzględnić nowe reguły
+        }
+      });
+  };
+
   return (
     <div className="usi-card usi-p-16">
-      <h3 className="usi-h3" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 16, color: 'var(--usi-ink-4)' }}>Dane Firmy</h3>
+      <div className="usi-flex-row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h3 className="usi-h3" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, margin: 0, color: 'var(--usi-ink-4)' }}>Dane Firmy</h3>
+        
+        {/* RADIO BUTTONS DLA DEWELOPERA WIRTUALNEGO */}
+        <div className="usi-flex-row usi-gap-12" style={{ alignItems: 'center' }}>
+          <label className="usi-flex-row usi-gap-4 usi-tiny usi-weight-600" style={{ cursor: 'pointer', userSelect: 'none' }}>
+            <input 
+              type="radio" 
+              name="usi_dev_type"
+              checked={!isVirtual} 
+              onChange={() => handleToggleVirtual(false)} 
+              style={{ accentColor: 'var(--usi-ink-4)' }}
+            />
+            <span>Standardowy</span>
+          </label>
+          <label className="usi-flex-row usi-gap-4 usi-tiny usi-weight-600" style={{ cursor: 'pointer', userSelect: 'none' }}>
+            <input 
+              type="radio" 
+              name="usi_dev_type"
+              checked={isVirtual} 
+              onChange={() => handleToggleVirtual(true)} 
+              style={{ accentColor: 'var(--usi-amber)' }}
+            />
+            <span style={{ color: isVirtual ? 'var(--usi-amber)' : 'inherit' }}>Wirtualny (Hub)</span>
+          </label>
+        </div>
+      </div>
+
       <PropertyRow label="Adres siedziby" value={meta.address} />
       <PropertyRow label="NIP" value={meta.nip} mono />
       <PropertyRow label="KRS" value={meta.krs} mono />
