@@ -65,11 +65,14 @@
 
     const [refreshing, setRefreshing] = React.useState(false);
     const [refreshLabel, setRefreshLabel] = React.useState('Odśwież dane');
+    const [rebuilding, setRebuilding] = React.useState(false);
+    const [rebuildLabel, setRebuildLabel] = React.useState('Odbuduj z raw');
     const pollRef = React.useRef(null);
     React.useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
     const handleRefresh = React.useCallback(async () => {
         if (!inv.usi_inv_id) return;
+        if (pollRef.current) clearInterval(pollRef.current);
         setRefreshing(true);
         setRefreshLabel('Uruchamianie…');
         setVariable('appStatus', { type: 'info', msg: 'Odświeżanie danych…' });
@@ -118,12 +121,73 @@
         }, 2000);
     }, [inv.usi_inv_id, onUpdateInv, request]);
 
+    const handleRebuildFromRaw = React.useCallback(async () => {
+        if (!inv.usi_inv_id) return;
+        if (pollRef.current) clearInterval(pollRef.current);
+        setRebuilding(true);
+        setRebuildLabel('Uruchamianie…');
+        setVariable('appStatus', { type: 'info', msg: 'Odbudowywanie rekordu z raw…' });
+
+        let jobId = null;
+        try {
+            const res = await request(`/api/investment/${inv.usi_inv_id}/refresh`, { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ use_local_raw: true })
+            });
+            if (res && res.error) {
+                setVariable('appStatus', { type: 'error', msg: 'Błąd startu: ' + (res.error || 'nieznany błąd') });
+                setRebuilding(false);
+                setRebuildLabel('Odbuduj z raw');
+                return;
+            }
+            jobId = res ? res.job_id : null;
+        } catch (err) {
+            setVariable('appStatus', { type: 'error', msg: 'Błąd sieci: ' + err.message });
+            setRebuilding(false);
+            setRebuildLabel('Odbuduj z raw');
+            return;
+        }
+
+        if (!jobId) return;
+
+        pollRef.current = setInterval(async () => {
+            try {
+                const r = await fetch(`/api/jobs/${jobId}`);
+                if (!r.ok) return;
+                const job = await r.json();
+                if (job.message) setRebuildLabel(job.message.slice(0, 40));
+
+                if (job.status === 'completed') {
+                    clearInterval(pollRef.current);
+                    pollRef.current = null;
+                    setRebuilding(false);
+                    setRebuildLabel('Odbuduj z raw');
+                    setVariable('appStatus', { type: 'success', msg: job.message || 'Odbudowano pomyślnie.' });
+                    if (onUpdateInv) onUpdateInv();
+                } else if (job.status === 'failed') {
+                    clearInterval(pollRef.current);
+                    pollRef.current = null;
+                    setRebuilding(false);
+                    setRebuildLabel('Odbuduj z raw');
+                    setVariable('appStatus', { type: 'error', msg: job.message || 'Błąd odbudowywania.' });
+                }
+            } catch (_) { }
+        }, 2000);
+    }, [inv.usi_inv_id, onUpdateInv, request]);
+
     React.useEffect(() => {
         window._usiRefreshData = handleRefresh;
+        window._usiRebuildFromRaw = handleRebuildFromRaw;
         setVariable('isRefreshing', refreshing);
         setVariable('refreshLabel', refreshLabel);
-        return () => { delete window._usiRefreshData; };
-    }, [handleRefresh, refreshing, refreshLabel]);
+        setVariable('isRebuilding', rebuilding);
+        setVariable('rebuildLabel', rebuildLabel);
+        return () => { 
+            delete window._usiRefreshData; 
+            delete window._usiRebuildFromRaw;
+        };
+    }, [handleRefresh, handleRebuildFromRaw, refreshing, refreshLabel, rebuilding, rebuildLabel]);
 
     React.useEffect(() => {
         // Sync Guard (06.02.02): Reset fullInv immediately to prevent stale photos/metadata

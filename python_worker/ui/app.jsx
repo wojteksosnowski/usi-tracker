@@ -135,6 +135,11 @@
       };
 
       React.useEffect(() => {
+        window._usiSelectDev = handleSelectDev;
+        return () => { delete window._usiSelectDev; };
+      }, [selectedDev]);
+
+      React.useEffect(() => {
         const handler = (e) => {
           if (view === 'detail' && selectedInv) {
             const list = visibleInvestments || [];
@@ -393,10 +398,18 @@
                   <button 
                       className="usi-btn ghost sm" 
                       onClick={() => window._usiRefreshData && window._usiRefreshData()}
-                      disabled={bus.isRefreshing}
+                      disabled={bus.isRefreshing || bus.isRebuilding}
                   >
-                      <Icon name="sparkle" size={14} className="usi-m-r-8" />
+                      <Icon name="activity" size={14} className="usi-m-r-8" />
                       {bus.refreshLabel || 'Odśwież dane'}
+                  </button>
+                  <button 
+                      className="usi-btn ghost sm" 
+                      onClick={() => window._usiRebuildFromRaw && window._usiRebuildFromRaw()}
+                      disabled={bus.isRefreshing || bus.isRebuilding}
+                  >
+                      <Icon name="award" size={14} className="usi-m-r-8" />
+                      {bus.rebuildLabel || 'Odbuduj z raw'}
                   </button>
                   <div className="usi-divider-v" />
                   {(bus.markedPhotos && bus.markedPhotos.size > 0) && (

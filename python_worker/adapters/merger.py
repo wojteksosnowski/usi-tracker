@@ -179,7 +179,16 @@ class Merger:
                 all_labels.update(ex_amen["labels"])
         # Zapisanie kolekcji
         result["image_urls"] = sorted(list(all_image_urls))
-        result["amenities"]["labels"] = [lbl for lbl in all_labels if not (isinstance(lbl, str) and lbl.isdigit())]
+        # Case-insensitive deduplication of labels, prioritizing standard/lowercase and filtering digits
+        deduped_labels = {}
+        for lbl in all_labels:
+            if not isinstance(lbl, str) or lbl.isdigit():
+                continue
+            lbl_str = lbl.strip()
+            lbl_lc = lbl_str.lower()
+            if lbl_lc not in deduped_labels or lbl_str.islower():
+                deduped_labels[lbl_lc] = lbl_str
+        result["amenities"]["labels"] = list(deduped_labels.values())
         result["amenities"]["raw_codes"] = list(all_codes)
 
         # Wymóg biznesowy: Nadpisanie segmentu przez Meta Ratings (Najwyższy priorytet)

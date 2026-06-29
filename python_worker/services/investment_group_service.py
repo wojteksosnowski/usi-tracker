@@ -78,12 +78,9 @@ class InvestmentGroupService:
         dev_dir = self.data_dir.parent / "USIdev"
         dev_manager = DeveloperManager(str(self.data_dir), dev_dir)
         
-        # Przekazujemy dev_manager jako repo oraz moduł indeksu/indexer zgodnie z wymaganiem sygnatury
-        merge_mgr = DeveloperMergeManager(dev_manager, dev_index)
-        
         # POPRAWKA SYGNATURY: DeveloperMergeManager posiada metodę 'merge_by_id(target_id, source_id)'
         # a nie 'merge_developer_records(master_id, slave_id)'. Używaj właściwej metody systemu!
-        success = merge_mgr.merge_by_id(target_id=master_dev_id, source_id=secondary_dev_id)
+        success = dev_manager.merger.merge_by_id(target_id=master_dev_id, source_id=secondary_dev_id)
         
         if success:
             logger.info(f"[DEV_MERGE] Pomyślnie scalono rekordy deweloperów w strukturze USIdev.")

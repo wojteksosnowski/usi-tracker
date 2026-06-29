@@ -38,8 +38,59 @@ def _enrich_rp_unified(unified: dict) -> None:
     """Post-processing po transform_to_unified dla portalu RP.
     Konwertuje płaski klucz 'construction_date_upper' (YYYY-MM-DD) na
     specifications.delivery_date (YYYY-QN), delivery_quarter i delivery_year.
+    Dekoduje identyfikatory numeryczne udogodnień na etykiety słowne.
     Działa in-place.
     """
+    # Decode amenities if they are numeric IDs
+    amenities = unified.get("amenities")
+    if amenities:
+        try:
+            p = Path(__file__).parent.parent / "data" / "offer_facilities.json"
+            if p.exists():
+                import json
+                with open(p, "r", encoding="utf-8") as f:
+                    fac_data = json.load(f)
+                    facilities_map = {
+                        str(item["value"]).strip(): str(item["label"]).strip()
+                        for item in fac_data.get("offer_facilities", [])
+                        if "value" in item and "label" in item
+                    }
+                if facilities_map:
+                    if isinstance(amenities, list):
+                        decoded = []
+                        for item in amenities:
+                            item_str = str(item).strip()
+                            if item_str in facilities_map:
+                                decoded.append(facilities_map[item_str])
+                            else:
+                                decoded.append(item)
+                        # Case-insensitive deduplication prioritizing lowercase from mapping
+                        deduped = {}
+                        for x in decoded:
+                            xl = x.lower()
+                            if xl not in deduped or x.islower():
+                                deduped[xl] = x
+                        unified["amenities"] = list(deduped.values())
+                    elif isinstance(amenities, dict):
+                        labels = amenities.get("labels")
+                        if isinstance(labels, list):
+                            decoded = []
+                            for item in labels:
+                                item_str = str(item).strip()
+                                if item_str in facilities_map:
+                                    decoded.append(facilities_map[item_str])
+                                else:
+                                    decoded.append(item)
+                            # Case-insensitive deduplication prioritizing lowercase from mapping
+                            deduped = {}
+                            for x in decoded:
+                                xl = x.lower()
+                                if xl not in deduped or x.islower():
+                                    deduped[xl] = x
+                            amenities["labels"] = list(deduped.values())
+        except Exception as e:
+            logger.error(f"Failed to decode RP amenities in tracker: {e}")
+
     upper = unified.get("construction_date_upper")
     if not upper:
         return

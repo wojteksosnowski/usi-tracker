@@ -703,13 +703,10 @@ class InvestmentMerger:
             return
         try:
             from python_worker.developer_manager import DeveloperManager
-            from python_worker.developer_merge_manager import DeveloperMergeManager
-            import python_worker.developer_index as dev_index
 
             dev_dir = self.data_dir.parent / "USIdev"
             dev_manager = DeveloperManager(str(self.data_dir), dev_dir)
-            merge_mgr = DeveloperMergeManager(dev_manager, dev_index)
-            success = merge_mgr.merge_by_id(target_id=primary_dev_id, source_id=secondary_dev_id)
+            success = dev_manager.merger.merge_by_id(target_id=primary_dev_id, source_id=secondary_dev_id)
             if success:
                 logger.info(f"[DEV_MERGE] Scalono deweloperów {secondary_dev_id} → {primary_dev_id}")
                 dev_manager.invalidate_identifiers_cache()

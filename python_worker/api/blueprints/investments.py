@@ -322,25 +322,52 @@ def refresh_investment_route(system_id):
     if not inv:
         abort(404)
 
-    def run_refresh_job(job_id, i_name, system_id, members):
+    from flask import request as flask_request
+    req_json = flask_request.get_json(silent=True) or {}
+    use_local_raw = req_json.get("use_local_raw", False)
+
+    def run_refresh_job(job_id, i_name, system_id, members, use_local_raw):
         try:
             sync = _get_sync()
-            targets = [system_id] + [m.get("usi_inv_id") for m in members if m.get("usi_inv_id")]
+            is_master = system_id.startswith("IM-")
+            
+            if is_master:
+                # W przypadku rekordu zbiorczego odświeżamy tylko jego członków
+                targets = [m.get("usi_inv_id") for m in members if m.get("usi_inv_id")]
+            else:
+                targets = [system_id]
+                
             total = len(targets)
             success_count = 0
+            
             for idx_i, target_id in enumerate(targets):
-                job_manager.update_progress(job_id, int(10 + (idx_i / total) * 80), f"Odświeżanie [{idx_i+1}/{total}]: {target_id}")
-                if sync.update_investment(target_id):
+                action_name = "Odbudowywanie" if use_local_raw else "Odświeżanie"
+                job_manager.update_progress(job_id, int(10 + (idx_i / total) * 70), f"{action_name} [{idx_i+1}/{total}]: {target_id}")
+                if sync.update_investment(target_id, use_local_raw=use_local_raw):
                     success_count += 1
+                    
+            if is_master:
+                job_manager.update_progress(job_id, 90, f"Przebudowywanie rekordu zbiorczego (Master): {system_id}")
+                from python_worker.investment_merger import InvestmentMerger
+                merger = InvestmentMerger()
+                merger._save_master(system_id, targets)
+                investment_service_facade.invalidate_cache(system_id)
+                import python_worker.investment_index as inv_index
+                inv_index.upsert(sync.data_dir, sync.public_usi_dir, inv_id=system_id)
+                success_count = 1 if success_count > 0 else 0
+
             if success_count > 0:
-                job_manager.update_progress(job_id, 100, f"Ukończono odświeżanie: {i_name} ({success_count}/{total})")
+                final_msg = "Ukończono odbudowywanie" if use_local_raw else "Ukończono odświeżanie"
+                job_manager.update_progress(job_id, 100, f"{final_msg}: {i_name}")
             else:
-                job_manager.update_progress(job_id, 100, f"Brak danych do odświeżenia: {i_name}", status="failed")
+                fail_msg = "Brak danych do odbudowania" if use_local_raw else "Brak danych do odświeżenia"
+                job_manager.update_progress(job_id, 100, f"{fail_msg}: {i_name}", status="failed")
         except Exception as e:
             logger.exception(f"Exception during refresh job for {system_id}: {e}")
             job_manager.update_progress(job_id, 100, f"Wyjątek: {str(e)}", status="failed")
 
-    job_id = job_manager.start_job(f"Refresh: {inv.get('name', system_id)}", run_refresh_job, inv.get('name', system_id), system_id, inv.get("members", []))
+    job_title = f"Rebuild: {inv.get('name', system_id)}" if use_local_raw else f"Refresh: {inv.get('name', system_id)}"
+    job_id = job_manager.start_job(job_title, run_refresh_job, inv.get('name', system_id), system_id, inv.get("members", []), use_local_raw)
     return jsonify({"ok": True, "job_id": job_id})
 
 @investments_bp.route("/investment/<system_id>/download-raw", methods=["POST"])

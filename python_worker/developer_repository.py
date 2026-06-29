@@ -242,6 +242,10 @@ class DeveloperRepository:
             else:
                 developer_data["usi_dev_id"] = self.generate_usi_id("DEV")
 
+        # Ensure master_id is preserved
+        if "master_id" not in developer_data and existing_data.get("master_id"):
+            developer_data["master_id"] = existing_data["master_id"]
+
         # --- MIGRACJA: Spłaszczanie danych z 'crawler' (Level 2) ---
         # Przenosimy dane z zagnieżdżonego słownika do korzenia rekordu.
         crawler = developer_data.get("crawler") or existing_data.get("crawler")

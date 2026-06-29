@@ -69,17 +69,44 @@
   usiRegister('SourceLinks', SourceLinks);
 
   const HeroBand = ({ inv, showMap }) => {
-    const { useModuleContext } = window;
+    const { useModuleContext, useDevelopers } = window;
     const { geoPoint } = useModuleContext(inv);
     const score = ocenaLog(inv);
     const hasMap = showMap && geoPoint;
+
+    const { developers = [] } = useDevelopers ? useDevelopers() : {};
+    const currentDev = inv.usi_dev_id ? developers.find(d => d.usi_dev_id === inv.usi_dev_id) : null;
+    let developerName = inv.developer;
+    if (currentDev && currentDev.master_id) {
+        const masterDev = developers.find(d => d.master_id === currentDev.master_id && d.is_master);
+        if (masterDev) {
+            developerName = masterDev.name;
+        }
+    }
+
+    const handleDevClick = () => {
+        if (!currentDev) return;
+        const targetDev = currentDev.master_id 
+            ? (developers.find(d => d.master_id === currentDev.master_id && d.is_master) || currentDev)
+            : currentDev;
+        if (window._usiSelectDev) {
+            window._usiSelectDev(targetDev);
+        }
+    };
 
     return (
       <div data-component="HeroBand" className={`hero-band ${hasMap ? 'has-map' : 'no-map'}`}>
         <div>
           <div className="hero-band-title-row">
             <h1 className="usi-h1 hero-band-title">{inv.name}</h1>
-            <span className="usi-body hero-band-developer">{inv.developer}</span>
+            <span 
+              className="usi-body hero-band-developer" 
+              onClick={handleDevClick}
+              style={{ cursor: currentDev ? 'pointer' : 'default', textDecoration: currentDev ? 'underline' : 'none' }}
+              title={currentDev ? `Przejdź do dewelopera ${developerName}` : ''}
+            >
+              {developerName}
+            </span>
           </div>
           <div className="hero-band-stats">
             {inv.usi_inv_id && <span className="usi-mono" style={{opacity: 0.6}}>ID: {inv.usi_inv_id}</span>}
