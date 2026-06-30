@@ -26,17 +26,14 @@ class DeveloperService:
         from python_worker.services.investment_service import InvestmentService
         inv_service = InvestmentService(data_dir=self.data_dir)
         
-        valid_dev_ids = {str(target_id)}
-        for child in dev.get("merged_from", []):
-            if child.get("usi_dev_id"):
-                valid_dev_ids.add(str(child["usi_dev_id"]))
-                
-        base_invs = inv_service.list_investments_filtered(valid_dev_ids=valid_dev_ids)
+        base_invs = inv_service.list_investments_filtered(dev=target_id)
+        
+        # Budujemy mapę pomocniczą na potrzeby szybkiego lookupu dla członków (O(1) zamiast pętli w pętli)
+        all_invs = inv_service.list_investments_filtered()
         invs_by_dev_id = {}
-        for inv in base_invs:
-            did = inv.get("usi_dev_id")
-            if did:
-                invs_by_dev_id.setdefault(str(did), []).append(inv)
+        for i in all_invs:
+            if did := i.get("usi_dev_id"):
+                invs_by_dev_id.setdefault(str(did), []).append(i)
                 
         # Ładowanie historii zdarzeń
         events = []
@@ -91,7 +88,8 @@ class DeveloperService:
             child_pm = (child_dev.get("original_portal_mapping") or child_dev.get("portal_mapping") or {}).copy()
             member["_pm"] = child_pm
             
-            child_invs = list(invs_by_dev_id.get(str(child_id), []))
+            # POPRAWKA: Dziecko też identyfikujemy wyłącznie po jego unikalnym ID przez zunifikowany mechanizm
+            child_invs = inv_service.list_investments_filtered(dev=child_id)
             
             member["_invs"] = child_invs
             valid_members.append(member)
