@@ -196,7 +196,7 @@ function DeveloperDetail({
     : (developer.investments || []);
 
   return (
-    <div data-component="DeveloperDetail">
+    <div data-component="DeveloperDetail" className="usi-scroll usi-h-full usi-overflow-auto">
       <DeveloperHeroBand dev={developer} />
 
       <div className="developer-main-content">
