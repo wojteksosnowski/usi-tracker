@@ -315,7 +315,8 @@ body,
 
 .usi-app-main {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;     /* critical: allows flex child to shrink, enabling height:100% in DataGrid */
+  overflow: hidden;  /* views needing scroll carry .usi-scroll themselves; DataGrid must see finite height */
   position: relative;
 }
 
