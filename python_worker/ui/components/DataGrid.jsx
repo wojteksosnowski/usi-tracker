@@ -21,9 +21,17 @@ function DataGrid({
 
   React.useEffect(() => {
     if (!containerRef.current) return;
+    // Seed dimensions immediately from current layout (ResizeObserver may fire after first paint)
+    const rect = containerRef.current.getBoundingClientRect();
+    if (rect.width > 0 || rect.height > 0) {
+      setDimensions({ width: rect.width, height: rect.height });
+    }
     const obs = new ResizeObserver(entries => {
       for (let e of entries) {
-        setDimensions({ width: e.contentRect.width, height: e.contentRect.height });
+        // Use contentRect for width; use clientHeight for height to get the
+        // visible scroll-box height, not the content height inside it.
+        const el = e.target;
+        setDimensions({ width: e.contentRect.width, height: el.clientHeight });
       }
     });
     obs.observe(containerRef.current);
@@ -118,6 +126,16 @@ function DataGrid({
   const paddingTop = startRow * effectiveRowHeight;
   const paddingBottom = Math.max(0, (totalRows - endRow) * effectiveRowHeight);
 
+  // DEBUG — remove after diagnosis
+  if (data.length > 100) {
+    console.log('[DataGrid]', {
+      dataLen: data.length, itemsPerRow, totalRows,
+      dimW: Math.round(dimensions.width), dimH: Math.round(dimensions.height),
+      scrollTop: Math.round(scrollTop), startRow, endRow,
+      visibleCount: visibleItems.length, paddingBottom: Math.round(paddingBottom)
+    });
+  }
+
   if (data.length === 0) {
     return (
       <div data-component="DataGrid"
@@ -144,7 +162,10 @@ function DataGrid({
              gridAutoRows: `${gridConfig.cardHeight}px`
            }}>
         {visibleItems.map((item, idx) => {
-          const itemKey = `${item.portal || item.source || 'inv'}-${item.id || item.slug || idx}`;
+          // Derive a stable, unique key from whatever ID fields the item has
+          const itemId = item.usi_inv_id || item.usi_dev_id || item.id || item.slug || idx;
+          const itemSource = item.portal || item.source || 'item';
+          const itemKey = `${itemSource}-${itemId}`;
           return (
             <div key={itemKey} onClick={() => onRowClick(item)}>
               {renderCard ? renderCard(item) : <pre className="usi-datagrid-pre-debug">{JSON.stringify(item, null, 2)}</pre>}
