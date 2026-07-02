@@ -26,7 +26,7 @@ class DeveloperService:
         from python_worker.services.investment_service import InvestmentService
         inv_service = InvestmentService(data_dir=self.data_dir)
         
-        base_invs = inv_service.list_investments_filtered(dev=target_id)
+        base_invs = inv_service.list_investments_filtered(usi_dev_id=target_id)
         
         # Budujemy mapę pomocniczą na potrzeby szybkiego lookupu dla członków (O(1) zamiast pętli w pętli)
         all_invs = inv_service.list_investments_filtered()
@@ -89,7 +89,7 @@ class DeveloperService:
             member["_pm"] = child_pm
             
             # POPRAWKA: Dziecko też identyfikujemy wyłącznie po jego unikalnym ID przez zunifikowany mechanizm
-            child_invs = inv_service.list_investments_filtered(dev=child_id)
+            child_invs = invs_by_dev_id.get(str(child_id), [])
             
             member["_invs"] = child_invs
             valid_members.append(member)
