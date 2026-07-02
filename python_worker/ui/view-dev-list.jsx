@@ -1,7 +1,5 @@
 // view-dev-list.jsx — widok listy deweloperów
 
-const DEV_PAGE_SIZE = 60;
-
 function DeveloperListGrid({
   onSelectDev = () => {}
 }) {
@@ -10,10 +8,6 @@ function DeveloperListGrid({
   const { developers = [], filters = {}, devFilters = {}, devListMode = 'grid' } = bus;
   const { search = '', sources = new Set() } = filters;
   const { onlyActive = false, onlyMerged = false, onlyPending = false } = devFilters;
-
-  const [displayedCount, setDisplayedCount] = React.useState(DEV_PAGE_SIZE);
-  const [loading, setLoading] = React.useState(false);
-  const loadMoreRef = React.useRef(null);
 
   const TWELVE_MONTHS_AGO = Date.now() / 1000 - 365 * 24 * 3600;
 
@@ -48,49 +42,7 @@ function DeveloperListGrid({
     });
   }, [developers, search, sources, onlyActive, onlyMerged, onlyPending]);
 
-  // Reset pagination whenever the filtered set changes
-  React.useEffect(() => {
-    setDisplayedCount(DEV_PAGE_SIZE);
-  }, [filteredDevelopers.length, search, sources, onlyActive, onlyMerged, onlyPending]);
-
-  const displayedDevelopers = React.useMemo(
-    () => filteredDevelopers.slice(0, displayedCount),
-    [filteredDevelopers, displayedCount]
-  );
-
-  const hasMore = displayedCount < filteredDevelopers.length;
-
-  // Load the next page when sentinel comes into view
-  const loadNextPage = React.useCallback(() => {
-    setLoading(true);
-    // Defer to keep the browser responsive during large list slicing
-    setTimeout(() => {
-      setDisplayedCount(prev => Math.min(prev + DEV_PAGE_SIZE, filteredDevelopers.length));
-      setLoading(false);
-    }, 100);
-  }, [filteredDevelopers.length]);
-
-  // KROK 2: Bezpiecznik — observer jest tworzony tylko gdy hasMore && !loading
-  React.useEffect(() => {
-    if (loading || !hasMore) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          loadNextPage();
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    if (loadMoreRef.current) {
-      observer.observe(loadMoreRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, [loading, hasMore, loadNextPage]);
-
-  const devIds = displayedDevelopers.map(d => d.usi_dev_id).join(',');
+  const devIds = filteredDevelopers.map(d => d.usi_dev_id).join(',');
   React.useEffect(() => {
     setVariable('visibleDevelopers', filteredDevelopers);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -149,10 +101,9 @@ function DeveloperListGrid({
 
   return (
     <div data-component="DeveloperListGrid"
-         className="usi-h-full"
-         style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+         className="usi-h-full usi-overflow-hidden">
       <DataGrid
-        data={displayedDevelopers}
+        data={filteredDevelopers}
         mode={devListMode}
         columns={devColumns}
         gridConfig={{ minCardWidth: 220, cardHeight: 340, gap: 16 }}
@@ -162,15 +113,6 @@ function DeveloperListGrid({
         defaultSortKey="investments_count"
         defaultSortDir="desc"
       />
-      {/* KROK 1: Sentinel renderowany warunkowo — tylko gdy jest co ładować i nie trwa ładowanie */}
-      {hasMore && !loading && (
-        <div
-          ref={loadMoreRef}
-          className="h-10 my-4 flex items-center justify-center text-muted-foreground text-sm"
-        >
-          Ładowanie kolejnych deweloperów...
-        </div>
-      )}
     </div>
   );
 }
