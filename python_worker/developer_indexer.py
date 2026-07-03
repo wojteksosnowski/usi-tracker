@@ -19,6 +19,14 @@ class DeveloperIndexer:
         self.repo = repo
         self.counters_path = Path(__file__).parent / "data" / "usi_counters.json"
 
+    def rebuild_developer_index_entry(self, usi_dev_id: str) -> bool:
+        """Rebuilds/upserts a single developer entry in the index."""
+        dev = self.repo.get_developer(usi_dev_id)
+        if not dev:
+            return False
+        from python_worker.developer_index import upsert
+        return upsert(self.repo.data_dir, self.repo.dev_dir, dev.get("developer_slug"), usi_dev_id)
+
     def _get_next_counter(self, key: str) -> int:
         """Atomic counter increment — thread-safe (threading.Lock) and process-safe (flock)."""
         self.counters_path.parent.mkdir(parents=True, exist_ok=True)

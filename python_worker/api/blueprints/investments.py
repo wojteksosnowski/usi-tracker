@@ -544,9 +544,8 @@ def toggle_virtual_developer(usi_dev_id):
     developer_manager.create_developer_file(dev)
     
     # Wymuś reindeksację w locie
-    import python_worker.developer_index as dev_index
-    if hasattr(dev_index.indexer, "rebuild_developer_index_entry"):
-        dev_index.indexer.rebuild_developer_index_entry(usi_dev_id)
+    if hasattr(developer_manager.indexer, "rebuild_developer_index_entry"):
+        developer_manager.indexer.rebuild_developer_index_entry(usi_dev_id)
     
     return jsonify({"ok": True, "is_virtual": dev["is_virtual"]})
 
