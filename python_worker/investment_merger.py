@@ -455,6 +455,51 @@ class InvestmentMerger:
             logger.error("Cannot merge investment into itself.")
             return False
 
+        # Jeśli źródłowy ID jest masterem (IM-...), dołącz wszystkich jego członków do grupy docelowej,
+        # a następnie usuń stary plik master.
+        if source_id.startswith("IM-"):
+            s_master_data, _ = self._load_master_file(source_id)
+            if not s_master_data:
+                logger.error(f"Source master {source_id} not found.")
+                return False
+            
+            member_ids = [m["usi_inv_id"] for m in s_master_data.get("members", [])]
+            logger.info(f"Merging master group {source_id} (members: {member_ids}) into target {target_id}")
+            
+            # Ustal docelowy master ID
+            resolved_target_master_id = target_id
+            if not target_id.startswith("IM-"):
+                t_res = self._get_resources(target_id)
+                if t_res:
+                    t_file = t_res["files"].get("anchor")
+                    t_data = _read_json(t_file)
+                    if t_data:
+                        resolved_target_master_id = t_data.get("master_id")
+            
+            if not resolved_target_master_id or not resolved_target_master_id.startswith("IM-"):
+                from python_worker.developer_indexer import DeveloperIndexer
+                resolved_target_master_id = DeveloperIndexer(None).generate_usi_id("IM")
+                if not target_id.startswith("IM-"):
+                    t_res = self._get_resources(target_id)
+                    if t_res:
+                        t_file = t_res["files"].get("anchor")
+                        t_data = _read_json(t_file)
+                        if t_data:
+                            t_data["master_id"] = resolved_target_master_id
+                            _atomic_write(t_file, t_data)
+            
+            success = True
+            for mid in member_ids:
+                if not self.merge_by_id(resolved_target_master_id, mid):
+                    success = False
+            
+            try:
+                self._master_path(source_id).unlink(missing_ok=True)
+            except Exception as e:
+                logger.error(f"Failed to delete merged source master file {source_id}: {e}")
+                
+            return success
+
         s_res = self._get_resources(source_id)
         if not s_res:
             return False
