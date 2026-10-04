@@ -3,6 +3,8 @@ import sys
 import os
 import logging
 import json
+import re
+import time
 from pathlib import Path
 from datetime import datetime
 from logging.handlers import QueueHandler, QueueListener
@@ -210,6 +212,21 @@ def _resolve_system_id_from_slugs(dev_slug: str, inv_slug: str) -> str | None:
         logger.error(f"Błąd podczas odczytu indeksu pamięci dla {dev_slug}/{inv_slug}: {e}")
     return None
 
+_ARCHIVED_RAW_RE = re.compile(r"_\d{8}_\d{6}\.json$")
+
+
+def _raw_age_hours(inv_dir: Path) -> float | None:
+    """Wiek (w godzinach) najnowszego aktualnego pliku raw_*.json inwestycji; None gdy brak plików raw.
+    Zapis identycznych danych odświeża mtime, więc mtime = moment ostatniego pobrania."""
+    mtimes = [
+        f.stat().st_mtime for f in inv_dir.glob("raw_*.json")
+        if not _ARCHIVED_RAW_RE.search(f.name)
+    ]
+    if not mtimes:
+        return None
+    return (time.time() - max(mtimes)) / 3600.0
+
+
 def update_investment(dev_slug, inv_slug, use_local_raw=False):
     from python_worker.services.investment_service import InvestmentService
     import logging
@@ -236,6 +253,10 @@ def main():
     # Command: update-dev
     parser_update_dev = subparsers.add_parser("update-dev", help="Update all investments for a specific developer")
     parser_update_dev.add_argument("dev_slug", help="Developer slug (e.g., dom-development-sa)")
+    parser_update_dev.add_argument(
+        "--max-age-hours", type=float, default=None,
+        help="Pomiń inwestycje pobrane w ciągu ostatnich N godzin (domyślnie: odśwież wszystkie)",
+    )
 
     # Command: update-inv
     parser_update_inv = subparsers.add_parser("update-inv", help="Update a specific investment")
@@ -319,13 +340,24 @@ def main():
         
         # 2. Iterate over all investment folders
         updated_count = 0
-        for inv_dir in dev_dir.iterdir():
-            if inv_dir.is_dir() and not inv_dir.name.startswith("."):
-                inv_slug = inv_dir.name
-                if update_investment(args.dev_slug, inv_slug):
-                    updated_count += 1
+        from .investment_index import get_investment_index
+        with get_investment_index().deferred_saves():
+            for inv_dir in dev_dir.iterdir():
+                if inv_dir.is_dir() and not inv_dir.name.startswith("."):
+                    inv_slug = inv_dir.name
+                    if args.max_age_hours is not None:
+                        age = _raw_age_hours(inv_dir)
+                        if age is not None and age < args.max_age_hours:
+                            logger.info(f"Pomijam {inv_slug}: pobrano {age:.1f}h temu (< {args.max_age_hours}h)")
+                            continue
+                    if update_investment(args.dev_slug, inv_slug):
+                        updated_count += 1
         
         logger.info(f"Finished update for developer {args.dev_slug}. Updated {updated_count} investments.")
+        from .config import get_shared_fetcher
+        _fetcher = get_shared_fetcher()
+        if _fetcher and _fetcher.stats:
+            logger.info(f"Statystyki żądań per domena: {json.dumps(_fetcher.stats, ensure_ascii=False)}")
         
     elif args.command == "update-inv":
         logger.info(f"Starting update for investment: {args.inv_path}")

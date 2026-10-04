@@ -97,6 +97,7 @@ def get_scraper_config():
         return ScraperConfig(
             public_dir=USI_DATA_DIR.parent, # Public folder containing USIdata and USI
             scraperapi_key=SCRAPERAPI_KEY,
+            fetch_delays=FETCH_DELAYS,
             rp_discovery_urls=RP_DISCOVERY_URLS,
             otodom_discovery_urls=OTODOM_DISCOVERY_URLS,
             to_discovery_urls=TABELA_OFERT_DISCOVERY_URLS

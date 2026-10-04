@@ -23,8 +23,9 @@ done
 lsof -ti :$PORT | xargs kill -9 2>/dev/null || true
 
 # Utwórz / odśwież venv jeśli brakuje flask
-if [ ! -f "$VENV/bin/python3" ]; then
+if ! "$VENV/bin/python3" -c "" 2>/dev/null; then
   echo "→ Tworzę środowisko wirtualne..."
+  rm -rf "$VENV"
   /opt/homebrew/bin/python3 -m venv "$VENV"
 fi
 

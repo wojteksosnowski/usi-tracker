@@ -383,9 +383,7 @@ class InvestmentSyncService:
             logger.warning(f"Investment resources not found skipping ID: {system_id}")
             return False
             
-        # Zawsze przebudowujemy cache resolvera przed odświeżaniem w trybie UI, bo mógł się zdezaktualizować
-        self.tech_manager.resolver.force_rebuild()
-            
+        # Resolver jest współdzielony i aktualizowany przyrostowo przy zapisie — bez pełnego skanu dysku
         inv_dir = resources["base_dir"]
         actual_file = resources["files"].get("anchor")
         metadata = resources["metadata"]
@@ -618,13 +616,6 @@ class InvestmentSyncService:
         
         return targets, to_process
 
-    def process_batch(self, portal: str, investments: List[Dict], on_progress_callback: Optional[Any] = None) -> int:
-        """
-        Processes a batch of investments with performance optimizations:
-        - Bulk downloading via gateway
-        - Local transformation
-        - Rebuilding index once at the end
-        """
     def process_batch(self, portal: str, investments: List[Dict], on_progress_callback: Optional[Any] = None) -> int:
         """
         Główna pętla batch: ufa całkowicie bibliotece usi-scrapers.

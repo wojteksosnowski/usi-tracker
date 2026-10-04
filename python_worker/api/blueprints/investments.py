@@ -340,11 +340,14 @@ def refresh_investment_route(system_id):
             total = len(targets)
             success_count = 0
             
-            for idx_i, target_id in enumerate(targets):
-                action_name = "Odbudowywanie" if use_local_raw else "Odświeżanie"
-                job_manager.update_progress(job_id, int(10 + (idx_i / total) * 70), f"{action_name} [{idx_i+1}/{total}]: {target_id}")
-                if sync.update_investment(target_id, use_local_raw=use_local_raw):
-                    success_count += 1
+            from python_worker.investment_index import get_investment_index
+            # Jeden zapis indeksu na końcu pętli zamiast jednego na każdą inwestycję
+            action_name = "Odbudowywanie" if use_local_raw else "Odświeżanie"
+            with get_investment_index().deferred_saves():
+                for idx_i, target_id in enumerate(targets):
+                    job_manager.update_progress(job_id, int(10 + (idx_i / total) * 70), f"{action_name} [{idx_i+1}/{total}]: {target_id}")
+                    if sync.update_investment(target_id, use_local_raw=use_local_raw):
+                        success_count += 1
                     
             if is_master:
                 job_manager.update_progress(job_id, 90, f"Przebudowywanie rekordu zbiorczego (Master): {system_id}")

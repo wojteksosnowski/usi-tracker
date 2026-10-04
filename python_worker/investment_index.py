@@ -1,6 +1,7 @@
 import json
 import logging
 import threading
+from contextlib import contextmanager
 import os
 from pathlib import Path
 from datetime import datetime
@@ -185,6 +186,8 @@ class InvestmentIndex:
         self._index_lock = threading.Lock()
         self._rebuild_lock = threading.Lock()
         self._is_rebuilding = False
+        self._defer_depth = 0
+        self._dirty = False
         self._on_change_callbacks = []
         self._mtime = 0
         
@@ -477,8 +480,26 @@ class InvestmentIndex:
 
         self._notify_change()
 
-    def _save_to_disk(self):
+    @contextmanager
+    def deferred_saves(self):
+        """Odracza zapisy _index.json do wyjścia z bloku (jeden zapis zamiast O(N) przy pętli upsertów)."""
+        with self._index_lock:
+            self._defer_depth += 1
+        try:
+            yield self
+        finally:
+            with self._index_lock:
+                self._defer_depth -= 1
+                flush = self._defer_depth == 0 and self._dirty
+                if flush:
+                    self._dirty = False
+                    self._save_to_disk(force=True)
+
+    def _save_to_disk(self, force: bool = False):
         """Atomic write to _index.json."""
+        if self._defer_depth > 0 and not force:
+            self._dirty = True
+            return
         entries_list = list(self._index.values())
         data = {
             "built_at": datetime.now().isoformat(),
@@ -490,7 +511,7 @@ class InvestmentIndex:
         }
         tmp_path = self.index_path.with_suffix(".tmp")
         try:
-            tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp_path.write_text(json.dumps(data, ensure_ascii=False, separators=(',', ':')), encoding="utf-8")
             os.replace(tmp_path, self.index_path)
             self._mtime = self.index_path.stat().st_mtime
         except Exception as e:
