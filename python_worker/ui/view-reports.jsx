@@ -1,5 +1,7 @@
 // view-reports.jsx — Widok raportów USI
 
+const LOCATION_REPORT_ID = '__location';
+
 function ReportsList({ onSelectReport }) {
   const { React, Spinner, Icon, useApi } = window;
   const [reports, setReports] = React.useState([]);
@@ -24,10 +26,16 @@ function ReportsList({ onSelectReport }) {
     <div data-component="ReportsList" className="reports-list-content usi-scroll">
         {loading ? (
           <div className="usi-app-loading"><Spinner /></div>
-        ) : reports.length === 0 ? (
-          <div className="usi-app-empty">Brak definicji raportów w Public/USIdata/reports/</div>
         ) : (
           <div className="reports-grid-layout">
+            <div data-component="ReportCard" className="usi-card report-card"
+              onClick={() => onSelectReport({ id: LOCATION_REPORT_ID })}>
+              <h2 className="usi-h2">Analiza lokalizacji</h2>
+              <p className="usi-small">Inwestycje w zasięgu od punktu z Map Google, z filtrem terminu oddania.</p>
+              <div className="report-card-footer">
+                <button className="usi-btn sm">Otwórz <Icon name="arrow" size={12} /></button>
+              </div>
+            </div>
             {reports.map(report => (
               <div key={report.id} 
                 data-component="ReportCard"
@@ -121,7 +129,7 @@ window.ModuleRegistry.registerPreset('MultiModuleTest', [
 ]);
 
 
-function ReportDetail({ reportId, onBack }) {
+function SavedReportDetail({ reportId, onBack }) {
   const { React, Spinner, Icon, ModuleRegistry, ModuleErrorBoundary, useApi } = window;
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -201,6 +209,12 @@ function ReportDetail({ reportId, onBack }) {
         </div>
     </div>
   );
+}
+
+function ReportDetail({ reportId, onBack, onSelectInv }) {
+  const { LocationReport } = window;
+  if (reportId === LOCATION_REPORT_ID) return <LocationReport onBack={onBack} onSelectInv={onSelectInv} />;
+  return <SavedReportDetail reportId={reportId} onBack={onBack} />;
 }
 
 Object.assign(window, { ReportsList, ReportDetail });

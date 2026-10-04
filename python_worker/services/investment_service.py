@@ -235,7 +235,8 @@ class InvestmentService:
 
     def update_investment(self, system_id, use_local_raw=False, skip_images=False, skip_index=False, skip_log=False):
         result = self.sync.update_investment(system_id, use_local_raw, skip_images, skip_index, skip_log)
-        self.invalidate_cache(system_id)
+        if not skip_index:
+            self.invalidate_cache(system_id)
         return result
 
     def process_batch(self, portal, investments, on_progress_callback=None):

@@ -306,7 +306,16 @@ class InvestmentSyncService:
 
         try:
             if use_local_raw:
-                 raw_data = self.gateway.load_raw(portal, str(identifier))
+                # Wersja usi-scrapers >= 1.4.6 obsługuje wyszukiwanie po alfanumerycznych i numerycznych identyfikatorach.
+                # Delegujemy to w całości do biblioteki.
+                raw_data = self.gateway.load_raw(portal, str(identifier))
+                if not raw_data and portal == "oto" and isinstance(sources.get("oto"), dict) and sources["oto"].get("url"):
+                    import re
+                    match = re.search(r'-ID([a-zA-Z0-9]+)', sources["oto"]["url"])
+                    if match:
+                        url_id = match.group(1)
+                        if url_id != str(identifier):
+                            raw_data = self.gateway.load_raw(portal, url_id)
             else:
                 method = self.gateway.ingest_investment_by_url if str(identifier).startswith("http") else self.gateway.refresh_investment_by_id
                 res = method(portal, identifier)
@@ -314,7 +323,15 @@ class InvestmentSyncService:
                 if not raw_data:
                     err_msg = res.get('error', 'Unknown error') if res else 'Empty response'
                     logger.warning(f"Fetch failed for {portal}/{identifier} ({err_msg}). Falling back to local raw data.")
+                    # Fallback do lokalnego raw — delegowany do biblioteki
                     raw_data = self.gateway.load_raw(portal, str(identifier))
+                    if not raw_data and portal == "oto" and isinstance(sources.get("oto"), dict) and sources["oto"].get("url"):
+                        import re
+                        match = re.search(r'-ID([a-zA-Z0-9]+)', sources["oto"]["url"])
+                        if match:
+                            url_id = match.group(1)
+                            if url_id != str(identifier):
+                                raw_data = self.gateway.load_raw(portal, url_id)
                     if not raw_data:
                         return None, None, f"{portal_name} ({err_msg} and NO local raw fallback)"
                         

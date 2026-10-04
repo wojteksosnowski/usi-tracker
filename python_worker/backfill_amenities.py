@@ -29,7 +29,13 @@ def _process_single(system_id: str) -> bool:
 def main():
     logger.info("Ładowanie indeksu inwestycji...")
     idx = InvestmentIndex(USI_DATA_DIR)
-    all_investments = [e.get("usi_inv_id") for e in idx.get_all() if e.get("usi_inv_id")]
+    
+    # Wybieramy tylko rzeczywiste inwestycje (nie master ID)
+    all_investments = [
+        e.get("usi_inv_id") 
+        for e in idx._index.values() 
+        if e.get("usi_inv_id") and not str(e.get("usi_inv_id")).startswith("IM-")
+    ]
     
     total = len(all_investments)
     logger.info(f"Rozpoczynam zrównoleglony backfill dla {total} rekordów...")
@@ -37,9 +43,7 @@ def main():
     built = 0
     failed = 0
     
-    # Używamy ThreadPoolExecutor, aby respektować wbudowane w kodzie blokady wątków (threading.Lock). 
-    # ProcessPoolExecutor powodował błędy uszkodzenia pliku _index.json, ponieważ zamki nie działały między procesami.
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    with ProcessPoolExecutor(max_workers=8) as executor:
         futures = {executor.submit(_process_single, sys_id): sys_id for sys_id in all_investments}
         
         for i, future in enumerate(as_completed(futures), 1):
@@ -51,7 +55,15 @@ def main():
             if i % 250 == 0 or i == total:
                 logger.info(f"Postęp: {i}/{total} ({built} zaktualizowanych, {failed} błędów)")
                 
-    logger.info(f"Backfill zakończony: {built} sukcesów, {failed} błędów. Uruchom 'python3 -m python_worker.main rebuild-index' aby zaktualizować indeks if needed.")
+    logger.info(f"Backfill fizycznych rekordów zakończony: {built} sukcesów, {failed} błędów.")
+    
+    logger.info("Rozpoczynam przebudowę plików master (USImaster)...")
+    from python_worker.investment_merger import rebuild_all_masters
+    rebuild_all_masters()
+    
+    logger.info("Rozpoczynam przebudowę głównego indeksu inwestycji...")
+    idx.rebuild()
+    logger.info("Wszystkie operacje zakończone pomyślnie!")
 
 if __name__ == "__main__":
     main()

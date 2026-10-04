@@ -182,6 +182,7 @@ class InvestmentIndex:
         
         self._index = {} # dict keyed by usi_inv_id
         self._slug_map = {} # dict keyed by dev_slug/inv_slug
+        self._portal_id_map = {} # dict keyed by (portal, portal_id)
         
         self._index_lock = threading.Lock()
         self._rebuild_lock = threading.Lock()
@@ -331,6 +332,7 @@ class InvestmentIndex:
                 
                 new_index = {}
                 new_slug_map = {}
+                new_portal_id_map = {}
                 for e in entries:
                     inv_id = e.get("usi_inv_id")
                     if inv_id:
@@ -339,9 +341,17 @@ class InvestmentIndex:
                         inv_slug = e.get("investment_slug")
                         if dev_slug and inv_slug:
                             new_slug_map[f"{dev_slug}/{inv_slug}"] = e
+                        sources = e.get("sources", {})
+                        if isinstance(sources, dict):
+                            for p_key, p_data in sources.items():
+                                if isinstance(p_data, dict):
+                                    p_id = p_data.get("id")
+                                    if p_id:
+                                        new_portal_id_map[(p_key, str(p_id))] = e
                             
                 self._index = new_index
                 self._slug_map = new_slug_map
+                self._portal_id_map = new_portal_id_map
                 self._mtime = mtime
                 logger.info(f"Loaded investment index: {len(self._index)} entries")
             except Exception as e:
@@ -439,10 +449,20 @@ class InvestmentIndex:
                 for e in entries
                 if e.get("developer_slug") and e.get("investment_slug")
             }
+            new_portal_id_map = {}
+            for e in entries:
+                sources = e.get("sources", {})
+                if isinstance(sources, dict):
+                    for p_key, p_data in sources.items():
+                        if isinstance(p_data, dict):
+                            p_id = p_data.get("id")
+                            if p_id:
+                                new_portal_id_map[(p_key, str(p_id))] = e
 
             with self._index_lock:
                 self._index = new_index
                 self._slug_map = new_slug_map
+                self._portal_id_map = new_portal_id_map
                 self._save_to_disk()
 
             duration = (datetime.now() - start_t).total_seconds()
@@ -469,7 +489,9 @@ class InvestmentIndex:
                 if usi_id.startswith("IM-"):
                     entry["folder_path"] = "Public/USImaster"
                 else:
-                    entry["folder_path"] = f"Public/USIdata/{metadata.get('developer_slug', 'unknown')}/{usi_id}"
+                    dev_slug = entry.get("developer_slug") or "unknown"
+                    inv_slug = entry.get("investment_slug") or usi_id
+                    entry["folder_path"] = f"Public/USIdata/{dev_slug}/{inv_slug}"
             entry["updated_at"] = datetime.now().isoformat()
             self._index[usi_id] = entry
             ds = entry.get("developer_slug")
@@ -536,7 +558,14 @@ class InvestmentIndex:
 
     def get_by_id(self, inv_id: str) -> Optional[Dict]:
         self._load_from_disk()
-        return self._index.get(inv_id)
+        res = self._index.get(inv_id)
+        if res:
+            return res
+        if inv_id and "_" in inv_id:
+            parts = inv_id.split("_", 1)
+            if len(parts) == 2 and parts[0] in ("rp", "oto", "to"):
+                return self._portal_id_map.get((parts[0], parts[1]))
+        return None
 
     def get_by_slug(self, dev_slug: str, inv_slug: str) -> Optional[Dict]:
         self._load_from_disk()
@@ -549,6 +578,7 @@ class InvestmentIndex:
         self._initialized = False
         self._index = {}
         self._slug_map = {}
+        self._portal_id_map = {}
         self._mtime = 0
 
 # --- Global Singleton and Compatibility Layer ---
@@ -602,6 +632,14 @@ def upsert(data_dir, public_usi_dir, dev_slug=None, inv_slug=None, portal=None, 
         file_path = DROPBOX_PATH / "Public" / "USImaster" / f"inv_master_{inv_id}.json"
     elif existing and existing.get("file_path"):
         file_path = DROPBOX_PATH / existing["file_path"]
+    elif existing and existing.get("folder_path"):
+        folder = DROPBOX_PATH / existing["folder_path"]
+        candidates = list(folder.glob("usi_*.json"))
+        if candidates:
+            file_path = sorted(candidates)[0]
+        else:
+            logger.error(f"Upsert failed: brak plików usi_*.json w folderze {folder} dla {inv_id}")
+            return False
     elif dev_slug and inv_slug and portal and inv_id:
         file_path = Path(data_dir) / dev_slug / inv_slug / f"usi_{portal}_{inv_id}.json"
     else:

@@ -163,7 +163,7 @@ class Merger:
                         result[section][field] = value
 
             # Odzyskanie metadanych systemowych trackera
-            for field in ("master_id", "suggestions", "issue_reports", "reviewed", "usi_inv_id"):
+            for field in ("master_id", "suggestions", "issue_reports", "reviewed", "usi_inv_id", "members"):
                 if field in existing_data:
                     result[field] = existing_data[field]
 

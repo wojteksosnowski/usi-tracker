@@ -36,8 +36,29 @@ def system_status():
 
 @app.route("/api/system/verify-library")
 def verify_library():
-    """Bezpieczna atrapa weryfikacji biblioteki."""
-    return jsonify({"ok": True, "version": "0.3.0", "portals": ["rp", "oto", "to"]})
+    """Sprawdza, czy biblioteka usi_scrapers jest zainstalowana i skonfigurowana."""
+    from python_worker.config import get_shared_config
+
+    def _fail(error, version=None):
+        return jsonify({"ok": False, "status": "error", "version": version, "error": error})
+
+    try:
+        import usi_scrapers
+    except ImportError as e:
+        return _fail(f"Brak biblioteki usi_scrapers: {e}")
+
+    version = getattr(usi_scrapers, "__version__", "0.0.0")
+    if not (version.startswith("0.9.") or version.startswith("1.")):
+        return _fail(f"Niezgodna wersja usi_scrapers: {version} (oczekiwano 1.x lub 0.9.x)", version)
+
+    try:
+        config = get_shared_config()
+    except Exception as e:
+        return _fail(f"Błąd konfiguracji usi_scrapers: {e}", version)
+    if config is None:
+        return _fail("Nie udało się utworzyć konfiguracji usi_scrapers", version)
+
+    return jsonify({"ok": True, "status": "ok", "version": version, "portals": ["rp", "oto", "to"]})
 
 @app.route("/api/config")
 def get_config():

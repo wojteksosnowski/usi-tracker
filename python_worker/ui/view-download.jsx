@@ -242,7 +242,9 @@ window.usiRegister('ViewDownload', function ViewDownload() {
   const failedScans = scanJobs.filter(s => s.state === 'failed');
 
   return (
-    <div data-component="ViewDownload" className="usi-p-24 usi-flex-col usi-gap-24">
+    <div data-component="ViewDownload" className="usi-scroll usi-h-full usi-overflow-auto usi-p-24">
+     <div className="usi-dl-grid">
+     <div className="usi-dl-col">
 
       {/* 1. Skanowanie manualne (Quick Stats) */}
       <section className="usi-card usi-p-24">
@@ -304,6 +306,9 @@ window.usiRegister('ViewDownload', function ViewDownload() {
         </section>
       )}
 
+      </div>
+      <div className="usi-dl-col">
+
       {/* 3. Serwery / Fetcher */}
       <FetcherPanel />
 
@@ -329,7 +334,13 @@ window.usiRegister('ViewDownload', function ViewDownload() {
         </section>
       )}
 
+      </div>
+      </div>
+
       <style>{`
+        .usi-dl-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; }
+        .usi-dl-col { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+        @media (max-width: 1000px) { .usi-dl-grid { grid-template-columns: minmax(0, 1fr); } }
         .usi-stat-box {
           padding: 12px 20px;
           background: var(--usi-surface-2);

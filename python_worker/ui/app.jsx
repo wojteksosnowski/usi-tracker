@@ -44,7 +44,7 @@
     const {
       Spinner, Icon, ModuleErrorBoundary,
       ViewList, DeveloperListGrid, DeveloperDetail,
-      DetailRightPanel, DashboardGrid, ViewDownload, ViewLibrary, ViewStoryboard, UIStoryboard, ReportsList, ReportDetail, DataBusProvider, useDataBus,
+      DetailRightPanel, DashboardGrid, ViewDownload, ReportsList, ReportDetail, DataBusProvider, useDataBus,
       useInvestments, useDevelopers, useConfig,
       MAIN_CITIES, SOURCES, USI_STATUSES, applyTheme, injectThemeCSS,
       NavbarShell, NavbarTitle, NavbarCounter, ActionBar, NotificationCenter, StatusMessenger,
@@ -57,6 +57,7 @@
     const [prevView, setPrevView] = React.useState('list');
     const [navOpen, setNavOpen] = React.useState(false);
     const [selectedInv, setSelectedInv] = React.useState(null);
+    const [invNavList, setInvNavList] = React.useState(null);
     const [selectedDev, setSelectedDev] = React.useState(null);
     const [selectedReport, setSelectedReport] = React.useState(null);
     
@@ -117,12 +118,14 @@
         setView(v);
         setNavOpen(false);
         if (v !== 'detail') setSelectedInv(null);
+        if (v !== 'detail' && v !== 'report-detail') setInvNavList(null);
         if (v !== 'dev-detail') setSelectedDev(null);
         if (v !== 'report-detail') setSelectedReport(null);
       };
 
-      const handleSelectInv = (inv) => {
+      const handleSelectInv = (inv, list) => {
         if (!inv) return;
+        setInvNavList(Array.isArray(list) ? list : null);
         setPrevView(view);
         setSelectedInv(inv);
         setView('detail');
@@ -142,10 +145,15 @@
       React.useEffect(() => {
         const handler = (e) => {
           if (view === 'detail' && selectedInv) {
-            const list = visibleInvestments || [];
+            if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target && e.target.tagName)) return;
+            const list = invNavList || visibleInvestments || [];
             const idx = list.findIndex(i => i.usi_inv_id === selectedInv.usi_inv_id);
-            if (e.key === 'ArrowLeft' && idx > 0) { e.preventDefault(); handleSelectInv(list[idx - 1]); }
-            if (e.key === 'ArrowRight' && idx < list.length - 1) { e.preventDefault(); handleSelectInv(list[idx + 1]); }
+            const prevKey = e.key === 'ArrowLeft' || (invNavList && e.key === 'ArrowUp');
+            const nextKey = e.key === 'ArrowRight' || (invNavList && e.key === 'ArrowDown');
+            const go = (inv) => { e.preventDefault(); if (invNavList) setSelectedInv(inv); else handleSelectInv(inv); };
+            if (prevKey && idx > 0) go(list[idx - 1]);
+            if (nextKey && idx >= 0 && idx < list.length - 1) go(list[idx + 1]);
           } else if (view === 'dev-detail' && selectedDev) {
             const list = bus.visibleDevelopers || developers || [];
             const idx = list.findIndex(d => d.usi_dev_id === selectedDev.usi_dev_id);
@@ -155,7 +163,7 @@
         };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
-      }, [view, selectedInv, visibleInvestments, selectedDev, developers]);
+      }, [view, selectedInv, invNavList, visibleInvestments, selectedDev, developers]);
 
       const toggleSource = (id, isShift) => {
         setVariable('filters.sources', prev => {
@@ -219,8 +227,6 @@
         if (view === 'list') return "Inwestycje";
         if (view === 'developers') return "Deweloperzy";
         if (view === 'dashboard') return "Dashboard";
-        if (view === 'library') return "Biblioteka Modułów";
-        if (view === 'storyboard') return "USI Storyboard";
         if (view === 'download') return "Pobieranie";
         if (view === 'reports') return "Raporty";
         if (view === 'detail') return "Szczegóły";
@@ -231,7 +237,6 @@
       const getSubtitle = () => {
         if (view === 'list') return `${visibleInvestments.length} widocznych`;
         if (view === 'developers') return `${developers.length} firm`;
-        if (view === 'library') return "Przegląd komponentów systemowych";
         return "System monitoringu rynku";
       };
 
@@ -309,6 +314,10 @@
                 </div>
               ) : view === 'dev-detail' ? (
                 <button className="usi-btn ghost sm" onClick={() => handleNav('developers')}><Icon name="chevronLeft" /> Powrót do deweloperów</button>
+              ) : view === 'detail' && prevView && prevView !== 'list' && prevView !== 'detail' ? (
+                <button className="usi-btn ghost sm" onClick={() => setView(prevView)}>
+                  <Icon name="chevronLeft" /> {prevView === 'report-detail' ? 'Powrót do raportu' : prevView === 'dev-detail' ? 'Powrót do dewelopera' : 'Powrót'}
+                </button>
               ) : view !== 'download' ? (
                 <button className="usi-btn ghost sm" onClick={() => handleNav('list')}><Icon name="chevronLeft" /> Powrót do listy</button>
               ) : null
@@ -556,10 +565,8 @@
               )}
 
               {view === 'download' && <ViewDownload />}
-              {view === 'library' && <ViewLibrary />}
-              {view === 'storyboard' && (window.ViewStoryboard ? <ViewStoryboard /> : <UIStoryboard />)}
               {view === 'reports' && <ReportsList onSelectReport={(r) => { setSelectedReport(r); setView('report-detail'); }} />}
-              {view === 'report-detail' && selectedReport && <ReportDetail reportId={selectedReport.id} onBack={() => setView('reports')} />}
+              {view === 'report-detail' && selectedReport && <ReportDetail reportId={selectedReport.id} onBack={() => setView('reports')} onSelectInv={handleSelectInv} />}
             </ModuleErrorBoundary>
           </main>
 

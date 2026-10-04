@@ -106,10 +106,13 @@
   window.ModuleRegistry.register('MiniMap', MiniMap, MiniMap.__spec);
   usiRegister('MiniMap', MiniMap);
 
-  function MapModule({ instanceId, data: localData, height = 400, title = "Mapa Inwestycji", hereApiKey }) {
+  function MapModule({ instanceId, data: localData, height = 400, title = "Mapa Inwestycji", hereApiKey, center, radiusKm, onMarkerSelect }) {
     const mapRef = React.useRef(null);
     const containerRef = React.useRef(null);
     const clusteringLayerRef = React.useRef(null);
+    const centerGroupRef = React.useRef(null);
+    const onMarkerSelectRef = React.useRef(onMarkerSelect);
+    onMarkerSelectRef.current = onMarkerSelect;
     const { bus, setVariable, scopedBus, scopedSetVariable } = useDataBus(instanceId);
     const [mapLoaded, setMapLoaded] = React.useState(!!window.H);
     const ctx = useModuleContext(localData);
@@ -218,6 +221,7 @@
             const inv = target.getData();
             if (!inv.isCluster) {
                setVariable('currentInvestment', inv);
+               if (onMarkerSelectRef.current) onMarkerSelectRef.current(inv);
                if (scopedSetVariable) scopedSetVariable('selectedId', inv.slug || inv.name);
             } else {
                if (inv && typeof inv.getBoundingBox === 'function') {
@@ -227,14 +231,38 @@
           }
         });
 
-        try {
-          const boundingBox = H.geo.Rect.coverPoints(dataPoints.map(p => new H.geo.Point(p.lat, p.lng)));
-          if (boundingBox) {
-             map.getViewModel().setLookAtData({bounds: boundingBox, animate: true});
-          }
-        } catch(e) {}
+        if (!center) {
+          try {
+            const boundingBox = H.geo.Rect.coverPoints(dataPoints.map(p => new H.geo.Point(p.lat, p.lng)));
+            if (boundingBox) {
+               map.getViewModel().setLookAtData({bounds: boundingBox, animate: true});
+            }
+          } catch(e) {}
+        }
       }
-    }, [localData, ctx.bus?.visibleInvestments, setVariable]);
+    }, [localData, ctx.bus?.visibleInvestments, setVariable, center, mapLoaded]);
+
+    // Hook 3: punkt środkowy i okrąg zasięgu (raport lokalizacyjny)
+    React.useEffect(() => {
+      if (!mapRef.current || !window.H) return;
+      const map = mapRef.current;
+      const H = window.H;
+      if (centerGroupRef.current) {
+        map.removeObject(centerGroupRef.current);
+        centerGroupRef.current = null;
+      }
+      if (!center) return;
+      const group = new H.map.Group();
+      const point = { lat: center.lat, lng: center.lon };
+      const circle = new H.map.Circle(point, (radiusKm || 1) * 1000, {
+        style: { strokeColor: 'rgba(229,0,109,0.9)', lineWidth: 2, fillColor: 'rgba(229,0,109,0.08)' }
+      });
+      group.addObject(circle);
+      group.addObject(new H.map.Marker(point));
+      map.addObject(group);
+      centerGroupRef.current = group;
+      map.getViewModel().setLookAtData({ bounds: circle.getBoundingBox(), animate: true });
+    }, [center, radiusKm, mapLoaded]);
 
     return (
       <BaseModule title={title} icon="map">

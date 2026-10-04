@@ -5,8 +5,10 @@
    * ListCard - Shared component for Investment lists (Main List & Discovery)
    */
   const ListCardComponent = ({ inv, onSelect, footerRight: CustomFooterRight }) => {
-    const avg = avgRating ? avgRating(inv) : 0;
-    const thumb = (inv.photos && inv.photos.length > 0) ? inv.photos[0] : (inv.image || null);
+    const safeInv = inv || {};
+    const avg = avgRating ? avgRating(safeInv) : 0;
+    const thumb = (safeInv.photos && safeInv.photos.length > 0) ? safeInv.photos[0] : (safeInv.image || null);
+    const delivery = (safeInv.specifications && (safeInv.specifications.delivery_date || safeInv.specifications.delivery_quarter || safeInv.specifications.delivery_year)) || safeInv.delivery || '—';
 
     // Default footer right is the star rating
     const DefaultFooterRight = (
@@ -20,17 +22,25 @@
       <StandardCard
         data-component="ListCard"
         image={thumb}
-        title={inv.name}
-        subtitle={inv.developer}
-        extra={inv.district}
+        title={safeInv.name}
+        subtitle={safeInv.developer}
+        extra={safeInv.district}
         onClick={onSelect}
         badges={
           <div className="usi-flex-row usi-gap-8">
-            <SourceBadge source={inv.source} />
-            {(inv.is_new || inv.reviewed === false) && <span className="usi-pill success usi-tiny">NOWE</span>}
+            <SourceBadge source={safeInv.source} />
+            {(safeInv.is_new || safeInv.reviewed === false) && <span className="usi-pill success usi-tiny">NOWE</span>}
           </div>
         }
-        footerLeft={<CategoryStripe ratings={inv.ratings || {}} />}
+        footerLeft={
+          <div className="list-card-footer-left usi-flex-col usi-gap-4">
+            <CategoryStripe ratings={safeInv.ratings || {}} />
+            <div className="list-card-delivery usi-tiny usi-text-secondary usi-mono usi-flex-row usi-gap-4 usi-align-center" title="Termin oddania">
+              <Icon name="calendar" size={11} />
+              <span>{delivery}</span>
+            </div>
+          </div>
+        }
         footerRight={CustomFooterRight || DefaultFooterRight}
       />
     );
@@ -39,6 +49,7 @@
   const ListCard = React.memo(ListCardComponent, (prev, next) => {
     return prev.inv?.usi_inv_id === next.inv?.usi_inv_id && 
            prev.inv?.updated_at === next.inv?.updated_at &&
+           prev.inv?.delivery === next.inv?.delivery &&
            prev.onSelect === next.onSelect;
   });
 

@@ -283,8 +283,6 @@ function NavDrawer({ current = 'list', onClose, onNav, dark, onToggleTheme }) {
     { id: 'download', label: 'Pobieranie', icon: 'zap', desc: 'Skanowanie i status Wędrowca' },
     { id: 'reports', label: 'Raporty', icon: 'list', desc: 'Analizy i zestawienia' },
     { id: 'dashboard', label: 'Dashboard', icon: 'sparkle', desc: 'Podsumowania i wykresy' },
-    { id: 'storyboard', label: 'Storyboard', icon: 'layout', desc: 'Izolowane środowisko testowe' },
-    { id: 'library', label: 'Biblioteka', icon: 'box', desc: 'Przegląd komponentów systemowych' },
   ];
 
   React.useEffect(() => {

@@ -14,6 +14,7 @@ _global_identifiers_cache = None
 _global_identifiers_cache_time = None
 
 class DeveloperIndexer:
+    _dev_id_cache = None
 
     def __init__(self, repo):
         self.repo = repo
@@ -156,32 +157,25 @@ class DeveloperIndexer:
         if portal == "oto":
             clean_id = re.sub(r"^ID", "", clean_id)
 
-        # Pobieramy ścieżkę do ID w portal_mapping z centralnej konfiguracji
-        from usi_scrapers import get_mapping
-        try:
-            mapping = get_mapping(portal)
-            id_key = mapping.get("developer", {}).get("id", "id") # Fallback do 'id'
-            # Uwaga: w portal_mapping dewelopera klucze są uproszczone (id / agency_id)
-            # ale dla świętego spokoju sprawdzamy oba warianty.
-        except Exception:
-            id_key = "id"
+        # Inicjalizacja pamięci podręcznej w ramach procesu
+        if DeveloperIndexer._dev_id_cache is None:
+            cache = {}
+            for dev in self.repo.list_developers(only_merged=False):
+                pm = dev.get("portal_mapping", {})
+                if not isinstance(pm, dict):
+                    continue
+                for p_key, p_data in pm.items():
+                    if not isinstance(p_data, dict):
+                        continue
+                    existing_id = p_data.get("id") or p_data.get("agency_id")
+                    if existing_id:
+                        cache[(p_key, str(existing_id).strip())] = dev
+                    for aid in p_data.get("agency_ids", []):
+                        if aid:
+                            cache[(p_key, str(aid).strip())] = dev
+            DeveloperIndexer._dev_id_cache = cache
 
-        for dev in self.repo.list_developers(only_merged=False):
-            pm = dev.get("portal_mapping", {})
-            p_data = pm.get(portal)
-            if not p_data:
-                continue
-                
-            # Sprawdzamy standardowe klucze ID w rekordzie dewelopera
-            existing_id = p_data.get("id") or p_data.get("agency_id")
-            if str(existing_id) == clean_id:
-                return dev
-            
-            # Check additional agency IDs
-            for aid in p_data.get("agency_ids", []):
-                if str(aid) == clean_id:
-                    return dev
-        return None
+        return DeveloperIndexer._dev_id_cache.get((portal, clean_id))
 
     def find_by_portal_id(self, portal: str, portal_id: str) -> dict | None:
         """O(n) scan — finds developer with matching portal_mapping id/slug/agency_id."""
