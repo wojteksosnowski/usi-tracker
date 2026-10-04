@@ -38,6 +38,7 @@ function DataBusProvider({ children }) {
     nearbyInvestments: [],
     reports: [],
     activeJobs: [],
+    allJobs: [],
     pendingTotal: 0,
     appStatus: null,
     appNotifications: [],
@@ -251,50 +252,45 @@ function DataBusProvider({ children }) {
     refetchRef.current('developers');
   }, []);
 
-  // Polling for active jobs with "Sticky" logic for finished tasks.
+  // Polling for jobs. /api/jobs?all=1 zwraca aktywne ORAZ niedawno zakończone (w tym nieudane), więc
+  // status jest prawdziwy (completed/failed) zamiast zgadywanego "Finished".
   // CRITICAL: `refetch` is intentionally accessed via `refetchRef` (not listed in deps)
   // to prevent the interval from being torn down and re-created on every render.
   // `setVariable` is stable (created with useCallback once), so it is safe in deps.
   React.useEffect(() => {
     const STICKY_DURATION = 5000;
-    const stickyJobs = new Map(); // jobId -> { job, expires }
+    const isActive = (j) => j.status === 'running' || j.status === 'queued';
+    let lastSaved = {}; // jobId -> liczba zapisanych inwestycji (odświeżamy listę w trakcie batcha)
 
     const poll = setInterval(() => {
-      fetch('/api/jobs')
+      fetch('/api/jobs?all=1')
         .then(r => r.json())
-        .then(newJobs => {
+        .then(allJobs => {
+          if (!Array.isArray(allJobs)) return;
           const now = Date.now();
-          const currentActive = busRef.current.activeJobs || [];
-          
-          // 1. Identify jobs that just finished (present in local, but not in server response)
-          currentActive.forEach(job => {
-            const stillActive = newJobs.find(nj => nj.id === job.id);
-            if (!stillActive && !stickyJobs.has(job.id)) {
-              // Mark as sticky if it was running/queued
-              if (job.status === 'running' || job.status === 'queued') {
-                const finishedJob = { ...job, status: 'completed', message: 'Finished.' };
-                stickyJobs.set(job.id, { job: finishedJob, expires: now + STICKY_DURATION });
-                // Trigger data refresh on job completion — via ref to avoid dep instability
-                refetchRef.current('investments');
-                refetchRef.current('developers');
-              }
-            }
-          });
+          const previous = busRef.current.allJobs || [];
 
-          // 2. Filter out expired sticky jobs
-          for (const [id, data] of stickyJobs.entries()) {
-            if (now > data.expires) stickyJobs.delete(id);
+          // 1. Job był aktywny, a teraz nie jest → odśwież dane
+          const justFinished = previous.some(pj => isActive(pj) && !isActive(allJobs.find(j => j.id === pj.id) || {}));
+          // 2. Zapisano nowe inwestycje w trakcie batcha → pokaż je od razu na liście
+          let newlySaved = false;
+          allJobs.forEach(j => {
+            const saved = (j.counts && j.counts.saved) || 0;
+            if (saved > (lastSaved[j.id] || 0)) newlySaved = true;
+            lastSaved[j.id] = saved;
+          });
+          if (justFinished || newlySaved) {
+            refetchRef.current('investments');
+            refetchRef.current('developers');
           }
 
-          // 3. Merge server active jobs with local sticky jobs
-          const merged = [...newJobs];
-          stickyJobs.forEach(data => {
-            if (!merged.find(mj => mj.id === data.job.id)) {
-              merged.push(data.job);
-            }
-          });
-
-          setVariable('activeJobs', merged);
+          // 3. Pasek w nawigacji: aktywne + świeżo zakończone (z prawdziwym statusem)
+          const visible = allJobs.filter(j =>
+            isActive(j) ||
+            (j.finished_at && now - new Date(j.finished_at).getTime() < STICKY_DURATION)
+          );
+          setVariable('allJobs', allJobs);
+          setVariable('activeJobs', visible);
         })
         .catch(() => {});
 

@@ -33,6 +33,7 @@ class DiscoveryService:
 
         mapping = dev.get("portal_mapping", {})
         if job_manager and job_id:
+            job_manager.set_meta(job_id, kind="scan", phase="scan")
             job_manager.update_progress(job_id, 10, "Szukam nowych inwestycji...")
 
         found_total = 0
@@ -118,11 +119,12 @@ class DiscoveryService:
                 if portal not in by_portal: by_portal[portal] = []
                 by_portal[portal].append(item)
 
+            if job_manager and job_id:
+                job_manager.set_meta(job_id, kind="download", phase="fetch")
             for p, items in by_portal.items():
-                def progress_wrapper(report):
+                def progress_wrapper(report, p=p):
                     if job_manager and job_id:
-                        msg = f"[{p.upper()}] {report['message']}"
-                        job_manager.update_progress(job_id, int(current_progress), msg)
+                        job_manager.record_report(job_id, report, scope=p, update_percent=False)
 
                 try:
                     ingested_total += self.isvc.process_batch(p, items, on_progress_callback=progress_wrapper)

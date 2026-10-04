@@ -616,138 +616,188 @@ class InvestmentSyncService:
         
         return targets, to_process
 
+    def _index_saved_investment(self, usi_inv_id: str, target_file: Path) -> None:
+        """Wstawia świeżo zapisany rekord do indeksu od razu (bez czekania na koniec batcha)."""
+        from python_worker.config import DROPBOX_PATH
+        raw = json.loads(target_file.read_text(encoding="utf-8"))
+        entry = inv_index._build_index_entry(raw, target_file, DROPBOX_PATH)
+        if entry:
+            inv_index.get_investment_index().add_or_update(usi_inv_id, entry)
+        self.dm.invalidate_identifiers_cache()
+
+    def _finalize_batch_item(self, portal: str, data: Any, index: int = 0) -> Optional[str]:
+        """
+        Zamienia pojedynczy pobrany wynik w kompletny rekord: usi_*.json + wpis w indeksie.
+        Zwraca usi_inv_id lub None (pusty wynik / brak ID / brak ścieżki). Wyjątki propaguje do wywołującego.
+        """
+        if not data or (isinstance(data, dict) and "error" in data):
+            logger.warning(f"[BATCH] Skipping item {index} due to empty data or error")
+            return None
+
+        raw_payload = data.get("raw_details", data) if isinstance(data, dict) else data
+        
+        # Używamy API do wstępnego wyznaczenia ID
+        m_temp = transform_to_unified(portal, raw_payload, entity_type="investment") or {}
+        dev_meta = self.gateway.extract_developer_meta(raw_payload, portal)
+        
+        item_id = str(m_temp.get("id") or m_temp.get("numeric_id") or "")
+        if not item_id:
+            logger.warning(f"[BATCH] Could not resolve item_id for item {index}")
+            return None
+            
+        usi_inv_id = f"{portal}_{item_id}"
+        
+        # Używamy StorageResolvera z biblioteki do wyznaczenia poprawnej ścieżki (tam gdzie leży raw_*)
+        resolved_path = self.tech_manager.get_investment_path(portal, item_id)
+        if resolved_path:
+            dest_dir = Path(resolved_path)
+            dev_slug = dest_dir.parent.name
+            inv_slug = dest_dir.name
+        else:
+            dev_slug = data.get("developer_slug") or dev_meta.get("slug") or "unknown"
+            inv_slug = data.get("investment_slug") or m_temp.get("slug") or str(item_id)
+            dest_dir = self.data_dir / dev_slug / inv_slug
+        
+        # ARCHITECTURAL MANDATE: Używamy poprawnych adapterów do transformacji do pełnego zunifikowanego rekordu
+        # (usi_*.json musi być kanoniczny, nie może być surowym słownikiem 'm')
+        from python_worker.adapters.merger import Merger
+
+        unified_data = transform_to_unified(portal, raw_payload, "investment")
+        if portal == "rp":
+            _enrich_rp_unified(unified_data)
+        unified_data["investment_slug"] = inv_slug
+        unified_data["developer_slug"] = dev_slug
+        
+        # Add sources block so Merger can pick it up
+        if "sources" not in unified_data:
+            unified_data["sources"] = {
+                portal: {
+                    "id": str(item_id),
+                    "url": raw_payload.get("url") if isinstance(raw_payload, dict) else None
+                }
+            }
+            
+        # Copy image paths if provided by scraper in live fetch
+        if isinstance(data, dict) and "image_paths" in data:
+            unified_data["image_paths"] = data["image_paths"]
+
+        target_file = dest_dir / f"usi_{usi_inv_id}.json"
+        existing_data = None
+        if target_file.exists():
+            try:
+                existing_data = json.loads(target_file.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+                
+        usi_file_data = Merger.merge(
+            rp_data=unified_data if portal == "rp" else None,
+            oto_data=unified_data if portal == "oto" else None,
+            to_data=unified_data if portal == "to" else None,
+            existing_data=existing_data,
+            event="Batch Update"
+        )
+        
+        # Upewniamy się, że podstawowe identyfikatory są nienaruszone
+        usi_file_data["usi_inv_id"] = usi_inv_id
+        
+        # Synchronizacja zdjęć: upewnij się, że zdjęcia pobrane w batch_ingest zostaną prawidłowo podpięte
+        resources = self.identity.get_investment_resources(usi_inv_id)
+        if not resources:
+            resources = self._resolve_resources_manually(usi_inv_id, {
+                "sources": {portal: {"id": item_id}},
+                "developer_slug": dev_slug,
+                "investment_slug": inv_slug
+            })
+        
+        all_urls = usi_file_data.get("image_urls", [])
+        self.image_sync.sync_investment_images(
+            usi_inv_id, 
+            usi_file_data, 
+            all_urls, 
+            skip_images=False, 
+            usi_data=existing_data or {}, 
+            resources=resources
+        )
+
+        self.developer_resolver.backfill_developer_mapping(usi_inv_id, usi_file_data)
+        self._enrich_with_derived_data(
+            usi_file_data, 
+            dest_dir, 
+            resources, 
+            existing_data or {}, 
+            fast_mode=True, 
+            cached_index=None
+        )
+
+        # Wyznaczenie ścieżki i zapis pliku
+        if dest_dir:
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            self.repo.save_investment_json(usi_inv_id, usi_file_data, anchor_path=target_file)
+            
+            logger.info(f"[BATCH] Registered and saved {usi_inv_id} to {target_file}")
+            try:
+                self._index_saved_investment(usi_inv_id, target_file)
+            except Exception as ie:
+                # Plik jest już zapisany; końcowy rebuild nadrobi wpis w indeksie
+                logger.warning(f"[BATCH] Zapisano {usi_inv_id}, ale wpis w indeksie nieudany: {ie}")
+            return usi_inv_id
+
+        logger.error(f"[BATCH_ERROR] Brak wyznaczonej ścieżki dla {usi_inv_id}")
+        return None
+
     def process_batch(self, portal: str, investments: List[Dict], on_progress_callback: Optional[Any] = None) -> int:
         """
         Główna pętla batch: ufa całkowicie bibliotece usi-scrapers.
-        Pobiera, mapuje i zrzuca plik usi_*.json.
+        Każda kompletna inwestycja jest zapisywana (usi_*.json + indeks) od razu po pobraniu,
+        a nie dopiero po zakończeniu całego batcha.
         """
         targets, _ = self._prepare_batch_identifiers(portal, investments)
         if not targets:
             return 0
 
-        logger.info(f"[BATCH] Delegating {len(targets)} targets to usi-scrapers process_batch_ingest...")
-        batch_results = self.gateway.process_batch(portal, targets, on_progress=on_progress_callback)
-        logger.info(f"[BATCH] Gateway returned {len(batch_results)} results for {portal}")
-        
-        saved_count = 0
+        saved_ids: set = set()
+        processed_idx: set = set()
+        total = len(targets)
 
-        for i, data in enumerate(batch_results):
-            if not data or (isinstance(data, dict) and "error" in data):
-                logger.warning(f"[BATCH] Skipping item {i} due to empty data or error")
-                continue
-
-            try:
-                raw_payload = data.get("raw_details", data) if isinstance(data, dict) else data
-                
-                # Używamy API do wstępnego wyznaczenia ID
-                m_temp = transform_to_unified(portal, raw_payload, entity_type="investment") or {}
-                dev_meta = self.gateway.extract_developer_meta(raw_payload, portal)
-                
-                item_id = str(m_temp.get("id") or m_temp.get("numeric_id") or "")
-                if not item_id:
-                    logger.warning(f"[BATCH] Could not resolve item_id for item {i}")
-                    continue
-                    
-                usi_inv_id = f"{portal}_{item_id}"
-                
-                # Używamy StorageResolvera z biblioteki do wyznaczenia poprawnej ścieżki (tam gdzie leży raw_*)
-                resolved_path = self.tech_manager.get_investment_path(portal, item_id)
-                if resolved_path:
-                    dest_dir = Path(resolved_path)
-                    dev_slug = dest_dir.parent.name
-                    inv_slug = dest_dir.name
-                else:
-                    dev_slug = data.get("developer_slug") or dev_meta.get("slug") or "unknown"
-                    inv_slug = data.get("investment_slug") or m_temp.get("slug") or str(item_id)
-                    dest_dir = self.data_dir / dev_slug / inv_slug
-                
-                # ARCHITECTURAL MANDATE: Używamy poprawnych adapterów do transformacji do pełnego zunifikowanego rekordu
-                # (usi_*.json musi być kanoniczny, nie może być surowym słownikiem 'm')
-                from python_worker.adapters.merger import Merger
-
-                unified_data = transform_to_unified(portal, raw_payload, "investment")
-                if portal == "rp":
-                    _enrich_rp_unified(unified_data)
-                unified_data["investment_slug"] = inv_slug
-                unified_data["developer_slug"] = dev_slug
-                
-                # Add sources block so Merger can pick it up
-                if "sources" not in unified_data:
-                    unified_data["sources"] = {
-                        portal: {
-                            "id": str(item_id),
-                            "url": raw_payload.get("url") if isinstance(raw_payload, dict) else None
-                        }
-                    }
-                    
-                # Copy image paths if provided by scraper in live fetch
-                if isinstance(data, dict) and "image_paths" in data:
-                    unified_data["image_paths"] = data["image_paths"]
-
-                target_file = dest_dir / f"usi_{usi_inv_id}.json"
-                existing_data = None
-                if target_file.exists():
-                    try:
-                        existing_data = json.loads(target_file.read_text(encoding="utf-8"))
-                    except Exception:
-                        pass
-                        
-                usi_file_data = Merger.merge(
-                    rp_data=unified_data if portal == "rp" else None,
-                    oto_data=unified_data if portal == "oto" else None,
-                    to_data=unified_data if portal == "to" else None,
-                    existing_data=existing_data,
-                    event="Batch Update"
-                )
-                
-                # Upewniamy się, że podstawowe identyfikatory są nienaruszone
-                usi_file_data["usi_inv_id"] = usi_inv_id
-                
-                # Synchronizacja zdjęć: upewnij się, że zdjęcia pobrane w batch_ingest zostaną prawidłowo podpięte
-                resources = self.identity.get_investment_resources(usi_inv_id)
-                if not resources:
-                    resources = self._resolve_resources_manually(usi_inv_id, {
-                        "sources": {portal: {"id": item_id}},
-                        "developer_slug": dev_slug,
-                        "investment_slug": inv_slug
+        def emit(status: str, ref: str, message: str, index: int, error: Optional[str] = None):
+            if on_progress_callback:
+                try:
+                    on_progress_callback({
+                        "total": total, "current_index": index + 1,
+                        "progress_percent": int(((index + 1) / total) * 100),
+                        "status": status, "investment": {"ref": ref},
+                        "message": message, "error_details": error,
                     })
-                
-                all_urls = usi_file_data.get("image_urls", [])
-                self.image_sync.sync_investment_images(
-                    usi_inv_id, 
-                    usi_file_data, 
-                    all_urls, 
-                    skip_images=False, 
-                    usi_data=existing_data or {}, 
-                    resources=resources
-                )
+                except Exception as cb_err:
+                    logger.warning(f"[BATCH] progress callback failed: {cb_err}")
 
-                self.developer_resolver.backfill_developer_mapping(usi_inv_id, usi_file_data)
-                self._enrich_with_derived_data(
-                    usi_file_data, 
-                    dest_dir, 
-                    resources, 
-                    existing_data or {}, 
-                    fast_mode=True, 
-                    cached_index=None
-                )
-
-                # Wyznaczenie ścieżki i zapis pliku
-                if dest_dir:
-                    dest_dir.mkdir(parents=True, exist_ok=True)
-                    self.repo.save_investment_json(usi_inv_id, usi_file_data, anchor_path=target_file)
-                    
-                    logger.info(f"[BATCH] Registered and saved {usi_inv_id} to {target_file}")
-                    saved_count += 1
-                else:
-                    logger.error(f"[BATCH_ERROR] Brak wyznaczonej ścieżki dla {usi_inv_id}")
-
+        def save_item(index: int, ref: str, data: Any) -> None:
+            if index in processed_idx:
+                return
+            processed_idx.add(index)
+            try:
+                usi_inv_id = self._finalize_batch_item(portal, data, index)
             except Exception as e:
                 logger.error(f"[BATCH_ERROR] Błąd finalizacji dla {portal}: {e}", exc_info=True)
+                emit("save_failed", ref, f"Zapis nieudany: {e}", index, str(e))
+                return
+            if usi_inv_id:
+                saved_ids.add(usi_inv_id)
+                emit("saved", ref, f"Zapisano {usi_inv_id}", index)
 
-        # 6. Global optimization: Single index rebuild
+        logger.info(f"[BATCH] Delegating {len(targets)} targets to usi-scrapers process_batch_ingest...")
+        batch_results = self.gateway.process_batch(
+            portal, targets, on_progress=on_progress_callback, on_item=save_item,
+        )
+        logger.info(f"[BATCH] Gateway returned {len(batch_results)} results for {portal}")
+
+        # Siatka bezpieczeństwa: elementy, których biblioteka nie przekazała przez on_item (np. starsza wersja).
+        for i, data in enumerate(batch_results):
+            save_item(i, str(targets[i]) if i < len(targets) else str(i), data)
+
+        saved_count = len(saved_ids)
         if saved_count > 0:
-            logger.info(f"[BATCH] Finished. Saving {saved_count} items and rebuilding index.")
+            logger.info(f"[BATCH] Finished. Saved {saved_count} items; rebuilding index.")
             inv_index.rebuild(self.data_dir, self.public_usi_dir)
             self.dm.invalidate_identifiers_cache()
 

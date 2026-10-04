@@ -24,7 +24,8 @@ def discover_dev_new(system_id):
 
     def _run_with_event(job_id, s_id, job_manager=None):
         svc = _get_discovery_service()
-        result = svc.discover_for_developer(s_id, job_id=job_id, job_manager=job_manager)
+        with job_manager.track_fetches(job_id):
+            result = svc.discover_for_developer(s_id, job_id=job_id, job_manager=job_manager)
         try:
             from python_worker.api.blueprints.investments import developer_manager
             dm = developer_manager
@@ -57,10 +58,12 @@ def discovery_job(portal):
         except ValueError: pages = None
     
     def _run_discovery_job(job_id, p, ident, lim, pgs):
+        job_manager.set_meta(job_id, kind="scan", portal=p, phase="scan")
         job_manager.update_progress(job_id, 10, f"Skanowanie portalu {p}...")
         svc = _get_discovery_service()
-        results = svc.discovery_by_portal(p, ident, limit=lim, pages=pgs)
-        job_manager.update_progress(job_id, 100, f"Znaleziono {len(results)} inwestycji na {p}.")
+        with job_manager.track_fetches(job_id):
+            results = svc.discovery_by_portal(p, ident, limit=lim, pages=pgs)
+        job_manager.update_progress(job_id, 100, f"Znaleziono {len(results)} inwestycji na {p}.", phase="done")
         return results
 
     job_id = job_manager.start_job(f"Discovery: {portal}", _run_discovery_job, portal, identifier, limit, pages)

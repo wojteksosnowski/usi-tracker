@@ -206,11 +206,11 @@ def get_nearby_investments_api():
 def rebuild_index():
     def _run_rebuild(job_id):
         try:
-            job_manager.update_job(job_id, status="running", message="Budowanie indeksu inwestycji...")
+            job_manager.update_progress(job_id, 10, "Budowanie indeksu inwestycji...")
             count = inv_index.get_investment_index().rebuild()
-            job_manager.update_job(job_id, status="done", message=f"Indeks gotowy: {count} inwestycji")
+            job_manager.update_progress(job_id, 100, f"Indeks gotowy: {count} inwestycji")
         except Exception as e:
-            job_manager.update_job(job_id, status="error", message=str(e))
+            job_manager.update_progress(job_id, 100, str(e), status="failed")
     job_id = job_manager.start_job("rebuild-index", _run_rebuild)
     return jsonify({"job_id": job_id})
 
@@ -634,16 +634,18 @@ def register_bulk():
         return jsonify({"error": "Missing investments list"}), 400
 
     def run_bulk_job(job_id, p, invs):
-        def progress_wrapper(report):
-            msg = report.get("message", "Przetwarzanie danych...")
-            percent = report.get("progress_percent", 0)
-            job_manager.update_progress(job_id, percent, msg)
+        job_manager.set_meta(job_id, kind="download", portal=p, phase="fetch")
         try:
-            _get_sync().process_batch(p, invs, on_progress_callback=progress_wrapper)
-            job_manager.update_progress(job_id, 100, f"Zakończono pobieranie zbiorcze ({len(invs)} pozycji)")
+            with job_manager.track_fetches(job_id):
+                saved = _get_sync().process_batch(p, invs, on_progress_callback=lambda report: job_manager.record_report(job_id, report))
+            total = len(invs)
+            if total and not saved:
+                job_manager.update_progress(job_id, 100, f"Nie zapisano żadnej z {total} pozycji — szczegóły w logu", status="failed", phase="done")
+            else:
+                job_manager.update_progress(job_id, 100, f"Zakończono pobieranie zbiorcze: zapisano {saved}/{total}", phase="done")
         except Exception as e:
             logger.error(f"Bulk job error: {e}")
-            job_manager.update_progress(job_id, 100, f"Błąd zadania zbiorczego: {str(e)}", status="failed")
+            job_manager.update_progress(job_id, 100, f"Błąd zadania zbiorczego: {str(e)}", status="failed", phase="done")
 
     job_id = job_manager.start_job(f"Bulk Register: {portal.upper()} ({len(investments)})", run_bulk_job, portal, investments)
     return jsonify({"ok": True, "job_id": job_id})

@@ -65,24 +65,22 @@ class ScraperGateway:
             return None
         return scraper_api.download_raw_dev(self._config, self._fetcher, canonical_portal, str(identifier))
 
-    def process_batch(self, portal: str, targets: List[str], on_progress=None) -> List[Any]:
+    def process_batch(self, portal: str, targets: List[str], on_progress=None, on_item=None, on_start=None) -> List[Any]:
         """
         Inteligentny dispatcher dla zadań seryjnych.
         Automatycznie wybiera tryb Ingest (URL) lub Refresh (ID).
+        on_item(index, ref, data) jest wołane zaraz po pobraniu każdej kompletnej inwestycji.
         """
         canonical_portal = self.normalize_portal_name(portal)
         if not targets:
             return []
-            
+
         # Sprawdzamy pierwszy element, aby zdecydować o trybie
-        if str(targets[0]).startswith("http"):
-            return scraper_api.process_batch_ingest(
-                self._config, self._fetcher, canonical_portal, targets, on_progress=on_progress
-            )
-        else:
-            return scraper_api.process_batch_refresh(
-                self._config, self._fetcher, canonical_portal, targets, on_progress=on_progress
-            )
+        batch_func = scraper_api.process_batch_ingest if str(targets[0]).startswith("http") else scraper_api.process_batch_refresh
+        return batch_func(
+            self._config, self._fetcher, canonical_portal, targets,
+            on_progress=on_progress, on_item=on_item, on_start=on_start,
+        )
 
     def process_batch_ingest(self, portal: str, urls: List[str], on_progress=None) -> List[Any]:
         canonical_portal = self.normalize_portal_name(portal)

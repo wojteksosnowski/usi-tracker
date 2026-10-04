@@ -420,7 +420,7 @@ function NotificationCenter() {
   return (
     <div data-component="NotificationCenter" className="usi-notification-center-minimal">
       <div className="usi-mono usi-notification-center-text">
-        <span style={{ color: isFinished ? 'var(--usi-success)' : 'inherit' }}>
+        <span style={{ color: job.status === 'failed' ? 'var(--usi-danger)' : (isFinished ? 'var(--usi-success)' : 'inherit') }}>
           &gt; {name}: {message}
         </span>
         <span className="usi-notification-dotbar">{dotBar}</span>
