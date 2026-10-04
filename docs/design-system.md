@@ -47,6 +47,8 @@ Wszystkie kluczowe elementy UI są oznaczone atrybutem `data-component` w celu u
 - `NavMenuButton`: Przycisk hamburgera.
 - `NavDrawer`: Wysuwane menu nawigacyjne.
 - `SourceBadge`: Mała etykieta źródła (RP, OTO, TO).
+- `ActionBar`: Dolny pasek akcji (`core.jsx`). Jedyne miejsce na przyciski wykonujące akcje lub zmieniające prezentację widoku (przełączniki grid/lista, filtry, powrót, odśwież).
+- `NavbarTitle`: Tytuł widoku w górnym pasku (`getTitle()` w `app.jsx`). Widoki nie renderują własnych nagłówków `<h1>`.
 
 ### Widok Listy (`view-list.jsx`)
 - `ListGrid`: Główny kontener listy.
@@ -83,6 +85,7 @@ Wszystkie kluczowe elementy UI są oznaczone atrybutem `data-component` w celu u
 - **Obramowania**: Stała grubość `.5px`.
 - **Zaokrąglenia**: 8px (przyciski, inputy) do 14px (karty).
 - **Cienie**: Trzy poziomy (`sm`, `md`, `lg`) zdefiniowane jako zmienne CSS.
+- **Akcje i tytuły**: Przyciski akcji/zmiany widoku trafiają do `ActionBar`, tytuł widoku do `NavbarTitle`. Widok nie duplikuje tych funkcji własnymi przyciskami ani nagłówkiem.
 
 ## 4. Komunikacja z LLM
 Przy zlecaniu zmian, używaj nazw z sekcji **Katalog Komponentów** (np. *"Zmień kolor tła w MetadataBlock"*), aby precyzyjnie wskazać element do modyfikacji.

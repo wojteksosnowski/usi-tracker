@@ -172,10 +172,6 @@ function SavedReportDetail({ reportId, onBack }) {
   return (
     <div data-component="ReportDetail" className="report-detail-content usi-scroll">
         <div className="report-detail-header">
-          <div className="report-detail-header-row">
-            <button className="usi-btn icon-only" onClick={onBack}><Icon name="arrow" className="icon-rotated-180" /></button>
-            <h1 className="usi-h1">{definition.title}</h1>
-          </div>
           <div className="usi-body secondary">{investments.length} inwestycji spełnia kryteria</div>
         </div>
         
@@ -213,7 +209,7 @@ function SavedReportDetail({ reportId, onBack }) {
 
 function ReportDetail({ reportId, onBack, onSelectInv }) {
   const { LocationReport } = window;
-  if (reportId === LOCATION_REPORT_ID) return <LocationReport onBack={onBack} onSelectInv={onSelectInv} />;
+  if (reportId === LOCATION_REPORT_ID) return <LocationReport onSelectInv={onSelectInv} />;
   return <SavedReportDetail reportId={reportId} onBack={onBack} />;
 }
 

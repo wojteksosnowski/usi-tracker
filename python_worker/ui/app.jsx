@@ -266,6 +266,7 @@
                       <button 
                         className="usi-btn ghost icon sm" 
                         onClick={() => TestSuite && TestSuite.run(setVariable)} 
+        if (view === 'report-detail') return (selectedReport && selectedReport.title) || "Analiza lokalizacji";
                         title="Uruchom testy jednostkowe JS"
                         style={{ color: statusColor }}
                       >
@@ -347,6 +348,16 @@
                         </select>
                         {config?.segments?.length > 0 && (
                           <select className="usi-input sm usi-w-150" value={Array.from(activeSegments)[0] || ""} onChange={e => setVariable('filters.segments', e.target.value ? new Set([e.target.value]) : new Set())}>
+              ) : view === 'report-detail' ? (
+                <div className="usi-action-bar-group">
+                  <button className="usi-btn ghost sm" onClick={() => setView('reports')}><Icon name="chevronLeft" /> Powrót do raportów</button>
+                  {selectedReport && selectedReport.id === '__location' && (
+                    <div className="mode-toggle">
+                      <button className="usi-btn icon sm" aria-label="Kafelki" aria-pressed={(bus.reportMode || 'grid') === 'grid'} onClick={() => setVariable('reportMode', 'grid')}><Icon name="grid" /></button>
+                      <button className="usi-btn icon sm" aria-label="Lista" aria-pressed={(bus.reportMode || 'grid') === 'table'} onClick={() => setVariable('reportMode', 'table')}><Icon name="list" /></button>
+                    </div>
+                  )}
+                </div>
                             <option value="">Segmenty: Wszystkie</option>
                             {config.segments.map(seg => <option key={seg} value={seg}>{seg}</option>)}
                           </select>

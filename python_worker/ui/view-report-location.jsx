@@ -18,7 +18,7 @@ function _yearToken(from, to) {
   return null;
 }
 
-function LocationReport({ onBack, onSelectInv }) {
+function LocationReport({ onSelectInv }) {
   const { React, Icon, Spinner, DataGrid, SourceBadge, MapModule, ListCard } = window;
   const saved = React.useMemo(_locLoad, []);
   const [input, setInput] = React.useState(saved.input || '');
@@ -30,7 +30,8 @@ function LocationReport({ onBack, onSelectInv }) {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
   const [sort, setSort] = React.useState({ key: 'distance', dir: 'asc' });
-  const [mode, setMode] = React.useState(saved.mode === 'table' ? 'table' : 'grid');
+  const { bus, setVariable } = window.useDataBus();
+  const mode = bus.reportMode || (saved.mode === 'table' ? 'table' : 'grid');
   const years = (result && result.years) || [];
   const yearToken = _yearToken(yearFrom, yearTo);
   const tokens = React.useMemo(() => (yearToken ? [yearToken] : []), [yearToken]);
@@ -114,14 +115,6 @@ function LocationReport({ onBack, onSelectInv }) {
   return (
     <div data-component="LocationReport" className="report-detail-content usi-scroll">
       <div className="report-detail-header">
-        <div className="report-detail-header-row">
-          <button className="usi-btn icon-only" onClick={onBack}><Icon name="arrow" className="icon-rotated-180" /></button>
-          <h1 className="usi-h1">Analiza lokalizacji</h1>
-          <div className="mode-toggle">
-            <button className="usi-btn icon sm" aria-label="Kafelki" aria-pressed={mode === 'grid'} onClick={() => setMode('grid')}><Icon name="grid" /></button>
-            <button className="usi-btn icon sm" aria-label="Lista" aria-pressed={mode === 'table'} onClick={() => setMode('table')}><Icon name="list" /></button>
-          </div>
-        </div>
         {result && (
           <div className="usi-body secondary">
             Pokazano {result.count} z {result.total} inwestycji w zasięgu {result.area_km} km

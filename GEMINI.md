@@ -115,6 +115,10 @@ Developer profiles use a **three-level** architecture under `Public/USIdev/{slug
 - **Babel Standalone Race Conditions**: Extraction of variables from `window` (destructuring e.g., `const { useState } = React`) MUST occur inside the component function (render-time), not at the file/module level, because Babel may not have evaluated prior files yet.
 - **Defensive Rendering**: Always use `safeRender` (validation `typeof === 'string' || 'number'`) when rendering API data to prevent "Objects are not valid as a React child" errors.
 - **Shell Layout Pattern**: Centralize all view-specific controls (Search, Filters, Mode-Toggles, Actions) in the global `ActionBar`. Use the `DataBus` to manage shared state across navigation. Individual views should focus on data presentation only.
+  - **Actions in ActionBar**: Every button that performs an action or changes how a view is shown (grid/list toggles, filters, back navigation, refresh, etc.) lives in `ActionBar` (`app.jsx`), never inside the view body.
+  - **Titles in NavbarTitle**: A view's title is set via `getTitle()` in `app.jsx` (rendered by `NavbarTitle`). Never render a view-level `<h1>` title or header-row buttons inside the view.
+  - **No duplicated controls**: Do not add view-local buttons that duplicate ActionBar functionality (e.g. a separate back arrow when ActionBar already has "Powrót").
+  - **State via DataBus**: View state controlled from ActionBar (e.g. `reportMode`, `devListMode`) is shared through `setVariable`/`bus`; the view reads it from the bus.
 - **Expert UI (Density)**: UIs should prioritize information density. Use `DataGrid` with `minCardWidth` to achieve 7-9 columns on wide screens. 
   - **Grid mode**: Uses virtualization for large lists, RAF-throttled.
   - **Table mode**: Non-virtualized, used for smaller lists (e.g., developers) to prevent flicker.
