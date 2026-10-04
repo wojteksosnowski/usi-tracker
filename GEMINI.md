@@ -73,7 +73,7 @@ cp python_worker/.env python_worker/.env.local  # Then edit with your keys
 python_worker/   Python scraper package (entry point: main.py)
   ui/            Web assets served by ui_server.py (HTML/JSX/CSS)
   data/
-    wyrozniki.csv      Amenity-scoring reference table (facility codes → score tiers)
+    amenity_catalog.json      Amenity-scoring reference table (facility codes → score tiers)
     usi_counters.json  Auto-incremented ID counters: dev (DEV-NNNNN), inv (INV-NNNNN), dm (DM-NNNNN)
   schemas/       JSON Schema definitions (usi_unified, usi_dev, rp_details, oto_details)
 docs/            Documentation and specs

@@ -1,0 +1,632 @@
+{
+ "version": 1,
+ "concepts": [
+  {
+   "id": "basen",
+   "label": "Basen",
+   "group": "rekreacja",
+   "points": 8,
+   "scored": true,
+   "aliases": [
+    "basen",
+    "swimming_pool",
+    "swimming pool",
+    "pool"
+   ]
+  },
+  {
+   "id": "sauna",
+   "label": "Sauna",
+   "group": "rekreacja",
+   "points": 4,
+   "scored": true,
+   "aliases": [
+    "sauna"
+   ]
+  },
+  {
+   "id": "klub_fitness",
+   "label": "Klub fitness",
+   "group": "rekreacja",
+   "points": 4,
+   "scored": true,
+   "aliases": [
+    "klub fitness",
+    "sala fitness",
+    "strefa fitness",
+    "fitness",
+    "gym",
+    "fitness_room"
+   ]
+  },
+  {
+   "id": "silownia",
+   "label": "Siłownia",
+   "group": "rekreacja",
+   "points": 4,
+   "scored": true,
+   "aliases": [
+    "siłownia",
+    "silownia"
+   ]
+  },
+  {
+   "id": "sala_kinowa",
+   "label": "Sala kinowa",
+   "group": "rekreacja",
+   "points": 4,
+   "scored": true,
+   "aliases": [
+    "sala kinowa"
+   ]
+  },
+  {
+   "id": "sala_klubowa",
+   "label": "Sala klubowa",
+   "group": "rekreacja",
+   "points": 4,
+   "scored": true,
+   "aliases": [
+    "sala klubowa"
+   ]
+  },
+  {
+   "id": "sala_zabaw",
+   "label": "Sala zabaw",
+   "group": "rekreacja",
+   "points": 4,
+   "scored": true,
+   "aliases": [
+    "sala zabaw dla dzieci",
+    "sala zabaw"
+   ]
+  },
+  {
+   "id": "coworking",
+   "label": "Strefa co-working",
+   "group": "usługi",
+   "points": 4,
+   "scored": true,
+   "aliases": [
+    "strefa co-workingu",
+    "strafa co-workingu",
+    "strefa coworkingu",
+    "co-working",
+    "coworking",
+    "workroom"
+   ]
+  },
+  {
+   "id": "strefa_relaksu",
+   "label": "Strefa relaksu",
+   "group": "rekreacja",
+   "points": 4,
+   "scored": true,
+   "aliases": [
+    "strefa relaksu",
+    "relax_area",
+    "relax area"
+   ]
+  },
+  {
+   "id": "pomieszczenie_rekreacyjne",
+   "label": "Pomieszczenie rekreacyjne",
+   "group": "rekreacja",
+   "points": 2,
+   "scored": true,
+   "aliases": [
+    "pomieszczenie rekreacyjne"
+   ]
+  },
+  {
+   "id": "strefa_wypoczynku",
+   "label": "Strefa wypoczynku",
+   "group": "rekreacja",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "strefa wypoczynku"
+   ]
+  },
+  {
+   "id": "plac_zabaw",
+   "label": "Plac zabaw",
+   "group": "teren",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "plac zabaw",
+    "plac zbaw",
+    "teren: plac zabaw"
+   ]
+  },
+  {
+   "id": "silownia_plenerowa",
+   "label": "Siłownia plenerowa",
+   "group": "teren",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "siłownia plenerowa"
+   ]
+  },
+  {
+   "id": "boisko",
+   "label": "Boisko",
+   "group": "teren",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "boisko",
+    "boiska sportowe",
+    "boiska",
+    "sport_fields"
+   ]
+  },
+  {
+   "id": "korty",
+   "label": "Korty tenisowe",
+   "group": "teren",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "korty tenisowe",
+    "kort tenisowy"
+   ]
+  },
+  {
+   "id": "teren_rekreacyjny",
+   "label": "Teren rekreacyjny",
+   "group": "teren",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "teren rekreacyjny"
+   ]
+  },
+  {
+   "id": "patio",
+   "label": "Patio / dziedziniec",
+   "group": "teren",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "patio / dziedziniec",
+    "patio",
+    "dziedziniec"
+   ]
+  },
+  {
+   "id": "akwen",
+   "label": "Własny akwen",
+   "group": "teren",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "własny akwen"
+   ]
+  },
+  {
+   "id": "przystan",
+   "label": "Przystań dla łodzi",
+   "group": "teren",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "przystań dla łodzi"
+   ]
+  },
+  {
+   "id": "ujecie_wody",
+   "label": "Własne ujęcie wody",
+   "group": "teren",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "własne ujęcie wody"
+   ]
+  },
+  {
+   "id": "concierge",
+   "label": "Concierge",
+   "group": "usługi",
+   "points": 4,
+   "scored": true,
+   "aliases": [
+    "usługi concierge",
+    "concierge"
+   ]
+  },
+  {
+   "id": "recepcja",
+   "label": "Recepcja",
+   "group": "usługi",
+   "points": 2,
+   "scored": true,
+   "aliases": [
+    "recepcja"
+   ]
+  },
+  {
+   "id": "lobby_recepcja",
+   "label": "Lobby z recepcją",
+   "group": "usługi",
+   "points": 4,
+   "scored": true,
+   "aliases": [
+    "eleganckie lobby wejściowe z recepcją",
+    "lobby z recepcją",
+    "lobby"
+   ]
+  },
+  {
+   "id": "pralnia",
+   "label": "Pralnia",
+   "group": "usługi",
+   "points": 1,
+   "scored": true,
+   "aliases": [
+    "pralnia"
+   ]
+  },
+  {
+   "id": "uslugi_w_budynku",
+   "label": "Usługi w budynku",
+   "group": "usługi",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "usługi w budynku",
+    "usługi",
+    "lokale usługowe",
+    "in_building"
+   ]
+  },
+  {
+   "id": "paczkomat",
+   "label": "Paczkomat",
+   "group": "usługi",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "paczkomat"
+   ]
+  },
+  {
+   "id": "ochrona",
+   "label": "Ochrona",
+   "group": "bezpieczeństwo",
+   "points": 1,
+   "scored": true,
+   "aliases": [
+    "ochrona całodobowa",
+    "ochrona",
+    "monitoring / ochrona"
+   ]
+  },
+  {
+   "id": "monitoring",
+   "label": "Monitoring",
+   "group": "bezpieczeństwo",
+   "points": 1,
+   "scored": true,
+   "aliases": [
+    "monitoring",
+    "cctv"
+   ]
+  },
+  {
+   "id": "system_alarmowy",
+   "label": "System alarmowy",
+   "group": "bezpieczeństwo",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "system alarmowy"
+   ]
+  },
+  {
+   "id": "videodomofon",
+   "label": "Wideodomofon",
+   "group": "bezpieczeństwo",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "videodomofon",
+    "wideodomofon",
+    "domofon",
+    "wideofon",
+    "wideodomofony",
+    "videodomofony"
+   ]
+  },
+  {
+   "id": "teren_zamkniety",
+   "label": "Teren zamknięty",
+   "group": "bezpieczeństwo",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "teren ogrodzony",
+    "teren zamknięty",
+    "osiedle zamknięte",
+    "ogrodzone",
+    "ogrodzony"
+   ]
+  },
+  {
+   "id": "czujnik_dymu",
+   "label": "Czujnik dymu",
+   "group": "bezpieczeństwo",
+   "points": 0,
+   "scored": false,
+   "aliases": [
+    "czujnik dymu"
+   ]
+  },
+  {
+   "id": "winda",
+   "label": "Winda",
+   "group": "budynek",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "winda",
+    "windy",
+    "elevator",
+    "elevators"
+   ]
+  },
+  {
+   "id": "niepelnosprawni",
+   "label": "Przystosowane dla niepełnosprawnych",
+   "group": "budynek",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "przystosowane dla niepełnosprawnych",
+    "przyjazny dla osób niepełnosprawnych",
+    "dla niepełnosprawnych",
+    "przystosowany dla niepełnosprawnych",
+    "dostępny dla niepełnosprawnych",
+    "disabled_friendly"
+   ]
+  },
+  {
+   "id": "rowerownia",
+   "label": "Rowerownia",
+   "group": "budynek",
+   "points": 1,
+   "scored": true,
+   "aliases": [
+    "rowerownia",
+    "pomieszczenie na rowery",
+    "wiata rowerowa",
+    "przechowalnia rowerów",
+    "stojaki rowerowe",
+    "stojaki na rowery"
+   ]
+  },
+  {
+   "id": "wozkarnia",
+   "label": "Wózkarnia",
+   "group": "budynek",
+   "points": 1,
+   "scored": true,
+   "aliases": [
+    "wózkarnia",
+    "wozkarnia"
+   ]
+  },
+  {
+   "id": "inteligentny_dom",
+   "label": "Inteligentny dom",
+   "group": "technologia",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "inteligentny dom",
+    "smart home"
+   ]
+  },
+  {
+   "id": "klimatyzacja",
+   "label": "Klimatyzacja",
+   "group": "technologia",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "klimatyzacja",
+    "air_conditioning"
+   ]
+  },
+  {
+   "id": "rekuperacja",
+   "label": "Rekuperacja",
+   "group": "technologia",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "rekuperacja"
+   ]
+  },
+  {
+   "id": "pompa_ciepla",
+   "label": "Pompa ciepła",
+   "group": "technologia",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "pompa ciepła"
+   ]
+  },
+  {
+   "id": "fotowoltaika",
+   "label": "Instalacja fotowoltaiczna",
+   "group": "technologia",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "instalacja fotowoltaiczna",
+    "fotowoltaika",
+    "panele fotowoltaiczne"
+   ]
+  },
+  {
+   "id": "kotlownia",
+   "label": "Własna kotłownia",
+   "group": "technologia",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "własna kotłownia"
+   ]
+  },
+  {
+   "id": "internet",
+   "label": "Internet",
+   "group": "technologia",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "internet"
+   ]
+  },
+  {
+   "id": "tv_kablowa",
+   "label": "TV kablowa",
+   "group": "technologia",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "tv kablowa",
+    "telewizja kablowa"
+   ]
+  },
+  {
+   "id": "parking_naziemny",
+   "label": "Parking naziemny",
+   "group": "parking",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "parking naziemny",
+    "miejsca parkingowe",
+    "miejsce parkingowe"
+   ]
+  },
+  {
+   "id": "parking_podziemny",
+   "label": "Parking podziemny",
+   "group": "parking",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "parking podziemny",
+    "miejsce parkingowe podziemne",
+    "garaż podziemny",
+    "garaż",
+    "hala garażowa",
+    "garaż wielostanowiskowy"
+   ]
+  },
+  {
+   "id": "parking_goscie",
+   "label": "Miejsca parkingowe dla gości",
+   "group": "parking",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "miejsca parkingowe dla gości"
+   ]
+  },
+  {
+   "id": "ladowarki_ev",
+   "label": "Ładowanie samochodów elektrycznych",
+   "group": "parking",
+   "points": 0,
+   "scored": true,
+   "aliases": [
+    "miejsce do ładowania samochodów elektrycznych",
+    "ładowarki ev",
+    "stacja ładowania"
+   ]
+  },
+  {
+   "id": "balkon",
+   "label": "Balkon",
+   "group": "zewnętrzne",
+   "points": 0,
+   "scored": false,
+   "aliases": [
+    "balkon",
+    "balkony",
+    "balcony"
+   ]
+  },
+  {
+   "id": "taras",
+   "label": "Taras",
+   "group": "zewnętrzne",
+   "points": 0,
+   "scored": false,
+   "aliases": [
+    "taras",
+    "tarasy",
+    "terrace"
+   ]
+  },
+  {
+   "id": "loggia",
+   "label": "Loggia",
+   "group": "zewnętrzne",
+   "points": 0,
+   "scored": false,
+   "aliases": [
+    "loggia"
+   ]
+  },
+  {
+   "id": "ogrodek",
+   "label": "Ogródek",
+   "group": "zewnętrzne",
+   "points": 0,
+   "scored": false,
+   "aliases": [
+    "ogródek",
+    "ogródki",
+    "garden"
+   ]
+  },
+  {
+   "id": "komorka",
+   "label": "Komórka lokatorska",
+   "group": "dodatkowe",
+   "points": 0,
+   "scored": false,
+   "aliases": [
+    "komórka lokatorska",
+    "komórki lokatorskie",
+    "powierzchnie dodatkowe: komórka lokatorska"
+   ]
+  },
+  {
+   "id": "piwnica",
+   "label": "Piwnica",
+   "group": "dodatkowe",
+   "points": 0,
+   "scored": false,
+   "aliases": [
+    "piwnica",
+    "basement"
+   ]
+  }
+ ],
+ "noise": [
+  "^(teren|budynek|garaż|powierzchnie zewnętrzne|powierzchnie dodatkowe)$",
+  "^termin oddania\\b.*",
+  "^dostępna liczba ofert\\b.*",
+  "^wys(okość|\\.)\\s*(mieszkania|lokalu|apartamentu)\\b.*",
+  "^\\d[\\d\\s,\\.]*\\s*(m²|m2|m)?$"
+ ]
+}

@@ -45,7 +45,7 @@ LOKALIZACJA_BAZY_DANYCH/ (np. DROPBOX_PATH/Public/ lub public_dir/)
 
 python_worker/data/ (Lokalne dane aplikacyjne tracker-worker)
 ├── usi_counters.json               # Liczniki auto-increment dla unikalnych ID (DEV, INV, DM)
-└── wyrozniki.csv                   # Tabela punktacji i wag udogodnień inwestycji
+└── amenity_catalog.json                   # Tabela punktacji i wag udogodnień inwestycji
 
 ```
 

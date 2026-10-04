@@ -28,6 +28,8 @@ from typing import Optional
 from python_worker.config import USI_DATA_DIR, PUBLIC_USI_DIR
 from python_worker.services.investment_identity import InvestmentIdentityResolver
 from python_worker.logger_utils import log_to_processing_log
+from python_worker.services.amenity_normalizer import build_amenities
+from python_worker.services.amenity_scorer import compute_amenity_score, suggest_udogodnienia
 
 logger = logging.getLogger(__name__)
 
@@ -150,10 +152,9 @@ class InvestmentMerger:
         cat_status = {k: "Brak" for k in master["ratings"]}
 
         seen_images: set[str] = set()
-        seen_amenities: set[str] = set()
-        seen_amenity_labels: set[str] = set()
+        member_amenity_labels: list = []
+        member_amenity_canonical: set = set()
         seen_amenity_codes: set[str] = set()
-        amenities_matched: list = []
         w_sums = {"price_min": 0.0, "price_max": 0.0, "price_m2_min": 0.0, "price_m2_max": 0.0}
         w_counts = {k: 0 for k in w_sums}
         delivery_dates: set[str] = set()
@@ -291,28 +292,17 @@ class InvestmentMerger:
                     except (ValueError, TypeError):
                         pass
 
-            # Amenities matched
-            d_am = d.get("amenities_matched", [])
-            for am in d_am:
-                code = am.get("code") if isinstance(am, dict) else am
-                if code and code not in seen_amenities:
-                    seen_amenities.add(code)
-                    amenities_matched.append(am)
-
-            # Amenities
-            d_am_obj = d.get("amenities", {})
-            for label in d_am_obj.get("labels", []):
-                if label not in seen_amenity_labels:
-                    seen_amenity_labels.add(label)
-                    master["amenities"]["labels"].append(label)
+            # Amenities: zbieramy surowe etykiety i pojęcia kanoniczne membrów;
+            # unia + wycena liczone raz, po pętli (zob. amenity_normalizer / amenity_scorer)
+            d_am_obj = d.get("amenities") or {}
+            if isinstance(d_am_obj, list):
+                d_am_obj = {"labels": d_am_obj}
+            member_amenity_labels.extend(d_am_obj.get("labels", []))
+            member_amenity_canonical.update(d_am_obj.get("canonical", []))
             for raw_code in d_am_obj.get("raw_codes", []):
                 if raw_code not in seen_amenity_codes:
                     seen_amenity_codes.add(raw_code)
                     master["amenities"]["raw_codes"].append(raw_code)
-            
-            # Amenities score
-            if "amenities_score" in d:
-                master["amenities_score"] = max(master["amenities_score"], d["amenities_score"])
 
             # Images
             for img in d.get("image_paths", []):
@@ -342,7 +332,13 @@ class InvestmentMerger:
         if delivery_dates:
             master["specifications"]["delivery_date"] = " / ".join(sorted(delivery_dates))
 
-        master["amenities_matched"] = amenities_matched
+        master["amenities"] = build_amenities(
+            member_amenity_labels, master["amenities"]["raw_codes"], extra_canonical=member_amenity_canonical
+        )
+        score_data = compute_amenity_score([], canonical=master["amenities"]["canonical"])
+        master["amenities_score"] = score_data["score"]
+        master["amenities_matched"] = score_data["matched"]
+        master["suggested_udogodnienia"] = suggest_udogodnienia(score_data["score"])
         master.pop("_anchor_portal", None)
 
         # Płaskie pola odczytywane bezpośrednio przez db.load_investment() i _build_index_entry()

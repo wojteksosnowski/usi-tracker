@@ -1,54 +1,30 @@
 import math
-import csv
 import logging
-from pathlib import Path
-from functools import lru_cache
-from python_worker.api.utils import CATS, USI_STATUSES
+from python_worker.api.utils import CATS
+from python_worker.services.amenity_normalizer import canonicalize, load_catalog
 
 logger = logging.getLogger(__name__)
 
-_WYROZNIKI_CSV = Path(__file__).parent.parent.parent / "data" / "HasłaMarketingowe.csv"
 _STANDARD_TIERS = [(16, 4), (8, 3), (4, 2), (1, 1), (0, 0)]
 
-@lru_cache(maxsize=1)
-def load_wyrozniki():
-    w_lok, w_udo = [], []
-    if not _WYROZNIKI_CSV.exists():
-        return w_lok, w_udo
-    try:
-        with open(_WYROZNIKI_CSV, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                lbl = row.get("HMLabel", "").strip()
-                if not lbl:
-                    continue
-                try:
-                    score = int(row.get("HMUdogodnienia", 0) or 0)
-                except Exception:
-                    score = 0
-                w_udo.append((lbl, score))
-    except Exception as e:
-        logger.error(f"Failed to load wyrozniki: {e}")
-    return w_lok, w_udo
 
-def compute_amenity_score(amenity_labels: list, rp_codes: list = None) -> dict:
-    _, wyrozniki_udo = load_wyrozniki()
-    matched_lc = {}
-    matched_display = {}
-            
-    for amenity in amenity_labels:
-        al = amenity.lower()
-        for lbl, hm_udo in wyrozniki_udo:
-            lbl_lc = lbl.lower()
-            if lbl_lc in al and lbl_lc not in matched_lc:
-                matched_lc[lbl_lc] = hm_udo
-                matched_display[lbl_lc] = lbl
-                
-    total = sum(matched_lc.values())
-    return {
-        "score": total,
-        "matched": [{"label": matched_display[k], "hm_udo": v} for k, v in matched_lc.items()],
-    }
+def compute_amenity_score(amenity_labels: list, rp_codes: list = None, canonical: list = None) -> dict:
+    """Wycena udogodnień z katalogu kanonicznego (data/amenity_catalog.json).
+
+    Każde pojęcie liczone raz. `canonical` (lista id) ma pierwszeństwo przed `amenity_labels`.
+    `rp_codes` zostaje dla zgodności wywołań (ignorowany).
+    """
+    cat = load_catalog()
+    if canonical is None:
+        canonical = canonicalize(amenity_labels or [])["canonical"]
+    matched, total = [], 0
+    for cid in canonical:
+        c = cat["concepts"].get(cid)
+        if not c or not c.get("scored", True) or not c.get("points"):
+            continue
+        total += c["points"]
+        matched.append({"code": cid, "label": c["label"], "hm_udo": c["points"]})
+    return {"score": total, "matched": matched}
 
 def suggest_udogodnienia(score: int):
     if score <= 0: return None

@@ -19,6 +19,7 @@ from python_worker.services.investment_identity import InvestmentIdentityResolve
 from python_worker.services.developer_resolver import DeveloperResolver
 from python_worker.services.image_sync import ImageSyncService
 from python_worker.services.amenity_scorer import compute_amenity_score, suggest_udogodnienia
+from python_worker.services.amenity_normalizer import build_amenities
 from python_worker.services.image_resolver import resolve_images
 from python_worker.url_parser import parse_url
 import python_worker.investment_index as inv_index
@@ -545,8 +546,17 @@ class InvestmentSyncService:
                     data["location"] = loc_dict
 
         # Amenities
-        am_data = data.get("amenities", {})
-        score_data = compute_amenity_score(am_data.get("labels", []), am_data.get("raw_codes", []))
+        am_data = data.get("amenities") or {}
+        if isinstance(am_data, list):
+            am_data = {"labels": am_data}
+        # kanonizacja: scalanie synonimów między portalami, odsiew szumu (zob. amenity_normalizer)
+        am_data = build_amenities(
+            [*am_data.get("labels", []), *am_data.get("unmatched", [])],
+            am_data.get("raw_codes", []),
+            extra_canonical=am_data.get("canonical"),
+        )
+        data["amenities"] = am_data
+        score_data = compute_amenity_score(am_data["labels"], canonical=am_data["canonical"])
         data["amenities_score"] = score_data["score"]
         data["amenities_matched"] = score_data["matched"]
         data["suggested_udogodnienia"] = suggest_udogodnienia(score_data["score"])
