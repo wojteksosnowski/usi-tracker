@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path
-from flask import Blueprint, jsonify, abort, request
+from flask import Blueprint, jsonify, abort, request, Response
 from python_worker.config import USI_DATA_DIR, USI_DEV_DIR
 from python_worker.services.investment_loader import load_investment as _load_investment
 from python_worker.services.amenity_scorer import calculate_ocena_log as _calculate_ocena_log
@@ -94,34 +94,71 @@ def get_report_data(report_id):
 LOCATION_MAX_KM = 50  # bezpiecznik wyszukiwania najbliższych inwestycji
 
 
-@reports_bp.route("/reports/location", methods=["POST"])
-def location_report():
-    """`limit` najbliższych inwestycji od lokalizacji (link Map Google / adres / współrzędne).
-    Obszar = te inwestycje; area_km = odległość do najdalszej, years = lata oddania w obszarze.
-    delivery: lista tokenów zawężających obszar (ready, 2026, 2028+, 2026-Q3, none)."""
-    body = request.get_json(silent=True) or {}
+class _ReportError(Exception):
+    def __init__(self, message, status):
+        super().__init__(message)
+        self.message, self.status = message, status
+
+
+def _build_location_report(body):
+    """Wspólna logika JSON-a i PDF-a raportu lokalizacji; błędy jako _ReportError."""
     try:
         limit = int(body.get("limit", 12))
     except (TypeError, ValueError):
-        return jsonify({"error": "limit musi być liczbą całkowitą"}), 400
+        raise _ReportError("limit musi być liczbą całkowitą", 400)
     if not 1 <= limit <= 200:
-        return jsonify({"error": "limit musi być w przedziale 1..200"}), 400
+        raise _ReportError("limit musi być w przedziale 1..200", 400)
 
     tokens = [str(t) for t in (body.get("delivery") or [])]
     try:
         validate_tokens(tokens)
     except ValueError as e:
-        return jsonify({"error": str(e)}), 400
+        raise _ReportError(str(e), 400)
 
     here = HereMapsService(HERE_API_KEY)
     center = parse_gmaps_location(body.get("location"), geocoder=here.geocode_address)
     if not center:
-        return jsonify({"error": "Nie rozpoznano lokalizacji. Wklej link z Map Google, adres lub współrzędne."}), 422
+        raise _ReportError("Nie rozpoznano lokalizacji. Wklej link z Map Google, adres lub współrzędne.", 422)
 
-    area = inv_index.get_investment_index().get_near_coordinates(
-        center["lat"], center["lon"], LOCATION_MAX_KM, limit=limit)
-    years = sorted({y for inv in area for y in delivery_years(inv.get("delivery"))})
-    data = [inv for inv in area if matches_delivery(inv.get("delivery"), tokens)]
-    return jsonify({"center": center, "limit": limit,
-                    "area_km": max((inv["distance"] for inv in area), default=None),
-                    "years": years, "total": len(area), "count": len(data), "data": data})
+    # Najpierw filtr terminu na całej puli w zasięgu, dopiero potem limit — raport ma `limit` pozycji.
+    pool = inv_index.get_investment_index().get_near_coordinates(
+        center["lat"], center["lon"], LOCATION_MAX_KM, limit=1_000_000)
+    years = sorted({y for inv in pool for y in delivery_years(inv.get("delivery"))})
+    matching = [inv for inv in pool if matches_delivery(inv.get("delivery"), tokens)]
+    data = matching[:limit]
+    return {"center": center, "limit": limit,
+            "area_km": max((inv["distance"] for inv in data), default=None),
+            "years": years, "total": len(matching), "count": len(data), "data": data}
+
+
+@reports_bp.route("/reports/location", methods=["POST"])
+def location_report():
+    """`limit` najbliższych inwestycji spełniających filtr terminu (link Map Google / adres / współrzędne).
+    delivery: tokeny filtra (ready, 2026, 2028+, 2026-Q3, none) stosowane PRZED limitem;
+    total = pasujące w zasięgu, years = lata oddania w całym zasięgu, area_km = dystans do najdalszej pokazanej."""
+    try:
+        return jsonify(_build_location_report(request.get_json(silent=True) or {}))
+    except _ReportError as e:
+        return jsonify({"error": e.message}), e.status
+
+
+@reports_bp.route("/reports/location/pdf", methods=["POST"])
+def location_report_pdf():
+    """Ten sam raport co /reports/location, jako PDF A4 w stylu USI (te same parametry + sort)."""
+    body = request.get_json(silent=True) or {}
+    try:
+        report = _build_location_report(body)
+    except _ReportError as e:
+        return jsonify({"error": e.message}), e.status
+    try:
+        from python_worker.pdf.location_report_pdf import render_location_report_pdf
+        label = ", ".join(str(t) for t in (body.get("delivery") or [])) or None
+        sort = body.get("sort") if isinstance(body.get("sort"), dict) else None
+        pdf = render_location_report_pdf(report, sort=sort, delivery_label=label)
+    except Exception as e:
+        logger.error(f"Location report PDF failed: {e}", exc_info=True)
+        return jsonify({"error": f"Nie udało się wygenerować PDF: {e}"}), 500
+    resp = Response(pdf, mimetype="application/pdf")
+    resp.headers["Content-Disposition"] = (
+        "attachment; filename=\"raport-lokalizacji.pdf\"; filename*=UTF-8''raport-lokalizacji.pdf")
+    return resp

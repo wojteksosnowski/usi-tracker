@@ -18,13 +18,35 @@ function _yearToken(from, to) {
   return null;
 }
 
+// Pobiera PDF raportu (te same parametry co widok) i zapisuje go jako plik
+async function downloadLocationPdf(params) {
+  const r = await fetch('/api/reports/location/pdf', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  if (!r.ok) {
+    let msg = 'Nie udało się wygenerować PDF';
+    try { msg = (await r.json()).error || msg; } catch (e) { /* odpowiedź nie-JSON */ }
+    throw new Error(msg);
+  }
+  const url = URL.createObjectURL(await r.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'raport-lokalizacji.pdf';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function LocationReport({ onSelectInv }) {
   const { React, Icon, Spinner, DataGrid, SourceBadge, MapModule, ListCard } = window;
   const saved = React.useMemo(_locLoad, []);
   const [input, setInput] = React.useState(saved.input || '');
   const [limit, setLimit] = React.useState(saved.limit || 12);
-  const [yearFrom, setYearFrom] = React.useState(saved.yearFrom || '');
-  const [yearTo, setYearTo] = React.useState(saved.yearTo || '');
+  const [yearFrom, setYearFrom] = React.useState('');
+  const [yearTo, setYearTo] = React.useState('');
   const [query, setQuery] = React.useState(saved.input || null); // zatwierdzona lokalizacja
   const [result, setResult] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
@@ -36,7 +58,15 @@ function LocationReport({ onSelectInv }) {
   const yearToken = _yearToken(yearFrom, yearTo);
   const tokens = React.useMemo(() => (yearToken ? [yearToken] : []), [yearToken]);
 
-  React.useEffect(() => { _locSave({ input: query || input, limit, yearFrom, yearTo, mode }); }, [query, limit, yearFrom, yearTo, mode]);
+  React.useEffect(() => { _locSave({ input: query || input, limit, mode }); }, [query, limit, mode]);
+
+  // Parametry bieżącego widoku dla przycisku „Generuj PDF” w ActionBar
+  React.useEffect(() => {
+    setVariable('reportPdf', result && !loading && query
+      ? { location: query, limit, delivery: tokens, sort }
+      : null);
+  }, [result, loading, query, limit, tokens, sort]);
+  React.useEffect(() => () => setVariable('reportPdf', null), []);
 
   React.useEffect(() => {
     if (!query) return;
@@ -117,7 +147,7 @@ function LocationReport({ onSelectInv }) {
       <div className="report-detail-header">
         {result && (
           <div className="usi-body secondary">
-            Pokazano {result.count} z {result.total} inwestycji w zasięgu {result.area_km} km
+            Pokazano {result.count} z {result.total} inwestycji w zasięgu {result.area_km} km{result.count < result.total ? ' (filtr terminu oddania)' : ''}
             {result.center.label ? ` od: ${result.center.label}` : ` od ${result.center.lat.toFixed(5)}, ${result.center.lon.toFixed(5)}`}
           </div>
         )}
@@ -199,4 +229,4 @@ function LocationReport({ onSelectInv }) {
   );
 }
 
-Object.assign(window, { LocationReport });
+Object.assign(window, { LocationReport, downloadLocationPdf });

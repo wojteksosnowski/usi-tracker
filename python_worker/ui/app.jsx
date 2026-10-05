@@ -58,6 +58,8 @@
     const [navOpen, setNavOpen] = React.useState(false);
     const [selectedInv, setSelectedInv] = React.useState(null);
     const [invNavList, setInvNavList] = React.useState(null);
+    const [overlayInv, setOverlayInv] = React.useState(null);
+    const [overlayList, setOverlayList] = React.useState(null);
     const [selectedDev, setSelectedDev] = React.useState(null);
     const [selectedReport, setSelectedReport] = React.useState(null);
     
@@ -117,6 +119,7 @@
       const handleNav = (v) => {
         setView(v);
         setNavOpen(false);
+        setOverlayInv(null);
         if (v !== 'detail') setSelectedInv(null);
         if (v !== 'detail' && v !== 'report-detail') setInvNavList(null);
         if (v !== 'dev-detail') setSelectedDev(null);
@@ -125,10 +128,33 @@
 
       const handleSelectInv = (inv, list) => {
         if (!inv) return;
+        if (view === 'report-detail') {
+          setOverlayList(Array.isArray(list) ? list : null);
+          setOverlayInv(inv);
+          return;
+        }
         setInvNavList(Array.isArray(list) ? list : null);
         setPrevView(view);
         setSelectedInv(inv);
         setView('detail');
+      };
+
+      const overlayIdx = overlayInv && overlayList
+        ? overlayList.findIndex(i => i.usi_inv_id === overlayInv.usi_inv_id) : -1;
+      const stepOverlay = (delta) => {
+        const next = overlayList && overlayList[overlayIdx + delta];
+        if (overlayIdx >= 0 && next) setOverlayInv(next);
+        return !!next && overlayIdx >= 0;
+      };
+
+      const refreshInv = (inv, setter) => {
+        refetch();
+        if (inv.usi_inv_id) {
+          fetch(`/api/investment/${inv.usi_inv_id}/data`)
+            .then(r => r.json())
+            .then(setter)
+            .catch(() => {});
+        }
       };
 
       const handleSelectDev = (dev) => {
@@ -144,6 +170,15 @@
 
       React.useEffect(() => {
         const handler = (e) => {
+          if (overlayInv) {
+            if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target && e.target.tagName)) return;
+            if (e.key === 'Escape') { e.preventDefault(); setOverlayInv(null); return; }
+            const delta = (e.key === 'ArrowLeft' || e.key === 'ArrowUp') ? -1
+              : (e.key === 'ArrowRight' || e.key === 'ArrowDown') ? 1 : 0;
+            if (delta && stepOverlay(delta)) e.preventDefault();
+            return;
+          }
           if (view === 'detail' && selectedInv) {
             if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
             if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target && e.target.tagName)) return;
@@ -163,7 +198,7 @@
         };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
-      }, [view, selectedInv, invNavList, visibleInvestments, selectedDev, developers]);
+      }, [view, selectedInv, invNavList, visibleInvestments, selectedDev, developers, overlayInv, overlayList]);
 
       const toggleSource = (id, isShift) => {
         setVariable('filters.sources', prev => {
@@ -231,6 +266,7 @@
         if (view === 'reports') return "Raporty";
         if (view === 'detail') return "Szczegóły";
         if (view === 'dev-detail') return "Szczegóły dewelopera";
+        if (view === 'report-detail') return (selectedReport && selectedReport.title) || "Analiza lokalizacji";
         return "USI Tracker";
       };
 
@@ -266,7 +302,6 @@
                       <button 
                         className="usi-btn ghost icon sm" 
                         onClick={() => TestSuite && TestSuite.run(setVariable)} 
-        if (view === 'report-detail') return (selectedReport && selectedReport.title) || "Analiza lokalizacji";
                         title="Uruchom testy jednostkowe JS"
                         style={{ color: statusColor }}
                       >
@@ -313,6 +348,27 @@
                     placeholder="Filtruj wyniki..."
                   />
                 </div>
+              ) : view === 'report-detail' ? (
+                <div className="usi-action-bar-group">
+                  <button className="usi-btn ghost sm" onClick={() => setView('reports')}><Icon name="chevronLeft" /> Powrót do raportów</button>
+                  {selectedReport && selectedReport.id === '__location' && (
+                    <div className="mode-toggle">
+                      <button className="usi-btn icon sm" aria-label="Kafelki" aria-pressed={(bus.reportMode || 'grid') === 'grid'} onClick={() => setVariable('reportMode', 'grid')}><Icon name="grid" /></button>
+                      <button className="usi-btn icon sm" aria-label="Lista" aria-pressed={(bus.reportMode || 'grid') === 'table'} onClick={() => setVariable('reportMode', 'table')}><Icon name="list" /></button>
+                    </div>
+                  )}
+                  {selectedReport && selectedReport.id === '__location' && (
+                    <button className="usi-btn sm primary" disabled={!bus.reportPdf || bus.reportPdfBusy}
+                      onClick={async () => {
+                        setVariable('reportPdfBusy', true);
+                        try { await window.downloadLocationPdf(bus.reportPdf); }
+                        catch (e) { window.alert(e.message); }
+                        finally { setVariable('reportPdfBusy', false); }
+                      }}>
+                      <Icon name="download" size={14} /> {bus.reportPdfBusy ? 'Generowanie…' : 'Generuj PDF'}
+                    </button>
+                  )}
+                </div>
               ) : view === 'dev-detail' ? (
                 <button className="usi-btn ghost sm" onClick={() => handleNav('developers')}><Icon name="chevronLeft" /> Powrót do deweloperów</button>
               ) : view === 'detail' && prevView && prevView !== 'list' && prevView !== 'detail' ? (
@@ -348,16 +404,6 @@
                         </select>
                         {config?.segments?.length > 0 && (
                           <select className="usi-input sm usi-w-150" value={Array.from(activeSegments)[0] || ""} onChange={e => setVariable('filters.segments', e.target.value ? new Set([e.target.value]) : new Set())}>
-              ) : view === 'report-detail' ? (
-                <div className="usi-action-bar-group">
-                  <button className="usi-btn ghost sm" onClick={() => setView('reports')}><Icon name="chevronLeft" /> Powrót do raportów</button>
-                  {selectedReport && selectedReport.id === '__location' && (
-                    <div className="mode-toggle">
-                      <button className="usi-btn icon sm" aria-label="Kafelki" aria-pressed={(bus.reportMode || 'grid') === 'grid'} onClick={() => setVariable('reportMode', 'grid')}><Icon name="grid" /></button>
-                      <button className="usi-btn icon sm" aria-label="Lista" aria-pressed={(bus.reportMode || 'grid') === 'table'} onClick={() => setVariable('reportMode', 'table')}><Icon name="list" /></button>
-                    </div>
-                  )}
-                </div>
                             <option value="">Segmenty: Wszystkie</option>
                             {config.segments.map(seg => <option key={seg} value={seg}>{seg}</option>)}
                           </select>
@@ -552,15 +598,7 @@
                 <DetailRightPanel
                   inv={selectedInv}
                   onBack={() => setView(prevView || 'list')}
-                  onUpdateInv={() => {
-                    refetch();
-                    if (selectedInv.usi_inv_id) {
-                      fetch(`/api/investment/${selectedInv.usi_inv_id}/data`)
-                        .then(r => r.json())
-                        .then(fresh => setSelectedInv(fresh))
-                        .catch(() => {});
-                    }
-                  }}
+                  onUpdateInv={() => refreshInv(selectedInv, setSelectedInv)}
                   onSelectInv={handleSelectInv}
                 />
               )}
@@ -580,6 +618,28 @@
               {view === 'report-detail' && selectedReport && <ReportDetail reportId={selectedReport.id} onBack={() => setView('reports')} onSelectInv={handleSelectInv} />}
             </ModuleErrorBoundary>
           </main>
+
+          {overlayInv && (
+            <div className="usi-inv-overlay" onClick={() => setOverlayInv(null)}>
+              <div className="usi-inv-overlay-panel" onClick={e => e.stopPropagation()}>
+                <div className="usi-inv-overlay-bar">
+                  <button className="usi-btn icon sm" disabled={overlayIdx <= 0} onClick={() => stepOverlay(-1)}>←</button>
+                  <span className="usi-body">{overlayIdx >= 0 ? `${overlayIdx + 1} / ${overlayList.length}` : ''}</span>
+                  <button className="usi-btn icon sm" disabled={overlayIdx < 0 || overlayIdx >= overlayList.length - 1} onClick={() => stepOverlay(1)}>→</button>
+                  <span style={{ flex: 1 }} />
+                  <button className="usi-btn ghost sm" onClick={() => setOverlayInv(null)}>Zamknij (Esc)</button>
+                </div>
+                <div className="usi-app-main usi-scroll">
+                  <DetailRightPanel
+                    inv={overlayInv}
+                    onBack={() => setOverlayInv(null)}
+                    onUpdateInv={() => refreshInv(overlayInv, setOverlayInv)}
+                    onSelectInv={handleSelectInv}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           <NotificationConsole />
           {navOpen && <NavDrawer current={view} onClose={() => setNavOpen(false)} onNav={handleNav} dark={dark} onToggleTheme={handleToggleTheme} />}

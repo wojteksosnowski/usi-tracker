@@ -410,3 +410,31 @@ body,
 
 .usi-overflow-hidden { overflow: hidden !important; }
 .usi-overflow-auto { overflow: auto !important; }
+
+/* Investment overlay (opened from reports) */
+.usi-inv-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 16px 24px;
+}
+.usi-inv-overlay-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  background: var(--usi-bg, #fff);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+.usi-inv-overlay-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+}
