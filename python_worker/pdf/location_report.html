@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="pl">
+<head><meta charset="utf-8"><title>Analiza lokalizacji — USI</title></head>
+<body>
+  <!-- Okładka: ui_kits/print/BrochureCover.html (grad-dusk + noise) -->
+  <section class="cover">
+    <div class="top">
+      <img class="star" src="assets/usi-star-white.svg" alt="">
+      <span class="wordmark">USI</span>
+      <span class="rule"></span>
+      <span class="num">RAPORT · {{ generated }}</span>
+    </div>
+    <div class="titles">
+      <div class="eyebrow">Raport lokalizacji</div>
+      <h1>Analiza<br><em>lokalizacji.</em></h1>
+      <p class="lede">{{ lede }}</p>
+    </div>
+    <div class="footer">
+      <div class="meta">
+        <span>{{ count }} inwestycji</span>
+        <span>zasięg {{ area_km }}</span>
+        <span>śr. cena m² od {{ avg_m2 }}</span>
+      </div>
+      <span>oddanie: {{ filter_label }}</span>
+    </div>
+  </section>
+
+  <!-- Strona tabeli: ui_kits/print/Brochure.html (p-chart + data-table) -->
+  <section class="inner">
+    <div class="runfoot"><img src="assets/usi-star-color.svg" alt=""><div class="ft"><b>USI</b><span>war<strong>stadt</strong>.com</span></div></div>
+    <div class="runhead rh-table"><img src="assets/usi-star-black.svg" alt=""><span class="ch">USI · Analiza lokalizacji</span><span class="rule"></span><span>zestawienie</span></div>
+    <span class="lab">Zestawienie</span>
+    <h3>Inwestycje <em>w zasięgu.</em></h3>
+    <p class="lede-sm">{{ lede }}</p>
+
+    {% if rows %}
+    <table class="data-table">
+      <thead><tr>
+        <th>Inwestycja</th><th>Oddanie</th>
+        <th class="num">Cena m² od</th><th class="num">Cena m² do</th>
+      </tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td class="name">{{ r.name }}<small>{{ r.developer }}</small></td>
+          <td>{{ r.delivery }}</td>
+          <td class="num">{{ r.price_m2 }}</td>
+          <td class="num">{{ r.price_m2_max }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">Brak inwestycji w zasięgu dla wybranych filtrów.</div>
+    {% endif %}
+
+    <div class="note">
+      <img src="assets/usi-star-black.svg" alt="">Dane pochodzą z bazy USI Tracker (stan na {{ generated }}); ceny są orientacyjne i pochodzą z ofert deweloperów.
+      Inwestowanie wiąże się z ryzykiem.
+    </div>
+  </section>
+
+  <!-- Karty: ui_kits/print/InvestmentCards.html -->
+  {% if rows %}
+  <section class="cards">
+    <div class="runfoot"><img src="assets/usi-star-color.svg" alt=""><div class="ft"><b>USI</b><span>war<strong>stadt</strong>.com</span></div></div>
+    <div class="runhead rh-cards">Karty inwestycji</div>
+    {% for r in rows %}
+    <div class="card">
+      {% if r.thumb %}<img class="photo" src="{{ r.thumb }}" alt="">{% else %}<div class="photo"><span>brak zdjęcia</span></div>{% endif %}
+      <div class="body">
+        <div class="hd">
+          <h2 class="nm">{{ r.name }}</h2>
+          {% if r.overall %}<div class="ov">{% for u in r.overall.icons %}<img src="{{ u }}" alt="">{% endfor %}{% if r.overall.frac %}<s>{{ r.overall.frac }}</s>{% endif %}</div>{% endif %}
+        </div>
+        <div class="dev">{{ r.developer }}{% if r.developer %} · {% endif %}{{ r.delivery }}</div>
+        {% if r.has_ratings %}
+        <div class="grid">
+          {% for c in r.ratings %}
+          <div class="r{% if c.missing %} na{% endif %}"><span>{{ c.key }}</span><b>{% for u in c.stars %}<img src="{{ u }}" alt="">{% endfor %}</b></div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if r.description %}<p class="txt">{{ r.description }}</p>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+</body>
+</html>

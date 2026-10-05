@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-100 -110 200 220">
+  <defs>
+    <linearGradient id="gg" x1="0" y1="-1" x2="0" y2="1">
+      <stop offset="0%" stop-color="#86D958"></stop>
+      <stop offset="60%" stop-color="#5BB733"></stop>
+      <stop offset="100%" stop-color="#2E7B17"></stop>
+    </linearGradient>
+    <linearGradient id="gh" x1="0" y1="-1" x2="0" y2="1">
+      <stop offset="0%" stop-color="#A1A2A6"></stop>
+      <stop offset="60%" stop-color="#6E6F72"></stop>
+      <stop offset="100%" stop-color="#3B3C3F"></stop>
+    </linearGradient>
+    <linearGradient id="go" x1="0" y1="-1" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFC04A"></stop>
+      <stop offset="60%" stop-color="#F39200"></stop>
+      <stop offset="100%" stop-color="#A66400"></stop>
+    </linearGradient>
+    <linearGradient id="gm" x1="0" y1="-1" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FF4F8A"></stop>
+      <stop offset="60%" stop-color="#E5145B"></stop>
+      <stop offset="100%" stop-color="#9A0B3D"></stop>
+    </linearGradient>
+    <linearGradient id="gb" x1="0" y1="-1" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5FAEE2"></stop>
+      <stop offset="60%" stop-color="#2E86C8"></stop>
+      <stop offset="100%" stop-color="#1B5C8E"></stop>
+    </linearGradient>
+  </defs>
+  <g>
+    <rect x="-15" y="-100" width="30" height="105" rx="14" fill="url(#gb)" transform="rotate(-72)"></rect>
+    <rect x="-15" y="-100" width="30" height="105" rx="14" fill="url(#gh)" transform="rotate(72)"></rect>
+    <rect x="-15" y="-100" width="30" height="105" rx="14" fill="url(#gm)" transform="rotate(-144)"></rect>
+    <rect x="-15" y="-100" width="30" height="105" rx="14" fill="url(#go)" transform="rotate(144)"></rect>
+    <rect x="-15" y="-100" width="30" height="105" rx="14" fill="url(#gg)"></rect>
+    <circle r="10" fill="rgba(20,22,26,0.22)"></circle>
+  </g>
+</svg>

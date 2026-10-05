@@ -1,0 +1,115 @@
+/* Raport lokalizacji — design system USI: ui_kits/print/{BrochureCover,Brochure,InvestmentCards}.html */
+@font-face { font-family: "Signika"; src: url("fonts/Signika-Light.ttf");    font-weight: 300; }
+@font-face { font-family: "Signika"; src: url("fonts/Signika-Regular.ttf");  font-weight: 400; }
+@font-face { font-family: "Signika"; src: url("fonts/Signika-Semibold.ttf"); font-weight: 600; }
+@font-face { font-family: "Signika"; src: url("fonts/Signika-Bold.ttf");     font-weight: 700; }
+@font-face { font-family: "Source Serif 4"; src: url("fonts/SourceSerif4-Regular.ttf");  font-weight: 400; font-style: normal; }
+@font-face { font-family: "Source Serif 4"; src: url("fonts/SourceSerif4-It.ttf");       font-weight: 400; font-style: italic; }
+@font-face { font-family: "Source Serif 4"; src: url("fonts/SourceSerif4-Semibold.ttf"); font-weight: 600; font-style: normal; }
+
+:root {
+  --magenta: #E5145B; --blue: #2E86C8; --green: #5BB733;
+  --magenta-deep: #9A0B3D;
+  --ink: #1B1C1E; --ink-soft: #3A3B3F; --slate: #6E6F72; --mist: #D8D9DC; --fog: #ECEDEF;
+  --font-serif: "Source Serif 4", Georgia, serif;
+  --font-mono: Menlo, "SF Mono", "DejaVu Sans Mono", Consolas, monospace;
+}
+
+/* ---------- strony ---------- */
+@page cover { size: A4; margin: 0; }
+@page table {
+  size: A4; margin: 32mm 18mm 22mm;
+  @top-left { content: element(rh-table); vertical-align: top; padding-top: 12mm; }
+  @bottom-left  { content: element(foot); vertical-align: bottom; padding-bottom: 10mm; }
+  @bottom-right { content: counter(page, decimal-leading-zero); font: 400 10pt var(--font-serif); color: var(--ink); vertical-align: bottom; padding-bottom: 10mm; }
+}
+@page cards {
+  size: A4; margin: 26mm 18mm 22mm;
+  @top-center { content: element(rh-cards); vertical-align: top; padding-top: 12mm; }
+  @bottom-left  { content: element(foot); vertical-align: bottom; padding-bottom: 10mm; }
+  @bottom-right { content: counter(page, decimal-leading-zero); font: 400 10pt var(--font-serif); color: var(--ink); vertical-align: bottom; padding-bottom: 10mm; }
+}
+
+html { font-family: "Signika", sans-serif; color: var(--ink); font-size: 9.5pt; line-height: 1.45; }
+body { margin: 0; }
+img { display: block; }
+
+/* ---------- okładka (BrochureCover) ---------- */
+.cover {
+  page: cover; width: 210mm; height: 296.5mm; box-sizing: border-box; padding: 18mm 18mm 16mm;
+  display: flex; flex-direction: column; color: #fff;
+  /* grad-dusk + szum; szum (assets/noise.png, 130 mm ≈ 300 dpi) leży NA gradiencie */
+  background: url(assets/noise.png) 0 0 / 130mm 130mm, linear-gradient(120deg, var(--blue) 0%, var(--magenta) 100%);
+}
+.cover .top { display: flex; align-items: center; }
+.cover .star { width: 12mm; height: 12mm; margin-right: 4mm; }
+.cover .wordmark { font-weight: 700; font-size: 22pt; letter-spacing: -0.025em; }
+.cover .rule { flex: 1; height: 0.75pt; margin: 1mm 4mm 0; background: rgba(255,255,255,0.3); }
+.cover .num { font: 400 9pt var(--font-mono); letter-spacing: 0.08em; opacity: 0.85; }
+.cover .titles { flex: 1; margin-top: 36mm; }
+.cover .eyebrow { font-weight: 600; font-size: 9pt; letter-spacing: 0.24em; text-transform: uppercase; opacity: 0.85; }
+.cover h1 { font-weight: 700; font-size: 56pt; line-height: 0.95; letter-spacing: -0.025em; margin: 4mm 0 0; }
+.cover h1 em { font-family: var(--font-serif); font-weight: 400; font-style: italic; color: rgba(255,255,255,0.85); letter-spacing: -0.01em; }
+.cover .lede { font: 400 13pt/1.45 var(--font-serif); max-width: 130mm; margin: 8mm 0 0; color: rgba(255,255,255,0.92); }
+.cover .footer { display: flex; justify-content: space-between; align-items: flex-end; padding-top: 4mm; border-top: 0.75pt solid rgba(255,255,255,0.3); font: 400 8pt var(--font-mono); letter-spacing: 0.06em; }
+.cover .meta span, .cover .footer > span { margin-right: 8mm; white-space: nowrap; }
+.cover .footer > span { margin-right: 0; }
+
+/* ---------- stopka (Brochure .runfoot): kolorowa gwiazdka + USI / warstadt.com ---------- */
+.runfoot { position: running(foot); display: flex; align-items: center; color: var(--ink); }
+.runfoot img { height: 10mm; width: auto; margin-right: 2.5mm; }
+.runfoot .ft { display: flex; flex-direction: column; line-height: 1.05; }
+.runfoot .ft b { font-weight: 700; font-size: 11pt; }
+.runfoot .ft span { font: 400 11.5pt var(--font-serif); }
+.runfoot .ft strong { font-weight: 700; }
+
+/* ---------- running head ---------- */
+.runhead { position: running(rh-table); }
+.runhead.rh-cards { position: running(rh-cards); text-align: center; font: 400 10pt var(--font-serif); }
+.rh-table { display: flex; width: 174mm; align-items: center; font: 400 8pt var(--font-mono); color: var(--slate); letter-spacing: 0.08em; text-transform: uppercase; }
+.rh-table img { width: 6mm; height: 6mm; margin-right: 4mm; }
+.rh-table .ch { font-weight: 600; color: var(--ink-soft); letter-spacing: 0.12em; }
+.rh-table .rule { flex: 1; height: 0.4pt; margin: 0 4mm; background: var(--slate); opacity: 0.4; }
+
+/* ---------- strona tabeli (Brochure p-chart) ---------- */
+.inner { page: table; }
+.lab { display: block; font: 600 8pt var(--font-mono); letter-spacing: 0.18em; text-transform: uppercase; color: var(--blue); margin-bottom: 1mm; }
+h3 { font-weight: 700; font-size: 24pt; line-height: 1.15; letter-spacing: -0.015em; margin: 0 0 3mm; }
+h3 em { font-family: var(--font-serif); font-weight: 400; font-style: italic; color: var(--ink-soft); }
+.lede-sm { font: 400 10.5pt/1.55 var(--font-serif); color: var(--ink-soft); max-width: 140mm; margin: 0 0 6mm; }
+
+.data-table { width: 100%; border-collapse: collapse; font: 400 9.5pt var(--font-serif); }
+.data-table thead { display: table-header-group; }
+.data-table th { text-align: left; font: 600 7.5pt var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--slate); padding: 2mm 3mm; border-bottom: 0.5pt solid var(--ink); }
+.data-table td { padding: 2.5mm 3mm; border-bottom: 0.4pt solid var(--mist); vertical-align: top; color: var(--ink); }
+.data-table tr { break-inside: avoid; }
+.data-table th:nth-child(n+2) { text-align: right; }
+.data-table td:nth-child(n+2) { text-align: right; white-space: nowrap; font-family: var(--font-mono); font-size: 9pt; }
+.data-table td.name { font: 600 10pt "Signika", sans-serif; }
+.data-table td.name small { display: block; font: 400 7.5pt "Signika", sans-serif; color: var(--slate); }
+
+.empty { padding: 10mm 0; color: var(--slate); text-align: center; }
+.note { margin-top: 8mm; padding-top: 3.5mm; border-top: 0.5pt solid var(--mist); font-size: 7.5pt; color: var(--slate); break-inside: avoid; }
+.note img { display: inline; width: 2.6mm; height: 2.6mm; vertical-align: -0.3mm; margin-right: 1.2mm; }
+
+/* ---------- karty (InvestmentCards) ---------- */
+.cards { page: cards; break-before: page; }
+.card { display: flex; padding-bottom: 8mm; break-inside: avoid; }
+.card + .card { border-top: 0.4pt solid var(--mist); padding-top: 8mm; }
+.photo { flex: none; box-sizing: border-box; width: 52.5mm; height: 52.5mm; margin-right: 7mm; object-fit: cover; background: var(--fog); border: 0.4pt solid var(--mist); position: relative; }
+div.photo span { position: absolute; left: 4mm; bottom: 3mm; font: 400 7pt var(--font-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--slate); }
+.body { flex: 1; min-width: 0; align-self: flex-start; }
+.hd { display: flex; justify-content: space-between; align-items: flex-start; }
+.nm { flex: 1; min-width: 0; margin: 0; font-weight: 700; font-size: 17pt; line-height: 1.1; letter-spacing: -0.01em; text-align: left; }
+.dev { font-size: 9.5pt; color: var(--slate); margin: 1.5mm 0 6mm; }
+.ov { display: flex; align-items: center; flex: none; margin-left: 4mm; white-space: nowrap; }
+.ov img { width: 5.25mm; height: 5.25mm; margin-left: 0.3mm; }
+.ov s { text-decoration: none; font-weight: 700; font-size: 13pt; line-height: 1; margin: 0 0.3mm 0 0.6mm; }
+.grid { display: flex; flex-wrap: wrap; }
+.r { box-sizing: border-box; width: 50%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2mm; font-size: 9.5pt; }
+.r:nth-child(odd) { padding-right: 3.5mm; }
+.r:nth-child(even) { padding-left: 3.5mm; }
+.r.na span { color: #B5B6BA; }
+.r b { display: flex; font-weight: 400; }
+.r b img { width: 3.6mm; height: 3.6mm; margin-left: 0.4mm; }
+.txt { margin: 4mm 0 0; font: 400 9pt/1.45 var(--font-serif); color: var(--ink-soft); text-align: left; }
